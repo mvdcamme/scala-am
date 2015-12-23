@@ -23,4 +23,12 @@ case class KontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kont[Kon
     that.forall({ case (a, ks) =>
       ks.forall((k1) => lookup(a).exists(k2 => k2.subsumes(k1)))
     })
+  def map(convertFrame : Frame => Frame) : KontStore[KontAddr] = {
+    def convertKontSets(set : Set[Kont[KontAddr]]) : Set[Kont[KontAddr]] = {
+      return set.map({
+        case Kont(frame, next) => Kont(convertFrame(frame), next)
+        case k => k})
+    }
+    return KontStore[KontAddr](content.mapValues(convertKontSets))
+  }
 }

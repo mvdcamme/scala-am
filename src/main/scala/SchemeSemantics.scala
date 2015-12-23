@@ -27,6 +27,25 @@ class BaseSchemeSemantics[Abs : AbstractValue, Addr : Address, Time : Timestamp]
     override def toString() = "FHalt"
   }
 
+  def convertFrame(convertAddress : Addr => Addr, convertValue : Abs => Abs)(frame : Frame) : Frame = frame match {
+    case FrameFuncallOperator(fexp, args, ρ) => FrameFuncallOperator(fexp, args, ρ.map(convertAddress))
+    case FrameFuncallOperands(f, fexp, cur, args, toeval, ρ) => FrameFuncallOperands(convertValue(f), fexp, cur, args.map({tuple => (tuple._1, convertValue(tuple._2))}), toeval, ρ.map(convertAddress))
+    case FrameIf(cons, alt, ρ) => FrameIf(cons, alt, ρ.map(convertAddress))
+    case FrameLet(variable, bindings, toeval, body, ρ) => FrameLet(variable, bindings.map({tuple => (tuple._1, convertValue(tuple._2))}), toeval, body, ρ.map(convertAddress))
+    case FrameLetStar(variable, bindings, body, ρ) => FrameLetStar(variable, bindings, body, ρ.map(convertAddress))
+    case FrameLetrec(addr, bindings, body, ρ) => FrameLetrec(convertAddress(addr), bindings, body, ρ.map(convertAddress))
+    case FrameSet(variable, ρ) => FrameSet(variable, ρ.map(convertAddress))
+    case FrameBegin(rest, ρ) => FrameBegin(rest, ρ.map(convertAddress))
+    case FrameCond(cond, clauses, ρ) => FrameCond(cond, clauses, ρ.map(convertAddress))
+    case FrameCase(clauses, default, ρ) => FrameCase(clauses, default, ρ.map(convertAddress))
+    case FrameAnd(rest, ρ) => FrameAnd(rest, ρ.map(convertAddress))
+    case FrameOr(rest, ρ) => FrameOr(rest, ρ.map(convertAddress))
+    case FrameDefine(variable, ρ) => FrameDefine(variable, ρ.map(convertAddress))
+    case FrameCasOld(variable, enew, ρ) => FrameCasOld(variable, enew, ρ.map(convertAddress))
+    case FrameCasNew(variable, old, ρ) => FrameCasNew(variable, convertValue(old), ρ.map(convertAddress))
+    case v => v
+  }
+
   protected def evalBody(body: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs]): Action[SchemeExp, Abs, Addr] = body match {
     case Nil => ActionReachedValue(abs.inject(false), σ)
     case List(exp) => ActionEval(exp, ρ, σ)
@@ -266,11 +285,13 @@ class SchemeSemantics[Abs : AbstractValue, Addr : Address, Time : Timestamp]
     case ActionError(err) => action
   }
 
-  override protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[Action[SchemeExp, Abs, Addr]] = toeval match {
-    case Nil => evalCall(f, fexp, args.reverse, ρ, σ, t)
-    case e :: rest => atomicEval(e, ρ, σ) match {
-      case Some((v, as)) => funcallArgs(f, fexp, (e, v) :: args, rest, ρ, σ, t).map(addRead(_, as))
-      case None => Set(ActionPush(e, FrameFuncallOperands(f, fexp, e, args, rest, ρ), ρ, σ))
+  override protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[Action[SchemeExp, Abs, Addr]] = {
+      toeval match {
+        case Nil => evalCall(f, fexp, args.reverse, ρ, σ, t)
+        case e :: rest => atomicEval(e, ρ, σ) match {
+          case Some((v, as)) => funcallArgs(f, fexp, (e, v) :: args, rest, ρ, σ, t).map(addRead(_, as))
+          case None => Set(ActionPush(e, FrameFuncallOperands(f, fexp, e, args, rest, ρ), ρ, σ))
+        }
     }
   }
 

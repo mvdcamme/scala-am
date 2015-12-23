@@ -37,6 +37,11 @@ trait Semantics[Exp, Abs, Addr, Time] {
    * Defines how to parse a program
    */
   def parse(program: String): Exp
+
+  /*
+    * TODO Convert one Frame to another (needed for the HybridMachine)
+    */
+  //def convertFrame(frame : Frame): Frame
 }
 
 /**

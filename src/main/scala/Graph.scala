@@ -18,7 +18,7 @@ case class Graph[Node, Annotation](ids: Map[Node, Int], next: Int, nodes: Set[No
   def foldNodes[B](init: B)(f: (B, Node) => B) = nodes.foldLeft(init)(f)
   def getNode(id: Int): Option[Node] = ids.find({ case (_, v) => id == v }).map(_._1)
   def toDot(label: Node => String, color: Node => String, annotLabel: Annotation => String): String = {
-      val sb = new StringBuilder("digraph G {\n")
+      val sb = new StringBuilder("digraph G {\nsize=\"8,10.5\"\n")
       nodes.foreach((n) =>
         sb.append("node_" + ids(n) + "[label=\"" /* + ids(n).toString + " " */ + label(n).replaceAll("\"", "\\\\\"") + "\", fillcolor=\"" + color(n) + "\" style=\"filled\"];\n")
       )

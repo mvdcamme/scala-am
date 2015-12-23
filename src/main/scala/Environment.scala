@@ -11,6 +11,10 @@ case class Environment[Addr : Address](content: Map[String, Addr]) {
       case Some(a) => addr.subsumes(a, binding._2)
       case None => false
     })
+  def map(f : Addr => Addr) : Environment[Addr] = {
+    val newMap : Map[String, Addr] = content.mapValues(f)
+    new Environment[Addr](newMap)
+  }
 }
 
 object Environment {

@@ -71,7 +71,7 @@ import Timestamps._
 object Config {
   object Machine extends Enumeration {
     type Machine = Value
-    val AAC, AAM, Free, ConcurrentAAM = Value
+    val AAC, AAM, Free, ConcurrentAAM, Hybrid = Value
   }
   implicit val machineRead: scopt.Read[Machine.Value] = scopt.Read.reads(Machine withName _)
 
@@ -85,7 +85,7 @@ object Config {
 
   val parser = new scopt.OptionParser[Config]("scala-am") {
     head("scala-ac", "0.0")
-    opt[Machine.Value]('m', "machine") action { (x, c) => c.copy(machine = x) } text("Abstract machine to use (AAM, AAC, Free, ConcurrentAAM)")
+    opt[Machine.Value]('m', "machine") action { (x, c) => c.copy(machine = x) } text("Abstract machine to use (AAM, AAC, Free, ConcurrentAAM, Hybrid)")
     opt[Lattice.Value]('l', "lattice") action { (x, c) => c.copy(lattice = x) } text("Lattice to use (Concrete, Type, TypeSet)")
     opt[Unit]('c', "concrete") action { (_, c) => c.copy(concrete = true) } text("Run in concrete mode")
     opt[String]('d', "dotfile") action { (x, c) => c.copy(dotfile = Some(x)) } text("Dot file to output graph to")
@@ -127,6 +127,9 @@ object Main {
       case Some(config) => {
         /* ugly as fuck, but I don't find a simpler way to pass type parameters that are computed at runtime */
         val f = (config.anf, config.machine, config.lattice, config.concrete) match {
+          //case (true, Config.Machine.Hybrid, Config.Lattice.Concrete, true) => run(new HybridMachine[ANFExp, ZeroCFA], new ANFSemantics[HybridLattice.Hybrid, HybridAddress, ZeroCFA]) _
+          case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) => run(new HybridMachine[ZeroCFA], new SchemeSemantics[HybridLattice.Hybrid, HybridAddress, ZeroCFA]) _
+
           case (true, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[ANFExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
           case (false, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
           case (true, Config.Machine.AAM, Config.Lattice.Concrete, false) => run(new AAM[ANFExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _

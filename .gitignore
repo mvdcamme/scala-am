@@ -4,3 +4,7 @@
 .ensime_cache
 *.dot
 target
+.classpath
+.project
+*.ps
+.idea

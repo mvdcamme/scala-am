@@ -35,6 +35,8 @@ import BinaryOperator._
  */
 object UnsupportedLatticeElement extends Exception
 
+trait AbstractValueObject
+
 /** Abstract values are abstract representations of the possible values of a variable */
 trait AbstractValue[A] extends Semigroup[A] {
   /** Name of this lattice */
