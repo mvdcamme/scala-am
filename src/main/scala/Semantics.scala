@@ -22,6 +22,18 @@ trait Semantics[Exp, Abs, Addr, Time] {
   implicit def addr : Address[Addr]
   implicit def exp : Expression[Exp]
   implicit def time : Timestamp[Time]
+
+  /**
+    * Defines how to convert continuation frames: all addresses and values included either directly or
+    * indirectly, i.e., through the environment, should be converted via the given conversion functions
+    * for addresses and values
+    * @param convertAddress The conversion function for addresses
+    * @param convertValue The conversion function for values
+    * @param frame The frame whose values and addresses should be converted
+    * @return The converted frame
+    */
+  def convertFrame(convertAddress : Addr => Addr, convertValue : Abs => Abs)(frame : Frame) : Frame
+
   /**
    * Defines what actions should be taken when an expression e needs to be
    * evaluated, in environment e with store σ

@@ -127,8 +127,8 @@ object Main {
       case Some(config) => {
         /* ugly as fuck, but I don't find a simpler way to pass type parameters that are computed at runtime */
         val f = (config.anf, config.machine, config.lattice, config.concrete) match {
-          //case (true, Config.Machine.Hybrid, Config.Lattice.Concrete, true) => run(new HybridMachine[ANFExp, ZeroCFA], new ANFSemantics[HybridLattice.Hybrid, HybridAddress, ZeroCFA]) _
-          case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) => run(new HybridMachine[ZeroCFA], new SchemeSemantics[HybridLattice.Hybrid, HybridAddress, ZeroCFA]) _
+          case (true, Config.Machine.Hybrid, Config.Lattice.Concrete, true) => run(new HybridMachine[ANFExp, ZeroCFA], new ANFSemantics[HybridLattice.Hybrid, HybridAddress, ZeroCFA]) _
+          case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) => run(new HybridMachine[SchemeExp, ZeroCFA], new SchemeSemantics[HybridLattice.Hybrid, HybridAddress, ZeroCFA]) _
 
           case (true, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[ANFExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
           case (false, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _

@@ -17,8 +17,8 @@
  * contains the value reached.
  */
 
-class HybridMachine[Time : Timestamp]
-    extends EvalKontMachine[SchemeExp, HybridLattice.Hybrid, HybridAddress, Time] {
+class HybridMachine[Exp : Expression, Time : Timestamp]
+    extends EvalKontMachine[Exp, HybridLattice.Hybrid, HybridAddress, Time] {
   
   type HybridValue = HybridLattice.Hybrid
   
@@ -35,7 +35,7 @@ class HybridMachine[Time : Timestamp]
    * are element of the KontAddress typeclass.
    */
   trait KontAddr
-  case class NormalKontAddress(exp: SchemeExp, addr: HybridAddress) extends KontAddr {
+  case class NormalKontAddress(exp: Exp, addr: HybridAddress) extends KontAddr {
     override def toString = s"NormalKontAddress($exp)"
   }
   object HaltKontAddress extends KontAddr {
@@ -55,7 +55,7 @@ class HybridMachine[Time : Timestamp]
     /**
      * Builds the state with the initial environment and stores
      */
-    def this(exp: SchemeExp) = this(ControlEval(exp, Environment.empty[HybridAddress]().extend(primitives.forEnv)),
+    def this(exp: Exp) = this(ControlEval(exp, Environment.empty[HybridAddress]().extend(primitives.forEnv)),
       Store.initial(primitives.forStore),
       new KontStore[KontAddr](), HaltKontAddress, time.initial)
     override def toString() = control.toString(σ)
@@ -72,7 +72,7 @@ class HybridMachine[Time : Timestamp]
      * Semantics.scala), in order to generate a set of states that succeeds this
      * one.
      */
-    private def integrate(a: KontAddr, actions: Set[Action[SchemeExp, HybridValue, HybridAddress]]): Set[State] =
+    private def integrate(a: KontAddr, actions: Set[Action[Exp, HybridValue, HybridAddress]]): Set[State] =
       actions.flatMap({
         /* When a value is reached, we go to a continuation state */
         case ActionReachedValue(v, σ, _, _) => Set(State(ControlKont(v), σ, kstore, a, t))
@@ -92,7 +92,7 @@ class HybridMachine[Time : Timestamp]
     /**
      * Computes the set of states that follow the current state
      */
-    def step(sem : SchemeSemantics[HybridLattice.Hybrid, HybridAddress, Time]): Set[State] = control match {
+    def step(sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time]): Set[State] = control match {
       /* In a eval state, call the semantic's evaluation method */
       case ControlEval(e, ρ) => integrate(a, sem.stepEval(e, ρ, σ, t))
       /* In a continuation state, if the value reached is not an error, call the
@@ -115,10 +115,10 @@ class HybridMachine[Time : Timestamp]
     }
   }
   
-  def convertState(sem : SchemeSemantics[HybridLattice.Hybrid, HybridAddress, Time])(s : State) : State = {
+  def convertState(sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time])(s : State) : State = {
     val converter : AbstractConcreteToAbstractType = new AbstractConcreteToAbstractType
     def convertValue(σ : Store[HybridAddress, HybridLattice.Hybrid])(value : HybridValue) : HybridValue = value match {
-      case HybridLattice.Left(v) => HybridLattice.Right(converter.convert[SchemeExp](v, σ))
+      case HybridLattice.Left(v) => HybridLattice.Right(converter.convert[Exp](v, σ))
       case HybridLattice.Right(v) => HybridLattice.Right(v)
       case HybridLattice.Prim(p) => HybridLattice.Prim(p)
     }
@@ -146,7 +146,7 @@ class HybridMachine[Time : Timestamp]
     }
   }
   
-  def convertSetOfStates(set : Set[State], sem : SchemeSemantics[HybridLattice.Hybrid, HybridAddress, Time]) : Set[State] = {
+  def convertSetOfStates(set : Set[State], sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time]) : Set[State] = {
     return set.map{convertState(sem) }
   }
 
@@ -203,7 +203,7 @@ class HybridMachine[Time : Timestamp]
   @scala.annotation.tailrec
   private def loop(todo: Set[State], visited: Set[State],
     halted: Set[State], startingTime: Long, graph: Option[Graph[State, Unit]],
-    sem : SchemeSemantics[HybridLattice.Hybrid, HybridAddress, Time]): AAMOutput =
+    sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time]): AAMOutput =
     todo.headOption match {
       case Some(s) =>
         if (visited.contains(s) || visited.exists(s2 => s2.subsumes(s))) {
@@ -234,7 +234,7 @@ class HybridMachine[Time : Timestamp]
 
   private def switchToAbstract(todo: Set[State], visited: Set[State], halted: Set[State],
                                startingTime: Long, graph: Option[Graph[State, Unit]],
-                               sem : SchemeSemantics[HybridLattice.Hybrid, HybridAddress, Time]) : AAMOutput = {
+                               sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time]) : AAMOutput = {
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
     val newTodo = convertSetOfStates(todo, sem)
@@ -246,7 +246,7 @@ class HybridMachine[Time : Timestamp]
   @scala.annotation.tailrec
   private def loopAbstract(todo: Set[State], visited: Set[State],
                    halted: Set[State], startingTime: Long, graph: Option[Graph[State, Unit]],
-                   sem : SchemeSemantics[HybridLattice.Hybrid, HybridAddress, Time]): AAMOutput =
+                   sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time]): AAMOutput =
     todo.headOption match {
       case Some(s) =>
         if (visited.contains(s) || visited.exists(s2 => s2.subsumes(s))) {
@@ -274,8 +274,7 @@ class HybridMachine[Time : Timestamp]
    * Performs the evaluation of an expression, possibly writing the output graph
    * in a file, and returns the set of final states reached
    */
-  def eval(exp: SchemeExp, ignored: Semantics[SchemeExp, HybridValue, HybridAddress, Time], graph: Boolean): Output[HybridValue] = {
-    var sem = new SchemeSemantics[HybridLattice.Hybrid, HybridAddress, Time]
+  def eval(exp: Exp, sem: Semantics[Exp, HybridValue, HybridAddress, Time], graph: Boolean): Output[HybridValue] = {
     loop(Set(new State(exp)), Set(), Set(), System.nanoTime,
       if (graph) { Some(new Graph[State, Unit]()) } else { None }, sem)
   }

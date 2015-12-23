@@ -14,6 +14,11 @@ class ANFSemantics[Abs : AbstractValue, Addr : Address, Time : Timestamp]
     override def toString() = s"FrameLetrec(${v.toString})"
   }
 
+  def convertFrame(convertAddress : Addr => Addr, convertValue : Abs => Abs)(frame : Frame) : Frame = frame match {
+    case FrameLet(v, body, env) => FrameLet(v, body, env.map(convertAddress))
+    case FrameLetrec(v, a, body, env) => FrameLetrec(v, convertAddress(a), body, env.map(convertAddress))
+  }
+
   /** Performs evaluation of an atomic expression, returning either an error or the produced value */
   def atomicEval(e: ANFAtomicExp, ρ: Environment[Addr], σ: Store[Addr, Abs]): Either[String, Abs] = e match {
     case λ: ANFLambda => Right(abs.inject[ANFExp, Addr]((λ, ρ)))
