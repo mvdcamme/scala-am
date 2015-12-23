@@ -45,6 +45,47 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   object KontAddr {
     implicit object KontAddrKontAddress extends KontAddress[KontAddr]
   }
+
+  object Converter {
+
+    val valueConverter : AbstractConcreteToAbstractType = new AbstractConcreteToAbstractType
+
+    def convertValue(σ : Store[HybridAddress, HybridLattice.Hybrid])(value : HybridValue) : HybridValue = value match {
+      case HybridLattice.Left(v) => HybridLattice.Right(valueConverter.convert[Exp](v, σ))
+      case HybridLattice.Right(v) => HybridLattice.Right(v)
+      case HybridLattice.Prim(p) => HybridLattice.Prim(p)
+    }
+
+    def convertEnvironment(env : Environment[HybridAddress]) : Environment[HybridAddress] =
+      new Environment[HybridAddress](env.content.map { tuple => (tuple._1, HybridAddress.convertAddress(tuple._2))})
+
+    def convertControl(control : Control, σ : Store[HybridAddress, HybridLattice.Hybrid]) : Control = control match {
+      case ControlEval(exp, env) => ControlEval(exp, convertEnvironment(env))
+      case ControlKont(v) => ControlKont(convertValue(σ)(v))
+      case ControlError(string) => ControlError(string)
+    }
+
+    def convertState(sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time])(s : State) : State = s match {
+      case State(control, σ, kstore, a, t) => {
+        val newControl = convertControl(control, σ)
+        var newStore = Store.empty[HybridAddress, HybridLattice.Hybrid]
+        var newKStore = kstore.map(sem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
+        def addToNewStore(tuple: (HybridAddress, HybridValue)): Boolean = {
+          val newAddress = HybridAddress.convertAddress(tuple._1)
+          val newValue = convertValue(σ)(tuple._2)
+          newStore = newStore.extend(newAddress, newValue)
+          return true
+        }
+        σ.forall(addToNewStore)
+        State(newControl, newStore, newKStore, a, t)
+      }
+    }
+
+    def convertSetOfStates(set : Set[State],
+                           sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time]) : Set[State] = {
+      return set.map{convertState(sem) }
+    }
+  }
   /**
    * A machine state is made of a control component, a value store, a
    * continuation store, and an address representing where the current
@@ -113,41 +154,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       case ControlKont(v) => a == HaltKontAddress || abs.isError(v)
       case ControlError(_) => true
     }
-  }
-  
-  def convertState(sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time])(s : State) : State = {
-    val converter : AbstractConcreteToAbstractType = new AbstractConcreteToAbstractType
-    def convertValue(σ : Store[HybridAddress, HybridLattice.Hybrid])(value : HybridValue) : HybridValue = value match {
-      case HybridLattice.Left(v) => HybridLattice.Right(converter.convert[Exp](v, σ))
-      case HybridLattice.Right(v) => HybridLattice.Right(v)
-      case HybridLattice.Prim(p) => HybridLattice.Prim(p)
-    }
-    def convertEnvironment(env : Environment[HybridAddress]) : Environment[HybridAddress] =
-      new Environment[HybridAddress](env.content.map { tuple => (tuple._1, HybridAddress.convertAddress(tuple._2))})
-    def convertControl(control : Control, σ : Store[HybridAddress, HybridLattice.Hybrid]) : Control = control match {
-      case ControlEval(exp, env) => ControlEval(exp, convertEnvironment(env))
-      case ControlKont(v) => ControlKont(convertValue(σ)(v))
-      case ControlError(string) => ControlError(string)
-    }
-    s match {
-      case State(control, σ, kstore, a, t) => {
-        val newControl = convertControl(control, σ)
-        var newStore = Store.empty[HybridAddress, HybridLattice.Hybrid]
-        var newKStore = kstore.map(sem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
-        def addToNewStore(tuple: (HybridAddress, HybridValue)): Boolean = {
-          val newAddress = HybridAddress.convertAddress(tuple._1)
-          val newValue = convertValue(σ)(tuple._2)
-          newStore = newStore.extend(newAddress, newValue)
-          return true
-        }
-        σ.forall(addToNewStore)
-        State(newControl, newStore, newKStore, a, t)
-      }
-    }
-  }
-  
-  def convertSetOfStates(set : Set[State], sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time]) : Set[State] = {
-    return set.map{convertState(sem) }
   }
 
   case class AAMOutput(halted: Set[State], count: Int, t: Double, graph: Option[Graph[State, Unit]])
@@ -237,9 +243,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
                                sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time]) : AAMOutput = {
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
-    val newTodo = convertSetOfStates(todo, sem)
-    val newVisited = convertSetOfStates(visited, sem)
-    val newHalted = convertSetOfStates(halted, sem)
+    val newTodo = Converter.convertSetOfStates(todo, sem)
+    val newVisited = Converter.convertSetOfStates(visited, sem)
+    val newHalted = Converter.convertSetOfStates(halted, sem)
     loopAbstract(newTodo, newVisited, newHalted, startingTime, graph, sem)
   }
 
