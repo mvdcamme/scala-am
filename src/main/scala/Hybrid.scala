@@ -14,12 +14,9 @@ object HybridLattice {
   val concreteValue = implicitly[AbstractValue[AbstractConcrete]]
   val abstractType = implicitly[AbstractValue[AbstractType]]
 
-//  case class Prim[Addr : Address, Abs : AbstractValue](prim: Primitive[Addr, Abs]) extends Hybrid {
-//    override def toString = s"#<prim ${prim.name}>"
-//  }
   case class Left(c: AbstractConcrete) extends Hybrid
-  case class Prim[Addr, Abs](prim : Primitive[Addr, Abs]) extends Hybrid
   case class Right(a: AbstractType) extends Hybrid
+  case class Prim[Addr, Abs](prim : Primitive[Addr, Abs]) extends Hybrid
 
   implicit object HybridAbstractValue extends AbstractValue[Hybrid] {
     def name = s"(${concreteValue.name} | ${abstractType.name})"

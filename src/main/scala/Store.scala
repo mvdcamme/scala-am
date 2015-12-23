@@ -8,22 +8,6 @@ class Store[Addr : Address, Abs : AbstractValue](content: Map[Addr, (Int, Abs)],
 
   def getContent : Map[Addr, (Int, Abs)] = content
 
-//  def convertAddress(address : Addr) : ClassicalAddress = {
-//    return ClassicalAddress.PrimitiveAddress("ERROR: CONVERSION NOT IMPLEMENTED")
-//  }
-
-//  def convertStore[NewAbs : AbstractValue](converter : AbstractValueConversion[Abs, Addr, NewAbs, ClassicalAddress]) : Store[ClassicalAddress, NewAbs] = {
-//    var newStore = new Store[ClassicalAddress, NewAbs](Map[ClassicalAddress, (Int, NewAbs)](), counting)
-//    def addToNewStore(tuple: (Addr, Abs)): Boolean = {
-//      val newAddress = convertAddress(tuple._1)
-//      val newValue = converter.convert(tuple._2, this)
-//      newStore = newStore.extend(newAddress, newValue)
-//      return true
-//    }
-//    forall(addToNewStore)
-//    return newStore
-//  }
-
   def convertStore[Abs : AbstractValue] : Store[ClassicalAddress, Abs] = {
     return new Store[ClassicalAddress, Abs](Map[ClassicalAddress, (Int, Abs)](), counting)
   }
@@ -69,14 +53,6 @@ class Store[Addr : Address, Abs : AbstractValue](content: Map[Addr, (Int, Abs)],
   }
 }
 
-//class HybridStore(content: Map[HybridAddress, (Int, AbstractConcrete)], counting: Boolean) extends Store[HybridAddress, AbstractConcrete](content, counting) {
-//
-//  override def convertAddress(address : HybridAddress) : HybridAddress = address match {
-//    case HybridAddress.PrimitiveAddress(name) => HybridAddress.PrimitiveAddress(name)
-//    case HybridAddress.Left(address1, address2) => HybridAddress.Right(address2)
-//  }
-//}
-
 object Store {
   /* TODO: have abstract counting as a parameter of the analysis. Also, when it is
    * turned on, it prevents AAC and Free from converging. For now, it's only
@@ -86,10 +62,3 @@ object Store {
   def initial[Addr : Address, Abs : AbstractValue](values: List[(Addr, Abs)]): Store[Addr, Abs] =
     new Store(values.map({ case (a, v) => (a, (0, v)) }).toMap, implicitly[AbstractValue[Abs]].name == "Concrete")
 }
-
-//object HybridStore {
-//  def empty =
-//    new HybridStore(Map[HybridAddress, (Int, AbstractConcrete)](), implicitly[AbstractValue[AbstractConcrete]].name == "Hybrid")
-//  def initial(values: List[(HybridAddress, AbstractConcrete)]): Store[HybridAddress, AbstractConcrete] =
-//    new HybridStore(values.map({ case (a, v) => (a, (0, v)) }).toMap, implicitly[AbstractValue[AbstractConcrete]].name == "Hybrid")
-//}

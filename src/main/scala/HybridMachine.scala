@@ -26,8 +26,6 @@ class HybridMachine[Time : Timestamp]
 
   val THRESHOLD = 10
 
-  //var sem : SchemeSemantics[HybridLattice.Hybrid, HybridAddress, Time]
-
   /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
   val primitives = new Primitives[HybridAddress, HybridValue]()
 
