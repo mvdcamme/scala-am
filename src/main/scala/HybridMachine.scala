@@ -65,19 +65,25 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       case ControlError(string) => ControlError(string)
     }
 
+    def convertKontAddress(address : KontAddr) : KontAddr = address match {
+      case NormalKontAddress(exp, addr) => NormalKontAddress(exp, HybridAddress.convertAddress(addr))
+      case HaltKontAddress => HaltKontAddress
+    }
+
     def convertState(sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time])(s : State) : State = s match {
       case State(control, σ, kstore, a, t) => {
         val newControl = convertControl(control, σ)
-        var newStore = Store.empty[HybridAddress, HybridLattice.Hybrid]
-        var newKStore = kstore.map(sem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
+        var newσ = Store.empty[HybridAddress, HybridLattice.Hybrid]
+        val newKStore = kstore.map(sem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
+        val newA = convertKontAddress(a)
         def addToNewStore(tuple: (HybridAddress, HybridValue)): Boolean = {
           val newAddress = HybridAddress.convertAddress(tuple._1)
           val newValue = convertValue(σ)(tuple._2)
-          newStore = newStore.extend(newAddress, newValue)
+          newσ = newσ.extend(newAddress, newValue)
           return true
         }
         σ.forall(addToNewStore)
-        State(newControl, newStore, newKStore, a, t)
+        State(newControl, newσ, newKStore, a, t)
       }
     }
 
