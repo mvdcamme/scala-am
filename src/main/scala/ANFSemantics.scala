@@ -70,7 +70,7 @@ class ANFSemantics[Abs : AbstractValue, Addr : Address, Time : Timestamp]
               })
               val fromPrim: Set[Action[ANFExp, Abs, Addr]] = abs.getPrimitive(fv) match {
                 /* To call a primitive, apply the call method with the given arguments and the store */
-                case Some(prim) => prim.call(f, argsv, σ, t) match {
+                case Some(prim) => prim.call(f, argsv.reverse, σ, t) match {
                   case Right((res, σ2)) => Set(ActionReachedValue(res, σ2))
                   case Left(err) => Set(ActionError(err))
                 }

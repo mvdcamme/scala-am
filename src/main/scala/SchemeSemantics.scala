@@ -8,6 +8,8 @@ class BaseSchemeSemantics[Abs : AbstractValue, Addr : Address, Time : Timestamp]
     def subsumes(that: Frame) = that.equals(this)
     override def toString = s"${this.getClass.getSimpleName}"
   }
+  case class FrameWhileBody(condition : SchemeExp, body : List[SchemeExp], exps : List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrame
+  case class FrameWhileCondition(condition : SchemeExp, body : List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrame
   case class FrameFuncallOperator(fexp: SchemeExp, args: List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrame
   case class FrameFuncallOperands(f: Abs, fexp: SchemeExp, cur: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrame
   case class FrameIf(cons: SchemeExp, alt: SchemeExp, ρ: Environment[Addr]) extends SchemeFrame
@@ -122,6 +124,7 @@ class BaseSchemeSemantics[Abs : AbstractValue, Addr : Address, Time : Timestamp]
 
   def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time) = e match {
     case λ: SchemeLambda => Set(ActionReachedValue(abs.inject[SchemeExp, Addr]((λ, ρ)), σ))
+    case SchemeWhile(condition, body) => Set(ActionPush(condition, FrameWhileCondition(condition, body, ρ), ρ, σ))
     case SchemeFuncall(f, args) => Set(ActionPush(f, FrameFuncallOperator(f, args, ρ), ρ, σ))
     case SchemeIf(cond, cons, alt) => Set(ActionPush(cond, FrameIf(cons, alt, ρ), ρ, σ))
     case SchemeLet(Nil, body) => Set(evalBody(body, ρ, σ))
@@ -178,8 +181,18 @@ class BaseSchemeSemantics[Abs : AbstractValue, Addr : Address, Time : Timestamp]
     }
   }
 
+  protected def evalWhileBody(condition: SchemeExp, body: List[SchemeExp], exps: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs]): Action[SchemeExp, Abs, Addr] = exps match {
+    case Nil => ActionPush(condition, FrameWhileCondition(condition, body, ρ), ρ, σ)
+    case List(exp) => ActionPush(exp, FrameWhileBody(condition, body, Nil, ρ), ρ, σ)
+    case exp :: rest => ActionPush(exp, FrameWhileBody(condition, body, rest, ρ), ρ, σ)
+  }
+
   def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time) = frame match {
     case FrameHalt => Set()
+    case FrameWhileBody(condition, body, exps, ρ) => Set{evalWhileBody(condition, body, exps, ρ, σ)}
+    case FrameWhileCondition(condition, body, ρ) => {
+      if (abs.isTrue(v)) Set(evalWhileBody(condition, body, body, ρ, σ)) else Set() ++ if (abs.isFalse(v)) Set(ActionReachedValue(abs.inject(false), σ)) else Set()
+    }
     case FrameFuncallOperator(fexp, args, ρ) => funcallArgs(v, fexp, args, ρ, σ, t)
     case FrameFuncallOperands(f, fexp, exp, args, toeval, ρ) => funcallArgs(f, fexp, (exp, v) :: args, toeval, ρ, σ, t)
     case FrameIf(cons, alt, ρ) =>

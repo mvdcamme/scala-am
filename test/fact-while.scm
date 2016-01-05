@@ -1,0 +1,6 @@
+(let ((acc 1)
+      (n 6))
+  (while (> n 1)
+         (set! acc (* n acc))
+         (set! n (- n 1)))
+  acc)

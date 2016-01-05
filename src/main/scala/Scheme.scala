@@ -187,6 +187,14 @@ case class SchemeValue(value: Value) extends SchemeExp {
 }
 
 /**
+  * A while-expression with a condition-expression and the body: a list of expressions.
+  */
+case class SchemeWhile(condition : SchemeExp, body : List[SchemeExp]) extends SchemeExp {
+  override def equals(that: Any) = that.isInstanceOf[SchemeWhile] && pos == that.asInstanceOf[SchemeWhile].pos && super.equals(that)
+  override def toString() = s"(while $condition $body)"
+}
+
+/**
  * Compare-and-swap, concurrency synchronization primitive.
  */
 case class SchemeCas(variable: String, eold: SchemeExp, enew: SchemeExp) extends SchemeExp {
@@ -233,10 +241,14 @@ object SchemeCompiler {
   /**
     * Reserved keywords
     */
-  val reserved: List[String] = List("lambda", "if", "let", "let*", "letrec", "cond", "case", "set!", "begin", "define", "cas", "acquire", "release")
+  val reserved: List[String] = List("lambda", "if", "let", "let*", "letrec", "cond", "case", "set!", "begin", "define", "while", "cas", "acquire", "release")
 
   def compile(exp: SExp): SchemeExp = {
     val exp2 = exp match {
+      case SExpPair(SExpIdentifier("while"), SExpPair(condition, SExpPair(first, rest))) =>
+        SchemeWhile(compile(condition), compile(first) :: compileBody(rest))
+      case SExpPair(SExpIdentifier("while"), _) =>
+        throw new Exception(s"Invalid Scheme while: $exp (${exp.pos})")
       case SExpPair(SExpIdentifier("quote"), rest) => compile(SExpQuoted(rest))
       case SExpPair(SExpIdentifier("lambda"),
         SExpPair(args, SExpPair(first, rest))) =>
@@ -606,6 +618,7 @@ object SchemeUndefiner {
     case SchemeDefineVariable(_, _) :: _ => List(undefine(exps, List()))
     case exp :: rest => {
       val exp2 = exp match {
+        case SchemeWhile(condition, body) => SchemeWhile(undefine1(condition), undefineBody(body))
         case SchemeLambda(args, body) => SchemeLambda(args, undefineBody(body))
         case SchemeFuncall(f, args) => SchemeFuncall(undefine1(f), args.map(undefine1))
         case SchemeIf(cond, cons, alt) => SchemeIf(undefine1(cond), undefine1(cons), undefine1(alt))
