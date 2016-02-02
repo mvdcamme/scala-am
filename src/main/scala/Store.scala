@@ -29,7 +29,7 @@ class Store[Addr : Address, Abs : AbstractValue](content: Map[Addr, (Int, Abs)],
     case Some((n, v2)) => new Store(content + (a -> (if (counting) { n+1 } else { n }, abs.join(v2, v))), counting)
   }
   /** Updates an element in the store. Might perform a strong update if this store supports strong updates */
-  def update(a: Addr, v: Abs): Store[Addr, Abs] =
+  def update(a: Addr, v: Abs): Store[Addr, Abs] = {
     if (counting) {
       content.get(a) match {
         case None => throw new RuntimeException("Updating store at an adress not used")
@@ -39,6 +39,7 @@ class Store[Addr : Address, Abs : AbstractValue](content: Map[Addr, (Int, Abs)],
     } else {
       extend(a, v)
     }
+  }
   /** Joins two stores */
   def join(that: Store[Addr, Abs]): Store[Addr, Abs] = new Store(this.getContent |+| that.getContent, counting)
   /** Checks whether this store subsumes another store */
@@ -59,6 +60,6 @@ object Store {
    * enabled with the AbstractConcrete lattice. */
   def empty[Addr : Address, Abs : AbstractValue] =
     new Store(Map[Addr, (Int, Abs)](), implicitly[AbstractValue[Abs]].name == "Concrete")
-  def initial[Addr : Address, Abs : AbstractValue](values: List[(Addr, Abs)]): Store[Addr, Abs] =
-    new Store(values.map({ case (a, v) => (a, (0, v)) }).toMap, implicitly[AbstractValue[Abs]].name == "Concrete")
+  def initial[Addr : Address, Abs : AbstractValue](values: List[(Addr, Abs)], counting : Boolean = false): Store[Addr, Abs] =
+    new Store(values.map({ case (a, v) => (a, (0, v)) }).toMap, counting || (implicitly[AbstractValue[Abs]].name == "Concrete"))
 }

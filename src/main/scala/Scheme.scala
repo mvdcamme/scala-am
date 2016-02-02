@@ -521,6 +521,12 @@ object SchemeRenamer {
       }
       case SchemeQuoted(quoted) =>
         (SchemeQuoted(quoted), count)
+      case SchemeWhile(condition, body) =>
+        (rename(condition, names, count) match {
+          case (condition1, count1) => renameList(body, names, count1) match {
+            case (body1, count2) => (SchemeWhile(condition1, body1), count2)
+          }
+        })
       case SchemeIdentifier(name) => names.get(name) match {
       case Some(n) => (SchemeIdentifier(n), count)
         case None => (SchemeIdentifier(name), count) /* keep original name */

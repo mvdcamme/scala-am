@@ -24,6 +24,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   
   def name = "HybridMachine"
 
+  val SWITCH_ABSTRACT = true
   val THRESHOLD = 5
 
   /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
@@ -74,7 +75,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       case State(control, σ, kstore, a, t) => {
         val newControl = convertControl(control, σ)
         var newσ = Store.empty[HybridAddress, HybridLattice.Hybrid]
-        val newKStore = kstore.map(sem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
+        val newKStore = kstore.map(convertKontAddress, sem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
         val newA = convertKontAddress(a)
         def addToNewStore(tuple: (HybridAddress, HybridValue)): Boolean = {
           val newAddress = HybridAddress.convertAddress(tuple._1)
@@ -83,7 +84,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
           return true
         }
         σ.forall(addToNewStore)
-        (s, State(newControl, newσ, newKStore, a, t))
+        (s, State(newControl, newσ, newKStore, newA, t))
       }
     }
 
@@ -103,7 +104,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
      * Builds the state with the initial environment and stores
      */
     def this(exp: Exp) = this(ControlEval(exp, Environment.empty[HybridAddress]().extend(primitives.forEnv)),
-      Store.initial(primitives.forStore),
+      Store.initial(primitives.forStore, true),
       new KontStore[KontAddr](), HaltKontAddress, time.initial)
     override def toString() = control.toString(σ)
     /**
@@ -232,7 +233,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
           /* Otherwise, compute the successors of this state, update the graph, and push
            * the new successors on the todo list */
           loopCounter += 1
-          if (loopCounter >= THRESHOLD) {
+          if (SWITCH_ABSTRACT && loopCounter >= THRESHOLD) {
             switchToAbstract(todo, visited, halted, startingTime, graph, sem)
           } else {
             val succs = s.step(sem)
@@ -247,6 +248,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   private def switchToAbstract(todo: Set[State], visited: Set[State], halted: Set[State],
                                startingTime: Long, graph: Option[Graph[State, String]],
                                sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time]) : AAMOutput = {
+    println("HybridMachine switching to abstract")
     def mapF(states : Set[(State, State)], annotation : String)(graph : Graph[State, String]) = {
       graph.addEdges(states.map(tuple => (tuple._1, annotation, tuple._2)))
     }
@@ -265,7 +267,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   @scala.annotation.tailrec
   private def loopAbstract(todo: Set[State], visited: Set[State],
                    halted: Set[State], startingTime: Long, graph: Option[Graph[State, String]],
-                   sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time]): AAMOutput =
+                   sem : Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time]): AAMOutput = {
     todo.headOption match {
       case Some(s) =>
         if (visited.contains(s) || visited.exists(s2 => s2.subsumes(s))) {
@@ -288,6 +290,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       case None => AAMOutput(halted, visited.size,
         (System.nanoTime - startingTime) / Math.pow(10, 9), graph)
     }
+  }
 
   /**
    * Performs the evaluation of an expression, possibly writing the output graph
