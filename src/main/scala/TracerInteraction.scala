@@ -20,7 +20,7 @@ class TracerInteraction[Exp : Expression, ProgramState, RestartPoint] {
    * Tracing signals
    */
   trait TracingSignal
-  case class TracingSignalFalse extends TracingSignal
+  case class TracingSignalFalse() extends TracingSignal
   case class TracingSignalStart(label : Label) extends TracingSignal
   case class TracingSignalEnd(label : Label) extends TracingSignal
 
@@ -36,7 +36,7 @@ class TracerInteraction[Exp : Expression, ProgramState, RestartPoint] {
   case class TraceStep(programState: ProgramState) extends InstructionReturn
   case class GuardFailed(restartPoint : RestartPoint) extends InstructionReturn
   case class EndTrace(restartPoint: RestartPoint) extends InstructionReturn
-  case class LoopTrace extends InstructionReturn
+  case class LoopTrace() extends InstructionReturn
 
   /*
    * Trace instruction

@@ -3,13 +3,14 @@
   */
 class TracerContext[Exp : Expression, ProgramState, RestartPoint](tracingInteraction: TracerInteraction[Exp, ProgramState, RestartPoint]) {
 
-  type Label = tracingInteraction.Label
-  type Trace = tracingInteraction.Trace
-  type InstructionReturn = tracingInteraction.InstructionReturn
+  type Label = TracerInteraction[Exp, ProgramState, RestartPoint]#Label
+  type Trace = TracerInteraction[Exp, ProgramState, RestartPoint]#Trace
+  type InstructionReturn = TracerInteraction[Exp, ProgramState, RestartPoint]#InstructionReturn
+  type TraceInstruction = TracerInteraction[Exp, ProgramState, RestartPoint]#TraceInstruction
 
   case class TraceNode(label : Label, trace : Trace)
 
-  case class TracerContext(traceKey : Option[Label], traceNodes : List[TraceNode], trace : Trace)
+  case class TracerContext(label : Option[Label], traceNodes : List[TraceNode], trace : Trace)
 
   def newTracerContext = new TracerContext(None, List(), List())
 
@@ -28,7 +29,7 @@ class TracerContext[Exp : Expression, ProgramState, RestartPoint](tracingInterac
   def loopTraceInstruction(programState : ProgramState) : InstructionReturn =
     new tracingInteraction.LoopTrace
 
-  def makeStopTraceInstruction(restartPoint: RestartPoint) : tracingInteraction.TraceInstruction =
+  def makeStopTraceInstruction(restartPoint: RestartPoint) : TraceInstruction =
   return { programState : ProgramState => new tracingInteraction.EndTrace(restartPoint) }
 
   def stopTracing(tracerContext: TracerContext, isLooping : Boolean, restartPoint: Some[RestartPoint]) {
@@ -65,11 +66,14 @@ class TracerContext[Exp : Expression, ProgramState, RestartPoint](tracingInterac
    */
 
   def appendTrace(tracerContext: TracerContext, newPart : Trace) : TracerContext =
-    new TracerContext(tracerContext.traceKey, tracerContext.traceNodes, tracerContext.trace ++ newPart)
+    new TracerContext(tracerContext.label, tracerContext.traceNodes, tracerContext.trace ++ newPart)
 
   private def clearTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
     case TracerContext(label, traceNodes, trace) => new TracerContext(label, traceNodes, List())
   }
+
+  def isTracingLabel(tracerContext: TracerContext, label: Label) : Boolean =
+  tracerContext.label == label
 
   /*
    * Adding traces
