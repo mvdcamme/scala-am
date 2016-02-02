@@ -45,7 +45,8 @@ class BaseSchemeSemantics[Abs : AbstractValue, Addr : Address, Time : Timestamp]
     case FrameDefine(variable, ρ) => FrameDefine(variable, ρ.map(convertAddress))
     case FrameCasOld(variable, enew, ρ) => FrameCasOld(variable, enew, ρ.map(convertAddress))
     case FrameCasNew(variable, old, ρ) => FrameCasNew(variable, convertValue(old), ρ.map(convertAddress))
-    case v => v
+    case FrameWhileBody(condition, body, exps, ρ) => FrameWhileBody(condition, body, exps, ρ.map(convertAddress))
+    case FrameWhileCondition(condition, body, ρ) => FrameWhileCondition(condition, body, ρ.map(convertAddress))
   }
 
   protected def evalBody(body: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs]): Action[SchemeExp, Abs, Addr] = body match {
@@ -191,7 +192,8 @@ class BaseSchemeSemantics[Abs : AbstractValue, Addr : Address, Time : Timestamp]
     case FrameHalt => Set()
     case FrameWhileBody(condition, body, exps, ρ) => Set{evalWhileBody(condition, body, exps, ρ, σ)}
     case FrameWhileCondition(condition, body, ρ) => {
-      if (abs.isTrue(v)) Set(evalWhileBody(condition, body, body, ρ, σ)) else Set() ++ if (abs.isFalse(v)) Set(ActionReachedValue(abs.inject(false), σ)) else Set()
+      (if (abs.isTrue(v)) Set[Action[SchemeExp, Abs, Addr]](evalWhileBody(condition, body, body, ρ, σ)) else Set[Action[SchemeExp, Abs, Addr]]()) ++
+      (if (abs.isFalse(v)) Set[Action[SchemeExp, Abs, Addr]](ActionReachedValue(abs.inject(false), σ)) else Set[Action[SchemeExp, Abs, Addr]]())
     }
     case FrameFuncallOperator(fexp, args, ρ) => funcallArgs(v, fexp, args, ρ, σ, t)
     case FrameFuncallOperands(f, fexp, exp, args, toeval, ρ) => funcallArgs(f, fexp, (exp, v) :: args, toeval, ρ, σ, t)
@@ -341,7 +343,6 @@ class ConcurrentSchemeSemantics[Abs : AbstractValue, Addr : Address, Time : Time
     case ActionJoin(tid, σ, read2, write) => ActionJoin(tid, σ, read ++ read2, write)
     case _ => super.addRead(action, read)
   }
-
 
   override def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time) = e match {
     case SchemeSpawn(exp) =>
