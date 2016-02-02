@@ -142,41 +142,6 @@ object Main {
           case (false, Config.Machine.AAM, Config.Lattice.TypeSet, true) => run(new AAM[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
           case (true, Config.Machine.AAM, Config.Lattice.TypeSet, false) => run(new AAM[ANFExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
           case (false, Config.Machine.AAM, Config.Lattice.TypeSet, false) => run(new AAM[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAC, Config.Lattice.Concrete, true) => run(new AAC[ANFExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAC, Config.Lattice.Concrete, true) => run(new AAC[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAC, Config.Lattice.Concrete, false) => run(new AAC[ANFExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAC, Config.Lattice.Concrete, false) => run(new AAC[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAC, Config.Lattice.Type, true) => run(new AAC[ANFExp, AbstractType, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAC, Config.Lattice.Type, true) => run(new AAC[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAC, Config.Lattice.Type, false) => run(new AAC[ANFExp, AbstractType, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAC, Config.Lattice.Type, false) => run(new AAC[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAC, Config.Lattice.TypeSet, true) => run(new AAC[ANFExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAC, Config.Lattice.TypeSet, true) => run(new AAC[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAC, Config.Lattice.TypeSet, false) => run(new AAC[ANFExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAC, Config.Lattice.TypeSet, false) => run(new AAC[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.Free, Config.Lattice.Concrete, true) => run(new Free[ANFExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.Free, Config.Lattice.Concrete, true) => run(new Free[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.Free, Config.Lattice.Concrete, false) => run(new Free[ANFExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.Free, Config.Lattice.Concrete, false) => run(new Free[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.Free, Config.Lattice.Type, true) => run(new Free[ANFExp, AbstractType, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.Free, Config.Lattice.Type, true) => run(new Free[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.Free, Config.Lattice.Type, false) => run(new Free[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.Free, Config.Lattice.TypeSet, true) => run(new Free[ANFExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.Free, Config.Lattice.TypeSet, true) => run(new Free[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.Free, Config.Lattice.TypeSet, false) => run(new Free[ANFExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.Free, Config.Lattice.TypeSet, false) => run(new Free[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.Concrete, true) => run(new ConcurrentAAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA, ConcreteTID]) _
-          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.Concrete, false) => run(new ConcurrentAAM[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA, ConcreteTID]) _
-          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.Type, true) => run(new ConcurrentAAM[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractType, ConcreteAddress, ZeroCFA, ConcreteTID]) _
-          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.Type, false) => run(new ConcurrentAAM[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractType, ClassicalAddress, ZeroCFA, ConcreteTID]) _
-          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.TypeSet, true) => run(new ConcurrentAAM[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA, ConcreteTID]) _
-          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.TypeSet, false) => run(new ConcurrentAAM[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA, ConcreteTID]) _
-          /* Example of how to use the product lattice */
-          case (false, Config.Machine.Free, Config.Lattice.Test, false) => {
-            val prod = new ProductLattice[AbstractType, AbstractTypeSet]
-            import prod._
-            run(new Free[SchemeExp, Product, ClassicalAddress, ZeroCFA], new SchemeSemantics[Product, ClassicalAddress, ZeroCFA]) _
-          }
           case _ => throw new Exception(s"Impossible configuration: $config")
         }
         try {

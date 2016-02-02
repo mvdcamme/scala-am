@@ -89,11 +89,11 @@ abstract class OneResultTests[Exp : Expression, Abs : AbstractValue, Addr : Addr
   // check("takl.scm", abs.inject(true))
 }
 
-abstract class AACBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timestamp]
-    extends Benchmarks[SchemeExp, Abs, Addr, Time] {
-  val sem = new SchemeSemantics[Abs, Addr, Time]
-  val machine = new AAC[SchemeExp, Abs, Addr, Time]
-}
+//abstract class AACBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timestamp]
+//    extends Benchmarks[SchemeExp, Abs, Addr, Time] {
+//  val sem = new SchemeSemantics[Abs, Addr, Time]
+//  val machine = new AAC[SchemeExp, Abs, Addr, Time]
+//}
 
 abstract class AAMBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timestamp]
     extends Benchmarks[SchemeExp, Abs, Addr, Time] {
@@ -101,23 +101,23 @@ abstract class AAMBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timesta
   val machine = new AAM[SchemeExp, Abs, Addr, Time]
 }
 
-abstract class FreeBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timestamp]
-    extends Benchmarks[SchemeExp, Abs, Addr, Time] {
-  val sem = new SchemeSemantics[Abs, Addr, Time]
-  val machine = new Free[SchemeExp, Abs, Addr, Time]
-}
-
-abstract class ConcurrentAAMBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timestamp, TID : ThreadIdentifier]
-    extends Benchmarks[SchemeExp, Abs, Addr, Time] {
-  val sem = new SchemeSemantics[Abs, Addr, Time]
-  val machine = new ConcurrentAAM[SchemeExp, Abs, Addr, Time, TID]
-}
+//abstract class FreeBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timestamp]
+//    extends Benchmarks[SchemeExp, Abs, Addr, Time] {
+//  val sem = new SchemeSemantics[Abs, Addr, Time]
+//  val machine = new Free[SchemeExp, Abs, Addr, Time]
+//}
+//
+//abstract class ConcurrentAAMBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timestamp, TID : ThreadIdentifier]
+//    extends Benchmarks[SchemeExp, Abs, Addr, Time] {
+//  val sem = new SchemeSemantics[Abs, Addr, Time]
+//  val machine = new ConcurrentAAM[SchemeExp, Abs, Addr, Time, TID]
+//}
 
 /* Concrete tests are disabled because of cpstak takes too much time to compute since it requires more than 75k recursive calls */
 /* Type tests are disabled because they fail due to their inability to support a join between a closure and other abstract values */
 //class AACConcreteBenchmarks extends AACBenchmarks[AbstractConcrete, ConcreteAddress]
 //class AACTypeBenchmarks extends AACBenchmarks[AbstractType, ClassicalAddress]
-class AACTypeSetBenchmarks extends AACBenchmarks[AbstractTypeSet, ClassicalAddress, ZeroCFA]
+//class AACTypeSetBenchmarks extends AACBenchmarks[AbstractTypeSet, ClassicalAddress, ZeroCFA]
 
 //class AAMConcreteBenchmarks extends AAMBenchmarks[AbstractConcrete, ConcreteAddress]
 //class AAMTypeBenchmarks extends AAMBenchmarks[AbstractType, ClassicalAddress]
@@ -125,26 +125,26 @@ class AAMTypeSetBenchmarks extends AAMBenchmarks[AbstractTypeSet, ClassicalAddre
 
 //class FreeConcreteBenchmarks extends FreeBenchmarks[AbstractConcrete, ConcreteAddress]
 //class FreeTypeBenchmarks extends FreeBenchmarks[AbstractType, ClassicalAddress]
-class FreeTypeSetBenchmarks extends FreeBenchmarks[AbstractTypeSet, ClassicalAddress, ZeroCFA]
+//class FreeTypeSetBenchmarks extends FreeBenchmarks[AbstractTypeSet, ClassicalAddress, ZeroCFA]
 
-class ConcurrentAAMTypeSetBenchmarks extends ConcurrentAAMBenchmarks[AbstractTypeSet, ClassicalAddress, ZeroCFA, ContextSensitiveTID]
+//class ConcurrentAAMTypeSetBenchmarks extends ConcurrentAAMBenchmarks[AbstractTypeSet, ClassicalAddress, ZeroCFA, ContextSensitiveTID]
 
-class AACOneResultTests extends OneResultTests[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA] {
-  val sem = new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]
-  val machine = new AAC[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA]
-}
+//class AACOneResultTests extends OneResultTests[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA] {
+//  val sem = new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]
+//  val machine = new AAC[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA]
+//}
 
 class AAMOneResultTests extends OneResultTests[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA] {
   val sem = new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]
   val machine = new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA]
 }
 
-class FreeOneResultTests extends OneResultTests[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA] {
-  val sem = new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]
-  val machine = new Free[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA]
-}
-
-class ConcurrentAAMOneResultTests extends OneResultTests[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA] {
-  val sem = new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]
-  val machine = new ConcurrentAAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA, ContextSensitiveTID]
-}
+//class FreeOneResultTests extends OneResultTests[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA] {
+//  val sem = new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]
+//  val machine = new Free[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA]
+//}
+//
+//class ConcurrentAAMOneResultTests extends OneResultTests[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA] {
+//  val sem = new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]
+//  val machine = new ConcurrentAAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA, ContextSensitiveTID]
+//}

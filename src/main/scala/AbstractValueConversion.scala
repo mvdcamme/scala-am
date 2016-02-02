@@ -6,13 +6,15 @@ class AbstractConcreteToAbstractType {
   }
   
   def convert[Exp : Expression](value : AbstractConcrete, store : Store[HybridAddress, HybridLattice.Hybrid]) : AbstractType = value match {
+    /*
+     * Does not convert AbstractTid
+     */
     case AbstractConcrete.AbstractBool(v) => AbstractType.AbstractBool
     case AbstractConcrete.AbstractBottom => AbstractType.AbstractBottom
     case AbstractConcrete.AbstractChar(v) => AbstractType.AbstractChar
     case AbstractConcrete.AbstractCons(car: HybridAddress, cdr: HybridAddress) => AbstractType.AbstractCons[HybridAddress](convertAddress(car), convertAddress(cdr))
     case AbstractConcrete.AbstractInt(v) => AbstractType.AbstractInt
     case AbstractConcrete.AbstractNil => AbstractType.AbstractNil
-    //case AbstractConcrete.AbstractPrimitive(p : Primitive) => AbstractType.AbstractPrimitive(p) TODO shouldn't need any conversion: handled by
     case AbstractConcrete.AbstractString(v) => AbstractType.AbstractString
     case AbstractConcrete.AbstractSymbol(v) => AbstractType.AbstractSymbol
     case v: AbstractConcrete.AbstractClosure[Exp, HybridAddress] => v match {
