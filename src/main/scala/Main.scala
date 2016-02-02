@@ -127,20 +127,13 @@ object Main {
       case Some(config) => {
         /* ugly as fuck, but I don't find a simpler way to pass type parameters that are computed at runtime */
         val f = (config.anf, config.machine, config.lattice, config.concrete) match {
-          case (true, Config.Machine.Hybrid, Config.Lattice.Concrete, true) => run(new HybridMachine[ANFExp, ZeroCFA], new ANFSemantics[HybridLattice.Hybrid, HybridAddress, ZeroCFA]) _
           case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) => run(new HybridMachine[SchemeExp, ZeroCFA], new SchemeSemantics[HybridLattice.Hybrid, HybridAddress, ZeroCFA]) _
 
-          case (true, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[ANFExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
           case (false, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAM, Config.Lattice.Concrete, false) => run(new AAM[ANFExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
           case (false, Config.Machine.AAM, Config.Lattice.Concrete, false) => run(new AAM[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAM, Config.Lattice.Type, true) => run(new AAM[ANFExp, AbstractType, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
           case (false, Config.Machine.AAM, Config.Lattice.Type, true) => run(new AAM[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAM, Config.Lattice.Type, false) => run(new AAM[ANFExp, AbstractType, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
           case (false, Config.Machine.AAM, Config.Lattice.Type, false) => run(new AAM[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAM, Config.Lattice.TypeSet, true) => run(new AAM[ANFExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
           case (false, Config.Machine.AAM, Config.Lattice.TypeSet, true) => run(new AAM[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAM, Config.Lattice.TypeSet, false) => run(new AAM[ANFExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
           case (false, Config.Machine.AAM, Config.Lattice.TypeSet, false) => run(new AAM[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
           case _ => throw new Exception(s"Impossible configuration: $config")
         }
