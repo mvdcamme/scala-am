@@ -200,7 +200,7 @@ abstract class Tests[Exp : Expression, Abs : AbstractValue, Addr : Address, Time
 
 abstract class AAMTests[Abs : AbstractValue, Addr : Address, Time : Timestamp]
     extends Tests[SchemeExp, Abs, Addr, Time] {
-  val sem = new SchemeSemantics[Abs, Addr, Time]
+  val sem = new SchemeSemanticsTraced[Abs, Addr, Time]
   val machine = new AAM[SchemeExp, Abs, Addr, Time]
 }
 

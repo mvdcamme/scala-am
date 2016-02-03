@@ -38,12 +38,12 @@ trait Semantics[Exp, Abs, Addr, Time] {
    * Defines what actions should be taken when an expression e needs to be
    * evaluated, in environment e with store σ
    */
-  def stepEval(e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[Action[Exp, Abs, Addr]]
+  def stepEval(e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[List[Action[Exp, Abs, Addr]]]
   /**
    * Defines what actions should be taken when a value v has been reached, and
    * the topmost frame is frame
    */
-  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[Action[Exp, Abs, Addr]]
+  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[List[Action[Exp, Abs, Addr]]]
 
   /**
    * Defines how to parse a program

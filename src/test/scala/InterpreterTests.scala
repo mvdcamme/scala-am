@@ -97,7 +97,7 @@ abstract class OneResultTests[Exp : Expression, Abs : AbstractValue, Addr : Addr
 
 abstract class AAMBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timestamp]
     extends Benchmarks[SchemeExp, Abs, Addr, Time] {
-  val sem = new SchemeSemantics[Abs, Addr, Time]
+  val sem = new SchemeSemanticsTraced[Abs, Addr, Time]
   val machine = new AAM[SchemeExp, Abs, Addr, Time]
 }
 
@@ -135,7 +135,7 @@ class AAMTypeSetBenchmarks extends AAMBenchmarks[AbstractTypeSet, ClassicalAddre
 //}
 
 class AAMOneResultTests extends OneResultTests[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA] {
-  val sem = new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]
+  val sem = new SchemeSemanticsTraced[AbstractConcrete, ConcreteAddress, ZeroCFA]
   val machine = new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA]
 }
 

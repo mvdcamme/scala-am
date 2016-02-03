@@ -66,8 +66,8 @@ class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestam
      * Semantics.scala), in order to generate a set of states that succeeds this
      * one.
      */
-    private def integrate(a: KontAddr, actions: Set[Action[Exp, Abs, Addr]]): Set[State] =
-      actions.flatMap({
+    private def integrate(a: KontAddr, actions: Set[List[Action[Exp, Abs, Addr]]]): Set[State] =
+      actions.flatMap({ actionsList => actionsList.flatMap({
         /* When a value is reached, we go to a continuation state */
         case ActionReachedValue(v, σ, _, _) => Set(State(ControlKont(v), σ, kstore, a, t))
         /* When a continuation needs to be pushed, push it in the continuation store */
@@ -81,7 +81,7 @@ class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestam
         case ActionStepIn(fexp, _, e, ρ, σ, _, _, _) => Set(State(ControlEval(e, ρ), σ, kstore, a, time.tick(t, fexp)))
         /* When an error is reached, we go to an error state */
         case ActionError(err) => Set(State(ControlError(err), σ, kstore, a, t))
-      })
+      })})
 
     /**
      * Computes the set of states that follow the current state
