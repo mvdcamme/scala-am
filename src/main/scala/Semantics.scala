@@ -30,7 +30,7 @@ trait Semantics[Exp, Abs, Addr, Time] {
   *******************************************************************************************************************/
 
   type Label = List[Exp]
-  type RestartPoint = Exp
+  type RestartPoint = (Exp, Environment[Addr])
 
   /*
    * Enumeration of possible execution phases
@@ -130,8 +130,11 @@ trait Semantics[Exp, Abs, Addr, Time] {
  */
 abstract class Action[Exp : Expression, Abs : AbstractValue, Addr : Address]
 
-case class ActionGuardTrue[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](restartPoint: RestartPoint) extends Action[Exp, Abs, Addr]
-case class ActionGuardFalse[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](restartPoint: RestartPoint) extends Action[Exp, Abs, Addr]
+abstract class ActionGuard[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends Action[Exp, Abs, Addr] {
+    val restartPoint = rp
+}
+case class ActionGuardTrue[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
+case class ActionGuardFalse[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
 
 /**
  * A value is reached by the interpreter. As a result, a continuation will be

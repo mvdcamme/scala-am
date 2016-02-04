@@ -63,6 +63,13 @@ class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Time
     (if (abs.isTrue(v)) Set[InterpreterReturn](interpreterReturn(t)) else Set[InterpreterReturn]()) ++
     (if (abs.isFalse(v)) Set[InterpreterReturn](interpreterReturn(f)) else Set[InterpreterReturn]())
 
+  /*
+   * TODO: Debugging: run tests only using if-expressions. Remove function ASAP and use function "conditional" instead!
+   */
+  def conditionalIf(v: Abs, t: Action[SchemeExp, Abs, Addr], tRestart : RestartPoint, f: Action[SchemeExp, Abs, Addr], fRestart : RestartPoint): Set[InterpreterReturn] =
+    (if (abs.isTrue(v)) Set[InterpreterReturn](new InterpreterReturn(List(ActionGuardTrue(fRestart), t), TracingSignalFalse())) else Set[InterpreterReturn]()) ++
+    (if (abs.isFalse(v)) Set[InterpreterReturn](new InterpreterReturn(List(ActionGuardFalse(tRestart), f), TracingSignalFalse())) else Set[InterpreterReturn]())
+
   def evalCall(function: Abs, fexp: SchemeExp, argsv: List[(SchemeExp, Abs)], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn] = {
 
     val fromClo: Set[InterpreterReturn] = abs.getClosures[SchemeExp, Addr](function).map({
@@ -206,7 +213,7 @@ class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Time
     case FrameFuncallOperator(fexp, args, ρ) => funcallArgs(v, fexp, args, ρ, σ, t)
     case FrameFuncallOperands(f, fexp, exp, args, toeval, ρ) => funcallArgs(f, fexp, (exp, v) :: args, toeval, ρ, σ, t)
     case FrameIf(cons, alt, ρ) =>
-      conditional(v, ActionEval(cons, ρ, σ), ActionEval(alt, ρ, σ))
+      conditionalIf(v, ActionEval(cons, ρ, σ), (cons, ρ), ActionEval(alt, ρ, σ), (alt, ρ))
     case FrameLet(name, bindings, Nil, body, ρ) => {
       val variables = name :: bindings.reverse.map(_._1)
       val addresses = variables.map(v => addr.variable(v, t))

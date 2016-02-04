@@ -27,6 +27,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
   val SWITCH_ABSTRACT = false
   val THRESHOLD = 5
 
+  var isExecutingTrace : Boolean = false
+
   val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] = new TracerContext[Exp, HybridValue, HybridAddress, Time](sem)
 
   /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
@@ -95,6 +97,49 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     }
   }
 
+  def applyAction(action : Action[Exp, HybridValue, HybridAddress], state : State) : State = {
+
+    val σ = state.σ
+    val kstore = state.kstore
+    val a = state.a
+    val t = state.t
+    val tc = state.tc
+
+    def handleGuard(guard: ActionGuard[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint], guardCheckFunction : HybridValue => Boolean) = state.control match {
+      case ControlKont(v) =>
+        if (guardCheckFunction(v)) {
+          state
+        } else {
+          println(s"Guard $guard failed")
+          isExecutingTrace = false
+          State(ControlEval(guard.restartPoint._1, guard.restartPoint._2), σ, kstore, a, t, tc)
+        }
+      case _ => throw new Exception("Guard triggered with a non-ControlKont control: should not happen")
+    }
+
+    val newTc = if (tracerContext.isTracing(tc)) {
+      tracerContext.appendTrace(tc, List(action))
+    } else {
+      tc
+    }
+    action match {
+      case ActionReachedValue(v, σ, _, _) => State(ControlKont(v), σ, kstore, a, t, newTc)
+      /* When a continuation needs to be pushed, push it in the continuation store */
+      case ActionPush(e, frame, ρ, σ, _, _) => {
+        val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
+        State(ControlEval(e, ρ), σ, kstore.extend(next, Kont(frame, a)), next, t, newTc)
+      }
+      /* When a value needs to be evaluated, we go to an eval state */
+      case ActionEval(e, ρ, σ, _, _) => State(ControlEval(e, ρ), σ, kstore, a, t, newTc)
+      /* When a function is stepped in, we also go to an eval state */
+      case ActionStepIn(fexp, _, e, ρ, σ, _, _, _) => State(ControlEval(e, ρ), σ, kstore, a, time.tick(t, fexp), newTc)
+      /* When an error is reached, we go to an error state */
+      case ActionError(err) => State(ControlError(err), σ, kstore, a, t, newTc)
+      case v : ActionGuardFalse[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isFalse)
+      case v : ActionGuardTrue[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isTrue)
+    }
+  }
+
   /**
    * A machine state is made of a control component, a value store, a
    * continuation store, and an address representing where the current
@@ -126,49 +171,27 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
      */
     private def integrate(a: KontAddr, interpreterReturns: Set[sem.InterpreterReturn]): Set[State] = {
 
-      def applyAction(tc : tracerContext.TracerContext)(action : Action[Exp, HybridValue, HybridAddress]) : Set[State] = {
-        val newTc = if (tracerContext.isTracing(tc)) {
-          tracerContext.appendTrace(tc, List(action))
-        } else {
-          tc
-        }
-        action match {
-          case ActionReachedValue(v, σ, _, _) => Set(State(ControlKont(v), σ, kstore, a, t, newTc))
-          /* When a continuation needs to be pushed, push it in the continuation store */
-          case ActionPush(e, frame, ρ, σ, _, _) => {
-            val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-            Set(State(ControlEval(e, ρ), σ, kstore.extend(next, Kont(frame, a)), next, t, newTc))
-          }
-          /* When a value needs to be evaluated, we go to an eval state */
-          case ActionEval(e, ρ, σ, _, _) => Set(State(ControlEval(e, ρ), σ, kstore, a, t, newTc))
-          /* When a function is stepped in, we also go to an eval state */
-          case ActionStepIn(fexp, _, e, ρ, σ, _, _, _) => Set(State(ControlEval(e, ρ), σ, kstore, a, time.tick(t, fexp), newTc))
-          /* When an error is reached, we go to an error state */
-          case ActionError(err) => Set(State(ControlError(err), σ, kstore, a, t, newTc))
-        }
-      }
-
       interpreterReturns.flatMap({itpRet => itpRet match {
-        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => trace.flatMap(applyAction(tc))
+        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => Set(trace.foldRight(this)(applyAction))
         case sem.InterpreterReturn(trace, sem.TracingSignalStart(label)) =>
           if (tracerContext.traceExists(tc, label)) {
             println(s"Trace with label $label already exists")
-            trace.flatMap(applyAction(tc))
+            trace.flatMap({ac => Set(applyAction(ac, this)) })
           } else if (tracerContext.isTracingLabel(tc, label)) {
-            val newStates = trace.flatMap(applyAction(tc))
+            val newStates = trace.flatMap({ac => Set(applyAction(ac, this)) })
             println(s"Stopped tracing $label")
             newStates.map({case State(control, store, kstore, a, t, tc) => new State(control, store, kstore, a,t, tracerContext.stopTracing(tc, true, None))})
           } else {
             println(s"Started tracing $label")
             val newTc = tracerContext.startTracingLabel(tc, label)
-            trace.flatMap(applyAction(newTc))
+            trace.flatMap({ac => Set(applyAction(ac, this)) }).map({case State(control, store, kstore, a, t, tc) => State(control, store, kstore, a, t, newTc)})
           }
         case sem.InterpreterReturn(trace, sem.TracingSignalEnd(label, restartPoint)) =>
           if (tracerContext.isTracingLabel(tc, label)) {
             println(s"Stopped tracing $label")
-            trace.flatMap(applyAction(tc)).map({case State(control, store, kstore, a, t, tc) => new State(control, store, kstore, a,t, tracerContext.stopTracing(tc, false, Some(restartPoint)))})
+            trace.flatMap({ac => Set(applyAction(ac, this)) }).map({case State(control, store, kstore, a, t, tc) => new State(control, store, kstore, a,t, tracerContext.stopTracing(tc, false, Some(restartPoint)))})
           } else {
-            trace.flatMap(applyAction(tc))
+            trace.flatMap({ac => Set(applyAction(ac, this)) })
           }
       }})}
 
