@@ -14,13 +14,17 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
 
   case class TracerContext(label : Option[Label], traceNodes : List[TraceNode], trace : Trace)
 
+  /*
+   * Generating tracer context
+   */
+
   def newTracerContext = new TracerContext(None, List(), List())
 
   /*
    * Start tracing
    */
 
-  def startTracingLabel(tracerContext: TracerContext, label: Label): TracerContext = tracerContext match {
+  def startTracingLabel(tracerContext: TracerContext, label: Label) : TracerContext = tracerContext match {
     case TracerContext(_, traceNodes, _) => new TracerContext(Some(label), traceNodes, List())
   }
 
@@ -28,7 +32,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Stop tracing
    */
 
-  def stopTracing(tracerContext: TracerContext, isLooping : Boolean, restartPoint: Some[RestartPoint]) {
+  def stopTracing(tracerContext: TracerContext, isLooping : Boolean, restartPoint: Option[RestartPoint]) : TracerContext = {
     var finishedTracerContext : TracerContext = tracerContext
     if (isLooping) {
       finishedTracerContext = appendTrace(tracerContext, List(semantics.loopTraceInstruction))
@@ -65,18 +69,25 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     new TracerContext(tracerContext.label, tracerContext.traceNodes, tracerContext.trace ++ newPart)
 
   private def clearTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
-    case TracerContext(label, traceNodes, trace) => new TracerContext(label, traceNodes, List())
+    case TracerContext(_, traceNodes, _) => new TracerContext(None, traceNodes, List())
   }
 
-  def isTracingLabel(tracerContext: TracerContext, label: Label) : Boolean =
-  tracerContext.label == label
+  def isTracing(tracerContext: TracerContext) : Boolean = tracerContext.label match {
+    case Some(_) => true
+    case None => false
+  }
+
+  def isTracingLabel(tracerContext: TracerContext, label: Label) : Boolean = tracerContext.label match {
+    case Some(tcLabel) => println(s"Currently tracing $tcLabel; comparing with $label"); tcLabel == label
+    case None => false
+  }
 
   /*
    * Adding traces
    */
 
   private def addTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
-    case TracerContext(label, traceNodes, trace) => new TracerContext(label, (new TraceNode(label.get, trace) :: traceNodes), trace)
+    case TracerContext(label, traceNodes, trace) => new TracerContext(label, new TraceNode(label.get, trace) :: traceNodes, trace)
   }
 
 

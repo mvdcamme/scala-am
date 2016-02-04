@@ -48,7 +48,7 @@ trait Semantics[Exp, Abs, Addr, Time] {
   trait TracingSignal
   case class TracingSignalFalse() extends TracingSignal
   case class TracingSignalStart(label : Label) extends TracingSignal
-  case class TracingSignalEnd(label : Label) extends TracingSignal
+  case class TracingSignalEnd(label : Label, restartPoint: RestartPoint) extends TracingSignal
 
   /*
    * Interpreter return
@@ -83,6 +83,9 @@ trait Semantics[Exp, Abs, Addr, Time] {
 
   protected def interpreterReturn(action: Action[Exp, Abs, Addr]) : InterpreterReturn =
     new InterpreterReturn(List(action), new TracingSignalFalse)
+
+  protected def interpreterReturnStart(action: Action[Exp, Abs, Addr], label : Label) : InterpreterReturn =
+    new InterpreterReturn(List(action), new TracingSignalStart(label))
 
 
   /******************************************************************************************************************

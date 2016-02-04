@@ -199,7 +199,8 @@ class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Time
     case FrameHalt => Set()
     case FrameWhileBody(condition, body, exps, ρ) => Set(interpreterReturn(evalWhileBody(condition, body, exps, ρ, σ)))
     case FrameWhileCondition(condition, body, ρ) => {
-      (if (abs.isTrue(v)) Set[InterpreterReturn](interpreterReturn(evalWhileBody(condition, body, body, ρ, σ))) else Set[InterpreterReturn]()) ++
+      println(s"Stepping from FrameWhileCondition with body $body")
+      (if (abs.isTrue(v)) Set[InterpreterReturn](interpreterReturnStart(evalWhileBody(condition, body, body, ρ, σ), body)) else Set[InterpreterReturn]()) ++
         (if (abs.isFalse(v)) Set[InterpreterReturn](interpreterReturn(ActionReachedValue(abs.inject(false), σ))) else Set[InterpreterReturn]())
     }
     case FrameFuncallOperator(fexp, args, ρ) => funcallArgs(v, fexp, args, ρ, σ, t)
@@ -325,10 +326,10 @@ class SchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestam
   protected def optimizeAtomic(actions: Set[InterpreterReturn], t: Time): Set[InterpreterReturn] = {
     actions.flatMap({ itpRet => itpRet.trace.flatMap {
       case ActionPush(exp, frame, ρ, σ, read, write) => atomicEval(exp, ρ, σ) match {
-        case Some((v, read2)) => stepKont(v, frame, σ, t).map({itpRet => new InterpreterReturn(itpRet.trace.map(addRead(_, read ++ read2)), new TracingSignalFalse)})
-        case None => Set[InterpreterReturn](interpreterReturn(ActionPush(exp, frame, ρ, σ, read, write)))
+        case Some((v, read2)) => stepKont(v, frame, σ, t).map({itpRet => new InterpreterReturn(itpRet.trace.map(addRead(_, read ++ read2)), itpRet.tracingSignal)})
+        case None => Set[InterpreterReturn](new InterpreterReturn(List(ActionPush(exp, frame, ρ, σ, read, write)), itpRet.tracingSignal))
       }
-      case action => Set[InterpreterReturn](interpreterReturn(action))
+      case action => Set[InterpreterReturn](new InterpreterReturn(List(action), itpRet.tracingSignal))
     }})
   }
 

@@ -24,11 +24,10 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
   
   def name = "HybridMachine"
 
-  val SWITCH_ABSTRACT = true
+  val SWITCH_ABSTRACT = false
   val THRESHOLD = 5
 
   val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] = new TracerContext[Exp, HybridValue, HybridAddress, Time](sem)
-  var isTracing : Boolean = false
 
   /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
   val primitives = new Primitives[HybridAddress, HybridValue]()
@@ -127,30 +126,49 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
      */
     private def integrate(a: KontAddr, interpreterReturns: Set[sem.InterpreterReturn]): Set[State] = {
 
-      def applyAction(action : Action[Exp, HybridValue, HybridAddress]) : Set[State] = action match {
-        case ActionReachedValue(v, σ, _, _) => Set(State(ControlKont(v), σ, kstore, a, t, tc))
-        /* When a continuation needs to be pushed, push it in the continuation store */
-        case ActionPush(e, frame, ρ, σ, _, _) => {
-          val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-          Set(State(ControlEval(e, ρ), σ, kstore.extend(next, Kont(frame, a)), next, t, tc))
+      def applyAction(tc : tracerContext.TracerContext)(action : Action[Exp, HybridValue, HybridAddress]) : Set[State] = {
+        val newTc = if (tracerContext.isTracing(tc)) {
+          tracerContext.appendTrace(tc, List(action))
+        } else {
+          tc
         }
-        /* When a value needs to be evaluated, we go to an eval state */
-        case ActionEval(e, ρ, σ, _, _) => Set(State(ControlEval(e, ρ), σ, kstore, a, t, tc))
-        /* When a function is stepped in, we also go to an eval state */
-        case ActionStepIn(fexp, _, e, ρ, σ, _, _, _) => Set(State(ControlEval(e, ρ), σ, kstore, a, time.tick(t, fexp), tc))
-        /* When an error is reached, we go to an error state */
-        case ActionError(err) => Set(State(ControlError(err), σ, kstore, a, t, tc))
+        action match {
+          case ActionReachedValue(v, σ, _, _) => Set(State(ControlKont(v), σ, kstore, a, t, newTc))
+          /* When a continuation needs to be pushed, push it in the continuation store */
+          case ActionPush(e, frame, ρ, σ, _, _) => {
+            val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
+            Set(State(ControlEval(e, ρ), σ, kstore.extend(next, Kont(frame, a)), next, t, newTc))
+          }
+          /* When a value needs to be evaluated, we go to an eval state */
+          case ActionEval(e, ρ, σ, _, _) => Set(State(ControlEval(e, ρ), σ, kstore, a, t, newTc))
+          /* When a function is stepped in, we also go to an eval state */
+          case ActionStepIn(fexp, _, e, ρ, σ, _, _, _) => Set(State(ControlEval(e, ρ), σ, kstore, a, time.tick(t, fexp), newTc))
+          /* When an error is reached, we go to an error state */
+          case ActionError(err) => Set(State(ControlError(err), σ, kstore, a, t, newTc))
+        }
       }
 
       interpreterReturns.flatMap({itpRet => itpRet match {
-        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => trace.flatMap(applyAction)
+        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => trace.flatMap(applyAction(tc))
         case sem.InterpreterReturn(trace, sem.TracingSignalStart(label)) =>
           if (tracerContext.traceExists(tc, label)) {
-            trace.flatMap(applyAction)
+            println(s"Trace with label $label already exists")
+            trace.flatMap(applyAction(tc))
+          } else if (tracerContext.isTracingLabel(tc, label)) {
+            val newStates = trace.flatMap(applyAction(tc))
+            println(s"Stopped tracing $label")
+            newStates.map({case State(control, store, kstore, a, t, tc) => new State(control, store, kstore, a,t, tracerContext.stopTracing(tc, true, None))})
           } else {
-            isTracing = true
-            val newTc = tracerContext.appendTrace(tc, trace)
-            trace.flatMap(applyAction)
+            println(s"Started tracing $label")
+            val newTc = tracerContext.startTracingLabel(tc, label)
+            trace.flatMap(applyAction(newTc))
+          }
+        case sem.InterpreterReturn(trace, sem.TracingSignalEnd(label, restartPoint)) =>
+          if (tracerContext.isTracingLabel(tc, label)) {
+            println(s"Stopped tracing $label")
+            trace.flatMap(applyAction(tc)).map({case State(control, store, kstore, a, t, tc) => new State(control, store, kstore, a,t, tracerContext.stopTracing(tc, false, Some(restartPoint)))})
+          } else {
+            trace.flatMap(applyAction(tc))
           }
       }})}
 
