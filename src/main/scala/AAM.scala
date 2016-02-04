@@ -16,8 +16,8 @@
  * be evaluated within this environment, whereas a continuation state only
  * contains the value reached.
  */
-class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
-    extends EvalKontMachine[Exp, Abs, Addr, Time] {
+class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](semantics: Semantics[Exp, Abs, Addr, Time])
+    extends EvalKontMachine[Exp, Abs, Addr, Time](semantics) {
   def name = "AAM"
 
   /**
@@ -66,8 +66,8 @@ class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestam
      * Semantics.scala), in order to generate a set of states that succeeds this
      * one.
      */
-    private def integrate(a: KontAddr, actions: Set[List[Action[Exp, Abs, Addr]]]): Set[State] =
-      actions.flatMap({ actionsList => actionsList.flatMap({
+    private def integrate(a: KontAddr, actions: Set[sem.InterpreterReturn]): Set[State] =
+      actions.flatMap({ action => action.trace.flatMap({
         /* When a value is reached, we go to a continuation state */
         case ActionReachedValue(v, σ, _, _) => Set(State(ControlKont(v), σ, kstore, a, t))
         /* When a continuation needs to be pushed, push it in the continuation store */
@@ -86,7 +86,7 @@ class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestam
     /**
      * Computes the set of states that follow the current state
      */
-    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[State] = control match {
+    def step(): Set[State] = control match {
       /* In a eval state, call the semantic's evaluation method */
       case ControlEval(e, ρ) => integrate(a, sem.stepEval(e, ρ, σ, t))
       /* In a continuation state, if the value reached is not an error, call the
@@ -160,8 +160,7 @@ class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestam
    */
   @scala.annotation.tailrec
   private def loop(todo: Set[State], visited: Set[State],
-    halted: Set[State], startingTime: Long, graph: Option[Graph[State, Unit]],
-    sem: Semantics[Exp, Abs, Addr, Time]): AAMOutput =
+    halted: Set[State], startingTime: Long, graph: Option[Graph[State, Unit]]): AAMOutput =
     todo.headOption match {
       case Some(s) =>
         if (visited.contains(s) || visited.exists(s2 => s2.subsumes(s))) {
@@ -169,17 +168,17 @@ class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestam
            * visited state, we ignore it. The subsumption part reduces the
            * number of visited states but leads to non-determinism due to the
            * non-determinism of Scala's headOption (it seems so at least). */
-          loop(todo.tail, visited, halted, startingTime, graph, sem)
+          loop(todo.tail, visited, halted, startingTime, graph)
         } else if (s.halted) {
           /* If the state is a final state, add it to the list of final states and
            * continue exploring the graph */
-          loop(todo.tail, visited + s, halted + s, startingTime, graph, sem)
+          loop(todo.tail, visited + s, halted + s, startingTime, graph)
         } else {
           /* Otherwise, compute the successors of this state, update the graph, and push
            * the new successors on the todo list */
-          val succs = s.step(sem)
+          val succs = s.step()
           val newGraph = graph.map(_.addEdges(succs.map(s2 => (s, (), s2))))
-          loop(todo.tail ++ succs, visited + s, halted, startingTime, newGraph, sem)
+          loop(todo.tail ++ succs, visited + s, halted, startingTime, newGraph)
         }
       case None => AAMOutput(halted, visited.size,
         (System.nanoTime - startingTime) / Math.pow(10, 9), graph)
@@ -189,8 +188,7 @@ class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestam
    * Performs the evaluation of an expression, possibly writing the output graph
    * in a file, and returns the set of final states reached
    */
-  def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean): Output[Abs] =
+  def eval(exp: Exp, graph: Boolean): Output[Abs] =
     loop(Set(new State(exp)), Set(), Set(), System.nanoTime,
-      if (graph) { Some(new Graph[State, Unit]()) } else { None },
-      sem)
+      if (graph) { Some(new Graph[State, Unit]()) } else { None })
 }

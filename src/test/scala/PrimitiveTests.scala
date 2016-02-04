@@ -16,7 +16,7 @@ abstract class Tests[Exp : Expression, Abs : AbstractValue, Addr : Address, Time
   val machine: AbstractMachine[Exp, Abs, Addr, Time]
 
   def checkResult(program: String, answer: Abs) = {
-    val result = machine.eval(sem.parse(program), sem, false)
+    val result = machine.eval(sem.parse(program), false)
     assert(result.containsFinalValue(answer))
   }
   def check(table: TableFor2[String, Abs]) =
@@ -201,7 +201,7 @@ abstract class Tests[Exp : Expression, Abs : AbstractValue, Addr : Address, Time
 abstract class AAMTests[Abs : AbstractValue, Addr : Address, Time : Timestamp]
     extends Tests[SchemeExp, Abs, Addr, Time] {
   val sem = new SchemeSemanticsTraced[Abs, Addr, Time]
-  val machine = new AAM[SchemeExp, Abs, Addr, Time]
+  val machine = new AAM[SchemeExp, Abs, Addr, Time](sem)
 }
 
 //abstract class AACTests[Abs : AbstractValue, Addr : Address, Time : Timestamp]

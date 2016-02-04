@@ -48,6 +48,8 @@ trait AbstractMachine[Exp, Abs, Addr, Time] {
   implicit def exp : Expression[Exp]
   implicit def time : Timestamp[Time]
 
+  def sem : Semantics[Exp, Abs, Addr, Time]
+
   /** The name of the abstract machine */
   def name: String
 
@@ -57,7 +59,7 @@ trait AbstractMachine[Exp, Abs, Addr, Time] {
    * implementing the Output trait, containing information about the
    * evaluation.
    */
-  def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean): Output[Abs]
+  def eval(exp: Exp, graph: Boolean): Output[Abs]
 }
 
 /**
@@ -65,12 +67,14 @@ trait AbstractMachine[Exp, Abs, Addr, Time] {
  * can either be evaluating something, or have reached a value and will pop a
  * continuation.
  */
-abstract class EvalKontMachine[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
+abstract class EvalKontMachine[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](semantics : Semantics[Exp, Abs, Addr, Time])
     extends AbstractMachine[Exp, Abs, Addr, Time] {
   def abs = implicitly[AbstractValue[Abs]]
   def addr = implicitly[Address[Addr]]
   def exp = implicitly[Expression[Exp]]
   def time = implicitly[Timestamp[Time]]
+
+  val sem : Semantics[Exp, Abs, Addr, Time] = semantics
 
   /**
    * The control component of the machine

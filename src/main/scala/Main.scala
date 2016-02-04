@@ -100,11 +100,11 @@ object Main {
   /** Run a machine on a program with the given semantics. If @param output is
     * set, generate a dot graph visualizing the computed graph in the given
     * file. */
-  def run[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](machine: AbstractMachine[Exp, Abs, Addr, Time], sem: Semantics[Exp, Abs, Addr, Time])(program: String, output: Option[String]): Unit = {
+  def run[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](machine: AbstractMachine[Exp, Abs, Addr, Time])(program: String, output: Option[String]): Unit = {
     val abs = implicitly[AbstractValue[Abs]]
     val addr = implicitly[Address[Addr]]
     println(s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")
-    val result = machine.eval(sem.parse(program), sem, !output.isEmpty)
+    val result = machine.eval(machine.sem.parse(program), !output.isEmpty)
     output match {
       case Some(f) => result.toDotFile(f)
       case None => ()
@@ -127,14 +127,14 @@ object Main {
       case Some(config) => {
         /* ugly as fuck, but I don't find a simpler way to pass type parameters that are computed at runtime */
         val f = (config.anf, config.machine, config.lattice, config.concrete) match {
-          case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) => run(new HybridMachine[SchemeExp, ZeroCFA], new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA]) _
+          case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) => run(new HybridMachine[SchemeExp, ZeroCFA](new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA])) _
 
-          case (false, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new SchemeSemanticsTraced[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAM, Config.Lattice.Concrete, false) => run(new AAM[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new SchemeSemanticsTraced[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAM, Config.Lattice.Type, true) => run(new AAM[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA], new SchemeSemanticsTraced[AbstractType, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAM, Config.Lattice.Type, false) => run(new AAM[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA], new SchemeSemanticsTraced[AbstractType, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, true) => run(new AAM[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new SchemeSemanticsTraced[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, false) => run(new AAM[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new SchemeSemanticsTraced[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
+          case (false, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractConcrete, ConcreteAddress, ZeroCFA])) _
+          case (false, Config.Machine.AAM, Config.Lattice.Concrete, false) => run(new AAM[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractConcrete, ClassicalAddress, ZeroCFA])) _
+          case (false, Config.Machine.AAM, Config.Lattice.Type, true) => run(new AAM[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractType, ConcreteAddress, ZeroCFA])) _
+          case (false, Config.Machine.AAM, Config.Lattice.Type, false) => run(new AAM[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractType, ClassicalAddress, ZeroCFA])) _
+          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, true) => run(new AAM[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractTypeSet, ConcreteAddress, ZeroCFA])) _
+          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, false) => run(new AAM[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractTypeSet, ClassicalAddress, ZeroCFA])) _
           case _ => throw new Exception(s"Impossible configuration: $config")
         }
         try {

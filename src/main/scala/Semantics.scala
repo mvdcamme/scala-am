@@ -23,6 +23,72 @@ trait Semantics[Exp, Abs, Addr, Time] {
   implicit def exp : Expression[Exp]
   implicit def time : Timestamp[Time]
 
+
+
+  /******************************************************************************************************************
+   *                                              END TRACER_INTERACTION                                            *
+  *******************************************************************************************************************/
+
+  type Label = List[Exp]
+  type RestartPoint = Exp
+
+  /*
+   * Enumeration of possible execution phases
+   */
+  object ExecutionPhase extends Enumeration {
+    type ExecutionPhase = Value
+    val NI = Value("NormalInterpretation")
+    val TR = Value("TraceRecording")
+    val TE = Value("TraceExecution")
+  }
+
+  /*
+   * Tracing signals
+   */
+  trait TracingSignal
+  case class TracingSignalFalse() extends TracingSignal
+  case class TracingSignalStart(label : Label) extends TracingSignal
+  case class TracingSignalEnd(label : Label) extends TracingSignal
+
+  /*
+   * Interpreter return
+   */
+  //case class InterpreterReturn(programState : ProgramState, trace : Trace, tracingSignal: TracingSignal)
+  case class InterpreterReturn(trace : Trace, tracingSignal: TracingSignal)
+
+  /*
+   * Instruction return
+   */
+  trait InstructionReturn
+  case class TraceStep() extends InstructionReturn
+  case class GuardFailed(restartPoint : RestartPoint) extends InstructionReturn
+  case class EndTrace(restartPoint: RestartPoint) extends InstructionReturn
+  case class LoopTrace() extends InstructionReturn
+
+  /*
+   * Trace instruction
+   */
+  type TraceInstruction = Action[Exp, Abs, Addr]
+
+  case class ActionLoopTrace() extends Action[Exp, Abs, Addr]
+  case class ActionEndTrace(restartPoint : RestartPoint) extends Action[Exp, Abs, Addr]
+
+  val loopTraceInstruction : TraceInstruction = new ActionLoopTrace()
+  val endTraceInstruction : RestartPoint => TraceInstruction = new ActionEndTrace(_)
+
+  /*
+   * Trace
+   */
+  type Trace = List[TraceInstruction]
+
+  protected def interpreterReturn(action: Action[Exp, Abs, Addr]) : InterpreterReturn =
+    new InterpreterReturn(List(action), new TracingSignalFalse)
+
+
+  /******************************************************************************************************************
+   *                                              END TRACER_INTERACTION                                            *
+   ******************************************************************************************************************/
+
   /**
     * Defines how to convert continuation frames: all addresses and values included either directly or
     * indirectly, i.e., through the environment, should be converted via the given conversion functions
@@ -38,12 +104,12 @@ trait Semantics[Exp, Abs, Addr, Time] {
    * Defines what actions should be taken when an expression e needs to be
    * evaluated, in environment e with store σ
    */
-  def stepEval(e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[List[Action[Exp, Abs, Addr]]]
+  def stepEval(e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn]
   /**
    * Defines what actions should be taken when a value v has been reached, and
    * the topmost frame is frame
    */
-  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[List[Action[Exp, Abs, Addr]]]
+  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn]
 
   /**
    * Defines how to parse a program
@@ -60,6 +126,10 @@ trait Semantics[Exp, Abs, Addr, Time] {
  * The different kinds of actions that can be taken by the abstract machine
  */
 abstract class Action[Exp : Expression, Abs : AbstractValue, Addr : Address]
+
+case class ActionGuardTrue[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](restartPoint: RestartPoint) extends Action[Exp, Abs, Addr]
+case class ActionGuardFalse[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](restartPoint: RestartPoint) extends Action[Exp, Abs, Addr]
+
 /**
  * A value is reached by the interpreter. As a result, a continuation will be
  * popped with the given reached value.

@@ -9,7 +9,7 @@ abstract class Benchmarks[Exp : Expression, Abs : AbstractValue, Addr : Address,
   val machine: AbstractMachine[Exp, Abs, Addr, Time]
 
   def checkResult(file: String, expected: Abs): Unit = {
-    val result = machine.eval(sem.parse(Main.fileContent(s"test/$file")), sem, false)
+    val result = machine.eval(sem.parse(Main.fileContent(s"test/$file")), false)
     assert(result.containsFinalValue(expected))
     println(s"${machine.name}, $file: ${result.numberOfStates}, ${result.time}")
   }
@@ -54,7 +54,7 @@ abstract class OneResultTests[Exp : Expression, Abs : AbstractValue, Addr : Addr
 
   def check(file: String, expected: Abs): Unit =
     file should s"have only one final state in concrete mode and return $expected" in {
-      val result = machine.eval(sem.parse(Main.fileContent(s"test/$file")), sem, false)
+      val result = machine.eval(sem.parse(Main.fileContent(s"test/$file")), false)
       result.finalValues.size should equal (1)
       result.finalValues.head should equal (expected)
     }
@@ -98,7 +98,7 @@ abstract class OneResultTests[Exp : Expression, Abs : AbstractValue, Addr : Addr
 abstract class AAMBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timestamp]
     extends Benchmarks[SchemeExp, Abs, Addr, Time] {
   val sem = new SchemeSemanticsTraced[Abs, Addr, Time]
-  val machine = new AAM[SchemeExp, Abs, Addr, Time]
+  val machine = new AAM[SchemeExp, Abs, Addr, Time](sem)
 }
 
 //abstract class FreeBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timestamp]
@@ -136,7 +136,7 @@ class AAMTypeSetBenchmarks extends AAMBenchmarks[AbstractTypeSet, ClassicalAddre
 
 class AAMOneResultTests extends OneResultTests[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA] {
   val sem = new SchemeSemanticsTraced[AbstractConcrete, ConcreteAddress, ZeroCFA]
-  val machine = new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA]
+  val machine = new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA](sem)
 }
 
 //class FreeOneResultTests extends OneResultTests[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA] {

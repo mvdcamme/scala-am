@@ -1,12 +1,14 @@
 /**
   * Created by mvdcamme on 02/02/16.
   */
-class TracerContext[Exp : Expression, ProgramState, RestartPoint](tracingInteraction: TracerInteraction[Exp, ProgramState, RestartPoint]) {
+class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](sem : Semantics[Exp, Abs, Addr, Time]) {
 
-  type Label = TracerInteraction[Exp, ProgramState, RestartPoint]#Label
-  type Trace = TracerInteraction[Exp, ProgramState, RestartPoint]#Trace
-  type InstructionReturn = TracerInteraction[Exp, ProgramState, RestartPoint]#InstructionReturn
-  type TraceInstruction = TracerInteraction[Exp, ProgramState, RestartPoint]#TraceInstruction
+  val semantics = sem
+  type Label = semantics.Label
+  type Trace = semantics.Trace
+  type InstructionReturn = semantics.InstructionReturn
+  type TraceInstruction = semantics.TraceInstruction
+  type RestartPoint = semantics.RestartPoint
 
   case class TraceNode(label : Label, trace : Trace)
 
@@ -26,18 +28,12 @@ class TracerContext[Exp : Expression, ProgramState, RestartPoint](tracingInterac
    * Stop tracing
    */
 
-  def loopTraceInstruction(programState : ProgramState) : InstructionReturn =
-    new tracingInteraction.LoopTrace
-
-  def makeStopTraceInstruction(restartPoint: RestartPoint) : TraceInstruction =
-  return { programState : ProgramState => new tracingInteraction.EndTrace(restartPoint) }
-
   def stopTracing(tracerContext: TracerContext, isLooping : Boolean, restartPoint: Some[RestartPoint]) {
     var finishedTracerContext : TracerContext = tracerContext
     if (isLooping) {
-      finishedTracerContext = appendTrace(tracerContext, List(loopTraceInstruction))
+      finishedTracerContext = appendTrace(tracerContext, List(semantics.loopTraceInstruction))
     } else {
-      finishedTracerContext = appendTrace(tracerContext, List(makeStopTraceInstruction(restartPoint.get)))
+      finishedTracerContext = appendTrace(tracerContext, List(semantics.endTraceInstruction(restartPoint.get)))
     }
     val newTracerContext = addTrace(finishedTracerContext)
     clearTrace(newTracerContext)
