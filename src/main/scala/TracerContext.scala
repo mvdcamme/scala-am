@@ -40,6 +40,8 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
       finishedTracerContext = appendTrace(tracerContext, List(semantics.endTraceInstruction(restartPoint.get)))
     }
     val newTracerContext = addTrace(finishedTracerContext)
+    val newTrace = newTracerContext.trace
+    println(s"Complete trace: $newTrace")
     clearTrace(newTracerContext)
   }
 

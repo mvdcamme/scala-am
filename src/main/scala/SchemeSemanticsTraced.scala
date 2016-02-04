@@ -71,9 +71,9 @@ class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Time
           bindArgs(args.zip(argsv), ρ1, σ, t) match {
             case (ρ2, σ) =>
               if (body.length == 1)
-                interpreterReturn(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), body.head, ρ2, σ, argsv))
+                interpreterReturnStart(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), body.head, ρ2, σ, argsv), body)
               else
-                interpreterReturn(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), SchemeBegin(body), ρ2, σ, argsv))
+                interpreterReturnStart(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), SchemeBegin(body), ρ2, σ, argsv), body)
           }
         } else { interpreterReturn(ActionError[SchemeExp, Abs, Addr](s"Arity error when calling $fexp (${args.length} arguments expected, got ${argsv.length})")) }
       case (λ, _) => interpreterReturn(ActionError[SchemeExp, Abs, Addr](s"Incorrect closure with lambda-expression ${λ}"))
@@ -201,7 +201,7 @@ class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Time
     case FrameWhileCondition(condition, body, ρ) => {
       println(s"Stepping from FrameWhileCondition with body $body")
       (if (abs.isTrue(v)) Set[InterpreterReturn](interpreterReturnStart(evalWhileBody(condition, body, body, ρ, σ), body)) else Set[InterpreterReturn]()) ++
-        (if (abs.isFalse(v)) Set[InterpreterReturn](interpreterReturn(ActionReachedValue(abs.inject(false), σ))) else Set[InterpreterReturn]())
+      (if (abs.isFalse(v)) Set[InterpreterReturn](interpreterReturn(ActionReachedValue(abs.inject(false), σ))) else Set[InterpreterReturn]())
     }
     case FrameFuncallOperator(fexp, args, ρ) => funcallArgs(v, fexp, args, ρ, σ, t)
     case FrameFuncallOperands(f, fexp, exp, args, toeval, ρ) => funcallArgs(f, fexp, (exp, v) :: args, toeval, ρ, σ, t)
