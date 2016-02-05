@@ -339,10 +339,15 @@ class SchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestam
     }})
   }
 
+  /*
+   * TODO: ignore any optimizations for now
+   */
+  /*
   override def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time) =
     optimizeAtomic(super.stepEval(e, ρ, σ, t), t)
 
   override def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time) =
     optimizeAtomic(super.stepKont(v, frame, σ, t), t)
+    */
 }
 

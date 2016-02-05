@@ -74,7 +74,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     }
 
     def convertState(s : State) : (State, State) = s match {
-      case State(control, σ, kstore, a, t, tc) => {
+      case State(control, σ, kstore, a, t, tc) =>
         val newControl = convertControl(control, σ)
         var newσ = Store.empty[HybridAddress, HybridLattice.Hybrid]
         val newKStore = kstore.map(convertKontAddress, sem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
@@ -83,15 +83,14 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
           val newAddress = HybridAddress.convertAddress(tuple._1)
           val newValue = convertValue(σ)(tuple._2)
           newσ = newσ.extend(newAddress, newValue)
-          return true
+          true
         }
         σ.forall(addToNewStore)
         (s, State(newControl, newσ, newKStore, newA, t, tracerContext.newTracerContext))
-      }
     }
 
     def convertSetOfStates(set : Set[State]) : Set[(State, State)] = {
-      return set.map{convertState }
+      set.map{convertState }
     }
   }
 
@@ -122,10 +121,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     action match {
       case ActionReachedValue(v, σ, _, _) => State(ControlKont(v), σ, kstore, a, t, newTc)
       /* When a continuation needs to be pushed, push it in the continuation store */
-      case ActionPush(e, frame, ρ, σ, _, _) => {
+      case ActionPush(e, frame, ρ, σ, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
         State(ControlEval(e, ρ), σ, kstore.extend(next, Kont(frame, a)), next, t, newTc)
-      }
       /* When a value needs to be evaluated, we go to an eval state */
       case ActionEval(e, ρ, σ, _, _) => State(ControlEval(e, ρ), σ, kstore, a, t, newTc)
       /* When a function is stepped in, we also go to an eval state */
@@ -156,6 +154,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
      * is used to perform subsumption checking when exploring the state space,
      * in order to avoid exploring states for which another state that subsumes
      * them has already been explored.
+     *
+     * The tracer context is ignored in this check, because it only stores "meta" information not relevant to the actual program state.
      */
     def subsumes(that: State): Boolean = control.subsumes(that.control) && σ.subsumes(that.σ) && a == that.a && kstore.subsumes(that.kstore) && t == that.t
 
@@ -168,27 +168,42 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
      */
     private def integrate(a: KontAddr, interpreterReturns: Set[sem.InterpreterReturn]): Set[State] = {
 
-      interpreterReturns.flatMap({itpRet => itpRet match {
-        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => Set(trace.foldLeft(this)(applyAction(a)))
+      def applyTrace(state : State, trace : sem.Trace) : State = {
+        trace.foldLeft(this)(applyAction(a))
+      }
+
+      def startExecutingTrace(trace : sem.Trace, label : sem.Label): State = {
+        println(s"Trace with label $label already exists")
+        val newState = applyTrace(this, trace)
+        val tc = newState.tc
+        val traceNode = tracerContext.getTrace(tc, label)
+        val newTracerContext = new tracerContext.TracerContext(tc.label, tc.traceNodes, tc.trace, tracerContext.semantics.ExecutionPhase.TE, Some(traceNode))
+        State(newState.control, newState.σ, newState.kstore, newState.a, newState.t, newTracerContext)
+      }
+
+      interpreterReturns.map({itpRet => itpRet match {
+        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => applyTrace(this, trace)
         case sem.InterpreterReturn(trace, sem.TracingSignalStart(label)) =>
           if (tracerContext.traceExists(tc, label)) {
-            println(s"Trace with label $label already exists")
-            trace.flatMap({ac => Set(applyAction(a)(this, ac)) })
+            startExecutingTrace(trace, label)
           } else if (tracerContext.isTracingLabel(tc, label)) {
-            val newStates = trace.flatMap({ac => Set(applyAction(a)(this, ac)) })
+            val newState = applyTrace(this, trace)
             println(s"Stopped tracing $label")
-            newStates.map({case State(control, store, kstore, a, t, tc) => new State(control, store, kstore, a,t, tracerContext.stopTracing(tc, true, None))})
+            new State(newState.control, newState.σ, newState.kstore, newState.a, newState.t, tracerContext.stopTracing(newState.tc, true, None))
           } else {
             println(s"Started tracing $label")
             val newTc = tracerContext.startTracingLabel(tc, label)
-            trace.flatMap({ac => Set(applyAction(a)(this, ac)) }).map({case State(control, store, kstore, a, t, tc) => State(control, store, kstore, a, t, newTc)})
+            val newState = applyTrace(this, trace)
+            new State(newState.control, newState.σ, newState.kstore, newState.a, newState.t, newTc)
           }
         case sem.InterpreterReturn(trace, sem.TracingSignalEnd(label, restartPoint)) =>
           if (tracerContext.isTracingLabel(tc, label)) {
             println(s"Stopped tracing $label")
-            trace.flatMap({ac => Set(applyAction(a)(this, ac)) }).map({case State(control, store, kstore, a, t, tc) => new State(control, store, kstore, a,t, tracerContext.stopTracing(tc, false, Some(restartPoint)))})
+            val newState = applyTrace(this, trace)
+            new State(newState.control, newState.σ, newState.kstore, newState.a, newState.t, tracerContext.stopTracing(tc, false, Some(restartPoint)))
           } else {
-            trace.flatMap({ac => Set(applyAction(a)(this, ac)) })
+            val newState = applyTrace(this, trace)
+            newState
           }
       }})}
 
@@ -198,8 +213,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     def step(): Set[State] = {
       control match {
         /* In a eval state, call the semantic's evaluation method */
-        case ControlEval(e, ρ) => { val result : Set[sem.InterpreterReturn] = sem.stepEval(e, ρ, σ, t)
-                                    integrate(a, result) }
+        case ControlEval(e, ρ) =>
+          val result : Set[sem.InterpreterReturn] = sem.stepEval(e, ρ, σ, t)
+          integrate(a, result)
         /* In a continuation state, if the value reached is not an error, call the
          * semantic's continuation method */
         case ControlKont(v) if abs.isError(v) => Set()

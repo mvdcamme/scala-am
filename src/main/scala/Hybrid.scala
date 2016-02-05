@@ -74,7 +74,7 @@ object HybridLattice {
       case (Left(x1), Left(x2)) => concreteValue.subsumes(x1, x2)
       case (Right(y1), Right(y2)) => abstractType.subsumes(y1, y2)
       case (Prim(p1), Prim(p2)) => p1 == p2
-      case _ => throw new Exception(s"Comparing different kinds of values: ${s1} and ${s2}")
+      case _ => s1.equals(s2)
     }
     def and(s1: Hybrid, s2: => Hybrid) = (s1, s2) match {
       case (Left(x1), Left(x2)) => Left(concreteValue.and(x1, x2))
