@@ -9,23 +9,25 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   type InstructionReturn = semantics.InstructionReturn
   type TraceInstruction = semantics.TraceInstruction
   type RestartPoint = semantics.RestartPoint
+  type ExecutionPhase = semantics.ExecutionPhase.ExecutionPhase
+
 
   case class TraceNode(label : Label, trace : Trace)
 
-  case class TracerContext(label : Option[Label], traceNodes : List[TraceNode], trace : Trace)
+  case class TracerContext(label : Option[Label], traceNodes : List[TraceNode], trace : Trace, executionPhase : ExecutionPhase, traceExecuting : Option[TraceNode])
 
   /*
    * Generating tracer context
    */
 
-  def newTracerContext = new TracerContext(None, List(), List())
+  def newTracerContext = new TracerContext(None, List(), List(), semantics.ExecutionPhase.NI, None)
 
   /*
    * Start tracing
    */
 
   def startTracingLabel(tracerContext: TracerContext, label: Label) : TracerContext = tracerContext match {
-    case TracerContext(_, traceNodes, _) => new TracerContext(Some(label), traceNodes, List())
+    case TracerContext(_, traceNodes, _, ep, te) => new TracerContext(Some(label), traceNodes, List(), ep, te)
   }
 
   /*
@@ -50,7 +52,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    */
 
   private def searchTrace(tracerContext: TracerContext, label: Label) : Option[TraceNode] = tracerContext match {
-    case TracerContext(_, traceNodes, _) => traceNodes.find({traceNode => traceNode.label == label})
+    case TracerContext(_, traceNodes, _, _, _) => traceNodes.find({traceNode => traceNode.label == label})
   }
 
   def getTrace(tracerContext: TracerContext, label: Label) : TraceNode = searchTrace(tracerContext, label) match {
@@ -68,10 +70,10 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    */
 
   def appendTrace(tracerContext: TracerContext, newPart : Trace) : TracerContext =
-    new TracerContext(tracerContext.label, tracerContext.traceNodes, tracerContext.trace ++ newPart)
+    new TracerContext(tracerContext.label, tracerContext.traceNodes, tracerContext.trace ++ newPart, tracerContext.executionPhase, tracerContext.traceExecuting)
 
   private def clearTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
-    case TracerContext(_, traceNodes, _) => new TracerContext(None, traceNodes, List())
+    case TracerContext(_, traceNodes, _, ep, te) => new TracerContext(None, traceNodes, List(), ep, te)
   }
 
   def isTracing(tracerContext: TracerContext) : Boolean = tracerContext.label match {
@@ -89,7 +91,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    */
 
   private def addTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
-    case TracerContext(label, traceNodes, trace) => new TracerContext(label, new TraceNode(label.get, trace) :: traceNodes, trace)
+    case TracerContext(label, traceNodes, trace, ep, te) => new TracerContext(label, new TraceNode(label.get, trace) :: traceNodes, trace, ep, te)
   }
 
 

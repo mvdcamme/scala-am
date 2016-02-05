@@ -27,8 +27,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
   val SWITCH_ABSTRACT = false
   val THRESHOLD = 5
 
-  var isExecutingTrace : Boolean = false
-
   val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] = new TracerContext[Exp, HybridValue, HybridAddress, Time](sem)
 
   /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
@@ -110,8 +108,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
           state
         } else {
           println(s"Guard $guard failed")
-          isExecutingTrace = false
-          State(ControlEval(guard.restartPoint._1, guard.restartPoint._2), σ, kstore, a, t, tc)
+          val newTc = new tracerContext.TracerContext(tc.label, tc.traceNodes, tc.trace, tracerContext.semantics.ExecutionPhase.NI, tc.traceExecuting)
+          State(ControlEval(guard.restartPoint._1, guard.restartPoint._2), σ, kstore, a, t, newTc)
         }
       case _ => throw new Exception("Guard triggered with a non-ControlKont control: should not happen")
     }
