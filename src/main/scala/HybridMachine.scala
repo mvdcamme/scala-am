@@ -104,6 +104,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     def handleGuard(guard: ActionGuard[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint], guardCheckFunction : HybridValue => Boolean) = state.control match {
       case ControlKont(v) =>
         if (guardCheckFunction(v)) {
+          println(s"Guard $guard succeeded")
           state
         } else {
           println(s"Guard $guard failed")
@@ -130,6 +131,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       case ActionStepIn(fexp, _, e, ρ, σ, _, _, _) => State(ControlEval(e, ρ), σ, kstore, a, time.tick(t, fexp), newTc)
       /* When an error is reached, we go to an error state */
       case ActionError(err) => State(ControlError(err), σ, kstore, a, t, newTc)
+      case sem.ActionLoopTrace() => state
       case v : ActionGuardFalse[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isFalse)
       case v : ActionGuardTrue[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isTrue)
     }
@@ -175,7 +177,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       def startExecutingTrace(trace : sem.Trace, label : sem.Label): State = {
         println(s"Trace with label $label already exists")
         val newState = applyTrace(this, trace)
-        val tc = newState.tc
+        var tc = newState.tc
         val traceNode = tracerContext.getTrace(tc, label)
         val newTracerContext = new tracerContext.TracerContext(tc.label, tc.traceNodes, tc.trace, tracerContext.semantics.ExecutionPhase.TE, Some(traceNode))
         State(newState.control, newState.σ, newState.kstore, newState.a, newState.t, newTracerContext)
@@ -207,23 +209,49 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
           }
       }})}
 
+    def resetTrace(traceNode : tracerContext.TraceNode) : tracerContext.TraceNode = {
+      println("Resetting the trace")
+      tracerContext.getTrace(tc, traceNode.label)
+    }
+
+    def stepTrace() : State = {
+      println(s"Remaining trace length ${tc.traceExecuting.get.trace.length}")
+      var traceNodeExecuting = tc.traceExecuting match {
+        case Some(traceNode) => traceNode
+        case None => throw new Exception("Error: no trace is being executed")
+      }
+
+      /*
+       * Make sure the trace isn't empty
+       */
+      if (tracerContext.isTraceEmpty(tc)) {
+        traceNodeExecuting = resetTrace(traceNodeExecuting)
+      }
+
+      val traceHead = traceNodeExecuting.trace.head
+      val newState = applyAction(a)(this, traceHead)
+      State(newState.control, newState.σ, newState.kstore, newState.a, newState.t, tracerContext.stepTrace(tc))
+    }
+
     /**
      * Computes the set of states that follow the current state
      */
-    def step(): Set[State] = {
-      control match {
-        /* In a eval state, call the semantic's evaluation method */
-        case ControlEval(e, ρ) =>
-          val result : Set[sem.InterpreterReturn] = sem.stepEval(e, ρ, σ, t)
-          integrate(a, result)
-        /* In a continuation state, if the value reached is not an error, call the
-         * semantic's continuation method */
-        case ControlKont(v) if abs.isError(v) => Set()
-        case ControlKont(v) => kstore.lookup(a).flatMap({
-          case Kont(frame, next) => integrate(next, sem.stepKont(v, frame, σ, t))
-        })
-        /* In an error state, the state is not able to make a step */
-        case ControlError(_) => Set()
+    def step() : Set[State] = {
+      if (tracerContext.isExecuting(tc)) {
+        Set(stepTrace())
+      } else {
+        control match {
+          /* In a eval state, call the semantic's evaluation method */
+          case ControlEval(e, ρ) => integrate(a, sem.stepEval(e, ρ, σ, t))
+          /* In a continuation state, if the value reached is not an error, call the
+           * semantic's continuation method */
+          case ControlKont(v) if abs.isError(v) => Set()
+          case ControlKont(v) => kstore.lookup(a).flatMap({
+            case Kont(frame, next) => integrate(next, sem.stepKont(v, frame, σ, t))
+          })
+          /* In an error state, the state is not able to make a step */
+          case ControlError(_) => Set()
+        }
       }
     }
     /**

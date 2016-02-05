@@ -87,6 +87,27 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   }
 
   /*
+   * Executing traces
+   */
+
+  def isExecuting(tracerContext: TracerContext) : Boolean = tracerContext.executionPhase match {
+    case semantics.ExecutionPhase.TE => true
+    case _ => false
+  }
+
+  def isTraceEmpty(tracerContext: TracerContext) : Boolean = tracerContext.traceExecuting match {
+    case Some(traceNode) => traceNode.trace.isEmpty
+    case None => throw new Exception("Error: no trace is being executed")
+  }
+
+  def stepTrace(tracerContext: TracerContext) : TracerContext = tracerContext.traceExecuting match {
+    case Some(TraceNode(label, trace)) =>
+      val newTraceNode = TraceNode(label, trace.tail);
+      new TracerContext(tracerContext.label, tracerContext.traceNodes, tracerContext.trace, tracerContext.executionPhase, Some(newTraceNode))
+    case None => throw new Exception("Error: no trace is being executed")
+  }
+
+  /*
    * Adding traces
    */
 
