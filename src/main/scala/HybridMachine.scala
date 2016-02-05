@@ -97,11 +97,10 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     }
   }
 
-  def applyAction(action : Action[Exp, HybridValue, HybridAddress], state : State) : State = {
+  def applyAction(a: KontAddr)(state : State, action : Action[Exp, HybridValue, HybridAddress]) : State = {
 
     val σ = state.σ
     val kstore = state.kstore
-    val a = state.a
     val t = state.t
     val tc = state.tc
 
@@ -172,26 +171,26 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     private def integrate(a: KontAddr, interpreterReturns: Set[sem.InterpreterReturn]): Set[State] = {
 
       interpreterReturns.flatMap({itpRet => itpRet match {
-        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => Set(trace.foldRight(this)(applyAction))
+        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => Set(trace.foldLeft(this)(applyAction(a)))
         case sem.InterpreterReturn(trace, sem.TracingSignalStart(label)) =>
           if (tracerContext.traceExists(tc, label)) {
             println(s"Trace with label $label already exists")
-            trace.flatMap({ac => Set(applyAction(ac, this)) })
+            trace.flatMap({ac => Set(applyAction(a)(this, ac)) })
           } else if (tracerContext.isTracingLabel(tc, label)) {
-            val newStates = trace.flatMap({ac => Set(applyAction(ac, this)) })
+            val newStates = trace.flatMap({ac => Set(applyAction(a)(this, ac)) })
             println(s"Stopped tracing $label")
             newStates.map({case State(control, store, kstore, a, t, tc) => new State(control, store, kstore, a,t, tracerContext.stopTracing(tc, true, None))})
           } else {
             println(s"Started tracing $label")
             val newTc = tracerContext.startTracingLabel(tc, label)
-            trace.flatMap({ac => Set(applyAction(ac, this)) }).map({case State(control, store, kstore, a, t, tc) => State(control, store, kstore, a, t, newTc)})
+            trace.flatMap({ac => Set(applyAction(a)(this, ac)) }).map({case State(control, store, kstore, a, t, tc) => State(control, store, kstore, a, t, newTc)})
           }
         case sem.InterpreterReturn(trace, sem.TracingSignalEnd(label, restartPoint)) =>
           if (tracerContext.isTracingLabel(tc, label)) {
             println(s"Stopped tracing $label")
-            trace.flatMap({ac => Set(applyAction(ac, this)) }).map({case State(control, store, kstore, a, t, tc) => new State(control, store, kstore, a,t, tracerContext.stopTracing(tc, false, Some(restartPoint)))})
+            trace.flatMap({ac => Set(applyAction(a)(this, ac)) }).map({case State(control, store, kstore, a, t, tc) => new State(control, store, kstore, a,t, tracerContext.stopTracing(tc, false, Some(restartPoint)))})
           } else {
-            trace.flatMap({ac => Set(applyAction(ac, this)) })
+            trace.flatMap({ac => Set(applyAction(a)(this, ac)) })
           }
       }})}
 

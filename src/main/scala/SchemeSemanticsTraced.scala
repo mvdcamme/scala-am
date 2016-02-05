@@ -206,7 +206,6 @@ class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Time
     case FrameHalt => Set()
     case FrameWhileBody(condition, body, exps, ρ) => Set(interpreterReturn(evalWhileBody(condition, body, exps, ρ, σ)))
     case FrameWhileCondition(condition, body, ρ) => {
-      println(s"Stepping from FrameWhileCondition with body $body")
       (if (abs.isTrue(v)) Set[InterpreterReturn](interpreterReturnStart(evalWhileBody(condition, body, body, ρ, σ), body)) else Set[InterpreterReturn]()) ++
       (if (abs.isFalse(v)) Set[InterpreterReturn](interpreterReturn(ActionReachedValue(abs.inject(false), σ))) else Set[InterpreterReturn]())
     }
