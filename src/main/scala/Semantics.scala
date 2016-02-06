@@ -70,10 +70,8 @@ trait Semantics[Exp, Abs, Addr, Time] {
    */
   type TraceInstruction = Action[Exp, Abs, Addr]
 
-  case class ActionLoopTrace() extends Action[Exp, Abs, Addr]
   case class ActionEndTrace(restartPoint : RestartPoint) extends Action[Exp, Abs, Addr]
 
-  val loopTraceInstruction : TraceInstruction = new ActionLoopTrace()
   val endTraceInstruction : RestartPoint => TraceInstruction = new ActionEndTrace(_)
 
   /*

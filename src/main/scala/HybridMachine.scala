@@ -131,7 +131,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       case ActionStepIn(fexp, _, e, ρ, σ, _, _, _) => State(ControlEval(e, ρ), σ, kstore, a, time.tick(t, fexp), newTc)
       /* When an error is reached, we go to an error state */
       case ActionError(err) => State(ControlError(err), σ, kstore, a, t, newTc)
-      case sem.ActionLoopTrace() => state
       case v : ActionGuardFalse[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isFalse)
       case v : ActionGuardTrue[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isTrue)
     }
@@ -209,28 +208,11 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
           }
       }})}
 
-    def resetTrace(traceNode : tracerContext.TraceNode) : tracerContext.TraceNode = {
-      println("Resetting the trace")
-      tracerContext.getTrace(tc, traceNode.label)
-    }
-
     def stepTrace() : State = {
       println(s"Remaining trace length ${tc.traceExecuting.get.trace.length}")
-      var traceNodeExecuting = tc.traceExecuting match {
-        case Some(traceNode) => traceNode
-        case None => throw new Exception("Error: no trace is being executed")
-      }
-
-      /*
-       * Make sure the trace isn't empty
-       */
-      if (tracerContext.isTraceEmpty(tc)) {
-        traceNodeExecuting = resetTrace(traceNodeExecuting)
-      }
-
-      val traceHead = traceNodeExecuting.trace.head
+      val (traceHead, newTc) = tracerContext.stepTrace(tc)
       val newState = applyAction(a)(this, traceHead)
-      State(newState.control, newState.σ, newState.kstore, newState.a, newState.t, tracerContext.stepTrace(tc))
+      State(newState.control, newState.σ, newState.kstore, newState.a, newState.t, newTc)
     }
 
     /**

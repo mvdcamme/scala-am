@@ -36,9 +36,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
 
   def stopTracing(tracerContext: TracerContext, isLooping : Boolean, restartPoint: Option[RestartPoint]) : TracerContext = {
     var finishedTracerContext : TracerContext = tracerContext
-    if (isLooping) {
-      finishedTracerContext = appendTrace(tracerContext, List(semantics.loopTraceInstruction))
-    } else {
+    if (! isLooping) {
       finishedTracerContext = appendTrace(tracerContext, List(semantics.endTraceInstruction(restartPoint.get)))
     }
     val newTracerContext = addTrace(finishedTracerContext)
@@ -100,10 +98,27 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     case None => throw new Exception("Error: no trace is being executed")
   }
 
-  def stepTrace(tracerContext: TracerContext) : TracerContext = tracerContext.traceExecuting match {
+  def stepTrace(tracerContext: TracerContext) : (TraceInstruction, TracerContext) = tracerContext.traceExecuting match {
     case Some(TraceNode(label, trace)) =>
-      val newTraceNode = TraceNode(label, trace.tail);
-      new TracerContext(tracerContext.label, tracerContext.traceNodes, tracerContext.trace, tracerContext.executionPhase, Some(newTraceNode))
+
+      var traceNodeExecuting = TraceNode(label, trace)
+      def resetTrace(traceNode : TraceNode) : TraceNode = {
+        println("Resetting the trace")
+        getTrace(tracerContext, traceNode.label)
+      }
+
+      /*
+       * Make sure the trace isn't empty
+       */
+      if (trace.isEmpty) {
+        traceNodeExecuting = resetTrace(traceNodeExecuting)
+      }
+
+      val traceHead = traceNodeExecuting.trace.head
+
+      val newTraceNode = TraceNode(label, traceNodeExecuting.trace.tail)
+      val newTc = new TracerContext(tracerContext.label, tracerContext.traceNodes, tracerContext.trace, tracerContext.executionPhase, Some(newTraceNode))
+      (traceHead, newTc)
     case None => throw new Exception("Error: no trace is being executed")
   }
 
