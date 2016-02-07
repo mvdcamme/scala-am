@@ -25,6 +25,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
   def name = "HybridMachine"
 
   val SWITCH_ABSTRACT = false
+  val DO_TRACING = false
+
   val THRESHOLD = 5
 
   val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] = new TracerContext[Exp, HybridValue, HybridAddress, Time](sem)
@@ -191,11 +193,13 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
             val newState = applyTrace(this, trace)
             println(s"Stopped tracing $label")
             new State(newState.control, newState.σ, newState.kstore, newState.a, newState.t, tracerContext.stopTracing(newState.tc, true, None))
-          } else {
+          } else if (DO_TRACING) {
             println(s"Started tracing $label")
             val newTc = tracerContext.startTracingLabel(tc, label)
             val newState = applyTrace(this, trace)
             new State(newState.control, newState.σ, newState.kstore, newState.a, newState.t, newTc)
+          } else {
+            applyTrace(this, trace)
           }
         case sem.InterpreterReturn(trace, sem.TracingSignalEnd(label, restartPoint)) =>
           if (tracerContext.isTracingLabel(tc, label)) {
