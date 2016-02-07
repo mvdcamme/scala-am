@@ -81,6 +81,8 @@ class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestam
         case ActionStepIn(fexp, _, e, ρ, σ, _, _, _) => Set(State(ControlEval(e, ρ), σ, kstore, a, time.tick(t, fexp)))
         /* When an error is reached, we go to an error state */
         case ActionError(err) => Set(State(ControlError(err), σ, kstore, a, t))
+        case ActionGuardFalse(_) => Set(this)
+        case ActionGuardTrue(_) => Set(this)
       })})
 
     /**
