@@ -317,10 +317,7 @@ class SchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestam
   override protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn] = {
     toeval match {
       case Nil => evalCall(f, fexp, args.reverse, ρ, σ, t)
-      case e :: rest => atomicEval(e, ρ, σ) match {
-        case Some((v, as)) => funcallArgs(f, fexp, (e, v) :: args, rest, ρ, σ, t).map({itpRet => new InterpreterReturn(itpRet.trace.map(addRead(_, as)), new TracingSignalFalse())})
-        case None => Set(interpreterReturn(ActionPush(e, FrameFuncallOperands(f, fexp, e, args, rest, ρ), ρ, σ)))
-      }
+      case e :: rest => Set(interpreterReturn(ActionPush(e, FrameFuncallOperands(f, fexp, e, args, rest, ρ), ρ, σ)))
     }
   }
 
