@@ -25,9 +25,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
   def name = "HybridMachine"
 
   val SWITCH_ABSTRACT = false
-  val DO_TRACING = false
+  val DO_TRACING = true
 
-  val THRESHOLD = 5
+  val THRESHOLD = 1
 
   val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] = new TracerContext[Exp, HybridValue, HybridAddress, Time](sem)
 
@@ -124,9 +124,14 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     action match {
       case ActionReachedValue(v, σ, _, _) => State(ControlKont(v), σ, kstore, a, t, newTc)
       /* When a continuation needs to be pushed, push it in the continuation store */
-      case ActionPush(e, frame, ρ, σ, _, _) =>
+
+
+        /*
+        Replace frame to be pushed by fnction that takes a store and returns a new frame
+         */
+      case ActionPush(e, frameGen, ρ, σ, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-        State(ControlEval(e, ρ), σ, kstore.extend(next, Kont(frame, a)), next, t, newTc)
+        State(ControlEval(e, ρ), σ, kstore.extend(next, Kont(frameGen(σ), a)), next, t, newTc)
       /* When a value needs to be evaluated, we go to an eval state */
       case ActionEval(e, ρ, σ, _, _) => State(ControlEval(e, ρ), σ, kstore, a, t, newTc)
       /* When a function is stepped in, we also go to an eval state */
@@ -213,7 +218,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       }})}
 
     def stepTrace() : State = {
-      println(s"Remaining trace length ${tc.traceExecuting.get.trace.length}")
       val (traceHead, newTc) = tracerContext.stepTrace(tc)
       val newState = applyAction(a)(this, traceHead)
       State(newState.control, newState.σ, newState.kstore, newState.a, newState.t, newTc)

@@ -71,9 +71,9 @@ class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestam
         /* When a value is reached, we go to a continuation state */
         case ActionReachedValue(v, σ, _, _) => Set(State(ControlKont(v), σ, kstore, a, t))
         /* When a continuation needs to be pushed, push it in the continuation store */
-        case ActionPush(e, frame, ρ, σ, _, _) => {
+        case ActionPush(e, frameGen, ρ, σ, _, _) => {
           val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-          Set(State(ControlEval(e, ρ), σ, kstore.extend(next, Kont(frame, a)), next, t))
+          Set(State(ControlEval(e, ρ), σ, kstore.extend(next, Kont(frameGen(σ), a)), next, t))
         }
         /* When a value needs to be evaluated, we go to an eval state */
         case ActionEval(e, ρ, σ, _, _) => Set(State(ControlEval(e, ρ), σ, kstore, a, t))
