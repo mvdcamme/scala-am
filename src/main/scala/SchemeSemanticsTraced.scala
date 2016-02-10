@@ -5,7 +5,7 @@
 /**
   * Basic Scheme semantics, without any optimization
   */
-class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestamp]
+abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestamp]
   extends BaseSemantics[SchemeExp, Abs, Addr, Time] {
 
   trait SchemeFrame extends Frame {
@@ -87,10 +87,7 @@ class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Time
     })
 
     val fromPrim = abs.getPrimitive(function) match {
-      case Some(prim) => prim.call(fexp, argsv, σ, t) match {
-        case Right((res, σ2)) => Set(interpreterReturn(ActionReachedValue[SchemeExp, Abs, Addr](res, σ2)))
-        case Left(err) => Set(interpreterReturn(ActionError[SchemeExp, Abs, Addr](err)))
-      }
+      case Some(prim) => Set(interpreterReturn(ActionPrimCall[SchemeExp, Abs, Addr](fexp, argsv.map(_._1), ρ)))
       case None => Set()
     }
     if (fromClo.isEmpty && fromPrim.isEmpty) {
@@ -299,7 +296,7 @@ class SchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestam
 
   /** Tries to perform atomic evaluation of an expression. Returns the result of
     * the evaluation if it succeeded, otherwise returns None */
-  protected def atomicEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs]): Option[(Abs, Set[Addr])] = e match {
+  def atomicEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs]): Option[(Abs, Set[Addr])] = e match {
     case λ: SchemeLambda => Some((abs.inject[SchemeExp, Addr]((λ, ρ)), Set[Addr]()))
     case SchemeIdentifier(name) => ρ.lookup(name).map(a => (σ.lookup(a), Set[Addr](a)))
     case SchemeValue(v) => evalValue(v).map(value => (value, Set[Addr]()))

@@ -83,6 +83,23 @@ class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestam
         case ActionError(err) => Set(State(ControlError(err), σ, kstore, a, t))
         case ActionGuardFalse(_) => Set(this)
         case ActionGuardTrue(_) => Set(this)
+        case ActionPrimCall(fExp, argsExps, ρ) =>
+          val resultF = sem.atomicEval(fExp, ρ, σ) match {
+            case Some((fVal, as)) => fVal
+            case None => throw new Exception(s"Primitive $fExp could not be evaluated atomically")
+          }
+          val resultArgs = argsExps.foldRight(Nil : List[Abs])((argExp : Exp, evaluated : List[Abs]) => sem.atomicEval(argExp, ρ, σ) match {
+            case Some((argVal, as)) => argVal :: evaluated
+            case None => throw new Exception(s"Operand $argExp could not be evaluated atomically")
+          })
+          val resultCall = abs.getPrimitive(resultF) match {
+            case Some(primitive) => primitive.call(fExp, argsExps.zip(resultArgs), σ, t)
+            case None => throw new Exception(s"Operator not a primitive: $resultF")
+          }
+          resultCall match {
+            case Right((res, σ2)) => Set[State](State(ControlKont(res), σ2, kstore, a, t))
+            case Left(err) => Set[State]()
+          }
       })})
 
     /**

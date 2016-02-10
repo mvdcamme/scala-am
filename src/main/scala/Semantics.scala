@@ -90,6 +90,8 @@ trait Semantics[Exp, Abs, Addr, Time] {
    *                                              END TRACER_INTERACTION                                            *
    ******************************************************************************************************************/
 
+  def atomicEval(e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs]): Option[(Abs, Set[Addr])]
+
   /**
     * Defines how to convert continuation frames: all addresses and values included either directly or
     * indirectly, i.e., through the environment, should be converted via the given conversion functions
@@ -135,6 +137,8 @@ abstract class ActionGuard[Exp : Expression, Abs : AbstractValue, Addr : Address
 }
 case class ActionGuardTrue[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
 case class ActionGuardFalse[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
+
+case class ActionPrimCall[Exp : Expression, Abs : AbstractValue, Addr : Address](fExp : Exp, argsExps : List[Exp], ρ : Environment[Addr]) extends Action[Exp, Abs, Addr]
 
 /**
  * A value is reached by the interpreter. As a result, a continuation will be
