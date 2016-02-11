@@ -92,10 +92,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
         σ.forall(addToNewStore)
         (s, State(newControl, newσ, newKStore, newA, t, tracerContext.newTracerContext, newV, newVStack))
     }
-
-    def convertSetOfStates(set : Set[State]) : Set[(State, State)] = {
-      set.map{convertState }
-    }
   }
 
   def popStack[A](stack : List[A], n : Integer) : (List[A], List[A]) = stack.splitAt(n)
@@ -366,9 +362,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     }
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
-    val convTodo = Converter.convertSetOfStates(todo)
-    val convVisited = Converter.convertSetOfStates(visited)
-    val convHalted = Converter.convertSetOfStates(halted)
+    val convTodo = todo.map(Converter.convertState)
+    val convVisited = visited.map(Converter.convertState)
+    val convHalted = halted.map(Converter.convertState)
     val newTodo = convTodo.map(_._2)
     val newVisited = convVisited.map(_._2)
     val newHalted = convHalted.map(_._2)
