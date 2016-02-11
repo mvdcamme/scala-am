@@ -78,16 +78,20 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
           bindArgs(args.zip(argsv), ρ1, σ, t) match {
             case (ρ2, σ) =>
               if (body.length == 1)
-                interpreterReturnStart(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), body.head, ρ2, σ, argsv), body)
+                interpreterReturnStart(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), body.head, ρ2, σ, argsv.length), body)
               else
-                interpreterReturnStart(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), SchemeBegin(body), ρ2, σ, argsv), body)
+                interpreterReturnStart(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), SchemeBegin(body), ρ2, σ, argsv.length), body)
           }
         } else { interpreterReturn(ActionError[SchemeExp, Abs, Addr](s"Arity error when calling $fexp (${args.length} arguments expected, got ${argsv.length})")) }
       case (λ, _) => interpreterReturn(ActionError[SchemeExp, Abs, Addr](s"Incorrect closure with lambda-expression ${λ}"))
     })
 
+    /*
+     * The number of values to pop. In the case of a primitive application, these are all operands that were evaluated + the operator itself
+     */
+    val valsToPop = argsv.length + 1
     val fromPrim = abs.getPrimitive(function) match {
-      case Some(prim) => Set(interpreterReturn(ActionPrimCall[SchemeExp, Abs, Addr](fexp, argsv.map(_._1), ρ)))
+      case Some(prim) => Set(interpreterReturn(ActionPrimCall[SchemeExp, Abs, Addr](valsToPop, fexp, argsv.map(_._1))))
       case None => Set()
     }
     if (fromClo.isEmpty && fromPrim.isEmpty) {
@@ -106,7 +110,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
   protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn] = toeval match {
     case Nil => evalCall(f, fexp, args.reverse, ρ, σ, t)
-    case e :: rest => Set(interpreterReturn(ActionPush(e, pushFrame(FrameFuncallOperands(f, fexp, e, args, rest, ρ)), ρ, σ)))
+    case e :: rest => Set(InterpreterReturn(List(ActionPushVal(), ActionPush(e, pushFrame(FrameFuncallOperands(f, fexp, e, args, rest, ρ)), ρ, σ)), new TracingSignalFalse))
   }
   protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn] =
     funcallArgs(f, fexp, List(), args, ρ, σ, t)
@@ -309,13 +313,6 @@ class SchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestam
     case ActionEval(e, ρ, σ, read2, write) => ActionEval(e, ρ, σ, read ++ read2, write)
     case ActionStepIn(fexp, clo, e, ρ, σ, argsv, read2, write) => ActionStepIn(fexp, clo, e, ρ, σ, argsv, read ++ read2, write)
     case ActionError(err) => ActionError(err)
-  }
-
-  override protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn] = {
-    toeval match {
-      case Nil => evalCall(f, fexp, args.reverse, ρ, σ, t)
-      case e :: rest => Set(interpreterReturn(ActionPush(e, pushFrame(FrameFuncallOperands(f, fexp, e, args, rest, ρ)), ρ, σ)))
-    }
   }
 
   /**

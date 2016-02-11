@@ -138,7 +138,8 @@ abstract class ActionGuard[Exp : Expression, Abs : AbstractValue, Addr : Address
 case class ActionGuardTrue[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
 case class ActionGuardFalse[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
 
-case class ActionPrimCall[Exp : Expression, Abs : AbstractValue, Addr : Address](fExp : Exp, argsExps : List[Exp], ρ : Environment[Addr]) extends Action[Exp, Abs, Addr]
+case class ActionPushVal[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
+case class ActionPrimCall[Exp : Expression, Abs : AbstractValue, Addr : Address](n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
 
 /**
  * A value is reached by the interpreter. As a result, a continuation will be
@@ -164,13 +165,12 @@ case class ActionEval[Exp : Expression, Abs : AbstractValue, Addr : Address]
 
 /**
  * Similar to ActionEval, but only used when stepping inside a function's body
- * (clo is therefore the function stepped into). The expressions and values of
- * the arguments should also be provided, as they can be needed by the abstract
- * machine.
+ * (clo is therefore the function stepped into). The number of arguments should
+ * also be provided, as they can be needed by the abstract machine.
  */
 case class ActionStepIn[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (fexp: Exp, clo: (Exp, Environment[Addr]), e: Exp,
-    ρ: Environment[Addr], σ: Store[Addr, Abs], argsv: List[(Exp, Abs)],
+    ρ: Environment[Addr], σ: Store[Addr, Abs], n : Integer,
     read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 /**
  * An error has been reached

@@ -133,7 +133,7 @@ object HybridLattice {
     def inject(x: String) = injectCorrectValue[String](x, concreteValue.inject, abstractType.inject)
     def inject(x: Char) = injectCorrectValue[Char](x, concreteValue.inject, abstractType.inject)
     def inject(x: Boolean) = injectCorrectValue[Boolean](x, concreteValue.inject, abstractType.inject)
-    def inject[Addr : Address, Abs : AbstractValue](x: Primitive[Addr, Abs]) = Prim(x)
+    def inject[Addr : Address, Abs : AbstractValue](x: Primitive[Addr, Abs]) = Prim[Addr, Abs](x)
     def inject[Exp : Expression, Addr : Address](x: (Exp, Environment[Addr])) = {
       if (doConcrete) {
         Left(concreteValue.inject[Exp, Addr](x))
