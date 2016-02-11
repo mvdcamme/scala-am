@@ -198,11 +198,11 @@ abstract class Tests[Exp : Expression, Abs : AbstractValue, Addr : Address, Time
   /* 6.6 Input and output */
 }
 
-abstract class AAMTests[Abs : AbstractValue, Addr : Address, Time : Timestamp]
-    extends Tests[SchemeExp, Abs, Addr, Time] {
-  val sem = new SchemeSemanticsTraced[Abs, Addr, Time]
-  val machine = new AAM[SchemeExp, Abs, Addr, Time](sem)
-}
+//abstract class AAMTests[Abs : AbstractValue, Addr : Address, Time : Timestamp]
+//    extends Tests[SchemeExp, Abs, Addr, Time] {
+//  val sem = new SchemeSemanticsTraced[Abs, Addr, Time]
+//  val machine = new AAM[SchemeExp, Abs, Addr, Time](sem)
+//}
 
 //abstract class AACTests[Abs : AbstractValue, Addr : Address, Time : Timestamp]
 //    extends Tests[SchemeExp, Abs, Addr, Time] {
@@ -223,8 +223,8 @@ abstract class AAMTests[Abs : AbstractValue, Addr : Address, Time : Timestamp]
 //}
 
 /* Since these tests are small, they can be performed in concrete mode */
-class AAMConcreteTests extends AAMTests[AbstractConcrete, ConcreteAddress, ZeroCFA]
-class AAMTypeSetTests extends AAMTests[AbstractTypeSet, ClassicalAddress, ZeroCFA]
+//class AAMConcreteTests extends AAMTests[AbstractConcrete, ConcreteAddress, ZeroCFA]
+//class AAMTypeSetTests extends AAMTests[AbstractTypeSet, ClassicalAddress, ZeroCFA]
 //class AACConcreteTests extends AACTests[AbstractConcrete, ConcreteAddress, ZeroCFA]
 //class AACTypeSetTests extends AACTests[AbstractTypeSet, ClassicalAddress, ZeroCFA]
 //class FreeConcreteTests extends FreeTests[AbstractConcrete, ClassicalAddress, ZeroCFA]

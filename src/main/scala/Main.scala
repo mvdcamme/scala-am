@@ -129,12 +129,12 @@ object Main {
         val f = (config.anf, config.machine, config.lattice, config.concrete) match {
           case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) => run(new HybridMachine[SchemeExp, ZeroCFA](new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA])) _
 
-          case (false, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractConcrete, ConcreteAddress, ZeroCFA])) _
-          case (false, Config.Machine.AAM, Config.Lattice.Concrete, false) => run(new AAM[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractConcrete, ClassicalAddress, ZeroCFA])) _
-          case (false, Config.Machine.AAM, Config.Lattice.Type, true) => run(new AAM[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractType, ConcreteAddress, ZeroCFA])) _
-          case (false, Config.Machine.AAM, Config.Lattice.Type, false) => run(new AAM[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractType, ClassicalAddress, ZeroCFA])) _
-          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, true) => run(new AAM[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractTypeSet, ConcreteAddress, ZeroCFA])) _
-          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, false) => run(new AAM[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractTypeSet, ClassicalAddress, ZeroCFA])) _
+//          case (false, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractConcrete, ConcreteAddress, ZeroCFA])) _
+//          case (false, Config.Machine.AAM, Config.Lattice.Concrete, false) => run(new AAM[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractConcrete, ClassicalAddress, ZeroCFA])) _
+//          case (false, Config.Machine.AAM, Config.Lattice.Type, true) => run(new AAM[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractType, ConcreteAddress, ZeroCFA])) _
+//          case (false, Config.Machine.AAM, Config.Lattice.Type, false) => run(new AAM[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractType, ClassicalAddress, ZeroCFA])) _
+//          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, true) => run(new AAM[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractTypeSet, ConcreteAddress, ZeroCFA])) _
+//          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, false) => run(new AAM[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractTypeSet, ClassicalAddress, ZeroCFA])) _
           case _ => throw new Exception(s"Impossible configuration: $config")
         }
         try {

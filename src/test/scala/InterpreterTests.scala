@@ -95,11 +95,11 @@ abstract class OneResultTests[Exp : Expression, Abs : AbstractValue, Addr : Addr
 //  val machine = new AAC[SchemeExp, Abs, Addr, Time]
 //}
 
-abstract class AAMBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timestamp]
-    extends Benchmarks[SchemeExp, Abs, Addr, Time] {
-  val sem = new SchemeSemanticsTraced[Abs, Addr, Time]
-  val machine = new AAM[SchemeExp, Abs, Addr, Time](sem)
-}
+//abstract class AAMBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timestamp]
+//    extends Benchmarks[SchemeExp, Abs, Addr, Time] {
+//  val sem = new SchemeSemanticsTraced[Abs, Addr, Time]
+//  val machine = new AAM[SchemeExp, Abs, Addr, Time](sem)
+//}
 
 //abstract class FreeBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timestamp]
 //    extends Benchmarks[SchemeExp, Abs, Addr, Time] {
@@ -121,7 +121,7 @@ abstract class AAMBenchmarks[Abs : AbstractValue, Addr : Address, Time : Timesta
 
 //class AAMConcreteBenchmarks extends AAMBenchmarks[AbstractConcrete, ConcreteAddress]
 //class AAMTypeBenchmarks extends AAMBenchmarks[AbstractType, ClassicalAddress]
-class AAMTypeSetBenchmarks extends AAMBenchmarks[AbstractTypeSet, ClassicalAddress, ZeroCFA]
+//class AAMTypeSetBenchmarks extends AAMBenchmarks[AbstractTypeSet, ClassicalAddress, ZeroCFA]
 
 //class FreeConcreteBenchmarks extends FreeBenchmarks[AbstractConcrete, ConcreteAddress]
 //class FreeTypeBenchmarks extends FreeBenchmarks[AbstractType, ClassicalAddress]
@@ -134,10 +134,10 @@ class AAMTypeSetBenchmarks extends AAMBenchmarks[AbstractTypeSet, ClassicalAddre
 //  val machine = new AAC[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA]
 //}
 
-class AAMOneResultTests extends OneResultTests[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA] {
-  val sem = new SchemeSemanticsTraced[AbstractConcrete, ConcreteAddress, ZeroCFA]
-  val machine = new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA](sem)
-}
+//class AAMOneResultTests extends OneResultTests[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA] {
+//  val sem = new SchemeSemanticsTraced[AbstractConcrete, ConcreteAddress, ZeroCFA]
+//  val machine = new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA](sem)
+//}
 
 //class FreeOneResultTests extends OneResultTests[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA] {
 //  val sem = new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]
