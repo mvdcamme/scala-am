@@ -25,7 +25,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
   def name = "HybridMachine"
 
   val SWITCH_ABSTRACT = false
-  val DO_TRACING = true
+  val DO_TRACING = false
 
   val THRESHOLD = 1
 
@@ -147,9 +147,10 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
         val operator : HybridValue = vals.last
         val operands : List[HybridValue] = vals.take(n - 1)
         val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
+        println(s"ActionPrimCall with operator $fExp and arguments $operands")
         val result = primitive match {
-          case Some(primitive) => primitive.call(fExp, argsExps.zip(operands), σ, t)
-          case None => throw new Exception(s"Operator not a primitive $fExp")
+          case Some(primitive) => primitive.call(fExp, argsExps.zip(operands.reverse), σ, t)
+          case None => throw new Exception(s"Operator $fExp not a primitive: $operator")
         }
         result match {
           case Left(error) => throw new Exception(error)
@@ -244,7 +245,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
      * Computes the set of states that follow the current state
      */
     def step() : Set[State] = {
-      println("In step")
       if (tracerContext.isExecuting(tc)) {
         Set(stepTrace())
       } else {

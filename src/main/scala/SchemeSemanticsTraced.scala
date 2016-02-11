@@ -72,15 +72,17 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
   def evalCall(function: Abs, fexp: SchemeExp, argsv: List[(SchemeExp, Abs)], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn] = {
 
+    val actions : Trace = List(ActionPushVal())
+
     val fromClo: Set[InterpreterReturn] = abs.getClosures[SchemeExp, Addr](function).map({
       case (SchemeLambda(args, body), ρ1) =>
         if (args.length == argsv.length) {
           bindArgs(args.zip(argsv), ρ1, σ, t) match {
             case (ρ2, σ) =>
               if (body.length == 1)
-                interpreterReturnStart(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), body.head, ρ2, σ, argsv.length), body)
+                InterpreterReturn(List(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), body.head, ρ2, σ, argsv.length)), new TracingSignalStart(body))
               else
-                interpreterReturnStart(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), SchemeBegin(body), ρ2, σ, argsv.length), body)
+                InterpreterReturn(List(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), SchemeBegin(body), ρ2, σ, argsv.length)), new TracingSignalStart(body))
           }
         } else { interpreterReturn(ActionError[SchemeExp, Abs, Addr](s"Arity error when calling $fexp (${args.length} arguments expected, got ${argsv.length})")) }
       case (λ, _) => interpreterReturn(ActionError[SchemeExp, Abs, Addr](s"Incorrect closure with lambda-expression ${λ}"))
@@ -91,11 +93,11 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
      */
     val valsToPop = argsv.length + 1
     val fromPrim = abs.getPrimitive(function) match {
-      case Some(prim) => Set(interpreterReturn(ActionPrimCall[SchemeExp, Abs, Addr](valsToPop, fexp, argsv.map(_._1))))
+      case Some(prim) => Set(InterpreterReturn(actions :+ ActionPrimCall[SchemeExp, Abs, Addr](valsToPop, fexp, argsv.map(_._1)), new TracingSignalFalse()))
       case None => Set()
     }
     if (fromClo.isEmpty && fromPrim.isEmpty) {
-      Set(interpreterReturn(ActionError(s"Called value is not a function: $function")))
+      Set(new InterpreterReturn(actions :+ ActionError[SchemeExp, Abs, Addr](s"Called value is not a function: $function"), new TracingSignalFalse))
     } else {
       fromClo ++ fromPrim
     }
