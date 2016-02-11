@@ -72,6 +72,11 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
   def evalCall(function: Abs, fexp: SchemeExp, argsv: List[(SchemeExp, Abs)], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn] = {
 
+    /*
+     * The number of values to pop. In the case of a primitive application, these are all operands that were evaluated + the operator itself
+     */
+    val valsToPop = argsv.length + 1
+
     val actions : Trace = List(ActionPushVal())
 
     val fromClo: Set[InterpreterReturn] = abs.getClosures[SchemeExp, Addr](function).map({
@@ -80,18 +85,14 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
           bindArgs(args.zip(argsv), ρ1, σ, t) match {
             case (ρ2, σ) =>
               if (body.length == 1)
-                InterpreterReturn(List(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), body.head, ρ2, σ, argsv.length)), new TracingSignalStart(body))
+                InterpreterReturn(actions :+ ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), body.head, ρ2, σ, valsToPop), new TracingSignalStart(body))
               else
-                InterpreterReturn(List(ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), SchemeBegin(body), ρ2, σ, argsv.length)), new TracingSignalStart(body))
+                InterpreterReturn(actions :+ ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body), ρ1), SchemeBegin(body), ρ2, σ, valsToPop), new TracingSignalStart(body))
           }
         } else { interpreterReturn(ActionError[SchemeExp, Abs, Addr](s"Arity error when calling $fexp (${args.length} arguments expected, got ${argsv.length})")) }
       case (λ, _) => interpreterReturn(ActionError[SchemeExp, Abs, Addr](s"Incorrect closure with lambda-expression ${λ}"))
     })
 
-    /*
-     * The number of values to pop. In the case of a primitive application, these are all operands that were evaluated + the operator itself
-     */
-    val valsToPop = argsv.length + 1
     val fromPrim = abs.getPrimitive(function) match {
       case Some(prim) => Set(InterpreterReturn(actions :+ ActionPrimCall[SchemeExp, Abs, Addr](valsToPop, fexp, argsv.map(_._1)), new TracingSignalFalse()))
       case None => Set()

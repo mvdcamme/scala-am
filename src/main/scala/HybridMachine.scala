@@ -138,7 +138,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       /* When a value needs to be evaluated, we go to an eval state */
       case ActionEval(e, ρ, σ, _, _) => State(ControlEval(e, ρ), σ, kstore, a, t, newTc, v, vStack)
       /* When a function is stepped in, we also go to an eval state */
-      case ActionStepIn(fexp, _, e, ρ, σ, _, _, _) => State(ControlEval(e, ρ), σ, kstore, a, time.tick(t, fexp), newTc, v, vStack)
+      case ActionStepIn(fexp, _, e, ρ, σ, n, _, _) =>
+        val (_, newVStack) = popStack(vStack, n)
+        State(ControlEval(e, ρ), σ, kstore, a, time.tick(t, fexp), newTc, v, newVStack)
       case ActionPushVal() => State(control, σ, kstore, a, t, tc, v, v :: vStack)
       /* When an error is reached, we go to an error state */
       case ActionError(err) => State(ControlError(err), σ, kstore, a, t, newTc, v, vStack)
@@ -147,7 +149,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
         val operator : HybridValue = vals.last
         val operands : List[HybridValue] = vals.take(n - 1)
         val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
-        println(s"ActionPrimCall with operator $fExp and arguments $operands")
         val result = primitive match {
           case Some(primitive) => primitive.call(fExp, argsExps.zip(operands.reverse), σ, t)
           case None => throw new Exception(s"Operator $fExp not a primitive: $operator")
