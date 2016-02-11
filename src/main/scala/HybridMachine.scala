@@ -25,7 +25,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
   def name = "HybridMachine"
 
   val SWITCH_ABSTRACT = false
-  val DO_TRACING = false
+  val DO_TRACING = true
 
   val THRESHOLD = 1
 
@@ -96,6 +96,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
 
   def popStack[A](stack : List[A], n : Integer) : (List[A], List[A]) = stack.splitAt(n)
 
+  def replaceTc(state: State, tc : tracerContext.TracerContext) =
+    new State(state.control, state.σ, state.kstore, state.a, state.t, tc, state.v, state.vStack)
+
   def applyAction(a: KontAddr)(state : State, action : Action[Exp, HybridValue, HybridAddress]) : State = {
 
     val control = state.control
@@ -106,24 +109,22 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     val v = state.v
     val vStack = state.vStack
 
-    def handleGuard(guard: ActionGuard[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint], guardCheckFunction : HybridValue => Boolean) = state.control match {
-      case ControlKont(v) =>
-        if (guardCheckFunction(v)) {
-          println(s"Guard $guard succeeded")
-          state
-        } else {
-          println(s"Guard $guard failed")
-          val newTc = new tracerContext.TracerContext(tc.label, tc.traceNodes, tc.trace, tracerContext.semantics.ExecutionPhase.NI, tc.traceExecuting)
-          State(ControlEval(guard.restartPoint._1, guard.restartPoint._2), σ, kstore, a, t, newTc, v, vStack)
-        }
-      case _ => throw new Exception("Guard triggered with a non-ControlKont control: should not happen")
-    }
-
     val newTc = if (tracerContext.isTracing(tc)) {
       tracerContext.appendTrace(tc, List(action))
     } else {
       tc
     }
+
+    def handleGuard(guard: ActionGuard[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint], guardCheckFunction : HybridValue => Boolean) =
+      if (guardCheckFunction(v)) {
+        println(s"Guard $guard succeeded")
+        replaceTc(state, newTc)
+      } else {
+        println(s"Guard $guard failed")
+        val newTc = new tracerContext.TracerContext(tc.label, tc.traceNodes, tc.trace, tracerContext.semantics.ExecutionPhase.NI, tc.traceExecuting)
+        State(ControlEval(guard.restartPoint._1, guard.restartPoint._2), σ, kstore, a, t, newTc, v, vStack)
+      }
+
     action match {
       case ActionReachedValue(v, σ, _, _) => State(ControlKont(v), σ, kstore, a, t, newTc, v, vStack)
       /* When a continuation needs to be pushed, push it in the continuation store */
@@ -141,7 +142,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       case ActionStepIn(fexp, _, e, ρ, σ, n, _, _) =>
         val (_, newVStack) = popStack(vStack, n)
         State(ControlEval(e, ρ), σ, kstore, a, time.tick(t, fexp), newTc, v, newVStack)
-      case ActionPushVal() => State(control, σ, kstore, a, t, tc, v, v :: vStack)
+      case ActionPushVal() => State(control, σ, kstore, a, t, newTc, v, v :: vStack)
       /* When an error is reached, we go to an error state */
       case ActionError(err) => State(ControlError(err), σ, kstore, a, t, newTc, v, vStack)
       case ActionPrimCall(n : Integer, fExp : SchemeExp, argsExps : List[SchemeExp]) =>
@@ -155,7 +156,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
         }
         result match {
           case Left(error) => throw new Exception(error)
-          case Right((v, newσ)) => State(ControlKont(v), σ, kstore, a, t, tc, v, newVStack)
+          case Right((v, newσ)) => State(ControlKont(v), σ, kstore, a, t, newTc, v, newVStack)
         }
       case v : ActionGuardFalse[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isFalse)
       case v : ActionGuardTrue[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isTrue)
@@ -202,7 +203,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       def startExecutingTrace(trace : sem.Trace, label : sem.Label): State = {
         println(s"Trace with label $label already exists")
         val newState = applyTrace(this, trace)
-        var tc = newState.tc
+        val tc = newState.tc
         val traceNode = tracerContext.getTrace(tc, label)
         val newTracerContext = new tracerContext.TracerContext(tc.label, tc.traceNodes, tc.trace, tracerContext.semantics.ExecutionPhase.TE, Some(traceNode))
         State(newState.control, newState.σ, newState.kstore, newState.a, newState.t, newTracerContext, newState.v, newState.vStack)
@@ -335,7 +336,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
            * number of visited states but leads to non-determinism due to the
            * non-determinism of Scala's headOption (it seems so at least). */
           loop(todo.tail, visited, halted, startingTime, graph)
-        } else if (s.halted) {
+        } else
+        if (s.halted) {
           /* If the state is a final state, add it to the list of final states and
            * continue exploring the graph */
           loop(todo.tail, visited + s, halted + s, startingTime, graph)
