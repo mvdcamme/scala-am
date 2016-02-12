@@ -133,6 +133,7 @@ abstract class ActionGuard[Exp : Expression, Abs : AbstractValue, Addr : Address
 case class ActionGuardTrue[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
 case class ActionGuardFalse[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
 
+case class ActionSetVar[Exp : Expression, Abs : AbstractValue, Addr : Address](va : Addr) extends Action[Exp, Abs, Addr]
 case class ActionPushVal[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionPrimCall[Exp : Expression, Abs : AbstractValue, Addr : Address](n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
 case class ActionLookupVariable[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
@@ -152,8 +153,7 @@ case class ActionReachedValue[Exp : Expression, Abs : AbstractValue, Addr : Addr
  * evaluating expression e in environment ρ.
  */
 case class ActionPush[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (e: Exp, frame : Frame, σ: Store[Addr, Abs],
-    read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (e: Exp, frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 /**
  * Evaluation continues with expression e in environment ρ
  */

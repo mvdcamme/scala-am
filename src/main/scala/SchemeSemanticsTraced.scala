@@ -56,7 +56,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   protected def evalBody(body: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs]): Action[SchemeExp, Abs, Addr] = body match {
     case Nil => ActionReachedValue(abs.inject(false), σ)
     case List(exp) => ActionEval(exp, ρ, σ)
-    case exp :: rest => ActionPush(exp, FrameBegin(rest, ρ), σ)
+    case exp :: rest => ActionPush(exp, FrameBegin(rest, ρ))
   }
 
   def conditional(v: Abs, t: Action[SchemeExp, Abs, Addr], f: Action[SchemeExp, Abs, Addr]): Set[InterpreterReturn] =
@@ -111,7 +111,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
   protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn] = toeval match {
     case Nil => evalCall(f, fexp, args.reverse, ρ, σ, t)
-    case e :: rest => Set(InterpreterReturn(List(ActionPushVal(), ActionPush(e, FrameFuncallOperands(f, fexp, e, args, rest, ρ), σ)), new TracingSignalFalse))
+    case e :: rest => Set(InterpreterReturn(List(ActionPushVal(), ActionPush(e, FrameFuncallOperands(f, fexp, e, args, rest, ρ))), new TracingSignalFalse))
   }
   protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn] =
     funcallArgs(f, fexp, List(), args, ρ, σ, t)
@@ -141,13 +141,13 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
   def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time) : Set[InterpreterReturn] = e match {
     case λ: SchemeLambda => Set(interpreterReturn(ActionReachedValue(abs.inject[SchemeExp, Addr]((λ, ρ)), σ)))
-    case SchemeWhile(condition, body) => Set(interpreterReturn(ActionPush(condition, FrameWhileCondition(condition, body, ρ), σ)))
-    case SchemeFuncall(f, args) => Set(interpreterReturn(ActionPush(f, FrameFuncallOperator(f, args, ρ), σ)))
-    case SchemeIf(cond, cons, alt) => Set(interpreterReturn(ActionPush(cond, FrameIf(cons, alt, ρ), σ)))
+    case SchemeWhile(condition, body) => Set(interpreterReturn(ActionPush(condition, FrameWhileCondition(condition, body, ρ))))
+    case SchemeFuncall(f, args) => Set(interpreterReturn(ActionPush(f, FrameFuncallOperator(f, args, ρ))))
+    case SchemeIf(cond, cons, alt) => Set(interpreterReturn(ActionPush(cond, FrameIf(cons, alt, ρ))))
     case SchemeLet(Nil, body) => Set(interpreterReturn(evalBody(body, ρ, σ)))
-    case SchemeLet((v, exp) :: bindings, body) => Set(interpreterReturn(ActionPush(exp, FrameLet(v, List(), bindings, body, ρ), σ)))
+    case SchemeLet((v, exp) :: bindings, body) => Set(interpreterReturn(ActionPush(exp, FrameLet(v, List(), bindings, body, ρ))))
     case SchemeLetStar(Nil, body) => Set(interpreterReturn(evalBody(body, ρ, σ)))
-    case SchemeLetStar((v, exp) :: bindings, body) => Set(interpreterReturn(ActionPush(exp, FrameLetStar(v, bindings, body, ρ), σ)))
+    case SchemeLetStar((v, exp) :: bindings, body) => Set(interpreterReturn(ActionPush(exp, FrameLetStar(v, bindings, body, ρ))))
     case SchemeLetrec(Nil, body) => Set(interpreterReturn(evalBody(body, ρ, σ)))
     case SchemeLetrec((v, exp) :: bindings, body) => {
       val variables = v :: bindings.map(_._1)
@@ -155,16 +155,16 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       val (ρ1, σ1) = variables.zip(addresses).foldLeft((ρ, σ))({ case ((ρ, σ), (v, a)) => (ρ.extend(v, a), σ.extend(a, abs.bottom)) })
       Set(interpreterReturn(ActionPushEnv(exp, FrameLetrec(addresses.head, addresses.tail.zip(bindings.map(_._2)), body, ρ1), ρ1, σ1)))
     }
-    case SchemeSet(variable, exp) => Set(interpreterReturn(ActionPush(exp, FrameSet(variable, ρ), σ)))
+    case SchemeSet(variable, exp) => Set(interpreterReturn(ActionPush(exp, FrameSet(variable, ρ))))
     case SchemeBegin(body) => Set(interpreterReturn(evalBody(body, ρ, σ)))
     case SchemeCond(Nil) => Set(interpreterReturn(ActionError(s"cond without clauses")))
-    case SchemeCond((cond, cons) :: clauses) => Set(interpreterReturn(ActionPush(cond, FrameCond(cons, clauses, ρ), σ)))
-    case SchemeCase(key, clauses, default) => Set(interpreterReturn(ActionPush(key, FrameCase(clauses, default, ρ), σ)))
+    case SchemeCond((cond, cons) :: clauses) => Set(interpreterReturn(ActionPush(cond, FrameCond(cons, clauses, ρ))))
+    case SchemeCase(key, clauses, default) => Set(interpreterReturn(ActionPush(key, FrameCase(clauses, default, ρ))))
     case SchemeAnd(Nil) => Set(interpreterReturn(ActionReachedValue(abs.inject(true), σ)))
-    case SchemeAnd(exp :: exps) => Set(interpreterReturn(ActionPush(exp, FrameAnd(exps, ρ), σ)))
+    case SchemeAnd(exp :: exps) => Set(interpreterReturn(ActionPush(exp, FrameAnd(exps, ρ))))
     case SchemeOr(Nil) => Set(interpreterReturn(ActionReachedValue(abs.inject(false), σ)))
-    case SchemeOr(exp :: exps) => Set(interpreterReturn(ActionPush(exp, FrameOr(exps, ρ), σ)))
-    case SchemeDefineVariable(name, exp) => Set(interpreterReturn(ActionPush(exp, FrameDefine(name, ρ), σ)))
+    case SchemeOr(exp :: exps) => Set(interpreterReturn(ActionPush(exp, FrameOr(exps, ρ))))
+    case SchemeDefineVariable(name, exp) => Set(interpreterReturn(ActionPush(exp, FrameDefine(name, ρ))))
     case SchemeDefineFunction(name, args, body) => {
       /*
        * TODO switch to extended environment
@@ -186,7 +186,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       case Some(v) => Set(interpreterReturn(ActionReachedValue(v, σ)))
       case None => Set(interpreterReturn(ActionError(s"Unhandled value: $v")))
     }
-    case SchemeCas(variable, eold, enew) => Set(interpreterReturn(ActionPush(eold, FrameCasOld(variable, enew, ρ), σ)))
+    case SchemeCas(variable, eold, enew) => Set(interpreterReturn(ActionPush(eold, FrameCasOld(variable, enew, ρ))))
     case SchemeAcquire(variable) => ρ.lookup(variable) match {
       case Some(a) => {
         val v = σ.lookup(a)
@@ -202,9 +202,9 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   }
 
   protected def evalWhileBody(condition: SchemeExp, body: List[SchemeExp], exps: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs]): Action[SchemeExp, Abs, Addr] = exps match {
-    case Nil => ActionPush(condition, FrameWhileCondition(condition, body, ρ), σ)
-    case List(exp) => ActionPush(exp, FrameWhileBody(condition, body, Nil, ρ), σ)
-    case exp :: rest => ActionPush(exp, FrameWhileBody(condition, body, rest, ρ), σ)
+    case Nil => ActionPush(condition, FrameWhileCondition(condition, body, ρ))
+    case List(exp) => ActionPush(exp, FrameWhileBody(condition, body, Nil, ρ))
+    case exp :: rest => ActionPush(exp, FrameWhileBody(condition, body, rest, ρ))
   }
 
   def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time) : Set[InterpreterReturn] = frame match {
@@ -227,19 +227,19 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       Set(interpreterReturn(evalBody(body, ρ1, σ1)))
     }
     case FrameLet(name, bindings, (variable, e) :: toeval, body, ρ) =>
-      Set(interpreterReturn(ActionPush(e, FrameLet(variable, (name, v) :: bindings, toeval, body, ρ), σ)))
+      Set(interpreterReturn(ActionPush(e, FrameLet(variable, (name, v) :: bindings, toeval, body, ρ))))
     case FrameLetStar(name, bindings, body, ρ) => {
       val a = addr.variable(name, t)
       val ρ1 = ρ.extend(name, a)
       val σ1 = σ.extend(a, v)
       bindings match {
         case Nil => Set(interpreterReturn(evalBody(body, ρ1, σ1)))
-        case (variable, exp) :: rest => Set(InterpreterReturn(List(ActionExtendEnv(name), ActionPush(exp, FrameLetStar(variable, rest, body, ρ1), σ)), new TracingSignalFalse))
+        case (variable, exp) :: rest => Set(InterpreterReturn(List(ActionExtendEnv(name), ActionPush(exp, FrameLetStar(variable, rest, body, ρ1))), new TracingSignalFalse))
       }
     }
     case FrameLetrec(a, Nil, body, ρ) => Set(interpreterReturn(evalBody(body, ρ, σ.update(a, v))))
     case FrameLetrec(a, (a1, exp) :: rest, body, ρ) =>
-      Set(interpreterReturn(ActionPush(exp, FrameLetrec(a1, rest, body, ρ), σ.update(a, v))))
+      Set(InterpreterReturn(List(ActionSetVar(a), ActionPush(exp, FrameLetrec(a1, rest, body, ρ))), new TracingSignalFalse))
     case FrameSet(name, ρ) => ρ.lookup(name) match {
       case Some(a) => Set(interpreterReturn(ActionReachedValue(abs.inject(false), σ.update(a, v), Set[Addr](), Set[Addr](a)))) /* writes on a */
       case None => Set(interpreterReturn(ActionError(s"Unbound variable: $name")))
@@ -249,7 +249,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       conditional(v, if (cons.isEmpty) { ActionReachedValue(v, σ) } else { evalBody(cons, ρ, σ) },
         clauses match {
           case Nil => ActionReachedValue(abs.inject(false), σ)
-          case (exp, cons2) :: rest => ActionPush(exp, FrameCond(cons2, rest, ρ), σ)
+          case (exp, cons2) :: rest => ActionPush(exp, FrameCond(cons2, rest, ρ))
         })
     case FrameCase(clauses, default, ρ) => {
       val fromClauses = clauses.flatMap({ case (values, body) =>
@@ -269,14 +269,14 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case FrameAnd(Nil, ρ) =>
       conditional(v, ActionReachedValue(v, σ), ActionReachedValue(abs.inject(false), σ))
     case FrameAnd(e :: rest, ρ) =>
-      conditional(v, ActionPush(e, FrameAnd(rest, ρ), σ), ActionReachedValue(abs.inject(false), σ))
+      conditional(v, ActionPush(e, FrameAnd(rest, ρ)), ActionReachedValue(abs.inject(false), σ))
     case FrameOr(Nil, ρ) =>
       conditional(v, ActionReachedValue(v, σ), ActionReachedValue(abs.inject(false), σ))
     case FrameOr(e :: rest, ρ) =>
-      conditional(v, ActionReachedValue(v, σ), ActionPush(e, FrameOr(rest, ρ), σ))
+      conditional(v, ActionReachedValue(v, σ), ActionPush(e, FrameOr(rest, ρ)))
     case FrameDefine(name, ρ) => throw new Exception(s"TODO: define not handled (no global environment)")
     case FrameCasOld(variable, enew, ρ) =>
-      Set(interpreterReturn(ActionPush(enew, FrameCasNew(variable, v, ρ), σ)))
+      Set(interpreterReturn(ActionPush(enew, FrameCasNew(variable, v, ρ))))
     case FrameCasNew(variable, old, ρ) =>
       ρ.lookup(variable) match {
         case Some(a) => conditional(abs.binaryOp(BinaryOperator.Eq)(σ.lookup(a), old),
@@ -313,7 +313,7 @@ class SchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestam
 
   protected def addRead(action: Action[SchemeExp, Abs, Addr], read: Set[Addr]): Action[SchemeExp, Abs, Addr] = action match {
     case ActionReachedValue(v, σ, read2, write) => ActionReachedValue(v, σ, read ++ read2, write)
-    case ActionPush(e, frame, σ, read2, write) => ActionPush(e, frame, σ, read ++ read2, write)
+    case ActionPush(e, frame, read2, write) => ActionPush(e, frame, read ++ read2, write)
     case ActionEval(e, ρ, σ, read2, write) => ActionEval(e, ρ, σ, read ++ read2, write)
     case ActionStepIn(fexp, clo, e, args, argsv, n, read2, write) => ActionStepIn(fexp, clo, e, args, argsv, n, read ++ read2, write)
     case ActionError(err) => ActionError(err)

@@ -128,6 +128,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       }
 
     action match {
+      case ActionSetVar(va) => State(control, ρ, σ.update(va, v), kstore, a, t, newTc, v, vStack)
       case ActionReachedValue(v, σ, _, _) => State(ControlKont(v), ρ, σ, kstore, a, t, newTc, v, vStack)
       case ActionLookupVariable(varName, _, _) =>
         val newV = σ.lookup(ρ.lookup(varName).get)
@@ -141,7 +142,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
         /*
         Replace frame to be pushed by fnction that takes a store and returns a new frame
          */
-      case ActionPush(e, frame, σ, _, _) =>
+      case ActionPush(e, frame, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
         State(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, newTc, v, vStack)
       case ActionPushEnv(e, frame, ρ, σ, _, _) =>
