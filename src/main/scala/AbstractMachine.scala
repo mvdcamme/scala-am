@@ -88,10 +88,10 @@ abstract class EvalKontMachine[Exp : Expression, Abs : AbstractValue, Addr : Add
    * It can either be an eval component, where an expression needs to be
    * evaluated in an environment
    */
-  case class ControlEval(exp: Exp, env: Environment[Addr]) extends Control {
+  case class ControlEval(exp: Exp) extends Control {
     override def toString() = s"ev(${exp})"
     def subsumes(that: Control) = that match {
-      case ControlEval(exp2, env2) => exp.equals(exp2) && env.subsumes(env2)
+      case ControlEval(exp2) => exp.equals(exp2)
       case _ => false
     }
   }

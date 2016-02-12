@@ -92,6 +92,8 @@ trait Semantics[Exp, Abs, Addr, Time] {
 
   def atomicEval(e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs]): Option[(Abs, Set[Addr])]
 
+  def bindArgs(l: List[(String, (Exp, Abs))], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): (Environment[Addr], Store[Addr, Abs])
+
   /**
     * Defines how to convert continuation frames: all addresses and values included either directly or
     * indirectly, i.e., through the environment, should be converted via the given conversion functions
@@ -140,6 +142,10 @@ case class ActionGuardFalse[Exp : Expression, Abs : AbstractValue, Addr : Addres
 
 case class ActionPushVal[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionPrimCall[Exp : Expression, Abs : AbstractValue, Addr : Address](n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
+case class ActionLookupVariable[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionExtendEnv[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String) extends Action[Exp, Abs, Addr]
+case class ActionPushEnv[Exp : Expression, Abs : AbstractValue, Addr : Address]
+(e: Exp, f : (Store[Addr, Abs] => Frame), ρ: Environment[Addr], σ: Store[Addr, Abs], read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 
 /**
  * A value is reached by the interpreter. As a result, a continuation will be
@@ -154,7 +160,7 @@ case class ActionReachedValue[Exp : Expression, Abs : AbstractValue, Addr : Addr
  * function f on a given store.
  */
 case class ActionPush[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (e: Exp, f : (Store[Addr, Abs] => Frame), ρ: Environment[Addr], σ: Store[Addr, Abs],
+  (e: Exp, f : (Store[Addr, Abs] => Frame), σ: Store[Addr, Abs],
     read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 /**
  * Evaluation continues with expression e in environment ρ
@@ -169,8 +175,7 @@ case class ActionEval[Exp : Expression, Abs : AbstractValue, Addr : Address]
  * also be provided, as they can be needed by the abstract machine.
  */
 case class ActionStepIn[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (fexp: Exp, clo: (Exp, Environment[Addr]), e: Exp,
-    ρ: Environment[Addr], σ: Store[Addr, Abs], n : Integer,
+  (fexp: Exp, clo: (Exp, Environment[Addr]), e: Exp, args : List[String], argsv : List[Exp], n : Integer,
     read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 /**
  * An error has been reached
@@ -209,7 +214,7 @@ abstract class BaseSemantics[Exp : Expression, Abs : AbstractValue, Addr : Addre
    *   - the expression evaluated to get the argument's value
    *   - the value of the argument
    */
-  protected def bindArgs(l: List[(String, (Exp, Abs))], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): (Environment[Addr], Store[Addr, Abs]) =
+  def bindArgs(l: List[(String, (Exp, Abs))], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): (Environment[Addr], Store[Addr, Abs]) =
     l.foldLeft((ρ, σ))({ case ((ρ, σ), (name, (exp, value))) => {
       val a = addr.variable(name, t)
       (ρ.extend(name, a), σ.extend(a, value))
