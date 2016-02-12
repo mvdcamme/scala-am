@@ -141,12 +141,12 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
         /*
         Replace frame to be pushed by fnction that takes a store and returns a new frame
          */
-      case ActionPush(e, frameGen, σ, _, _) =>
+      case ActionPush(e, frame, σ, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-        State(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frameGen(σ), a)), next, t, newTc, v, vStack)
-      case ActionPushEnv(e, frameGen, ρ, σ, _, _) =>
+        State(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, newTc, v, vStack)
+      case ActionPushEnv(e, frame, ρ, σ, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-        State(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frameGen(σ), a)), next, t, newTc, v, vStack)
+        State(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, newTc, v, vStack)
       /* When a value needs to be evaluated, we go to an eval state */
       case ActionEval(e, ρ, σ, _, _) => State(ControlEval(e), ρ, σ, kstore, a, t, newTc, v, vStack)
       /* When a function is stepped in, we also go to an eval state */
