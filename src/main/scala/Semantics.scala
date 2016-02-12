@@ -138,16 +138,14 @@ case class ActionPushVal[Exp : Expression, Abs : AbstractValue, Addr : Address](
 case class ActionPrimCall[Exp : Expression, Abs : AbstractValue, Addr : Address](n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
 case class ActionLookupVariable[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionExtendEnv[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String) extends Action[Exp, Abs, Addr]
-case class ActionPushEnv[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(e: Exp, frame : Frame, ρ: Environment[Addr], σ: Store[Addr, Abs], read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-
+case class ActionPushEnv[Exp : Expression, Abs : AbstractValue, Addr : Address](e: Exp, frame : Frame, ρ: Environment[Addr], σ: Store[Addr, Abs], read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionLiteral[Exp : Expression, Abs : AbstractValue, Addr : Address](v: Abs) extends Action[Exp, Abs, Addr]
 /**
  * A value is reached by the interpreter. As a result, a continuation will be
  * popped with the given reached value.
  */
 case class ActionReachedValue[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (v: Abs, σ: Store[Addr, Abs],
-    read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (v: Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 /**
  * A frame needs to be pushed on the stack, and the interpretation continues by
  * evaluating expression e in environment ρ.

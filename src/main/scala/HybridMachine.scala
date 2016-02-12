@@ -128,8 +128,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       }
 
     action match {
+      case ActionLiteral(v) => State(control, ρ, σ, kstore, a, t, newTc, v, vStack)
       case ActionSetVar(va) => State(control, ρ, σ.update(va, v), kstore, a, t, newTc, v, vStack)
-      case ActionReachedValue(v, σ, _, _) => State(ControlKont(v), ρ, σ, kstore, a, t, newTc, v, vStack)
+      case ActionReachedValue(v, _, _) => State(ControlKont(v), ρ, σ, kstore, a, t, newTc, v, vStack)
       case ActionLookupVariable(varName, _, _) =>
         val newV = σ.lookup(ρ.lookup(varName).get)
         State(ControlKont(newV), ρ, σ, kstore, a, t, newTc, newV, vStack)
