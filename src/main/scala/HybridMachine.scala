@@ -155,7 +155,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
         State(ControlEval(e), ρ, store, kstore.extend(next, Kont(frame, a)), next, t, newTc, v, vStack)
       /* When a value needs to be evaluated, we go to an eval state */
-      case ActionEval(e, ρ, _, _) => State(ControlEval(e), ρ, σ, kstore, a, t, newTc, v, vStack)
+      case ActionEval(e, _, _) => State(ControlEval(e), ρ, σ, kstore, a, t, newTc, v, vStack)
       /* When a function is stepped in, we also go to an eval state */
       case ActionStepIn(fexp, (_, ρ1), e, args, argsv, n, _, _) =>
         val (vals, newVStack) = popStackItems(vStack, n)

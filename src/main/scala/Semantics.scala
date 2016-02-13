@@ -158,7 +158,7 @@ case class ActionPush[Exp : Expression, Abs : AbstractValue, Addr : Address]
  * Evaluation continues with expression e in environment ρ
  */
 case class ActionEval[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (e: Exp, ρ: Environment[Addr], read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (e: Exp, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 
 /**
  * Similar to ActionEval, but only used when stepping inside a function's body

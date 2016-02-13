@@ -36,7 +36,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   def convertFrame(convertAddress : Addr => Addr, convertValue : Abs => Abs)(frame : Frame) : Frame = frame match {
     case FrameFuncallOperator(fexp, args, ρ) => FrameFuncallOperator(fexp, args, ρ.map(convertAddress))
     case FrameFuncallOperands(f, fexp, cur, args, toeval, ρ) => FrameFuncallOperands(convertValue(f), fexp, cur, args.map({tuple => (tuple._1, convertValue(tuple._2))}), toeval, ρ.map(convertAddress))
-    case FrameIf(cons, alt, ρ) => FrameIf(cons, alt)
+    case FrameIf(cons, alt) => FrameIf(cons, alt)
     case FrameLet(variable, bindings, toeval, body, ρ) => FrameLet(variable, bindings.map({tuple => (tuple._1, convertValue(tuple._2))}), toeval, body, ρ.map(convertAddress))
     case FrameLetStar(variable, bindings, body, ρ) => FrameLetStar(variable, bindings, body, ρ.map(convertAddress))
     case FrameLetrec(addr, bindings, body, ρ) => FrameLetrec(convertAddress(addr), bindings, body, ρ.map(convertAddress))
@@ -55,7 +55,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
   protected def evalBody(body: List[SchemeExp], ρ: Environment[Addr]): Action[SchemeExp, Abs, Addr] = body match {
     case Nil => ActionReachedValue(abs.inject(false))
-    case List(exp) => ActionEval(exp, ρ)
+    case List(exp) => ActionEval(exp)
     case exp :: rest => ActionPush(exp, FrameBegin(rest, ρ))
   }
 
@@ -68,8 +68,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
    */
   def conditionalIf(v: Abs, t: List[Action[SchemeExp, Abs, Addr]], tRestart : RestartPoint,
                     f: List[Action[SchemeExp, Abs, Addr]], fRestart : RestartPoint): Set[InterpreterReturn] =
-    (if (abs.isTrue(v)) Set[InterpreterReturn](new InterpreterReturn(ActionGuardTrue(fRestart) :: t, TracingSignalFalse())) else Set[InterpreterReturn]()) ++
-    (if (abs.isFalse(v)) Set[InterpreterReturn](new InterpreterReturn(ActionGuardFalse(tRestart) :: f, TracingSignalFalse())) else Set[InterpreterReturn]())
+    (if (abs.isTrue(v)) Set[InterpreterReturn](new InterpreterReturn(ActionGuardTrue[SchemeExp, Abs, Addr, RestartPoint](fRestart) :: t, TracingSignalFalse())) else Set[InterpreterReturn]()) ++
+    (if (abs.isFalse(v)) Set[InterpreterReturn](new InterpreterReturn(ActionGuardFalse[SchemeExp, Abs, Addr, RestartPoint](tRestart) :: f, TracingSignalFalse())) else Set[InterpreterReturn]())
 
   /**
    * @param argsv are the Scheme-expressions of the operands of the call
@@ -218,7 +218,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case FrameFuncallOperator(fexp, args, ρ) => funcallArgs(v, fexp, args, ρ, σ, t)
     case FrameFuncallOperands(f, fexp, exp, args, toeval, ρ) => funcallArgs(f, fexp, (exp, v) :: args, toeval, ρ, σ, t)
     case FrameIf(cons, alt) =>
-      conditionalIf(v, List(ActionEval(cons, ρ)), cons, List(ActionEval(alt, ρ)), alt)
+      conditionalIf(v, List(ActionRestoreEnv(), ActionEval(cons)), cons, List(ActionRestoreEnv(), ActionEval(alt)), alt)
       /*
        * TODO fix this
        */
@@ -318,7 +318,7 @@ class SchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestam
   protected def addRead(action: Action[SchemeExp, Abs, Addr], read: Set[Addr]): Action[SchemeExp, Abs, Addr] = action match {
     case ActionReachedValue(v, read2, write) => ActionReachedValue(v, read ++ read2, write)
     case ActionPush(e, frame, read2, write) => ActionPush(e, frame, read ++ read2, write)
-    case ActionEval(e, ρ, read2, write) => ActionEval(e, ρ, read ++ read2, write)
+    case ActionEval(e, read2, write) => ActionEval(e, read ++ read2, write)
     case ActionStepIn(fexp, clo, e, args, argsv, n, read2, write) => ActionStepIn(fexp, clo, e, args, argsv, n, read ++ read2, write)
     case ActionError(err) => ActionError(err)
   }
