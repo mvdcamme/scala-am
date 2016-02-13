@@ -30,7 +30,7 @@ trait Semantics[Exp, Abs, Addr, Time] {
   *******************************************************************************************************************/
 
   type Label = List[Exp]
-  type RestartPoint = (Exp, Environment[Addr])
+  type RestartPoint = Exp
 
   /*
    * Enumeration of possible execution phases

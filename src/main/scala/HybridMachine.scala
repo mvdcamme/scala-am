@@ -125,7 +125,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       } else {
         println(s"Guard $guard failed")
         val newTc = new tracerContext.TracerContext(tc.label, tc.traceNodes, tc.trace, tracerContext.semantics.ExecutionPhase.NI, tc.traceExecuting)
-        State(ControlEval(guard.restartPoint._1), guard.restartPoint._2, σ, kstore, a, t, newTc, v, vStack)
+        State(ControlEval(guard.restartPoint), ρ, σ, kstore, a, t, newTc, v, vStack)
       }
 
     action match {
