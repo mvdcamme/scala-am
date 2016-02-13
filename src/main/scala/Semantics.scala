@@ -79,8 +79,8 @@ trait Semantics[Exp, Abs, Addr, Time] {
    */
   type Trace = List[TraceInstruction]
 
-  protected def interpreterReturn(action: Action[Exp, Abs, Addr]) : InterpreterReturn =
-    new InterpreterReturn(List(action), new TracingSignalFalse)
+  protected def interpreterReturn(actions: List[Action[Exp, Abs, Addr]]) : InterpreterReturn =
+    new InterpreterReturn(actions, new TracingSignalFalse)
 
   protected def interpreterReturnStart(action: Action[Exp, Abs, Addr], label : Label) : InterpreterReturn =
     new InterpreterReturn(List(action), new TracingSignalStart(label))
@@ -133,12 +133,14 @@ abstract class ActionGuard[Exp : Expression, Abs : AbstractValue, Addr : Address
 case class ActionGuardTrue[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
 case class ActionGuardFalse[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
 
+case class ActionSaveEnv[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
+case class ActionRestoreEnv[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionSetVar[Exp : Expression, Abs : AbstractValue, Addr : Address](va : Addr) extends Action[Exp, Abs, Addr]
 case class ActionPushVal[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionPrimCall[Exp : Expression, Abs : AbstractValue, Addr : Address](n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
 case class ActionLookupVariable[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionExtendEnv[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String) extends Action[Exp, Abs, Addr]
-case class ActionPushEnv[Exp : Expression, Abs : AbstractValue, Addr : Address](e: Exp, frame : Frame, ρ: Environment[Addr], σ: Store[Addr, Abs], read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionPushEnv[Exp : Expression, Abs : AbstractValue, Addr : Address](e: Exp, frame : Frame, ρ: Environment[Addr], store : Store[Addr, Abs], read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionLiteral[Exp : Expression, Abs : AbstractValue, Addr : Address](v: Abs) extends Action[Exp, Abs, Addr]
 /**
  * A value is reached by the interpreter. As a result, a continuation will be
@@ -156,8 +158,7 @@ case class ActionPush[Exp : Expression, Abs : AbstractValue, Addr : Address]
  * Evaluation continues with expression e in environment ρ
  */
 case class ActionEval[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs],
-    read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (e: Exp, ρ: Environment[Addr], read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 
 /**
  * Similar to ActionEval, but only used when stepping inside a function's body
