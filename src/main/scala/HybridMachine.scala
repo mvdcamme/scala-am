@@ -83,7 +83,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
         val newKStore = kstore.map(convertKontAddress, sem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
         val newA = convertKontAddress(a)
         val newV = convertValue(σ)(v)
-        val newVStack = vStack.map(convertValue(σ))
+        val newVStack = vStack.map({v => Left(convertValue(σ)(v.left.get))})
         def addToNewStore(tuple: (HybridAddress, HybridValue)): Boolean = {
           val newAddress = HybridAddress.convertAddress(tuple._1)
           val newValue = convertValue(σ)(tuple._2)
@@ -95,7 +95,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     }
   }
 
-  def popStack[A](stack : List[A], n : Integer) : (List[A], List[A]) = stack.splitAt(n)
+  def popStack[A](stack : List[A]) : (A, List[A]) = (stack.head, stack.tail)
+  def popStackItems[A](stack : List[A], n : Integer) : (List[A], List[A]) = stack.splitAt(n)
 
   def replaceTc(state: State, tc : tracerContext.TracerContext) =
     new State(state.control, state.ρ, state.σ, state.kstore, state.a, state.t, tc, state.v, state.vStack)
@@ -128,6 +129,10 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       }
 
     action match {
+      case ActionSaveEnv() => State(control, ρ, σ, kstore, a, t, newTc, v, Right(ρ) :: vStack)
+      case ActionRestoreEnv() =>
+        val (newρ, newVStack) = popStack(vStack)
+        State(control, newρ.right.get, σ, kstore, a, t, newTc, v, newVStack)
       case ActionLiteral(v) => State(control, ρ, σ, kstore, a, t, newTc, v, vStack)
       case ActionSetVar(va) => State(control, ρ, σ.update(va, v), kstore, a, t, newTc, v, vStack)
       case ActionReachedValue(v, _, _) => State(ControlKont(v), ρ, σ, kstore, a, t, newTc, v, vStack)
@@ -146,28 +151,28 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       case ActionPush(e, frame, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
         State(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, newTc, v, vStack)
-      case ActionPushEnv(e, frame, ρ, σ, _, _) =>
+      case ActionPushEnv(e, frame, ρ, store, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-        State(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, newTc, v, vStack)
+        State(ControlEval(e), ρ, store, kstore.extend(next, Kont(frame, a)), next, t, newTc, v, vStack)
       /* When a value needs to be evaluated, we go to an eval state */
-      case ActionEval(e, ρ, σ, _, _) => State(ControlEval(e), ρ, σ, kstore, a, t, newTc, v, vStack)
+      case ActionEval(e, ρ, _, _) => State(ControlEval(e), ρ, σ, kstore, a, t, newTc, v, vStack)
       /* When a function is stepped in, we also go to an eval state */
       case ActionStepIn(fexp, (_, ρ1), e, args, argsv, n, _, _) =>
-        val (vals, newVStack) = popStack(vStack, n)
+        val (vals, newVStack) = popStackItems(vStack, n)
         println(vals)
         if (args.length == n - 1) {
-          sem.bindArgs(args.zip(argsv.zip(vals)), ρ1, σ, t) match {
+          sem.bindArgs(args.zip(argsv.zip(vals.map(_.left.get))), ρ1, σ, t) match {
             case (ρ2, σ2) =>
               State(ControlEval(e), ρ2, σ2, kstore, a, time.tick(t, fexp), newTc, v, newVStack)
           }
         } else { State(ControlError(s"Arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, newTc, v, newVStack) }
-      case ActionPushVal() => State(control, ρ, σ, kstore, a, t, newTc, v, v :: vStack)
+      case ActionPushVal() => State(control, ρ, σ, kstore, a, t, newTc, v, Left(v) :: vStack)
       /* When an error is reached, we go to an error state */
       case ActionError(err) => State(ControlError(err), ρ, σ, kstore, a, t, newTc, v, vStack)
       case ActionPrimCall(n : Integer, fExp : SchemeExp, argsExps : List[SchemeExp]) =>
-        val (vals, newVStack) = popStack(vStack, n)
-        val operator : HybridValue = vals.last
-        val operands : List[HybridValue] = vals.take(n - 1)
+        val (vals, newVStack) = popStackItems(vStack, n)
+        val operator : HybridValue = vals.last.left.get
+        val operands : List[HybridValue] = vals.take(n - 1).map(_.left.get)
         val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
         val result = primitive match {
           case Some(primitive) => primitive.call(fExp, argsExps.zip(operands.reverse), σ, t)
@@ -182,13 +187,15 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     }
   }
 
+  type Storable = Either[HybridValue, Environment[HybridAddress]]
+
   /**
    * A machine state is made of a control component, a value store, a
    * continuation store, and an address representing where the current
    * continuation lives.
    */
   case class State(control: Control, ρ : Environment[HybridAddress], σ: Store[HybridAddress, HybridValue], kstore: KontStore[KontAddr],
-                   a: KontAddr, t: Time, tc: tracerContext.TracerContext, v : HybridValue, vStack : List[HybridValue]) {
+                   a: KontAddr, t: Time, tc: tracerContext.TracerContext, v : HybridValue, vStack : List[Storable]) {
 
     /**
      * Builds the state with the initial environment and stores
@@ -284,6 +291,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
         }
       }
     }
+
     /**
      * Checks if the current state is a final state. It is the case if it
      * reached the end of the computation, or an error
