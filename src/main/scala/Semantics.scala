@@ -135,12 +135,13 @@ case class ActionGuardFalse[Exp : Expression, Abs : AbstractValue, Addr : Addres
 
 case class ActionSaveEnv[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionRestoreEnv[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
-case class ActionSetVar[Exp : Expression, Abs : AbstractValue, Addr : Address](va : Addr) extends Action[Exp, Abs, Addr]
+case class ActionSetVar[Exp : Expression, Abs : AbstractValue, Addr : Address](variable : String) extends Action[Exp, Abs, Addr]
 case class ActionPushVal[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionPrimCall[Exp : Expression, Abs : AbstractValue, Addr : Address](n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
 case class ActionLookupVariable[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionExtendEnv[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String) extends Action[Exp, Abs, Addr]
-case class ActionPushEnv[Exp : Expression, Abs : AbstractValue, Addr : Address](e: Exp, frame : Frame, ρ: Environment[Addr], store : Store[Addr, Abs], read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionAllocVars[Exp : Expression, Abs : AbstractValue, Addr : Address](varNames : List[String]) extends Action[Exp, Abs, Addr]
+case class ActionPushEnv[Exp : Expression, Abs : AbstractValue, Addr : Address](e: Exp, frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionLiteral[Exp : Expression, Abs : AbstractValue, Addr : Address](v: Abs) extends Action[Exp, Abs, Addr]
 /**
  * A value is reached by the interpreter. As a result, a continuation will be

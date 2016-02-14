@@ -122,6 +122,9 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     case None => throw new Exception("Error: no trace is being executed")
   }
 
+  def stopExecuting(tracerContext: TracerContext) : TracerContext =
+    new TracerContext(None, tracerContext.traceNodes, List(), semantics.ExecutionPhase.NI, None)
+
   /*
    * Adding traces
    */
