@@ -130,63 +130,63 @@ abstract class Action[Exp : Expression, Abs : AbstractValue, Addr : Address]
 abstract class ActionGuard[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends Action[Exp, Abs, Addr] {
     val restartPoint = rp
 }
-case class ActionGuardTrue[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
-case class ActionGuardFalse[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
 
-case class ActionSaveEnv[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
-case class ActionRestoreEnv[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
-case class ActionSetVar[Exp : Expression, Abs : AbstractValue, Addr : Address](variable : String) extends Action[Exp, Abs, Addr]
-case class ActionPushVal[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
-case class ActionPrimCall[Exp : Expression, Abs : AbstractValue, Addr : Address](n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
-case class ActionLookupVariable[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-case class ActionExtendEnv[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String) extends Action[Exp, Abs, Addr]
 case class ActionAllocVars[Exp : Expression, Abs : AbstractValue, Addr : Address](varNames : List[String]) extends Action[Exp, Abs, Addr]
-case class ActionPushEnv[Exp : Expression, Abs : AbstractValue, Addr : Address](e: Exp, frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-case class ActionLiteral[Exp : Expression, Abs : AbstractValue, Addr : Address](v: Abs) extends Action[Exp, Abs, Addr]
 /**
- * A value is reached by the interpreter. As a result, a continuation will be
- * popped with the given reached value.
- */
-case class ActionReachedValue[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (v: Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-/**
- * A frame needs to be pushed on the stack, and the interpretation continues by
- * evaluating expression e in environment ρ.
- */
-case class ActionPush[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (e: Exp, frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-/**
- * Evaluation continues with expression e in environment ρ
- */
-case class ActionEval[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (e: Exp, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-
-/**
- * Similar to ActionEval, but only used when stepping inside a function's body
- * (clo is therefore the function stepped into). The number of arguments should
- * also be provided, as they can be needed by the abstract machine.
- */
-case class ActionStepIn[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (fexp: Exp, clo: (Exp, Environment[Addr]), e: Exp, args : List[String], argsv : List[Exp], n : Integer,
-    read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-/**
- * An error has been reached
- */
+  * An error has been reached
+  */
 case class ActionError[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (reason: String) extends Action[Exp, Abs, Addr]
 /**
- * Spawns a new thread that evaluates expression e in environment ρ. The current
- * thread continues its execution by performing action act.
- */
+  * Evaluation continues with expression e in environment ρ
+  */
+case class ActionEval[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (e: Exp, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionExtendEnv[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String) extends Action[Exp, Abs, Addr]
+case class ActionGuardTrue[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
+case class ActionGuardFalse[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuard[Exp, Abs, Addr, RestartPoint](rp)
+/**
+  * Waits for the execution of a thread, with tid as its identifier.
+  */
+case class ActionJoin[Exp : Expression, Abs : AbstractValue, Addr : Address]
+(tid: Abs, σ: Store[Addr, Abs],
+ read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionLiteral[Exp : Expression, Abs : AbstractValue, Addr : Address](v: Abs) extends Action[Exp, Abs, Addr]
+case class ActionLookupVariable[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionPrimCall[Exp : Expression, Abs : AbstractValue, Addr : Address](n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
+/**
+  * A frame needs to be pushed on the stack, and the interpretation continues by
+  * evaluating expression e in environment ρ.
+  */
+case class ActionPush[Exp : Expression, Abs : AbstractValue, Addr : Address]
+(e: Exp, frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionPushEnv[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (e: Exp, frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionPushVal[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
+/**
+  * A value is reached by the interpreter. As a result, a continuation will be
+  * popped with the given reached value.
+  */
+case class ActionReachedValue[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (v: Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionRestoreEnv[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
+case class ActionSaveEnv[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
+case class ActionSetVar[Exp : Expression, Abs : AbstractValue, Addr : Address](variable : String) extends Action[Exp, Abs, Addr]
+/**
+  * Spawns a new thread that evaluates expression e in environment ρ. The current
+  * thread continues its execution by performing action act.
+  */
 case class ActionSpawn[TID : ThreadIdentifier, Exp : Expression, Abs : AbstractValue, Addr : Address]
   (t: TID, e: Exp, ρ: Environment[Addr], act: Action[Exp, Abs, Addr],
-    read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+   read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 /**
- * Waits for the execution of a thread, with tid as its identifier.
- */
-case class ActionJoin[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (tid: Abs, σ: Store[Addr, Abs],
-    read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  * Similar to ActionEval, but only used when stepping inside a function's body
+  * (clo is therefore the function stepped into). The number of arguments should
+  * also be provided, as they can be needed by the abstract machine.
+  */
+case class ActionStepIn[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (fexp: Exp, clo: (Exp, Environment[Addr]), e: Exp, args : List[String], argsv : List[Exp], n : Integer,
+   read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 
 /**
  * Base class for semantics that define some helper methods

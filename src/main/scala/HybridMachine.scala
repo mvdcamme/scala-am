@@ -129,50 +129,33 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       }
 
     action match {
-      case ActionSaveEnv() => State(control, ρ, σ, kstore, a, t, newTc, v, Right(ρ) :: vStack)
-      case ActionRestoreEnv() =>
-        val (newρ, newVStack) = popStack(vStack)
-        State(control, newρ.right.get, σ, kstore, a, t, newTc, v, newVStack)
-      case ActionLiteral(v) => State(control, ρ, σ, kstore, a, t, newTc, v, vStack)
-      case ActionSetVar(variable) => State(control, ρ, σ.update(ρ.lookup(variable).get, v), kstore, a, t, newTc, v, vStack)
-      case ActionReachedValue(v, _, _) => State(ControlKont(v), ρ, σ, kstore, a, t, newTc, v, vStack)
-      case ActionLookupVariable(varName, _, _) =>
-        val newV = σ.lookup(ρ.lookup(varName).get)
-        State(ControlKont(newV), ρ, σ, kstore, a, t, newTc, newV, vStack)
+      case ActionAllocVars(variables) =>
+        val addresses = variables.map(v => addr.variable(v, t))
+        val (ρ1, σ1) = variables.zip(addresses).foldLeft((ρ, σ))({ case ((ρ, σ), (v, a)) => (ρ.extend(v, a), σ.extend(a, abs.bottom)) })
+        State(control, ρ1, σ1, kstore, a, t, newTc, v, vStack)
+      /* When an error is reached, we go to an error state */
+      case ActionError(err) => State(ControlError(err), ρ, σ, kstore, a, t, newTc, v, vStack)
+      /* When a value needs to be evaluated, we go to an eval state */
+      case ActionEval(e, _, _) => State(ControlEval(e), ρ, σ, kstore, a, t, newTc, v, vStack)
       case ActionExtendEnv(varName : String) =>
         val va = addr.variable(varName, t)
         val ρ1 = ρ.extend(name, va)
         val σ1 = σ.extend(va, v)
         State(control, ρ1, σ1, kstore, a, t, tc, v, vStack)
-      case ActionAllocVars(variables) =>
-        val addresses = variables.map(v => addr.variable(v, t))
-        val (ρ1, σ1) = variables.zip(addresses).foldLeft((ρ, σ))({ case ((ρ, σ), (v, a)) => (ρ.extend(v, a), σ.extend(a, abs.bottom)) })
-        State(control, ρ1, σ1, kstore, a, t, newTc, v, vStack)
+      case ActionLiteral(v) => State(control, ρ, σ, kstore, a, t, newTc, v, vStack)
+      case ActionLookupVariable(varName, _, _) =>
+        val newV = σ.lookup(ρ.lookup(varName).get)
+        State(ControlKont(newV), ρ, σ, kstore, a, t, newTc, newV, vStack)
       /* When a continuation needs to be pushed, push it in the continuation store */
-        /*
-        Replace frame to be pushed by fnction that takes a store and returns a new frame
-         */
+      /*
+      Replace frame to be pushed by fnction that takes a store and returns a new frame
+       */
       case ActionPush(e, frame, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
         State(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, newTc, v, vStack)
       case ActionPushEnv(e, frame, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
         State(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, newTc, v, vStack)
-      /* When a value needs to be evaluated, we go to an eval state */
-      case ActionEval(e, _, _) => State(ControlEval(e), ρ, σ, kstore, a, t, newTc, v, vStack)
-      /* When a function is stepped in, we also go to an eval state */
-      case ActionStepIn(fexp, (_, ρ1), e, args, argsv, n, _, _) =>
-        val (vals, newVStack) = popStackItems(vStack, n)
-        println(vals)
-        if (args.length == n - 1) {
-          sem.bindArgs(args.zip(argsv.zip(vals.map(_.left.get))), ρ1, σ, t) match {
-            case (ρ2, σ2) =>
-              State(ControlEval(e), ρ2, σ2, kstore, a, time.tick(t, fexp), newTc, v, newVStack)
-          }
-        } else { State(ControlError(s"Arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, newTc, v, newVStack) }
-      case ActionPushVal() => State(control, ρ, σ, kstore, a, t, newTc, v, Left(v) :: vStack)
-      /* When an error is reached, we go to an error state */
-      case ActionError(err) => State(ControlError(err), ρ, σ, kstore, a, t, newTc, v, vStack)
       case ActionPrimCall(n : Integer, fExp : SchemeExp, argsExps : List[SchemeExp]) =>
         val (vals, newVStack) = popStackItems(vStack, n)
         val operator : HybridValue = vals.last.left.get
@@ -186,6 +169,23 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
           case Left(error) => throw new Exception(error)
           case Right((v, newσ)) => State(ControlKont(v), ρ, σ, kstore, a, t, newTc, v, newVStack)
         }
+      case ActionPushVal() => State(control, ρ, σ, kstore, a, t, newTc, v, Left(v) :: vStack)
+      case ActionReachedValue(v, _, _) => State(ControlKont(v), ρ, σ, kstore, a, t, newTc, v, vStack)
+      case ActionRestoreEnv() =>
+        val (newρ, newVStack) = popStack(vStack)
+        State(control, newρ.right.get, σ, kstore, a, t, newTc, v, newVStack)
+      case ActionSaveEnv() => State(control, ρ, σ, kstore, a, t, newTc, v, Right(ρ) :: vStack)
+      case ActionSetVar(variable) => State(control, ρ, σ.update(ρ.lookup(variable).get, v), kstore, a, t, newTc, v, vStack)
+      /* When a function is stepped in, we also go to an eval state */
+      case ActionStepIn(fexp, (_, ρ1), e, args, argsv, n, _, _) =>
+        val (vals, newVStack) = popStackItems(vStack, n)
+        println(vals)
+        if (args.length == n - 1) {
+          sem.bindArgs(args.zip(argsv.zip(vals.map(_.left.get))), ρ1, σ, t) match {
+            case (ρ2, σ2) =>
+              State(ControlEval(e), ρ2, σ2, kstore, a, time.tick(t, fexp), newTc, v, newVStack)
+          }
+        } else { State(ControlError(s"Arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, newTc, v, newVStack) }
       case v : ActionGuardFalse[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isFalse)
       case v : ActionGuardTrue[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isTrue)
     }
@@ -269,7 +269,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       }})}
 
     def stepTrace() : State = {
-      println("In steptrace")
       val (traceHead, newTc) = tracerContext.stepTrace(tc)
       val newState = applyAction(a)(this, traceHead)
       new State(newState.control, newState.ρ, newState.σ, newState.kstore, newState.a, newState.t, newTc, newState.v, newState.vStack)
@@ -282,7 +281,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       if (tracerContext.isExecuting(tc)) {
         Set(stepTrace())
       } else {
-        println("In normal interpretation")
         control match {
           /* In a eval state, call the semantic's evaluation method */
           case ControlEval(e) => integrate(a, sem.stepEval(e, ρ, σ, t))
