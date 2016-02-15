@@ -25,7 +25,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
   def name = "HybridMachine"
 
   val SWITCH_ABSTRACT = false
-  val DO_TRACING = false
+  val DO_TRACING = true
 
   val THRESHOLD = 1
 
@@ -101,14 +101,13 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
   def replaceTc(state: State, tc : tracerContext.TracerContext) =
     new State(state.control, state.ρ, state.σ, state.kstore, state.a, state.t, tc, state.v, state.vStack)
 
-  def applyAction(a: KontAddr)(state : State, action : Action[Exp, HybridValue, HybridAddress]) : State = {
+  def applyAction(a: KontAddr, tc: tracerContext.TracerContext)(state : State, action : Action[Exp, HybridValue, HybridAddress]) : State = {
 
     val control = state.control
     val ρ = state.ρ
     val σ = state.σ
     val kstore = state.kstore
     val t = state.t
-    val tc = state.tc
     val v = state.v
     val vStack = state.vStack
 
@@ -228,7 +227,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     private def integrate(a: KontAddr, interpreterReturns: Set[sem.InterpreterReturn]): Set[State] = {
 
       def applyTrace(state : State, trace : sem.Trace) : State = {
-        trace.foldLeft(this)(applyAction(a))
+        trace.foldLeft(this)(applyAction(a, tc))
       }
 
       def startExecutingTrace(trace : sem.Trace, label : sem.Label): State = {
@@ -269,8 +268,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       }})}
 
     def stepTrace() : State = {
+      println("Doing trace execution")
       val (traceHead, newTc) = tracerContext.stepTrace(tc)
-      val newState = applyAction(a)(this, traceHead)
+      val newState = applyAction(a, newTc)(this, traceHead)
       new State(newState.control, newState.ρ, newState.σ, newState.kstore, newState.a, newState.t, newTc, newState.v, newState.vStack)
     }
 
@@ -281,6 +281,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       if (tracerContext.isExecuting(tc)) {
         Set(stepTrace())
       } else {
+        println("Doing normal interpretation")
         control match {
           /* In a eval state, call the semantic's evaluation method */
           case ControlEval(e) => integrate(a, sem.stepEval(e, ρ, σ, t))
