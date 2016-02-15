@@ -18,7 +18,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   case class FrameFuncallOperands(f: Abs, fexp: SchemeExp, cur: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrame
   case class FrameIf(cons: SchemeExp, alt: SchemeExp) extends SchemeFrame
   case class FrameLet(variable: String, bindings: List[(String, Abs)], toeval: List[(String, SchemeExp)], body: List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrame
-  case class FrameLetStar(variable: String, bindings: List[(String, SchemeExp)], body: List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrame
+  case class FrameLetStar(variable: String, bindings: List[(String, SchemeExp)], body: List[SchemeExp]) extends SchemeFrame
   case class FrameLetrec(variable: String, bindings: List[(String, SchemeExp)], body: List[SchemeExp]) extends SchemeFrame
   case class FrameSet(variable: String, ρ: Environment[Addr]) extends SchemeFrame
   case class FrameBegin(rest: List[SchemeExp]) extends SchemeFrame
@@ -38,7 +38,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case FrameFuncallOperands(f, fexp, cur, args, toeval, ρ) => FrameFuncallOperands(convertValue(f), fexp, cur, args.map({tuple => (tuple._1, convertValue(tuple._2))}), toeval, ρ.map(convertAddress))
     case FrameIf(cons, alt) => FrameIf(cons, alt)
     case FrameLet(variable, bindings, toeval, body, ρ) => FrameLet(variable, bindings.map({tuple => (tuple._1, convertValue(tuple._2))}), toeval, body, ρ.map(convertAddress))
-    case FrameLetStar(variable, bindings, body, ρ) => FrameLetStar(variable, bindings, body, ρ.map(convertAddress))
+    case FrameLetStar(variable, bindings, body) => FrameLetStar(variable, bindings, body)
     case FrameLetrec(variable, bindings, body) => FrameLetrec(variable, bindings, body)
     case FrameSet(variable, ρ) => FrameSet(variable, ρ.map(convertAddress))
     case FrameBegin(rest) => FrameBegin(rest)
@@ -147,7 +147,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case SchemeLet(Nil, body) => Set(interpreterReturn(evalBody(body)))
     case SchemeLet((v, exp) :: bindings, body) => Set(interpreterReturn(List(ActionPush(exp, FrameLet(v, List(), bindings, body, ρ)))))
     case SchemeLetStar(Nil, body) => Set(interpreterReturn(evalBody(body)))
-    case SchemeLetStar((v, exp) :: bindings, body) => Set(interpreterReturn(List(ActionPush(exp, FrameLetStar(v, bindings, body, ρ)))))
+    case SchemeLetStar((v, exp) :: bindings, body) => Set(interpreterReturn(List(ActionSaveEnv(), ActionPush(exp, FrameLetStar(v, bindings, body)))))
     case SchemeLetrec(Nil, body) => Set(interpreterReturn(evalBody(body)))
 //    case SchemeLetrec((v, exp) :: bindings, body) => {
 //      val variables = v :: bindings.map(_._1)
@@ -236,15 +236,16 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 //    }
 //    case FrameLet(name, bindings, (variable, e) :: toeval, body, ρ) =>
 //      Set(interpreterReturn(ActionPush(e, FrameLet(variable, (name, v) :: bindings, toeval, body, ρ))))
-//    case FrameLetStar(name, bindings, body, ρ) => {
+    case FrameLetStar(name, bindings, body) => {
+      val actions = List(ActionRestoreEnv[SchemeExp, Abs, Addr](), ActionExtendEnv[SchemeExp, Abs, Addr](name))
 //      val a = addr.variable(name, t)
-//      val ρ1 = ρ.extend(name, a)
-//      val σ1 = σ.extend(a, v)
-//      bindings match {
-//        case Nil => Set(interpreterReturn(evalBody(body, ρ1, σ1)))
-//        case (variable, exp) :: rest => Set(InterpreterReturn(List(ActionExtendEnv(name), ActionPush(exp, FrameLetStar(variable, rest, body, ρ1))), new TracingSignalFalse))
-//      }
-//    }
+      //      val ρ1 = ρ.extend(name, a)
+      //      val σ1 = σ.extend(a, v)
+      bindings match {
+        case Nil => Set(interpreterReturn(actions ++ evalBody(body)))
+        case (variable, exp) :: rest => Set(InterpreterReturn(actions ++ List(ActionSaveEnv[SchemeExp, Abs, Addr](), ActionPush(exp, FrameLetStar(variable, rest, body))), new TracingSignalFalse))
+      }
+    }
     case FrameLetrec(a, Nil, body) =>
       val actions : Trace = List(ActionRestoreEnv[SchemeExp, Abs, Addr](), ActionSetVar[SchemeExp, Abs, Addr](a)) ++ evalBody(body)
       Set(InterpreterReturn(actions, new TracingSignalFalse))
