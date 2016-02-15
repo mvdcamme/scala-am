@@ -80,7 +80,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
      */
     val valsToPop = argsv.length + 1
 
-    val actions : Trace = List(ActionPushVal())
+    val actions : Trace = List(ActionRestoreEnv(), ActionPushVal())
 
     val fromClo: Set[InterpreterReturn] = abs.getClosures[SchemeExp, Addr](function).map({
       case (SchemeLambda(args, body), ρ1) =>
@@ -111,7 +111,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
   protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn] = toeval match {
     case Nil => evalCall(f, fexp, args.reverse, ρ, σ, t)
-    case e :: rest => Set(InterpreterReturn(List(ActionPushVal(), ActionPush(e, FrameFuncallOperands(f, fexp, e, args, rest, ρ))), new TracingSignalFalse))
+    case e :: rest => Set(InterpreterReturn(List(ActionRestoreEnv(), ActionPushVal(), ActionSaveEnv(), ActionPush(e, FrameFuncallOperands(f, fexp, e, args, rest, ρ))), new TracingSignalFalse))
   }
   protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn] =
     funcallArgs(f, fexp, List(), args, ρ, σ, t)
@@ -142,7 +142,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time) : Set[InterpreterReturn] = e match {
     case λ: SchemeLambda => Set(interpreterReturn(List(ActionReachedValue(abs.inject[SchemeExp, Addr]((λ, ρ))))))
     case SchemeWhile(condition, body) => Set(interpreterReturn(List(ActionPush(condition, FrameWhileCondition(condition, body, ρ)))))
-    case SchemeFuncall(f, args) => Set(interpreterReturn(List(ActionPush(f, FrameFuncallOperator(f, args, ρ)))))
+    case SchemeFuncall(f, args) => Set(interpreterReturn(List(ActionSaveEnv(), ActionPush(f, FrameFuncallOperator(f, args, ρ)))))
     case SchemeIf(cond, cons, alt) => Set(interpreterReturn(List(ActionSaveEnv(), ActionPush(cond, FrameIf(cons, alt)))))
     case SchemeLet(Nil, body) => Set(interpreterReturn(evalBody(body)))
     case SchemeLet((v, exp) :: bindings, body) => Set(interpreterReturn(List(ActionPush(exp, FrameLet(v, List(), bindings, body, ρ)))))

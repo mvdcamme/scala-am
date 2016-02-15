@@ -181,7 +181,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
         val (vals, newVStack) = popStackItems(vStack, n)
         println(vals)
         if (args.length == n - 1) {
-          sem.bindArgs(args.zip(argsv.zip(vals.map(_.left.get))), ρ1, σ, t) match {
+          sem.bindArgs(args.zip(argsv.zip(vals.init.map(_.left.get))), ρ1, σ, t) match {
             case (ρ2, σ2) =>
               State(ControlEval(e), ρ2, σ2, kstore, a, time.tick(t, fexp), newTc, v, newVStack)
           }
