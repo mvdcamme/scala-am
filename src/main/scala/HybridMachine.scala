@@ -274,8 +274,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       //println("Doing trace execution")
       val (traceHead, newTc) = tracerContext.stepTrace(tc)
       val newState = applyAction(a)(this, traceHead)
-      val newNewTc = new tracerContext.TracerContext(newState.tc.label, newState.tc.traceNodes, newTc.trace, newState.tc.executionPhase, newState.tc.traceExecuting)
-      new State(newState.control, newState.ρ, newState.σ, newState.kstore, newState.a, newState.t, newNewTc, newState.v, newState.vStack)
+      val newNewTc = new tracerContext.TracerContext(newState.tc.label, newState.tc.traceNodes, newState.tc.trace, newState.tc.executionPhase, newTc.traceExecuting)
+      replaceTc(newState, newNewTc)
     }
 
     /**
