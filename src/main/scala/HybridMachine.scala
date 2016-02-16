@@ -103,6 +103,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
 
   def applyAction(a: KontAddr, tc: tracerContext.TracerContext)(state : State, action : Action[Exp, HybridValue, HybridAddress]) : State = {
 
+    println(s"Executing action $action")
+
     val control = state.control
     val ρ = state.ρ
     val σ = state.σ
@@ -227,7 +229,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
     private def integrate(a: KontAddr, interpreterReturns: Set[sem.InterpreterReturn]): Set[State] = {
 
       def applyTrace(state : State, trace : sem.Trace) : State = {
-        trace.foldLeft(this)(applyAction(a, tc))
+        trace.foldLeft(this)(applyAction(a, state.tc))
       }
 
       def startExecutingTrace(trace : sem.Trace, label : sem.Label): State = {
@@ -236,7 +238,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
         val tc = newState.tc
         val traceNode = tracerContext.getTrace(tc, label)
         val newTracerContext = new tracerContext.TracerContext(tc.label, tc.traceNodes, tc.trace, tracerContext.semantics.ExecutionPhase.TE, Some(traceNode))
-        new State(newState.control, newState.ρ, newState.σ, newState.kstore, newState.a, newState.t, newTracerContext, newState.v, newState.vStack)
+        replaceTc(newState, newTracerContext)
       }
 
       interpreterReturns.map({itpRet => itpRet match {
@@ -245,14 +247,21 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
           if (tracerContext.traceExists(tc, label)) {
             startExecutingTrace(trace, label)
           } else if (tracerContext.isTracingLabel(tc, label)) {
+            val newTc = tracerContext.stopTracing(tc, true, None)
+            /*
+             * Stop tracing and don't append new actions
+             */
             val newState = applyTrace(this, trace)
             println(s"Stopped tracing $label")
-            new State(newState.control, newState.ρ, newState.σ, newState.kstore, newState.a, newState.t, tracerContext.stopTracing(newState.tc, true, None), newState.v, newState.vStack)
+            replaceTc(newState, newTc)
           } else if (DO_TRACING) {
             println(s"Started tracing $label")
             val newTc = tracerContext.startTracingLabel(tc, label)
-            val newState = applyTrace(this, trace)
-            new State(newState.control, newState.ρ, newState.σ, newState.kstore, newState.a, newState.t, newTc, newState.v, newState.vStack)
+            val startedTracingProgramState = replaceTc(this, newTc)
+            /*
+             * Start tracing immediately when receiving the signal to trace
+             */
+            applyTrace(startedTracingProgramState, trace)
           } else {
             applyTrace(this, trace)
           }
