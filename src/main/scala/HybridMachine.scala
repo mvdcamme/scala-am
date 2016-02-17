@@ -135,6 +135,11 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
         val addresses = variables.map(v => addr.variable(v, t))
         val (ρ1, σ1) = variables.zip(addresses).foldLeft((ρ, σ))({ case ((ρ, σ), (v, a)) => (ρ.extend(v, a), σ.extend(a, abs.bottom)) })
         State(control, ρ1, σ1, kstore, a, t, newTc, v, vStack)
+      case ActionDefineVars(variables) =>
+        val addresses = variables.map(v => addr.variable(v, t))
+        val (vals, newVStack) = popStackItems(vStack, variables.length)
+        val (ρ1, σ1) = vals.zip(variables.zip(addresses)).foldLeft((ρ, σ))({ case ((ρ, σ), (value, (v, a))) => (ρ.extend(v, a), σ.extend(a, value.left.get)) })
+        State(control, ρ1, σ1, kstore, a, t, newTc, v, newVStack)
       /* When an error is reached, we go to an error state */
       case ActionError(err) => State(ControlError(err), ρ, σ, kstore, a, t, newTc, v, vStack)
       /* When a value needs to be evaluated, we go to an eval state */
@@ -219,14 +224,19 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       } else {
         println(s"Guard $guard failed")
         val newTc = tracerContext.stopExecuting(tc)
-        State(ControlEval(guard.restartPoint), ρ, σ, kstore, a, t, newTc, v, vStack)
-      }
+    State(ControlEval(guard.restartPoint), ρ, σ, kstore, a, t, newTc, v, vStack)
+  }
 
     action match {
       case ActionAllocVars(variables) =>
         val addresses = variables.map(v => addr.variable(v, t))
         val (ρ1, σ1) = variables.zip(addresses).foldLeft((ρ, σ))({ case ((ρ, σ), (v, a)) => (ρ.extend(v, a), σ.extend(a, abs.bottom)) })
         State(control, ρ1, σ1, kstore, a, t, newTc, v, vStack)
+      case ActionDefineVars(variables) =>
+        val addresses = variables.map(v => addr.variable(v, t))
+        val (vals, newVStack) = popStackItems(vStack, variables.length)
+        val (ρ1, σ1) = vals.zip(variables.zip(addresses)).foldLeft((ρ, σ))({ case ((ρ, σ), (value, (v, a))) => (ρ.extend(v, a), σ.extend(a, value.left.get)) })
+        State(control, ρ1, σ1, kstore, a, t, newTc, v, newVStack)
       /* When an error is reached, we go to an error state */
       case ActionError(err) => State(ControlError(err), ρ, σ, kstore, a, t, newTc, v, vStack)
       /* When a value needs to be evaluated, we go to an eval state */
