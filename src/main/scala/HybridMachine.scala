@@ -25,7 +25,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
   def name = "HybridMachine"
 
   val SWITCH_ABSTRACT = false
-  val DO_TRACING = true
+  val DO_TRACING = false
 
   val THRESHOLD = 1
 
@@ -190,15 +190,17 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       case ActionRestoreEnv() =>
         val (newρ, newVStack) = popStack(vStack)
         State(control, newρ.right.get, σ, kstore, a, t, newTc, v, newVStack)
-      case ActionSaveEnv() => State(control, ρ, σ, kstore, a, t, newTc, v, Right(ρ) :: vStack)
+      case ActionSaveEnv() =>
+        State(control, ρ, σ, kstore, a, t, newTc, v, Right(ρ) :: vStack)
       case ActionSetVar(variable) => State(control, ρ, σ.update(ρ.lookup(variable).get, v), kstore, a, t, newTc, v, vStack)
       /* When a function is stepped in, we also go to an eval state */
-      case ActionStepIn(fexp, (_, ρ1), e, args, argsv, n, _, _) =>
+      case ActionStepIn(fexp, (_, ρ1), e, args, argsv, n, frame, _, _) =>
+        val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
         val (vals, newVStack) = popStackItems(vStack, n)
         if (args.length == n - 1) {
           sem.bindArgs(args.zip(argsv.zip(vals.init.map(_.left.get))), ρ1, σ, t) match {
             case (ρ2, σ2) =>
-              State(ControlEval(e), ρ2, σ2, kstore, a, time.tick(t, fexp), newTc, v, newVStack)
+              State(ControlEval(e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), newTc, v, Right(ρ) :: newVStack)
           }
         } else { State(ControlError(s"Arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, newTc, v, newVStack) }
       case v : ActionGuardFalse[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isFalse)
@@ -267,8 +269,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
             replaceTc(newState, tcTRStopped)
           } else if (DO_TRACING) {
             println(s"Started tracing $label")
-            val tcTRStarted = tracerContext.startTracingLabel(tc, label)
             val newState = applyTrace(this, trace)
+            val tcTRStarted = tracerContext.startTracingLabel(tc, label)
             replaceTc(newState, tcTRStarted)
           } else {
             applyTrace(this, trace)

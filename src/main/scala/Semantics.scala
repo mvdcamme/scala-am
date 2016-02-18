@@ -191,7 +191,7 @@ case class ActionSpawn[TID : ThreadIdentifier, Exp : Expression, Abs : AbstractV
   */
 case class ActionStepIn[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (fexp: Exp, clo: (Exp, Environment[Addr]), e: Exp, args : List[String], argsv : List[Exp], n : Integer,
-   read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+   frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 
 /**
  * Base class for semantics that define some helper methods
