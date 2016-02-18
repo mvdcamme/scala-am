@@ -121,7 +121,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
 
     def handleGuard(guard: ActionGuard[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint], guardCheckFunction : HybridValue => Boolean) =
       if (guardCheckFunction(v)) {
-        println(s"Guard $guard succeeded")
         replaceTc(state, newTc)
       } else {
         println(s"Guard $guard failed")
@@ -152,6 +151,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       case ActionLookupVariable(varName, _, _) =>
         val newV = σ.lookup(ρ.lookup(varName).get)
         State(ControlKont(newV), ρ, σ, kstore, a, t, newTc, newV, vStack)
+      case ActionPopKont() =>
+        State(control, ρ, σ, kstore, a, t, newTc, v, vStack)
       case ActionPrimCall(n : Integer, fExp : SchemeExp, argsExps : List[SchemeExp]) =>
         val (vals, newVStack) = popStackItems(vStack, n)
         val operator : HybridValue = vals.last.left.get
@@ -185,7 +186,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       /* When a function is stepped in, we also go to an eval state */
       case ActionStepIn(fexp, (_, ρ1), e, args, argsv, n, _, _) =>
         val (vals, newVStack) = popStackItems(vStack, n)
-        println(vals)
         if (args.length == n - 1) {
           sem.bindArgs(args.zip(argsv.zip(vals.init.map(_.left.get))), ρ1, σ, t) match {
             case (ρ2, σ2) =>
@@ -275,13 +275,13 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       }})}
 
     def stepTrace() : State = {
-      //println("Doing trace execution")
       val (traceHead, newTc) = tracerContext.stepTrace(tc)
-      val newState = applyAction({
-        case ActionLookupVariable(_, _, _) => kstore.lookup(a).head.next
-        case ActionReachedValue(_, _, _) => kstore.lookup(a).head.next
-        case ActionPrimCall(_, _, _) => kstore.lookup(a).head.next
-        case _ => a})(this, traceHead)
+      val newState = applyAction({ action => val next = kstore.lookup(a).head.next; action match {
+          case ActionLookupVariable(_, _, _) => next
+          case ActionPopKont() => next
+          case ActionPrimCall(_, _, _) => next
+          case ActionReachedValue(_, _, _) => next
+          case _ => a}})(this, traceHead)
       val newNewTc = new tracerContext.TracerContext(newState.tc.label, newState.tc.traceNodes, newState.tc.trace, newState.tc.executionPhase, newTc.traceExecuting)
       replaceTc(newState, newNewTc)
     }
