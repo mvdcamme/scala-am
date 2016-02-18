@@ -119,13 +119,22 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
       tc
     }
 
-    def handleGuard(guard: ActionGuard[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint], guardCheckFunction : HybridValue => Boolean) =
+    def restart(restartPoint: sem.RestartPoint, state : State) : State = restartPoint match {
+      case sem.RestartGuardFailed(newControlExp) =>
+        State(ControlEval(newControlExp), state.ρ, state.σ, state.kstore,
+              state.a, state.t, state.tc, state.v, state.vStack)
+      case sem.RestartTraceEnded() => state
+    }
+
+    def handleGuard(guard: ActionGuard[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint],
+                    guardCheckFunction : HybridValue => Boolean) : State =
       if (guardCheckFunction(v)) {
         replaceTc(state, newTc)
       } else {
         println(s"Guard $guard failed")
-        val newTc = tracerContext.stopExecuting(tc)
-        State(ControlEval(guard.restartPoint), ρ, σ, kstore, a, t, newTc, v, vStack)
+        val tcStopped = tracerContext.stopExecuting(tc)
+        val stateTEStopped = replaceTc(state, tcStopped)
+        restart(guard.restartPoint, stateTEStopped)
       }
 
     action match {
@@ -242,8 +251,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
         val newState = applyTrace(this, trace)
         val tc = newState.tc
         val traceNode = tracerContext.getTrace(tc, label)
-        val newTracerContext = new tracerContext.TracerContext(tc.label, tc.traceNodes, tc.trace, tracerContext.semantics.ExecutionPhase.TE, Some(traceNode))
-        new State(newState.control, newState.ρ, newState.σ, newState.kstore, newState.a, newState.t, newTracerContext, newState.v, newState.vStack)
+        val tcTEStarted = new tracerContext.TracerContext(tc.label, tc.traceNodes, tc.trace, tracerContext.TE, Some(traceNode))
+        replaceTc(newState, tcTEStarted)
       }
 
       interpreterReturns.map({itpRet => itpRet match {
@@ -254,12 +263,13 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
           } else if (tracerContext.isTracingLabel(tc, label)) {
             val newState = applyTrace(this, trace)
             println(s"Stopped tracing $label")
-            new State(newState.control, newState.ρ, newState.σ, newState.kstore, newState.a, newState.t, tracerContext.stopTracing(newState.tc, true, None), newState.v, newState.vStack)
+            val tcTRStopped = tracerContext.stopTracing(newState.tc, true, None)
+            replaceTc(newState, tcTRStopped)
           } else if (DO_TRACING) {
             println(s"Started tracing $label")
-            val newTc = tracerContext.startTracingLabel(tc, label)
+            val tcTRStarted = tracerContext.startTracingLabel(tc, label)
             val newState = applyTrace(this, trace)
-            new State(newState.control, newState.ρ, newState.σ, newState.kstore, newState.a, newState.t, newTc, newState.v, newState.vStack)
+            replaceTc(newState, tcTRStarted)
           } else {
             applyTrace(this, trace)
           }
@@ -267,7 +277,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : Semantics[Ex
           if (tracerContext.isTracingLabel(tc, label)) {
             println(s"Stopped tracing $label")
             val newState = applyTrace(this, trace)
-            new State(newState.control, newState.ρ, newState.σ, newState.kstore, newState.a, newState.t, tracerContext.stopTracing(tc, false, Some(restartPoint)), newState.v, newState.vStack)
+            val tcTRStopped = tracerContext.stopTracing(tc, false, Some(tracerContext.semantics.RestartTraceEnded()))
+            replaceTc(newState, tcTRStopped)
           } else {
             val newState = applyTrace(this, trace)
             newState

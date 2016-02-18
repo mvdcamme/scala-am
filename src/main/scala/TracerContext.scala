@@ -11,6 +11,9 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   type RestartPoint = semantics.RestartPoint
   type ExecutionPhase = semantics.ExecutionPhase.ExecutionPhase
 
+  val NI = semantics.ExecutionPhase.NI
+  val TE = semantics.ExecutionPhase.TE
+  val TR = semantics.ExecutionPhase.TR
 
   case class TraceNode(label : Label, trace : Trace)
 
@@ -20,7 +23,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Generating tracer context
    */
 
-  def newTracerContext = new TracerContext(None, List(), List(), semantics.ExecutionPhase.NI, None)
+  def newTracerContext = new TracerContext(None, List(), List(), NI, None)
 
   /*
    * Start tracing
@@ -89,7 +92,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    */
 
   def isExecuting(tracerContext: TracerContext) : Boolean = tracerContext.executionPhase match {
-    case semantics.ExecutionPhase.TE => true
+    case TE => true
     case _ => false
   }
 
@@ -123,7 +126,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   }
 
   def stopExecuting(tracerContext: TracerContext) : TracerContext =
-    new TracerContext(None, tracerContext.traceNodes, List(), semantics.ExecutionPhase.NI, None)
+    new TracerContext(None, tracerContext.traceNodes, List(), NI, None)
 
   /*
    * Adding traces

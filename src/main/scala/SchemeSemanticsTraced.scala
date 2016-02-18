@@ -256,11 +256,11 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
         })
     case FrameDefine(name, ρ) => throw new Exception(s"TODO: define not handled (no global environment)")
     case FrameHalt => Set()
-    case FrameFunBody(body, Nil) => Set(InterpreterReturn(List(actionRestoreEnv, actionPopKont), TracingSignalEnd(body, body.head)))
+    case FrameFunBody(body, Nil) => Set(InterpreterReturn(List(actionRestoreEnv, actionPopKont), TracingSignalEnd(body, RestartTraceEnded())))
     case FrameFuncallOperands(f, fexp, exp, args, toeval, ρ) => funcallArgs(f, fexp, (exp, v) :: args, toeval, ρ, σ, t)
     case FrameFuncallOperator(fexp, args, ρ) => funcallArgs(v, fexp, args, ρ, σ, t)
     case FrameIf(cons, alt) =>
-      conditionalIf(v, List(ActionEval(cons)), cons, List(ActionEval(alt)), alt)
+      conditionalIf(v, List(ActionEval(cons)), RestartGuardFailed(cons), List(ActionEval(alt)), RestartGuardFailed(alt))
     case FrameLet(name, bindings, Nil, body) => {
       val variables = name :: bindings.map(_._1)
       Set(interpreterReturn(actionRestoreEnv :: actionPushVal :: ActionDefineVars[SchemeExp, Abs, Addr](variables) :: evalBody(body)))

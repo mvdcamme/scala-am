@@ -26,11 +26,14 @@ trait Semantics[Exp, Abs, Addr, Time] {
 
 
   /******************************************************************************************************************
-   *                                              END TRACER_INTERACTION                                            *
+   *                                             START TRACER_INTERACTION                                           *
   *******************************************************************************************************************/
 
   type Label = List[Exp]
-  type RestartPoint = Exp
+  trait RestartPoint
+
+  case class RestartGuardFailed(newControl : Exp) extends RestartPoint
+  case class RestartTraceEnded() extends RestartPoint
 
   /*
    * Enumeration of possible execution phases
