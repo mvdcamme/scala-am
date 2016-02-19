@@ -17,7 +17,7 @@
  * language. A more complex definition resides in SchemeSemantics.scala.
  */
 
-trait Semantics[Exp, Abs, Addr, Time] {
+trait BasicSemantics[Exp, Abs, Addr, Time] {
   implicit def abs: AbstractValue[Abs]
   implicit def addr: Address[Addr]
   implicit def exp: Expression[Exp]
@@ -34,8 +34,15 @@ trait Semantics[Exp, Abs, Addr, Time] {
     * @param frame The frame whose values and addresses should be converted
     * @return The converted frame
     */
-  def convertFrame(convertAddress : Addr => Addr, convertValue : Abs => Abs)(frame : Frame) : Frame
+  def convertFrame(convertAddress: Addr => Addr, convertValue: Abs => Abs)(frame: Frame): Frame
 
+  /**
+    * Defines how to parse a program
+    */
+  def parse(program: String): Exp
+}
+
+trait Semantics[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Addr, Time] {
   /**
     * Defines what actions should be taken when an expression e needs to be
     * evaluated, in environment e with store σ
@@ -46,14 +53,9 @@ trait Semantics[Exp, Abs, Addr, Time] {
     * the topmost frame is frame
     */
   def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[Action[Exp, Abs, Addr]]
-
-  /**
-    * Defines how to parse a program
-    */
-  def parse(program: String): Exp
 }
 
-trait SemanticsTraced[Exp, Abs, Addr, Time] extends Semantics[Exp, Abs, Addr, Time] {
+trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Addr, Time] {
 
   type Label = List[Exp]
 
@@ -79,15 +81,13 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends Semantics[Exp, Abs, Addr, Ti
   trait TracingSignal
 
   case class TracingSignalFalse() extends TracingSignal
-
   case class TracingSignalStart(label: Label) extends TracingSignal
-
   case class TracingSignalEnd(label: Label, restartPoint: RestartPoint) extends TracingSignal
 
   /*
    * Interpreter return
    */
-  case class InterpreterReturn(trace: Trace, tracingSignal: TracingSignal) extends Action[SchemeExp, Abs, Addr]
+  case class InterpreterReturn(trace: Trace, tracingSignal: TracingSignal) extends Action[Exp, Abs, Addr]
 
   /*
    * Instruction return
@@ -95,11 +95,8 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends Semantics[Exp, Abs, Addr, Ti
   trait InstructionReturn
 
   case class TraceStep() extends InstructionReturn
-
   case class GuardFailed(restartPoint: RestartPoint) extends InstructionReturn
-
   case class EndTrace(restartPoint: RestartPoint) extends InstructionReturn
-
   case class LoopTrace() extends InstructionReturn
 
   /*
@@ -121,6 +118,18 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends Semantics[Exp, Abs, Addr, Ti
 
   protected def interpreterReturnStart(action: Action[Exp, Abs, Addr], label: Label): InterpreterReturn =
     new InterpreterReturn(List(action), new TracingSignalStart(label))
+
+  /**
+    * Defines what actions should be taken when an expression e needs to be
+    * evaluated, in environment e with store σ
+    */
+  def stepEval(e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn]
+
+  /**
+    * Defines what actions should be taken when a value v has been reached, and
+    * the topmost frame is frame
+    */
+  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn]
 }
 
 /**
@@ -130,11 +139,8 @@ abstract class BaseSemantics[Exp: Expression, Abs: AbstractValue, Addr: Address,
   extends Semantics[Exp, Abs, Addr, Time] {
   /* wtf scala */
   def abs = implicitly[AbstractValue[Abs]]
-
   def addr = implicitly[Address[Addr]]
-
   def exp = implicitly[Expression[Exp]]
-
   def time = implicitly[Timestamp[Time]]
 
   /**
@@ -156,11 +162,8 @@ abstract class BaseSemanticsTraced[Exp: Expression, Abs: AbstractValue, Addr: Ad
   extends SemanticsTraced[Exp, Abs, Addr, Time] {
   /* wtf scala */
   def abs = implicitly[AbstractValue[Abs]]
-
   def addr = implicitly[Address[Addr]]
-
   def exp = implicitly[Expression[Exp]]
-
   def time = implicitly[Timestamp[Time]]
 
   /**
@@ -176,19 +179,12 @@ abstract class BaseSemanticsTraced[Exp: Expression, Abs: AbstractValue, Addr: Ad
       (ρ.extend(name, a), σ.extend(a, value))
     }
     })
-
-  /**
-    * Defines what actions should be taken when an expression e needs to be
-    * evaluated, in environment e with store σ
-    */
-  def stepEval(e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn]
-
-  /**
-    * Defines what actions should be taken when a value v has been reached, and
-    * the topmost frame is frame
-    */
-  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn]
 }
+
+
+/*********************************************************************************************************************
+  *                                                       ACTIONS                                                    *
+  ********************************************************************************************************************/
 
 /**
   * The different kinds of actions that can be taken by the abstract machine
@@ -252,8 +248,8 @@ case class ActionJoin[Exp : Expression, Abs : AbstractValue, Addr : Address]
 
 
 /*******************************************************************************************************************
-*                                                  TRACED ACTIONS                                                *
-******************************************************************************************************************/
+*                                                   TRACED ACTIONS                                                 *
+********************************************************************************************************************/
 
 abstract class ActionGuardTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends Action[Exp, Abs, Addr] {
 val restartPoint = rp

@@ -126,7 +126,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
       case sem.RestartTraceEnded() => state
     }
 
-    def handleGuard(guard: ActionGuardTraced[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint],
+    def handleGuard(guard: ActionGuardTraced[Exp, HybridValue, HybridAddress, sem.RestartPoint],
                     guardCheckFunction : HybridValue => Boolean) : State =
       if (guardCheckFunction(v)) {
         replaceTc(state, newTc)
@@ -162,7 +162,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
         State(ControlKont(newV), ρ, σ, kstore, a, t, newTc, newV, vStack)
       case ActionPopKontTraced() =>
         State(control, ρ, σ, kstore, a, t, newTc, v, vStack)
-      case ActionPrimCallTraced(n : Integer, fExp : SchemeExp, argsExps : List[SchemeExp]) =>
+      case ActionPrimCallTraced(n : Integer, fExp : Exp, argsExps : List[Exp]) =>
         val (vals, newVStack) = popStackItems(vStack, n)
         val operator : HybridValue = vals.last.left.get
         val operands : List[HybridValue] = vals.take(n - 1).map(_.left.get)
@@ -203,8 +203,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
               State(ControlEval(e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), newTc, v, Right(ρ) :: newVStack)
           }
         } else { State(ControlError(s"Arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, newTc, v, newVStack) }
-      case v : ActionGuardFalseTraced[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isFalse)
-      case v : ActionGuardTrueTraced[SchemeExp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isTrue)
+      case v : ActionGuardFalseTraced[Exp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isFalse)
+      case v : ActionGuardTrueTraced[Exp, HybridValue, HybridAddress, sem.RestartPoint] => handleGuard(v, abs.isTrue)
     }
   }
 
@@ -299,11 +299,11 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
       replaceTc(newState, newNewTc)
     }
 
-    private def castActions(actions : Set[Action[SchemeExp, HybridValue, HybridAddress]]) : Set[InterpreterReturn] =
-      actions.map({action => action match {
-        case sem.InterpreterReturn(trace, signal) => new sem.InterpreterReturn(trace, signal)
-        case _ => throw new Exception(s"Incorrect cast: could not cast $action to an InterpreterReturn")
-      }})
+//    private def castActions(actions : Set[Action[Exp, HybridValue, HybridAddress]]) : Set[sem.InterpreterReturn] =
+//      actions.map({action => action match {
+//        case sem.InterpreterReturn(trace, signal) => new sem.InterpreterReturn(trace, signal)
+//        case _ => throw new Exception(s"Incorrect cast: could not cast $action to an InterpreterReturn")
+//      }})
 
     /**
      * Computes the set of states that follow the current state
@@ -315,12 +315,12 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
         //println("Doing normal interpretation")
         control match {
           /* In a eval state, call the semantic's evaluation method */
-          case ControlEval(e) => integrate(a, castActions(sem.stepEval(e, ρ, σ, t)))
+          case ControlEval(e) => integrate(a, sem.stepEval(e, ρ, σ, t))
           /* In a continuation state, if the value reached is not an error, call the
            * semantic's continuation method */
           case ControlKont(v) if abs.isError(v) => Set()
           case ControlKont(v) => kstore.lookup(a).flatMap({
-            case Kont(frame, next) => integrate(next, castActions(sem.stepKont(v, frame, σ, t)))
+            case Kont(frame, next) => integrate(next, sem.stepKont(v, frame, σ, t))
           })
           /* In an error state, the state is not able to make a step */
           case ControlError(_) => Set()
