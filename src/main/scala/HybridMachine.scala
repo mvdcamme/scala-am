@@ -27,7 +27,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
   val SWITCH_ABSTRACT = false
   val DO_TRACING = true
 
-  val THRESHOLD = 1
+  val THRESHOLD = 5
 
   val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] = new TracerContext[Exp, HybridValue, HybridAddress, Time](sem)
 
@@ -237,57 +237,19 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
 
     type InterpreterReturn = SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time]#InterpreterReturn
 
-    /**
-     * Integrates a set of interpreterReturns (returned by the semantics, see
-     * Semantics.scala), in order to generate a set of states that succeeds this
-     * one.
-     */
-    private def integrate(a: KontAddr, interpreterReturns: Set[sem.InterpreterReturn]): Set[State] = {
+    def applyTrace(state : State, a : KontAddr, trace : sem.Trace) : State = {
+      trace.foldLeft(this)(applyAction(_ => a))
+    }
 
-      def applyTrace(state : State, trace : sem.Trace) : State = {
-        trace.foldLeft(this)(applyAction(_ => a))
-      }
+    def startExecutingTrace(state : State, label : sem.Label): State = {
+      println(s"Trace with label $label already exists")
+      val tc = state.tc
+      val traceNode = tracerContext.getTrace(tc, label)
+      val tcTEStarted = new tracerContext.TracerContext(tc.label, tc.traceNodes, tc.trace, tracerContext.TE, Some(traceNode))
+      replaceTc(state, tcTEStarted)
+    }
 
-      def startExecutingTrace(trace : sem.Trace, label : sem.Label): State = {
-        println(s"Trace with label $label already exists")
-        val newState = applyTrace(this, trace)
-        val tc = newState.tc
-        val traceNode = tracerContext.getTrace(tc, label)
-        val tcTEStarted = new tracerContext.TracerContext(tc.label, tc.traceNodes, tc.trace, tracerContext.TE, Some(traceNode))
-        replaceTc(newState, tcTEStarted)
-      }
-
-      interpreterReturns.map({itpRet => itpRet match {
-        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => applyTrace(this, trace)
-        case sem.InterpreterReturn(trace, sem.TracingSignalStart(label)) =>
-          if (tracerContext.traceExists(tc, label)) {
-            startExecutingTrace(trace, label)
-          } else if (tracerContext.isTracingLabel(tc, label)) {
-            val newState = applyTrace(this, trace)
-            println(s"Stopped tracing $label; LOOP DETECTED")
-            val tcTRStopped = tracerContext.stopTracing(newState.tc, true, None)
-            replaceTc(newState, tcTRStopped)
-          } else if (DO_TRACING) {
-            println(s"Started tracing $label")
-            val newState = applyTrace(this, trace)
-            val tcTRStarted = tracerContext.startTracingLabel(tc, label)
-            replaceTc(newState, tcTRStarted)
-          } else {
-            applyTrace(this, trace)
-          }
-        case sem.InterpreterReturn(trace, sem.TracingSignalEnd(label, restartPoint)) =>
-          if (tracerContext.isTracingLabel(tc, label)) {
-            println(s"Stopped tracing $label; NO LOOP DETECTED")
-            val newState = applyTrace(this, trace)
-            val tcTRStopped = tracerContext.stopTracing(tc, false, Some(tracerContext.semantics.RestartTraceEnded()))
-            replaceTc(newState, tcTRStopped)
-          } else {
-            val newState = applyTrace(this, trace)
-            newState
-          }
-      }})}
-
-    def stepTrace() : State = {
+    def doTraceExecutingStep() : Set[State] = {
       val (traceHead, newTc) = tracerContext.stepTrace(tc)
       val newState = applyAction({ action => val next = kstore.lookup(a).head.next; action match {
           case ActionLookupVariableTraced(_, _, _) => next
@@ -296,35 +258,93 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
           case ActionReachedValueTraced(_, _, _) => next
           case _ => a}})(this, traceHead)
       val newNewTc = new tracerContext.TracerContext(newState.tc.label, newState.tc.traceNodes, newState.tc.trace, newState.tc.executionPhase, newTc.traceExecuting)
-      replaceTc(newState, newNewTc)
+      Set(replaceTc(newState, newNewTc))
     }
-
-//    private def castActions(actions : Set[Action[Exp, HybridValue, HybridAddress]]) : Set[sem.InterpreterReturn] =
-//      actions.map({action => action match {
-//        case sem.InterpreterReturn(trace, signal) => new sem.InterpreterReturn(trace, signal)
-//        case _ => throw new Exception(s"Incorrect cast: could not cast $action to an InterpreterReturn")
-//      }})
 
     /**
      * Computes the set of states that follow the current state
      */
-    def step() : Set[State] = {
-      if (tracerContext.isExecuting(tc)) {
-        Set(stepTrace())
+    def doInterpreterStep() : Set[(KontAddr, sem.InterpreterReturn)] = control match {
+      /* In a eval state, call the semantic's evaluation method */
+      case ControlEval(e) => sem.stepEval(e, ρ, σ, t).map({itptrReturn => (a, itptrReturn)})
+      /* In a continuation state, if the value reached is not an error, call the
+       * semantic's continuation method */
+      case ControlKont(v) if abs.isError(v) => Set()
+      case ControlKont(v) => kstore.lookup(a).flatMap({
+        case Kont(frame, next) => sem.stepKont(v, frame, σ, t).map({itptrReturn => (next, itptrReturn)})
+      })
+      /* In an error state, the state is not able to make a step */
+      case ControlError(_) => Set()
+    }
+
+    type TracingSignal = SemanticsTraced[Exp, HybridValue, HybridAddress, Time]#TracingSignal
+    type RestartPoint = SemanticsTraced[Exp, HybridValue, HybridAddress, Time]#RestartPoint
+
+    def continueWithProgramState(state : State, a : KontAddr, trace : sem.Trace) =
+      applyTrace(state, a, trace)
+
+    def canStartLoopEncounteredRegular(newState : State, trace : sem.Trace, label : sem.Label) : State = {
+      if (tracerContext.traceExists(tc, label)) {
+        startExecutingTrace(newState, label)
+      } else if (DO_TRACING) {
+        println(s"Started tracing $label")
+        val tcTRStarted = tracerContext.startTracingLabel(tc, label)
+        replaceTc(newState, tcTRStarted)
       } else {
-        //println("Doing normal interpretation")
-        control match {
-          /* In a eval state, call the semantic's evaluation method */
-          case ControlEval(e) => integrate(a, sem.stepEval(e, ρ, σ, t))
-          /* In a continuation state, if the value reached is not an error, call the
-           * semantic's continuation method */
-          case ControlKont(v) if abs.isError(v) => Set()
-          case ControlKont(v) => kstore.lookup(a).flatMap({
-            case Kont(frame, next) => integrate(next, sem.stepKont(v, frame, σ, t))
-          })
-          /* In an error state, the state is not able to make a step */
-          case ControlError(_) => Set()
-        }
+        newState
+      }
+    }
+
+    def canStartLoopEncounteredTracing(newState : State, trace : sem.Trace, label : sem.Label) : State = {
+      if (tracerContext.isTracingLabel(tc, label)) {
+        println(s"Stopped tracing $label; LOOP DETECTED")
+        val tcTRStopped = tracerContext.stopTracing(newState.tc, true, None)
+        replaceTc(newState, tcTRStopped)
+      } else {
+        newState
+      }
+    }
+
+    def canEndLoopEncounteredTracing(newState : State, trace : sem.Trace, restartPoint: RestartPoint, label : sem.Label) : State = {
+      if (tracerContext.isTracingLabel(tc, label)) {
+        println(s"Stopped tracing $label; NO LOOP DETECTED")
+        val tcTRStopped = tracerContext.stopTracing(tc, false, Some(tracerContext.semantics.RestartTraceEnded()))
+        replaceTc(newState, tcTRStopped)
+      } else {
+        newState
+      }
+    }
+
+    def handleSignalRegular(state : State, a : KontAddr, trace : sem.Trace, signal : TracingSignal) : State = signal match {
+      case sem.TracingSignalEnd(_, _) => continueWithProgramState(state, a, trace)
+      case sem.TracingSignalStart(label) => canStartLoopEncounteredRegular(applyTrace(state, a, trace), trace, label)
+    }
+
+    def handleSignalTracing(newState : State, trace : sem.Trace, signal : TracingSignal) : State = signal match {
+      case sem.TracingSignalEnd(label, restartPoint) => canEndLoopEncounteredTracing(newState, trace, restartPoint, label)
+      case sem.TracingSignalStart(label) => canStartLoopEncounteredTracing(newState, trace, label)
+    }
+
+    def handleResponseRegular(responses : Set[(KontAddr, sem.InterpreterReturn)]) : Set[State] = {
+      responses.map({
+        case (a, sem.InterpreterReturn(trace, sem.TracingSignalFalse())) => continueWithProgramState(this, a, trace)
+        case (a, sem.InterpreterReturn(trace, signal)) => handleSignalRegular(this, a, trace, signal)
+      })
+    }
+
+    def handleResponseTracing(responses : Set[(KontAddr, sem.InterpreterReturn)]) : Set[State] = {
+      responses.map({
+        case (a, sem.InterpreterReturn(trace, sem.TracingSignalFalse())) => continueWithProgramState(this, a, trace)
+        case (a, sem.InterpreterReturn(trace, signal)) => handleSignalTracing(applyTrace(this, a, trace), trace, signal)
+      })
+    }
+
+    def step() : Set[State] = {
+      val executionPhase = tc.executionPhase
+      executionPhase match {
+        case tracerContext.NI => handleResponseRegular(doInterpreterStep())
+        case tracerContext.TE => doTraceExecutingStep()
+        case tracerContext.TR => handleResponseTracing(doInterpreterStep())
       }
     }
 

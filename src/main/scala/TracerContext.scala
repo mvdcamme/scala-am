@@ -30,7 +30,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    */
 
   def startTracingLabel(tracerContext: TracerContext, label: Label) : TracerContext = tracerContext match {
-    case TracerContext(_, traceNodes, _, ep, te) => new TracerContext(Some(label), traceNodes, List(), ep, te)
+    case TracerContext(_, traceNodes, _, ep, te) => new TracerContext(Some(label), traceNodes, List(), TR, te)
   }
 
   /*
@@ -42,10 +42,10 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     if (! isLooping) {
       finishedTracerContext = appendTrace(tracerContext, List(semantics.endTraceInstruction(restartPoint.get)))
     }
-    val newTracerContext = addTrace(finishedTracerContext)
-    val newTrace = newTracerContext.trace
+    val traceNodeAddedTc = addTrace(finishedTracerContext)
+    val newTrace = traceNodeAddedTc.trace
     println(s"Complete trace: $newTrace")
-    clearTrace(newTracerContext)
+    clearTrace(traceNodeAddedTc)
   }
 
   /*
@@ -74,7 +74,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     new TracerContext(tracerContext.label, tracerContext.traceNodes, tracerContext.trace ++ newPart, tracerContext.executionPhase, tracerContext.traceExecuting)
 
   private def clearTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
-    case TracerContext(_, traceNodes, _, ep, te) => new TracerContext(None, traceNodes, List(), ep, te)
+    case TracerContext(_, traceNodes, _, _, _) => new TracerContext(None, traceNodes, List(), NI, None)
   }
 
   def isTracing(tracerContext: TracerContext) : Boolean = tracerContext.label match {
