@@ -100,7 +100,22 @@ object Main {
   /** Run a machine on a program with the given semantics. If @param output is
     * set, generate a dot graph visualizing the computed graph in the given
     * file. */
-  def run[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](machine: AbstractMachine[Exp, Abs, Addr, Time])(program: String, output: Option[String]): Unit = {
+  def run[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](machine: AbstractMachine[Exp, Abs, Addr, Time], sem: Semantics[Exp, Abs, Addr, Time])(program: String, output: Option[String]): Unit = {
+    val abs = implicitly[AbstractValue[Abs]]
+    val addr = implicitly[Address[Addr]]
+    println(s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")
+    val result = machine.eval(sem.parse(program), sem, !output.isEmpty)
+    output match {
+      case Some(f) => result.toDotFile(f)
+      case None => ()
+    }
+    println(s"Visited ${result.numberOfStates} states in ${result.time} seconds, ${result.finalValues.size} possible results: ${result.finalValues}")
+  }
+
+  /** Run a machine on a program with the given semantics. If @param output is
+    * set, generate a dot graph visualizing the computed graph in the given
+    * file. */
+  def runTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](machine: AbstractMachineTraced[Exp, Abs, Addr, Time])(program: String, output: Option[String]): Unit = {
     val abs = implicitly[AbstractValue[Abs]]
     val addr = implicitly[Address[Addr]]
     println(s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")
@@ -127,14 +142,57 @@ object Main {
       case Some(config) => {
         /* ugly as fuck, but I don't find a simpler way to pass type parameters that are computed at runtime */
         val f = (config.anf, config.machine, config.lattice, config.concrete) match {
-          case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) => run(new HybridMachine[SchemeExp, ZeroCFA](new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA])) _
+          case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) =>
+            val semantics = new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA]
+            runTraced(new HybridMachine[SchemeExp, ZeroCFA](semantics)) _
 
-//          case (false, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractConcrete, ConcreteAddress, ZeroCFA])) _
-//          case (false, Config.Machine.AAM, Config.Lattice.Concrete, false) => run(new AAM[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractConcrete, ClassicalAddress, ZeroCFA])) _
-//          case (false, Config.Machine.AAM, Config.Lattice.Type, true) => run(new AAM[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractType, ConcreteAddress, ZeroCFA])) _
-//          case (false, Config.Machine.AAM, Config.Lattice.Type, false) => run(new AAM[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractType, ClassicalAddress, ZeroCFA])) _
-//          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, true) => run(new AAM[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractTypeSet, ConcreteAddress, ZeroCFA])) _
-//          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, false) => run(new AAM[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA](new SchemeSemanticsTraced[AbstractTypeSet, ClassicalAddress, ZeroCFA])) _
+          case (true, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[ANFExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
+          case (false, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
+          case (true, Config.Machine.AAM, Config.Lattice.Concrete, false) => run(new AAM[ANFExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
+          case (false, Config.Machine.AAM, Config.Lattice.Concrete, false) => run(new AAM[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
+          case (true, Config.Machine.AAM, Config.Lattice.Type, true) => run(new AAM[ANFExp, AbstractType, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
+          case (false, Config.Machine.AAM, Config.Lattice.Type, true) => run(new AAM[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
+          case (true, Config.Machine.AAM, Config.Lattice.Type, false) => run(new AAM[ANFExp, AbstractType, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
+          case (false, Config.Machine.AAM, Config.Lattice.Type, false) => run(new AAM[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
+          case (true, Config.Machine.AAM, Config.Lattice.TypeSet, true) => run(new AAM[ANFExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
+          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, true) => run(new AAM[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
+          case (true, Config.Machine.AAM, Config.Lattice.TypeSet, false) => run(new AAM[ANFExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
+          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, false) => run(new AAM[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
+          case (true, Config.Machine.AAC, Config.Lattice.Concrete, true) => run(new AAC[ANFExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
+          case (false, Config.Machine.AAC, Config.Lattice.Concrete, true) => run(new AAC[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
+          case (true, Config.Machine.AAC, Config.Lattice.Concrete, false) => run(new AAC[ANFExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
+          case (false, Config.Machine.AAC, Config.Lattice.Concrete, false) => run(new AAC[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
+          case (true, Config.Machine.AAC, Config.Lattice.Type, true) => run(new AAC[ANFExp, AbstractType, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
+          case (false, Config.Machine.AAC, Config.Lattice.Type, true) => run(new AAC[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
+          case (true, Config.Machine.AAC, Config.Lattice.Type, false) => run(new AAC[ANFExp, AbstractType, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
+          case (false, Config.Machine.AAC, Config.Lattice.Type, false) => run(new AAC[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
+          case (true, Config.Machine.AAC, Config.Lattice.TypeSet, true) => run(new AAC[ANFExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
+          case (false, Config.Machine.AAC, Config.Lattice.TypeSet, true) => run(new AAC[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
+          case (true, Config.Machine.AAC, Config.Lattice.TypeSet, false) => run(new AAC[ANFExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
+          case (false, Config.Machine.AAC, Config.Lattice.TypeSet, false) => run(new AAC[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
+          case (true, Config.Machine.Free, Config.Lattice.Concrete, true) => run(new Free[ANFExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
+          case (false, Config.Machine.Free, Config.Lattice.Concrete, true) => run(new Free[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
+          case (true, Config.Machine.Free, Config.Lattice.Concrete, false) => run(new Free[ANFExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
+          case (false, Config.Machine.Free, Config.Lattice.Concrete, false) => run(new Free[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
+          case (true, Config.Machine.Free, Config.Lattice.Type, true) => run(new Free[ANFExp, AbstractType, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
+          case (false, Config.Machine.Free, Config.Lattice.Type, true) => run(new Free[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
+          case (true, Config.Machine.Free, Config.Lattice.Type, false) => run(new Free[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
+          case (true, Config.Machine.Free, Config.Lattice.TypeSet, true) => run(new Free[ANFExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
+          case (false, Config.Machine.Free, Config.Lattice.TypeSet, true) => run(new Free[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
+          case (true, Config.Machine.Free, Config.Lattice.TypeSet, false) => run(new Free[ANFExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
+          case (false, Config.Machine.Free, Config.Lattice.TypeSet, false) => run(new Free[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
+          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.Concrete, true) => run(new ConcurrentAAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA, ConcreteTID]) _
+          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.Concrete, false) => run(new ConcurrentAAM[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA, ConcreteTID]) _
+          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.Type, true) => run(new ConcurrentAAM[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractType, ConcreteAddress, ZeroCFA, ConcreteTID]) _
+          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.Type, false) => run(new ConcurrentAAM[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractType, ClassicalAddress, ZeroCFA, ConcreteTID]) _
+          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.TypeSet, true) => run(new ConcurrentAAM[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA, ConcreteTID]) _
+          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.TypeSet, false) => run(new ConcurrentAAM[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA, ConcreteTID]) _
+          /* Example of how to use the product lattice */
+          case (false, Config.Machine.Free, Config.Lattice.Test, false) => {
+            val prod = new ProductLattice[AbstractType, AbstractTypeSet]
+            import prod._
+            run(new Free[SchemeExp, Product, ClassicalAddress, ZeroCFA], new SchemeSemantics[Product, ClassicalAddress, ZeroCFA]) _
+          }
           case _ => throw new Exception(s"Impossible configuration: $config")
         }
         try {

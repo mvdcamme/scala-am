@@ -36,13 +36,13 @@ trait Output[Abs] {
 }
 
 /**
- * The interface of the abstract machine itself
- */
-trait AbstractMachine[Exp, Abs, Addr, Time] {
+  * The interface of the abstract machine itself
+  */
+trait BasicAbstractMachine[Exp, Abs, Addr, Time] {
   /**
-   * The abstract machine is parameterized by abstract values, addresses and
-   * expressions. Look into AAM.scala for an example of how to define these
-   * parameters */
+    * The abstract machine is parameterized by abstract values, addresses and
+    * expressions. Look into AAM.scala for an example of how to define these
+    * parameters */
   implicit def abs : AbstractValue[Abs]
   implicit def addr : Address[Addr]
   implicit def exp : Expression[Exp]
@@ -50,20 +50,94 @@ trait AbstractMachine[Exp, Abs, Addr, Time] {
 
   /** The name of the abstract machine */
   def name: String
+}
 
+/**
+ * The interface of the abstract machine itself
+ */
+trait AbstractMachine[Exp, Abs, Addr, Time] extends BasicAbstractMachine[Exp, Abs, Addr, Time] {
   /**
    * Evaluates a program, given a semantics. If @param graph is true, the state
    * graph will be computed and stored in the output. Returns an object
    * implementing the Output trait, containing information about the
    * evaluation.
    */
-  def eval(exp: Exp, graph: Boolean): Output[Abs]
-
-  def sem : BasicSemantics[Exp, Abs, Addr, Time]
+  def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean): Output[Abs]
 }
 
-abstract class BasicEvalKontMachine[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
-  extends AbstractMachine[Exp, Abs, Addr, Time] {
+/**
+  * The interface of the abstract machine itself
+  */
+trait AbstractMachineTraced[Exp, Abs, Addr, Time] extends BasicAbstractMachine[Exp, Abs, Addr, Time] {
+  def sem : SemanticsTraced[Exp, Abs, Addr, Time]
+
+  /**
+    * Evaluates a program, given a semantics. If @param graph is true, the state
+    * graph will be computed and stored in the output. Returns an object
+    * implementing the Output trait, containing information about the
+    * evaluation.
+    */
+  def eval(exp: Exp, graph: Boolean): Output[Abs]
+}
+
+/**
+ * Abstract machine with a control component that works in an eval-kont way: it
+ * can either be evaluating something, or have reached a value and will pop a
+ * continuation.
+ */
+abstract class EvalKontMachine[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]//(semantics : Semantics[Exp, Abs, Addr, Time])
+    extends AbstractMachine[Exp, Abs, Addr, Time] {
+  //val sem : Semantics[Exp, Abs, Addr, Time] = semantics
+  def abs = implicitly[AbstractValue[Abs]]
+  def addr = implicitly[Address[Addr]]
+  def exp = implicitly[Expression[Exp]]
+  def time = implicitly[Timestamp[Time]]
+
+  /**
+    * The control component of the machine
+    */
+  trait Control {
+    def subsumes(that: Control): Boolean
+    def toString(store: Store[Addr, Abs]): String = toString()
+  }
+
+  /**
+    * It can either be an eval component, where an expression needs to be
+    * evaluated in an environment
+    */
+  case class ControlEval(exp: Exp, env: Environment[Addr]) extends Control {
+    override def toString() = s"ev(${exp})"
+    def subsumes(that: Control) = that match {
+      case ControlEval(exp2, env2) => exp.equals(exp2) && env.subsumes(env2)
+      case _ => false
+    }
+  }
+  /**
+    * Or it can be a continuation component, where a value has been reached and a
+    * continuation should be popped from the stack to continue the evaluation
+    */
+  case class ControlKont(v: Abs) extends Control {
+    override def toString() = s"ko(${v})"
+    override def toString(store: Store[Addr, Abs]) = s"ko(${abs.toString(v, store)})"
+    def subsumes(that: Control) = that match {
+      case ControlKont(v2) => abs.subsumes(v, v2)
+      case _ => false
+    }
+  }
+  /**
+    * Or an error component, in case an error is reached (e.g., incorrect number
+    * of arguments in a function call)
+    */
+  case class ControlError(reason: String) extends Control {
+    override def toString() = s"err($reason)"
+    def subsumes(that: Control) = that.equals(this)
+  }
+}
+
+abstract class EvalKontMachineTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](semantics : SemanticsTraced[Exp, Abs, Addr, Time])
+  extends AbstractMachineTraced[Exp, Abs, Addr, Time] {
+  val sem : SemanticsTraced[Exp, Abs, Addr, Time] = semantics
+
   def abs = implicitly[AbstractValue[Abs]]
   def addr = implicitly[Address[Addr]]
   def exp = implicitly[Expression[Exp]]
@@ -108,19 +182,4 @@ abstract class BasicEvalKontMachine[Exp : Expression, Abs : AbstractValue, Addr 
     override def toString() = s"err($reason)"
     def subsumes(that: Control) = that.equals(this)
   }
-}
-
-/**
- * Abstract machine with a control component that works in an eval-kont way: it
- * can either be evaluating something, or have reached a value and will pop a
- * continuation.
- */
-abstract class EvalKontMachine[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](semantics : Semantics[Exp, Abs, Addr, Time])
-    extends BasicEvalKontMachine[Exp, Abs, Addr, Time] {
-  val sem : Semantics[Exp, Abs, Addr, Time] = semantics
-}
-
-abstract class EvalKontMachineTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](semantics : SemanticsTraced[Exp, Abs, Addr, Time])
-  extends BasicEvalKontMachine[Exp, Abs, Addr, Time] {
-  val sem : SemanticsTraced[Exp, Abs, Addr, Time] = semantics
 }
