@@ -97,14 +97,15 @@ object Config {
 
 object Main {
 
-  /** Run a machine on a program with the given semantics. If @param output is
-    * set, generate a dot graph visualizing the computed graph in the given
-    * file. */
-  def run[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](machine: AbstractMachine[Exp, Abs, Addr, Time], sem: Semantics[Exp, Abs, Addr, Time])(program: String, output: Option[String]): Unit = {
+  /**
+   *
+   */
+  def runBasic[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
+  (machine: BasicAbstractMachine[Exp, Abs, Addr, Time], output: Option[String], calcResult : () => Output[Abs]): Unit = {
     val abs = implicitly[AbstractValue[Abs]]
     val addr = implicitly[Address[Addr]]
     println(s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")
-    val result = machine.eval(sem.parse(program), sem, !output.isEmpty)
+    val result = calcResult()
     output match {
       case Some(f) => result.toDotFile(f)
       case None => ()
@@ -115,16 +116,18 @@ object Main {
   /** Run a machine on a program with the given semantics. If @param output is
     * set, generate a dot graph visualizing the computed graph in the given
     * file. */
-  def runTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](machine: AbstractMachineTraced[Exp, Abs, Addr, Time])(program: String, output: Option[String]): Unit = {
-    val abs = implicitly[AbstractValue[Abs]]
-    val addr = implicitly[Address[Addr]]
-    println(s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")
-    val result = machine.eval(machine.sem.parse(program), !output.isEmpty)
-    output match {
-      case Some(f) => result.toDotFile(f)
-      case None => ()
+  def run[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](machine: AbstractMachine[Exp, Abs, Addr, Time], sem: Semantics[Exp, Abs, Addr, Time])(program: String, output: Option[String]): Unit = {
+    def calcResult() = {
+      machine.eval(sem.parse(program), sem, !output.isEmpty)
     }
-    println(s"Visited ${result.numberOfStates} states in ${result.time} seconds, ${result.finalValues.size} possible results: ${result.finalValues}")
+    runBasic[Exp, Abs, Addr, Time](machine, output, calcResult)
+  }
+
+  def runTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](machine: AbstractMachineTraced[Exp, Abs, Addr, Time])(program: String, output: Option[String]): Unit = {
+    def calcResult() = {
+      machine.eval(machine.sem.parse(program), !output.isEmpty)
+    }
+    runBasic[Exp, Abs, Addr, Time](machine, output, calcResult)
   }
 
   object Done extends Exception
