@@ -48,8 +48,6 @@ trait AbstractMachine[Exp, Abs, Addr, Time] {
   implicit def exp : Expression[Exp]
   implicit def time : Timestamp[Time]
 
-  def sem : Semantics[Exp, Abs, Addr, Time]
-
   /** The name of the abstract machine */
   def name: String
 
@@ -115,4 +113,9 @@ abstract class EvalKontMachine[Exp : Expression, Abs : AbstractValue, Addr : Add
     override def toString() = s"err($reason)"
     def subsumes(that: Control) = that.equals(this)
   }
+}
+
+abstract class EvalKontMachineTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](semantics : SemanticsTraced[Exp, Abs, Addr, Time])
+  extends EvalKontMachine[Exp, Abs, Addr, Time](semantics) {
+  override val sem : SemanticsTraced[Exp, Abs, Addr, Time] = semantics
 }

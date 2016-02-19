@@ -1,7 +1,7 @@
 /**
   * Created by mvdcamme on 02/02/16.
   */
-class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](sem : Semantics[Exp, Abs, Addr, Time]) {
+class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](sem : SemanticsTraced[Exp, Abs, Addr, Time]) {
 
   val semantics = sem
   type Label = semantics.Label
