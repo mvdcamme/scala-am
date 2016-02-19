@@ -299,7 +299,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
       if (tracerContext.isTracingLabel(tc, label)) {
         println(s"Stopped tracing $label; LOOP DETECTED")
         val tcTRStopped = tracerContext.stopTracing(newState.tc, true, None)
-        replaceTc(newState, tcTRStopped)
+        val stateTRStopped = replaceTc(newState, tcTRStopped)
+        startExecutingTrace(stateTRStopped, label)
       } else {
         newState
       }
