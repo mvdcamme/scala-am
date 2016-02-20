@@ -8,6 +8,10 @@ object HybridLattice {
   def switchToAbstract = {
     doConcrete = false
   }
+
+  def switchToConcrete = {
+    doConcrete = true
+  }
   
   trait Hybrid  
   

@@ -55,6 +55,10 @@ object HybridAddress {
     useConcrete = false
   }
 
+  def switchToConcrete = {
+    useConcrete = true
+  }
+
   case class Left(address1 : ConcreteAddress, address2 : ClassicalAddress) extends HybridAddress
   case class Right(address : ClassicalAddress) extends HybridAddress
   case class PrimitiveAddress(name: String) extends HybridAddress
