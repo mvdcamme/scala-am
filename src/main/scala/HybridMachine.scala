@@ -27,7 +27,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
   val SWITCH_ABSTRACT = true
   val DO_TRACING = true
 
-  val THRESHOLD = 5
+  val TRACING_THRESHOLD = 5
 
   val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] = new TracerContext[Exp, HybridValue, HybridAddress, Time](sem)
 
@@ -245,10 +245,11 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
     }
 
     def startExecutingTrace(state : State, label : sem.Label): State = {
-      println(s"Trace with label $label already exists")
+      println(s"Trace with label $label already exists; EXECUTING TRACE")
       val tc = state.tc
       val traceNode = tracerContext.getTrace(tc, label)
-      val tcTEStarted = new tracerContext.TracerContext(tc.label, tc.traceNodes, tc.trace, tracerContext.TE, Some(traceNode))
+      val tcTEStarted = new tracerContext.TracerContext(tc.label, tc.labelCounters, tc.traceNodes,
+                                                        tc.trace, tracerContext.TE, Some(traceNode))
       replaceTc(state, tcTEStarted)
     }
 
@@ -260,7 +261,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
           case ActionPrimCallTraced(_, _, _) => next
           case ActionReachedValueTraced(_, _, _) => next
           case _ => a}})(this, traceHead)
-      val newNewTc = new tracerContext.TracerContext(newState.tc.label, newState.tc.traceNodes, newState.tc.trace, newState.tc.executionPhase, newTc.traceExecuting)
+      val newNewTc = new tracerContext.TracerContext(newState.tc.label, newState.tc.labelCounters, newState.tc.traceNodes,
+                                                     newState.tc.trace, newState.tc.executionPhase, newTc.traceExecuting)
       Set(replaceTc(newState, newNewTc))
     }
 
@@ -287,14 +289,17 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
       applyTrace(state, a, trace)
 
     def canStartLoopEncounteredRegular(newState : State, trace : sem.Trace, label : sem.Label) : State = {
+      val newTc = tracerContext.incLabelCounter(newState.tc, label)
+      val tcReplacedNewState = replaceTc(newState, newTc)
+      val labelCounter = tracerContext.getLabelCounter(newTc, label)
       if (tracerContext.traceExists(tc, label)) {
-        startExecutingTrace(newState, label)
-      } else if (DO_TRACING) {
+        startExecutingTrace(tcReplacedNewState, label)
+      } else if (DO_TRACING && labelCounter >= TRACING_THRESHOLD) {
         println(s"Started tracing $label")
         val tcTRStarted = tracerContext.startTracingLabel(tc, label)
-        replaceTc(newState, tcTRStarted)
+        replaceTc(tcReplacedNewState, tcTRStarted)
       } else {
-        newState
+        tcReplacedNewState
       }
     }
 
