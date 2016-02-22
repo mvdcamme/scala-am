@@ -162,23 +162,7 @@ abstract class EvalKontMachineTraced[Exp : Expression, Abs : AbstractValue, Addr
       case _ => false
     }
   }
-  /**
-    * Or it can be a continuation component, where a value has been reached and a
-    * continuation should be popped from the stack to continue the evaluation
-    */
-  case class ControlKont(v: Abs, frame: Option[Frame]) extends Control {
-    override def toString() = s"ko(${v}; $frame)"
-    override def toString(store: Store[Addr, Abs]) = s"ko(${abs.toString(v, store)})"
-    def subsumes(that: Control) = that match {
-      case ControlKont(v2, Some(frame2)) =>
-        frame match {
-          case Some(frame) => abs.subsumes(v, v2) && frame.subsumes(frame2)
-          case None => false
-        }
-      case ControlKont(v2, None) => abs.subsumes(v, v2)
-      case _ => false
-    }
-  }
+
   /**
     * Or an error component, in case an error is reached (e.g., incorrect number
     * of arguments in a function call)

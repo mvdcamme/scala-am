@@ -104,8 +104,6 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
    */
   type TraceInstruction = Action[Exp, Abs, Addr]
 
-  case class ActionEndTrace(restartPoint: RestartPoint) extends Action[Exp, Abs, Addr]
-
   val endTraceInstruction: RestartPoint => TraceInstruction = new ActionEndTrace(_)
 
   /*
@@ -257,6 +255,7 @@ val restartPoint = rp
 
 case class ActionAllocVarsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varNames : List[String]) extends Action[Exp, Abs, Addr]
 case class ActionDefineVarsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varNames : List[String]) extends Action[Exp, Abs, Addr]
+case class ActionEndTrace[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](restartPoint: RestartPoint) extends Action[Exp, Abs, Addr]
 /**
 * An error has been reached
 */
