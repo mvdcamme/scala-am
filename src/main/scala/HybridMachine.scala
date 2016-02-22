@@ -66,7 +66,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
 
     def convertControl(control : Control, σ : Store[HybridAddress, HybridLattice.Hybrid]) : Control = control match {
       case ControlEval(exp) => ControlEval(exp)
-      case ControlKont(v) => ControlKont(convertValue(σ)(v))
+      case ControlKont(v, frame) => ControlKont(convertValue(σ)(v), frame.map(sem.convertFrame(HybridAddress.convertAddress, convertValue(σ))))
       case ControlError(string) => ControlError(string)
     }
 
@@ -104,12 +104,13 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
   def replaceTc(state: State, tc : tracerContext.TracerContext) =
     new State(state.control, state.ρ, state.σ, state.kstore, state.a, state.t, tc, state.v, state.vStack)
 
-  def applyAction(a : KontAddr)(state : State, action : Action[Exp, HybridValue, HybridAddress]) : State = {
+  def applyAction(state : State, action : Action[Exp, HybridValue, HybridAddress]) : State = {
 
     val control = state.control
     val ρ = state.ρ
     val σ = state.σ
     val kstore = state.kstore
+    val a = state.a
     val t = state.t
     val tc = state.tc
     val v = state.v
@@ -161,9 +162,13 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
       case ActionLiteralTraced(v) => State(control, ρ, σ, kstore, a, t, newTc, v, vStack)
       case ActionLookupVariableTraced(varName, _, _) =>
         val newV = σ.lookup(ρ.lookup(varName).get)
-        State(ControlKont(newV), ρ, σ, kstore, a, t, newTc, newV, vStack)
+        State(ControlKont(newV, None), ρ, σ, kstore, a, t, newTc, newV, vStack)
       case ActionPopKontTraced() =>
-        State(control, ρ, σ, kstore, kstore.lookup(a).head.next, t, newTc, v, vStack)
+        val Kont(frame, next) = kstore.lookup(a).head
+        control match {
+          case ControlKont(kontVal, _) => State(ControlKont(kontVal, Some(frame)), ρ, σ, kstore, next, t, newTc, v, vStack)
+          case _ => throw new Exception(s"Popping continuation when no continuation is being followed: $control")
+        }
       case ActionPrimCallTraced(n : Integer, fExp : Exp, argsExps : List[Exp]) =>
         val (vals, newVStack) = popStackItems(vStack, n)
         val operator : HybridValue = vals.last.left.get
@@ -175,7 +180,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
         }
         result match {
           case Left(error) => throw new Exception(error)
-          case Right((v, newσ)) => State(ControlKont(v), ρ, σ, kstore, a, t, newTc, v, newVStack)
+          case Right((v, newσ)) => State(ControlKont(v, None), ρ, σ, kstore, a, t, newTc, v, newVStack)
         }
       /* When a continuation needs to be pushed, push it in the continuation store */
       /*
@@ -185,7 +190,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
         State(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, newTc, v, vStack)
       case ActionPushValTraced() => State(control, ρ, σ, kstore, a, t, newTc, v, Left(v) :: vStack)
-      case ActionReachedValueTraced(v, _, _) => State(ControlKont(v), ρ, σ, kstore, a, t, newTc, v, vStack)
+      case ActionReachedValueTraced(v, _, _) => State(ControlKont(v, None), ρ, σ, kstore, a, t, newTc, v, vStack)
       case ActionRestoreEnvTraced() =>
         val (newρ, newVStack) = popStack(vStack)
         State(control, newρ.right.get, σ, kstore, a, t, newTc, v, newVStack)
@@ -236,8 +241,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
 
     type InterpreterReturn = SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time]#InterpreterReturn
 
-    def applyTrace(state : State, a : KontAddr, trace : sem.Trace) : State = {
-      trace.foldLeft(this)(applyAction(a))
+    def applyTrace(state : State, trace : sem.Trace) : State = {
+      trace.foldLeft(this)(applyAction)
     }
 
     def startExecutingTrace(state : State, label : sem.Label): State = {
@@ -251,7 +256,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
 
     def doTraceExecutingStep() : Set[State] = {
       val (traceHead, newTc) = tracerContext.stepTrace(tc)
-      val newState = applyAction(a)(this, traceHead)
+      val newState = applyAction(this, traceHead)
       val newNewTc = new tracerContext.TracerContext(newState.tc.label, newState.tc.labelCounters, newState.tc.traceNodes,
                                                      newState.tc.trace, newState.tc.executionPhase, newTc.traceExecuting)
       Set(replaceTc(newState, newNewTc))
@@ -260,14 +265,15 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
     /**
      * Computes the set of states that follow the current state
      */
-    def doInterpreterStep() : Set[(KontAddr, sem.InterpreterReturn)] = control match {
+    def doInterpreterStep() : Set[sem.InterpreterReturn] = control match {
       /* In a eval state, call the semantic's evaluation method */
-      case ControlEval(e) => sem.stepEval(e, ρ, σ, t).map({itptrReturn => (a, itptrReturn)})
+      case ControlEval(e) => sem.stepEval(e, ρ, σ, t)
       /* In a continuation state, if the value reached is not an error, call the
        * semantic's continuation method */
-      case ControlKont(v) if abs.isError(v) => Set()
-      case ControlKont(v) => kstore.lookup(a).flatMap({
-        case Kont(frame, next) => sem.stepKont(v, frame, σ, t).map({itptrReturn => (next, itptrReturn)})
+      case ControlKont(v, _) if abs.isError(v) => Set()
+      case ControlKont(v, Some(frame)) => sem.stepKont(v, frame, σ, t)
+      case ControlKont(v, None) => kstore.lookup(a).flatMap({
+        case Kont(frame, next) => sem.stepKont(v, frame, σ, t)
       })
       /* In an error state, the state is not able to make a step */
       case ControlError(_) => Set()
@@ -276,8 +282,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
     type TracingSignal = SemanticsTraced[Exp, HybridValue, HybridAddress, Time]#TracingSignal
     type RestartPoint = SemanticsTraced[Exp, HybridValue, HybridAddress, Time]#RestartPoint
 
-    def continueWithProgramState(state : State, a : KontAddr, trace : sem.Trace) =
-      applyTrace(state, a, trace)
+    def continueWithProgramState(state : State, trace : sem.Trace) =
+      applyTrace(state, trace)
 
     def canStartLoopEncounteredRegular(newState : State, trace : sem.Trace, label : sem.Label) : State = {
       val newTc = tracerContext.incLabelCounter(newState.tc, label)
@@ -315,9 +321,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
       }
     }
 
-    def handleSignalRegular(state : State, a : KontAddr, trace : sem.Trace, signal : TracingSignal) : State = signal match {
-      case sem.TracingSignalEnd(_, _) => continueWithProgramState(state, a, trace)
-      case sem.TracingSignalStart(label) => canStartLoopEncounteredRegular(applyTrace(state, a, trace), trace, label)
+    def handleSignalRegular(state : State, trace : sem.Trace, signal : TracingSignal) : State = signal match {
+      case sem.TracingSignalEnd(_, _) => continueWithProgramState(state, trace)
+      case sem.TracingSignalStart(label) => canStartLoopEncounteredRegular(applyTrace(state, trace), trace, label)
     }
 
     def handleSignalTracing(newState : State, trace : sem.Trace, signal : TracingSignal) : State = signal match {
@@ -325,17 +331,17 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
       case sem.TracingSignalStart(label) => canStartLoopEncounteredTracing(newState, trace, label)
     }
 
-    def handleResponseRegular(responses : Set[(KontAddr, sem.InterpreterReturn)]) : Set[State] = {
+    def handleResponseRegular(responses : Set[sem.InterpreterReturn]) : Set[State] = {
       responses.map({
-        case (a, sem.InterpreterReturn(trace, sem.TracingSignalFalse())) => continueWithProgramState(this, a, trace)
-        case (a, sem.InterpreterReturn(trace, signal)) => handleSignalRegular(this, a, trace, signal)
+        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => continueWithProgramState(this, trace)
+        case sem.InterpreterReturn(trace, signal) => handleSignalRegular(this, trace, signal)
       })
     }
 
-    def handleResponseTracing(responses : Set[(KontAddr, sem.InterpreterReturn)]) : Set[State] = {
+    def handleResponseTracing(responses : Set[sem.InterpreterReturn]) : Set[State] = {
       responses.map({
-        case (a, sem.InterpreterReturn(trace, sem.TracingSignalFalse())) => continueWithProgramState(this, a, trace)
-        case (a, sem.InterpreterReturn(trace, signal)) => handleSignalTracing(applyTrace(this, a, trace), trace, signal)
+        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => continueWithProgramState(this, trace)
+        case sem.InterpreterReturn(trace, signal) => handleSignalTracing(applyTrace(this, trace), trace, signal)
       })
     }
 
@@ -350,7 +356,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
 
     private def integrate(a: KontAddr, interpreterReturns: Set[sem.InterpreterReturn]): Set[State] = {
       interpreterReturns.map({itpRet => itpRet match {
-        case sem.InterpreterReturn(trace, _) => applyTrace(this, a, trace)
+        case sem.InterpreterReturn(trace, _) => applyTrace(this, trace)
       }})
     }
 
@@ -360,8 +366,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
         case ControlEval(e) => integrate(a, sem.stepEval(e, ρ, σ, t))
         /* In a continuation state, if the value reached is not an error, call the
          * semantic's continuation method */
-        case ControlKont(v) if abs.isError(v) => Set()
-        case ControlKont(v) => kstore.lookup(a).flatMap({
+        case ControlKont(v, _) if abs.isError(v) => Set()
+        case ControlKont(v, Some(frame)) => integrate(a, sem.stepKont(v, frame, σ, t))
+        case ControlKont(v, None) => kstore.lookup(a).flatMap({
           case Kont(frame, next) => integrate(next, sem.stepKont(v, frame, σ, t))
         })
         /* In an error state, the state is not able to make a step */
@@ -375,7 +382,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
      */
     def halted: Boolean = control match {
       case ControlEval(_) => false
-      case ControlKont(v) => a == HaltKontAddress || abs.isError(v)
+      case ControlKont(v, Some(_)) => false
+      case ControlKont(v, None) => a == HaltKontAddress || abs.isError(v)
       case ControlError(_) => true
     }
   }
@@ -387,7 +395,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
      * Returns the list of final values that can be reached
      */
     def finalValues = halted.flatMap(st => st.control match {
-      case ControlKont(v) => Set[HybridValue](v)
+      case ControlKont(v, _) => Set[HybridValue](v)
       case _ => Set[HybridValue]()
     })
 
@@ -413,7 +421,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
       case Some(g) => g.toDotFile(path, _.toString.take(40),
         (s) => if (halted.contains(s)) { "#FFFFDD" } else { s.control match {
           case ControlEval(_) => "#DDFFDD"
-          case ControlKont(_) => "#FFDDDD"
+          case ControlKont(_, _) => "#FFDDDD"
           case ControlError(_) => "#FF0000"
         }}, _.toString.take(20))
       case None =>
