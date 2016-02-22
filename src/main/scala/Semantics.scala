@@ -286,8 +286,6 @@ case class ActionPrimCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Ad
 */
 case class ActionPushTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
 (e: Exp, frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-case class ActionPushEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(e: Exp, frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionPushValTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 /**
 * A value is reached by the interpreter. As a result, a continuation will be

@@ -24,8 +24,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
   
   def name = "HybridMachine"
 
-  val SWITCH_ABSTRACT = true
-  val DO_TRACING = true
+  val SWITCH_ABSTRACT = false
+  val DO_TRACING = false
 
   val TRACING_THRESHOLD = 5
 
@@ -104,13 +104,12 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
   def replaceTc(state: State, tc : tracerContext.TracerContext) =
     new State(state.control, state.ρ, state.σ, state.kstore, state.a, state.t, tc, state.v, state.vStack)
 
-  def applyAction(genAddressFunction: Action[Exp, HybridValue, HybridAddress] => KontAddr)(state : State, action : Action[Exp, HybridValue, HybridAddress]) : State = {
+  def applyAction(a : KontAddr)(state : State, action : Action[Exp, HybridValue, HybridAddress]) : State = {
 
     val control = state.control
     val ρ = state.ρ
     val σ = state.σ
     val kstore = state.kstore
-    val a = genAddressFunction(action)
     val t = state.t
     val tc = state.tc
     val v = state.v
@@ -164,7 +163,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
         val newV = σ.lookup(ρ.lookup(varName).get)
         State(ControlKont(newV), ρ, σ, kstore, a, t, newTc, newV, vStack)
       case ActionPopKontTraced() =>
-        State(control, ρ, σ, kstore, a, t, newTc, v, vStack)
+        State(control, ρ, σ, kstore, kstore.lookup(a).head.next, t, newTc, v, vStack)
       case ActionPrimCallTraced(n : Integer, fExp : Exp, argsExps : List[Exp]) =>
         val (vals, newVStack) = popStackItems(vStack, n)
         val operator : HybridValue = vals.last.left.get
@@ -183,9 +182,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
       Replace frame to be pushed by fnction that takes a store and returns a new frame
        */
       case ActionPushTraced(e, frame, _, _) =>
-        val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-        State(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, newTc, v, vStack)
-      case ActionPushEnvTraced(e, frame, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
         State(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, newTc, v, vStack)
       case ActionPushValTraced() => State(control, ρ, σ, kstore, a, t, newTc, v, Left(v) :: vStack)
@@ -241,7 +237,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
     type InterpreterReturn = SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time]#InterpreterReturn
 
     def applyTrace(state : State, a : KontAddr, trace : sem.Trace) : State = {
-      trace.foldLeft(this)(applyAction(_ => a))
+      trace.foldLeft(this)(applyAction(a))
     }
 
     def startExecutingTrace(state : State, label : sem.Label): State = {
@@ -255,12 +251,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
 
     def doTraceExecutingStep() : Set[State] = {
       val (traceHead, newTc) = tracerContext.stepTrace(tc)
-      val newState = applyAction({ action => val next = kstore.lookup(a).head.next; action match {
-          case ActionLookupVariableTraced(_, _, _) => next
-          case ActionPopKontTraced() => next
-          case ActionPrimCallTraced(_, _, _) => next
-          case ActionReachedValueTraced(_, _, _) => next
-          case _ => a}})(this, traceHead)
+      val newState = applyAction(a)(this, traceHead)
       val newNewTc = new tracerContext.TracerContext(newState.tc.label, newState.tc.labelCounters, newState.tc.traceNodes,
                                                      newState.tc.trace, newState.tc.executionPhase, newTc.traceExecuting)
       Set(replaceTc(newState, newNewTc))
