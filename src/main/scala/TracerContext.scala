@@ -3,6 +3,8 @@
   */
 class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](sem : SemanticsTraced[Exp, Abs, Addr, Time]) {
 
+  val PRINT_ENTIRE_TRACE = false
+
   val semantics = sem
   type Label = semantics.Label
   type Trace = semantics.Trace
@@ -47,8 +49,14 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     }
     val traceNodeAddedTc = addTrace(finishedTracerContext)
     val newTrace = traceNodeAddedTc.trace
-    //println(s"Complete trace: $newTrace")
-    println(s"Completed trace")
+    println(s"Complete trace")
+    if (PRINT_ENTIRE_TRACE) {
+      println("------------ START TRACE ------------")
+      for (action <- newTrace) {
+        println(action)
+      }
+      println("------------ END TRACE ------------")
+    }
     clearTrace(traceNodeAddedTc)
   }
 

@@ -61,6 +61,8 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
 
   trait RestartPoint
 
+  case class RestartGuardDifferentClosure() extends RestartPoint
+  case class RestartGuardDifferentPrimitive() extends RestartPoint
   case class RestartGuardFailed(newControl: Exp) extends RestartPoint
 
   case class RestartTraceEnded() extends RestartPoint
@@ -181,8 +183,8 @@ abstract class BaseSemanticsTraced[Exp: Expression, Abs: AbstractValue, Addr: Ad
 
 
 /*********************************************************************************************************************
-  *                                                       ACTIONS                                                    *
-  ********************************************************************************************************************/
+ *                                                        ACTIONS                                                    *
+ *********************************************************************************************************************/
 
 /**
   * The different kinds of actions that can be taken by the abstract machine
@@ -267,8 +269,14 @@ case class ActionErrorTraced[Exp : Expression, Abs : AbstractValue, Addr : Addre
 case class ActionEvalTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
 (e: Exp, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionExtendEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String) extends Action[Exp, Abs, Addr]
-case class ActionGuardTrueTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuardTraced[Exp, Abs, Addr, RestartPoint](rp)
-case class ActionGuardFalseTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends ActionGuardTraced[Exp, Abs, Addr, RestartPoint](rp)
+case class ActionGuardTrueTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint)
+  extends ActionGuardTraced[Exp, Abs, Addr, RestartPoint](rp)
+case class ActionGuardFalseTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint)
+  extends ActionGuardTraced[Exp, Abs, Addr, RestartPoint](rp)
+case class ActionGuardSameClosure[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](recordedClosure : Abs, rp : RestartPoint, action : ActionStepInTraced[Exp, Abs, Addr])
+  extends ActionGuardTraced[Exp, Abs, Addr, RestartPoint](rp)
+case class ActionGuardSamePrimitive[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](recordedPrimitive : Abs, rp : RestartPoint, action : ActionPrimCallTraced[Exp, Abs, Addr])
+  extends ActionGuardTraced[Exp, Abs, Addr, RestartPoint](rp)
 /**
 * Waits for the execution of a thread, with tid as its identifier.
 */

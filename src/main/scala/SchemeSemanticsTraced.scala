@@ -90,7 +90,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   def evalCall(function: Abs, fexp: SchemeExp, argsv: List[(SchemeExp, Abs)], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn] = {
 
     /*
-     * The number of values to pop. In the case of a primitive application, these are all operands that were evaluated + the operator itself
+     * The number of values to pop: the number of operands + the operator.
      */
     val valsToPop = argsv.length + 1
 
@@ -98,14 +98,21 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
     val fromClo: Set[InterpreterReturn] = abs.getClosures[SchemeExp, Addr](function).map({
       case (SchemeLambda(args, body), ρ1) =>
-        InterpreterReturn(actions :+ ActionStepInTraced(fexp, (SchemeLambda(args, body), ρ1), body.head, args,
-                                                   argsv.map(_._1), valsToPop, FrameFunBody(body, body.tail)),
+        val stepInFrame = ActionStepInTraced(fexp, (SchemeLambda(args, body), ρ1), body.head, args, argsv.map(_._1), valsToPop, FrameFunBody(body, body.tail))
+        InterpreterReturn(actions :+
+                          ActionGuardSameClosure[SchemeExp, Abs, Addr, RestartPoint](function, RestartGuardDifferentClosure(), stepInFrame) :+
+                          stepInFrame,
                           new TracingSignalStart(body))
       case (λ, _) => interpreterReturn(List(ActionErrorTraced[SchemeExp, Abs, Addr](s"Incorrect closure with lambda-expression ${λ}")))
     })
 
     val fromPrim = abs.getPrimitive(function) match {
-      case Some(prim) => Set(InterpreterReturn(actions :+ ActionPrimCallTraced(valsToPop, fexp, argsv.map(_._1)) :+ actionPopKont, new TracingSignalFalse()))
+      case Some(prim) =>
+        val primCallFrame = ActionPrimCallTraced(valsToPop, fexp, argsv.map(_._1))
+        Set(InterpreterReturn(actions :+
+                              ActionGuardSamePrimitive[SchemeExp, Abs, Addr, RestartPoint](function, RestartGuardDifferentPrimitive(), primCallFrame) :+
+                              primCallFrame :+ actionPopKont,
+          new TracingSignalFalse()))
       case None => Set()
     }
     if (fromClo.isEmpty && fromPrim.isEmpty) {

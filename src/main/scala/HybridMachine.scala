@@ -19,6 +19,10 @@
 
 class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time])
     extends EvalKontMachineTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time](semantics) {
+
+
+  val PRINT_ACTIONS_EXECUTED = false
+  var ACTIONS_EXECUTED : sem.Trace = List()
   
   type HybridValue = HybridLattice.Hybrid
   
@@ -128,11 +132,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
     val v = state.v
     val vStack = state.vStack
 
-    val newTc = if (tracerContext.isTracing(tc)) {
-      tracerContext.appendTrace(tc, List(action))
-    } else {
-      tc
-    }
+    val newTc = tc
 
     def restart(restartPoint: sem.RestartPoint, state : State) : State = restartPoint match {
       case sem.RestartGuardFailed(newControlExp) =>
@@ -151,6 +151,71 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
         val stateTEStopped = replaceTc(state, tcStopped)
         restart(guard.restartPoint, stateTEStopped)
       }
+
+    def handleClosureRestart(guard : ActionGuardSameClosure[Exp, HybridValue, HybridAddress, sem.RestartPoint]) : State = {
+      val action = guard.action
+      action match {
+        case ActionStepInTraced(fexp, (_, ρ1), e, args, argsv, n, frame, _, _) =>
+          val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
+          val (vals, newVStack) = popStackItems(vStack, n)
+          if (args.length == n - 1) {
+            sem.bindArgs(args.zip(argsv.zip(vals.init.reverse.map(_.left.get))), ρ1, σ, t) match {
+              case (ρ2, σ2) =>
+                State(ControlEval(e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), newTc, v, Right(ρ) :: newVStack)
+            }
+          } else {
+            State(ControlError(s"Closure guard failed: arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, newTc, v, newVStack)
+          }
+      }
+    }
+
+    def handlePrimitiveRestart(guard : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress, sem.RestartPoint]) : State = {
+      val action = guard.action
+      action match {
+        case ActionPrimCallTraced(n : Integer, fExp : Exp, argsExps : List[Exp]) =>
+          val (vals, newVStack) = popStackItems(vStack, n)
+          val operator : HybridValue = vals.last.left.get
+          val operands : List[HybridValue] = vals.take(n - 1).map(_.left.get)
+          val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
+          val result = primitive match {
+            case Some(primitive) => primitive.call(fExp, argsExps.zip(operands.reverse), σ, t)
+            case None => throw new Exception(s"Operator $fExp not a primitive: $operator")
+          }
+          result match {
+            case Left(error) => throw new Exception(error)
+            case Right((v, newσ)) =>
+              val primAppliedState = State(control, ρ, σ, kstore, a, t, newTc, v, newVStack)
+              val next = if (primAppliedState.a == HaltKontAddress) { HaltKontAddress } else { primAppliedState.kstore.lookup(primAppliedState.a).head.next }
+              State(ControlKont(primAppliedState.a), primAppliedState.ρ, primAppliedState.σ, primAppliedState.kstore, next, primAppliedState.t, primAppliedState.tc, primAppliedState.v, primAppliedState.vStack)
+          }
+      }
+    }
+
+    def handleClosureGuard(guard : ActionGuardSameClosure[Exp, HybridValue, HybridAddress, sem.RestartPoint], currentClosure : HybridValue) = {
+      if (guard.recordedClosure == currentClosure) {
+        state
+      } else {
+        println(s"Closure guard failed: recorded closure ${guard.recordedClosure} does not match current closure $currentClosure")
+        val tcStopped = tracerContext.stopExecuting(tc)
+        val stateTEStopped = replaceTc(state, tcStopped)
+        handleClosureRestart(guard)
+      }
+    }
+
+    def handlePrimitiveGuard(guard : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress, sem.RestartPoint], currentPrimitive : HybridValue) = {
+      if (guard.recordedPrimitive == currentPrimitive) {
+        state
+      } else {
+        println(s"Primitive guard failed: recorded primitive ${guard.recordedPrimitive} does not match current primitive $currentPrimitive")
+        val tcStopped = tracerContext.stopExecuting(tc)
+        val stateTEStopped = replaceTc(state, tcStopped)
+        handlePrimitiveRestart(guard)
+      }
+    }
+
+    if (PRINT_ACTIONS_EXECUTED) {
+      ACTIONS_EXECUTED = ACTIONS_EXECUTED :+ action
+    }
 
     action match {
       case ActionAllocVarsTraced(variables) =>
@@ -217,11 +282,19 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
           }
         } else { State(ControlError(s"Arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, newTc, v, newVStack) }
       case action : ActionEndTrace[Exp, HybridValue, HybridAddress, sem.RestartPoint] =>
-        restart(action.restartPoint, State(control, ρ, σ, kstore, a, t, newTc, v, vStack))
+        val tcStopped = tracerContext.stopExecuting(newTc)
+        val stateTEStopped = replaceTc(state, tcStopped)
+        restart(action.restartPoint, stateTEStopped)
       case action : ActionGuardFalseTraced[Exp, HybridValue, HybridAddress, sem.RestartPoint] =>
         handleGuard(action, abs.isFalse)
       case action : ActionGuardTrueTraced[Exp, HybridValue, HybridAddress, sem.RestartPoint] =>
         handleGuard(action, abs.isTrue)
+      case action : ActionGuardSameClosure[Exp, HybridValue, HybridAddress, sem.RestartPoint] =>
+        val n = action.action.n
+        handleClosureGuard(action, vStack(n - 1).left.get)
+      case action : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress, sem.RestartPoint] =>
+        val n = action.action.n
+        handlePrimitiveGuard(action, vStack(n - 1).left.get)
     }
   }
 
@@ -301,15 +374,21 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
     def continueWithProgramState(state : State, trace : sem.Trace) =
       applyTrace(state, trace)
 
+    def continueWithProgramStateTracing(state : State, trace : sem.Trace) : State = {
+      val traceAppendedTc = tracerContext.appendTrace(state.tc, trace)
+      val newState = applyTrace(state, trace)
+      replaceTc(newState, traceAppendedTc)
+    }
+
     def canStartLoopEncounteredRegular(newState : State, trace : sem.Trace, label : sem.Label) : State = {
       val newTc = tracerContext.incLabelCounter(newState.tc, label)
       val tcReplacedNewState = replaceTc(newState, newTc)
       val labelCounter = tracerContext.getLabelCounter(newTc, label)
-      if (tracerContext.traceExists(tc, label)) {
+      if (tracerContext.traceExists(newTc, label)) {
         startExecutingTrace(tcReplacedNewState, label)
       } else if (DO_TRACING && labelCounter >= TRACING_THRESHOLD) {
         println(s"Started tracing $label")
-        val tcTRStarted = tracerContext.startTracingLabel(tc, label)
+        val tcTRStarted = tracerContext.startTracingLabel(newTc, label)
         replaceTc(tcReplacedNewState, tcTRStarted)
       } else {
         tcReplacedNewState
@@ -317,23 +396,27 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
     }
 
     def canStartLoopEncounteredTracing(newState : State, trace : sem.Trace, label : sem.Label) : State = {
-      if (tracerContext.isTracingLabel(tc, label)) {
+      val newStateTc = newState.tc
+      val traceAppendedTc = tracerContext.appendTrace(newStateTc, trace)
+      if (tracerContext.isTracingLabel(traceAppendedTc, label)) {
         println(s"Stopped tracing $label; LOOP DETECTED")
-        val tcTRStopped = tracerContext.stopTracing(newState.tc, true, None)
+        val tcTRStopped = tracerContext.stopTracing(traceAppendedTc, true, None)
         val stateTRStopped = replaceTc(newState, tcTRStopped)
         startExecutingTrace(stateTRStopped, label)
       } else {
-        newState
+        replaceTc(newState, traceAppendedTc)
       }
     }
 
     def canEndLoopEncounteredTracing(newState : State, trace : sem.Trace, restartPoint: RestartPoint, label : sem.Label) : State = {
-      if (tracerContext.isTracingLabel(tc, label)) {
+      val newStateTc = newState.tc
+      if (tracerContext.isTracingLabel(newStateTc, label)) {
         println(s"Stopped tracing $label; NO LOOP DETECTED")
-        val tcTRStopped = tracerContext.stopTracing(tc, false, Some(tracerContext.semantics.RestartTraceEnded()))
+        val tcTRStopped = tracerContext.stopTracing(newStateTc, false, Some(tracerContext.semantics.RestartTraceEnded()))
         replaceTc(newState, tcTRStopped)
       } else {
-        newState
+        val traceAppendedTc = tracerContext.appendTrace(newStateTc, trace)
+        replaceTc(newState, traceAppendedTc)
       }
     }
 
@@ -356,7 +439,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
 
     def handleResponseTracing(responses : Set[sem.InterpreterReturn]) : Set[State] = {
       responses.map({
-        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => continueWithProgramState(this, trace)
+        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => continueWithProgramStateTracing(this, trace)
         case sem.InterpreterReturn(trace, signal) => handleSignalTracing(applyTrace(this, trace), trace, signal)
       })
     }
@@ -482,7 +565,17 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
           val newGraph = graph.map(_.addEdges(succs.map(s2 => (s, "", s2))))
           loop(todo.tail ++ succs, visited + s, halted, startingTime, newGraph)
         }
-      case None => AAMOutput(halted, visited.size,
+      case None =>
+
+        if (PRINT_ACTIONS_EXECUTED) {
+          println("####### actions executed #######")
+          for (ac <- ACTIONS_EXECUTED) {
+            println(ac)
+          }
+          println("####### actions executed #######")
+        }
+
+        AAMOutput(halted, visited.size,
         (System.nanoTime - startingTime) / Math.pow(10, 9), graph)
     }
   }
