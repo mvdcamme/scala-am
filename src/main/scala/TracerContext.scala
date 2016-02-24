@@ -1,7 +1,8 @@
 /**
   * Created by mvdcamme on 02/02/16.
   */
-class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](sem : SemanticsTraced[Exp, Abs, Addr, Time]) {
+class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
+    (sem : SemanticsTraced[Exp, Abs, Addr, Time], traceOptimizer : TraceOptimizer[Exp, Abs, Addr, Time]) {
 
   val PRINT_ENTIRE_TRACE = false
 
@@ -149,7 +150,8 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
 
   private def addTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
     case TracerContext(label, labelCounters, traceNodes, trace, ep, te) =>
-      new TracerContext(label, labelCounters, new TraceNode(label.get, trace) :: traceNodes, trace, ep, te)
+      val optimizedTrace = traceOptimizer.optimize(trace)
+      new TracerContext(label, labelCounters, new TraceNode(label.get, optimizedTrace) :: traceNodes, trace, ep, te)
   }
 
   /*

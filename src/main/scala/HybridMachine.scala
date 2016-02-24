@@ -33,7 +33,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
   val TRACING_THRESHOLD = 0
 
-  val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] = new TracerContext[Exp, HybridValue, HybridAddress, Time](sem)
+  val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] =
+    new TracerContext[Exp, HybridValue, HybridAddress, Time](sem, new TraceOptimizer[Exp, HybridValue, HybridAddress, Time](sem))
 
   /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
   val primitives = new Primitives[HybridAddress, HybridValue]()
