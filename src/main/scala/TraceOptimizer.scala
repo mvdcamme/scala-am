@@ -21,30 +21,24 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
     case _ => false
   }
 
-  private def optimizeEnvironmentLoading(trace : sem.Trace) : sem.Trace = {
+  private def removeMatchingActions(trace : sem.Trace, isAPushingAction : Action[Exp, Abs, Addr] => Boolean,
+                                    isAPoppingAction : Action[Exp, Abs, Addr] => Boolean, isAnInterferingAction : Action[Exp, Abs, Addr] => Boolean) : sem.Trace = {
     var stack = List[ActionMap]()
     var optimizedTrace : List[ActionMap] = List()
 
     def handleAction(action : Action[Exp, Abs, Addr]) : Unit = {
 
-      def handleInterferingAction = stack.headOption match {
-        case Some(action) => action.isUsed = true
-        case None =>
-      }
-
       val actionMap = ActionMap(action, true)
       action match {
-        case ActionAllocVarsTraced(_) |
-             ActionDefineVarsTraced(_) |
-             ActionEndTrace(_) |
-             ActionExtendEnvTraced(_)  =>
-          handleInterferingAction
-        case _ if isGuard(action) =>
-          handleInterferingAction
-        case ActionSaveEnvTraced() =>
+        case _ if isAnInterferingAction(action)  =>
+          stack.headOption match {
+            case Some(action) => action.isUsed = true
+            case None =>
+          }
+        case _ if isAPushingAction(action) =>
           actionMap.isUsed = false
           stack = actionMap :: stack
-        case ActionRestoreEnvTraced() =>
+        case _ if isAPoppingAction(action) =>
           stack.headOption match {
             case Some(action) =>
               actionMap.isUsed = action.isUsed
@@ -59,39 +53,33 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
     optimizedTrace.filter(_.isUsed).map(_.action)
   }
 
-  private def optimizeContinuationLoading(trace : sem.Trace) : sem.Trace = {
-    var stack = List[ActionMap]()
-    var optimizedTrace : List[ActionMap] = List()
-
-    def handleAction(action : Action[Exp, Abs, Addr]) : Unit = {
-
-      def handleInterferingAction = stack.headOption match {
-        case Some(action) => action.isUsed = true
-        case None =>
-      }
-
-      val actionMap = ActionMap(action, true)
-      action match {
-        case ActionEndTrace(_)  =>
-          handleInterferingAction
-        case _ if isGuard(action) =>
-          handleInterferingAction
-        case ActionPushTraced(_, _, _, _) =>
-          actionMap.isUsed = false
-          stack = actionMap :: stack
-        case ActionPopKontTraced() =>
-          stack.headOption match {
-            case Some(action) =>
-              actionMap.isUsed = action.isUsed
-              stack = stack.tail
-            case None =>
-          }
-        case _ =>
-      }
-      optimizedTrace = optimizedTrace :+ actionMap
+  private def optimizeEnvironmentLoading(trace : sem.Trace) : sem.Trace = {
+    def isAnInterferingAction(action : Action[Exp, Abs, Addr]) = action match {
+      case ActionAllocVarsTraced(_) |
+           ActionDefineVarsTraced(_) |
+           ActionEndTrace(_) |
+           ActionExtendEnvTraced(_) =>
+        true
+      case _ if isGuard(action) =>
+        true
+      case _ =>
+        false
     }
-    trace.foreach(handleAction(_))
-    optimizedTrace.filter(_.isUsed).map(_.action)
+    removeMatchingActions(trace, _.isInstanceOf[ActionSaveEnvTraced[Exp, Abs, Addr]],
+                          _.isInstanceOf[ActionRestoreEnvTraced[Exp, Abs, Addr]], isAnInterferingAction)
+  }
+
+  private def optimizeContinuationLoading(trace : sem.Trace) : sem.Trace = {
+    def isAnInterferingAction(action : Action[Exp, Abs, Addr]) = action match {
+      case ActionEndTrace(_) =>
+        true
+      case _ if isGuard(action) =>
+        true
+      case _ =>
+        false
+    }
+    removeMatchingActions(trace, _.isInstanceOf[ActionPushTraced[Exp, Abs, Addr]],
+                          _.isInstanceOf[ActionPopKontTraced[Exp, Abs, Addr]], isAnInterferingAction)
   }
 
   val optimisations : List[(Boolean, (sem.Trace => sem.Trace))] =
