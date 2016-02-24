@@ -48,16 +48,16 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     if (! isLooping) {
       finishedTracerContext = appendTrace(tracerContext, List(semantics.endTraceInstruction(restartPoint.get)))
     }
-    val traceNodeAddedTc = addTrace(finishedTracerContext)
-    val newTrace = traceNodeAddedTc.trace
     println(s"Complete trace")
     if (PRINT_ENTIRE_TRACE) {
       println("------------ START TRACE ------------")
-      for (action <- newTrace) {
+      for (action <- finishedTracerContext.trace) {
         println(action)
       }
       println("------------ END TRACE ------------")
     }
+    val traceNodeAddedTc = addTrace(finishedTracerContext)
+    val newTrace = traceNodeAddedTc.trace
     clearTrace(traceNodeAddedTc)
   }
 
