@@ -432,9 +432,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
        * semantic's continuation method */
       case ControlKont(_) if abs.isError(v) => Set()
       case ControlKont(ka) => sem.stepKont(v, kstore.lookup(ka).head.frame, σ, t)
-//      case ControlKont(v, None) => kstore.lookup(a).flatMap({
-//        case Kont(frame, next) => sem.stepKont(v, frame, σ, t)
-//      })
       /* In an error state, the state is not able to make a step */
       case ControlError(_) => Set()
     }
@@ -538,9 +535,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
          * semantic's continuation method */
         case ControlKont(_) if abs.isError(v) => Set()
         case ControlKont(ka) => integrate(a, sem.stepKont(v, kstore.lookup(ka).head.frame, σ, t))
-//        case ControlKont(v, None) => kstore.lookup(a).flatMap({
-//          case Kont(frame, next) => integrate(next, sem.stepKont(v, frame, σ, t))
-//        })
         /* In an error state, the state is not able to make a step */
         case ControlError(_) => Set()
       }

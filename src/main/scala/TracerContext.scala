@@ -97,7 +97,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   }
 
   def isTracingLabel(tracerContext: TracerContext, label: Label) : Boolean = tracerContext.label match {
-    case Some(tcLabel) => println(s"Currently tracing $tcLabel; comparing with $label"); tcLabel == label
+    case Some(tcLabel) => tcLabel == label
     case None => false
   }
 
