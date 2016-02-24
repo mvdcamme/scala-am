@@ -21,7 +21,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
     extends EvalKontMachineTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time](semantics) {
 
 
-  val PRINT_ACTIONS_EXECUTED = false
+  val PRINT_ACTIONS_EXECUTED = true
   var ACTIONS_EXECUTED : sem.Trace = List()
   
   type HybridValue = HybridLattice.Hybrid
@@ -142,7 +142,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
     }
 
     def handleGuard(guard: ActionGuardTraced[Exp, HybridValue, HybridAddress, sem.RestartPoint],
-                    guardCheckFunction : HybridValue => Boolean) : State =
+                    guardCheckFunction : HybridValue => Boolean) : State = {
       if (guardCheckFunction(v)) {
         replaceTc(state, newTc)
       } else {
@@ -151,25 +151,63 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
         val stateTEStopped = replaceTc(state, tcStopped)
         restart(guard.restartPoint, stateTEStopped)
       }
+    }
 
-    def handleClosureRestart(guard : ActionGuardSameClosure[Exp, HybridValue, HybridAddress, sem.RestartPoint]) : State = {
+    def handleClosureRestart(state : State, guard : ActionGuardSameClosure[Exp, HybridValue, HybridAddress, sem.RestartPoint]) : State = {
+
+      println("In handleClosureRestart")
+
+      val ρ = state.ρ
+      val σ = state.σ
+      val kstore = state.kstore
+      val a = state.a
+      val t = state.t
+      val tc = state.tc
+      val v = state.v
+      val vStack = state.vStack
+
       val action = guard.action
       action match {
-        case ActionStepInTraced(fexp, (_, ρ1), e, args, argsv, n, frame, _, _) =>
+        case ActionStepInTraced(fexp, e, args, argsv, n, frame, _, _) =>
           val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-          val (vals, newVStack) = popStackItems(vStack, n)
-          if (args.length == n - 1) {
-            sem.bindArgs(args.zip(argsv.zip(vals.init.reverse.map(_.left.get))), ρ1, σ, t) match {
-              case (ρ2, σ2) =>
-                State(ControlEval(e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), newTc, v, Right(ρ) :: newVStack)
+        val (vals, newVStack) = popStackItems(vStack, n)
+          val clo = vals.last
+          try {
+            clo.left.get match {
+              case cl: HybridLattice.Left =>
+                cl match {
+                  case HybridLattice.Left(clVal) =>
+                    clVal match {
+                      case x: AbstractConcrete.AbstractClosure[Exp, HybridAddress] =>
+                        x match {
+                          case AbstractConcrete.AbstractClosure(_, ρ1) =>
+                            if (args.length == n - 1) {
+                              sem.bindArgs(args.zip(argsv.zip(vals.init.reverse.map(_.left.get))), ρ1, σ, t) match {
+                                case (ρ2, σ2) =>
+                                  State(ControlEval(e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), tc, v, Right(ρ) :: newVStack)
+                              }
+                            } else {
+                              State(ControlError(s"Arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, tc, v, newVStack)
+                            }
+                        }
+                    }
+                }
             }
-          } else {
-            State(ControlError(s"Closure guard failed: arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, newTc, v, newVStack)
+          } catch {
+            case e : Exception =>
+              if (PRINT_ACTIONS_EXECUTED) {
+                println("####### closure guard failed: actions executed #######")
+                for (ac <- ACTIONS_EXECUTED) {
+                  println(ac)
+                }
+                println("####### actions executed #######")
+              }
+              throw e
           }
       }
     }
 
-    def handlePrimitiveRestart(guard : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress, sem.RestartPoint]) : State = {
+    def handlePrimitiveRestart(state : State, guard : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress, sem.RestartPoint]) : State = {
       val action = guard.action
       action match {
         case ActionPrimCallTraced(n : Integer, fExp : Exp, argsExps : List[Exp]) =>
@@ -192,13 +230,16 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
     }
 
     def handleClosureGuard(guard : ActionGuardSameClosure[Exp, HybridValue, HybridAddress, sem.RestartPoint], currentClosure : HybridValue) = {
-      if (guard.recordedClosure == currentClosure) {
-        state
-      } else {
-        println(s"Closure guard failed: recorded closure ${guard.recordedClosure} does not match current closure $currentClosure")
-        val tcStopped = tracerContext.stopExecuting(tc)
-        val stateTEStopped = replaceTc(state, tcStopped)
-        handleClosureRestart(guard)
+      (guard.recordedClosure, currentClosure) match {
+        case (HybridLattice.Left(AbstractConcrete.AbstractClosure(lam1, env1)), HybridLattice.Left(AbstractConcrete.AbstractClosure(lam2, env2))) =>
+          if (lam1 == lam2) {
+            state
+          } else {
+            println(s"Closure guard failed: recorded closure ${lam1} does not match current closure ${lam2}")
+            val tcStopped = tracerContext.stopExecuting(tc)
+            val stateTEStopped = replaceTc(state, tcStopped)
+            handleClosureRestart(stateTEStopped, guard)
+          }
       }
     }
 
@@ -209,7 +250,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
         println(s"Primitive guard failed: recorded primitive ${guard.recordedPrimitive} does not match current primitive $currentPrimitive")
         val tcStopped = tracerContext.stopExecuting(tc)
         val stateTEStopped = replaceTc(state, tcStopped)
-        handlePrimitiveRestart(guard)
+        handlePrimitiveRestart(stateTEStopped, guard)
       }
     }
 
@@ -222,6 +263,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
         val addresses = variables.map(v => addr.variable(v, t))
         val (ρ1, σ1) = variables.zip(addresses).foldLeft((ρ, σ))({ case ((ρ, σ), (v, a)) => (ρ.extend(v, a), σ.extend(a, abs.bottom)) })
         State(control, ρ1, σ1, kstore, a, t, newTc, v, vStack)
+      case ActionCreateClosureTraced(λ) =>
+        val newClosure = abs.inject[Exp, HybridAddress]((λ, ρ))
+        State(control, ρ, σ, kstore, a, t, newTc, newClosure, vStack)
       case ActionDefineVarsTraced(variables) =>
         val addresses = variables.map(v => addr.variable(v, t))
         val (vals, newVStack) = popStackItems(vStack, variables.length)
@@ -272,15 +316,42 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
         State(control, ρ, σ, kstore, a, t, newTc, v, Right(ρ) :: vStack)
       case ActionSetVarTraced(variable) => State(control, ρ, σ.update(ρ.lookup(variable).get, v), kstore, a, t, newTc, v, vStack)
       /* When a function is stepped in, we also go to an eval state */
-      case ActionStepInTraced(fexp, (_, ρ1), e, args, argsv, n, frame, _, _) =>
+      case ActionStepInTraced(fexp, e, args, argsv, n, frame, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
         val (vals, newVStack) = popStackItems(vStack, n)
-        if (args.length == n - 1) {
-          sem.bindArgs(args.zip(argsv.zip(vals.init.reverse.map(_.left.get))), ρ1, σ, t) match {
-            case (ρ2, σ2) =>
-              State(ControlEval(e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), newTc, v, Right(ρ) :: newVStack)
+        val clo = vals.last
+        try {
+          clo.left.get match {
+            case cl: HybridLattice.Left =>
+              cl match {
+                case HybridLattice.Left(clVal) =>
+                  clVal match {
+                    case x: AbstractConcrete.AbstractClosure[Exp, HybridAddress] =>
+                      x match {
+                        case AbstractConcrete.AbstractClosure(_, ρ1) =>
+                          if (args.length == n - 1) {
+                            sem.bindArgs(args.zip(argsv.zip(vals.init.reverse.map(_.left.get))), ρ1, σ, t) match {
+                              case (ρ2, σ2) =>
+                                State(ControlEval(e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), newTc, v, Right(ρ) :: newVStack)
+                            }
+                          } else {
+                            State(ControlError(s"Arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, newTc, v, newVStack)
+                          }
+                      }
+                  }
+              }
           }
-        } else { State(ControlError(s"Arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, newTc, v, newVStack) }
+        } catch {
+          case e : java.util.NoSuchElementException =>
+            if (PRINT_ACTIONS_EXECUTED) {
+              println("####### in ActionStepInTraced: actions executed #######")
+              for (ac <- ACTIONS_EXECUTED) {
+                println(ac)
+              }
+              println("####### actions executed #######")
+            }
+            throw e
+        }
       case action : ActionEndTrace[Exp, HybridValue, HybridAddress, sem.RestartPoint] =>
         val tcStopped = tracerContext.stopExecuting(newTc)
         val stateTEStopped = replaceTc(state, tcStopped)
@@ -574,7 +645,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTra
           }
           println("####### actions executed #######")
         }
-
         AAMOutput(halted, visited.size,
         (System.nanoTime - startingTime) / Math.pow(10, 9), graph)
     }

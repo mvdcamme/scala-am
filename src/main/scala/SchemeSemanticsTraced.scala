@@ -98,7 +98,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
     val fromClo: Set[InterpreterReturn] = abs.getClosures[SchemeExp, Addr](function).map({
       case (SchemeLambda(args, body), ρ1) =>
-        val stepInFrame = ActionStepInTraced(fexp, (SchemeLambda(args, body), ρ1), body.head, args, argsv.map(_._1), valsToPop, FrameFunBody(body, body.tail))
+        val stepInFrame = ActionStepInTraced(fexp, body.head, args, argsv.map(_._1), valsToPop, FrameFunBody(body, body.tail))
         InterpreterReturn(actions :+
                           ActionGuardSameClosure[SchemeExp, Abs, Addr, RestartPoint](function, RestartGuardDifferentClosure(), stepInFrame) :+
                           stepInFrame,
@@ -160,7 +160,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   }
 
   def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time) : Set[InterpreterReturn] = e match {
-    case λ: SchemeLambda => Set(interpreterReturn(List(ActionReachedValueTraced(abs.inject[SchemeExp, Addr]((λ, ρ))), actionPopKont)))
+    case λ: SchemeLambda => Set(interpreterReturn(List(ActionCreateClosureTraced(λ), actionPopKont)))
+      //Set(interpreterReturn(List(ActionReachedValueTraced(abs.inject[SchemeExp, Addr]((λ, ρ))), actionPopKont)))
     case SchemeAcquire(variable) => ρ.lookup(variable) match {
       case Some(a) => {
         val v = σ.lookup(a)
@@ -336,7 +337,7 @@ class SchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestam
     case ActionReachedValueTraced(v, read2, write) => ActionReachedValueTraced(v, read ++ read2, write)
     case ActionPushTraced(e, frame, read2, write) => ActionPushTraced(e, frame, read ++ read2, write)
     case ActionEvalTraced(e, read2, write) => ActionEvalTraced(e, read ++ read2, write)
-    case ActionStepInTraced(fexp, clo, e, args, argsv, n, frame, read2, write) => ActionStepInTraced(fexp, clo, e, args, argsv, n, frame, read ++ read2, write)
+    case ActionStepInTraced(fexp, e, args, argsv, n, frame, read2, write) => ActionStepInTraced(fexp, e, args, argsv, n, frame, read ++ read2, write)
     case ActionErrorTraced(err) => ActionErrorTraced(err)
   }
 }

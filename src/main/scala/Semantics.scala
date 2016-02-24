@@ -256,6 +256,7 @@ val restartPoint = rp
 }
 
 case class ActionAllocVarsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varNames : List[String]) extends Action[Exp, Abs, Addr]
+case class ActionCreateClosureTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](λ : Exp) extends Action[Exp, Abs, Addr]
 case class ActionDefineVarsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varNames : List[String]) extends Action[Exp, Abs, Addr]
 case class ActionEndTrace[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](restartPoint: RestartPoint) extends Action[Exp, Abs, Addr]
 /**
@@ -316,5 +317,5 @@ read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Ex
 * also be provided, as they can be needed by the abstract machine.
 */
 case class ActionStepInTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(fexp: Exp, clo: (Exp, Environment[Addr]), e: Exp, args : List[String], argsv : List[Exp], n : Integer,
+(fexp: Exp, e: Exp, args : List[String], argsv : List[Exp], n : Integer,
 frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
