@@ -5,6 +5,7 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
 
   val APPLY_OPTIMIZATIONS = true
   val APPLY_OPTIMIZATIONS_ENVIRONMENTS_LOADING = true
+  val APPLY_OPTIMIZATIONS_CONTINUATIONS_LOADING = true
 
   type HybridValue = HybridLattice.Hybrid
 
@@ -58,17 +59,15 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
     optimizedTrace.filter(_.isUsed).map(_.action)
   }
 
+  val optimisations : List[(Boolean, (sem.Trace => sem.Trace))] =
+    List((APPLY_OPTIMIZATIONS_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)))
+
   def optimize(trace : sem.Trace) : sem.Trace = {
     println(s"Size of unoptimized trace = ${trace.length}")
     if (APPLY_OPTIMIZATIONS) {
-      val environmentsLoadingOptimizedTrace =
-        if (APPLY_OPTIMIZATIONS_ENVIRONMENTS_LOADING) {
-          optimizeEnvironmentLoading(trace)
-        } else {
-          trace
-        }
-      println(s"Size of optimized trace = ${environmentsLoadingOptimizedTrace.length}")
-      environmentsLoadingOptimizedTrace
+      val optimizedTrace = optimisations.foldLeft(trace)({ (trace, pair) => if (pair._1) { pair._2(trace) } else { trace }})
+      println(s"Size of optimized trace = ${optimizedTrace.length}")
+      optimizedTrace
     } else {
       trace
     }
