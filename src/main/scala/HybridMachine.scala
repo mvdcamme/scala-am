@@ -17,8 +17,8 @@
  * contains the value reached.
  */
 
-class HybridMachine[Exp : Expression, Time : Timestamp](semantics : SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time])
-    extends EvalKontMachineTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time](semantics) {
+class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time])
+    extends EvalKontMachineTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time](sem) {
 
 
   val PRINT_ACTIONS_EXECUTED = false

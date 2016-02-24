@@ -134,9 +134,8 @@ abstract class EvalKontMachine[Exp : Expression, Abs : AbstractValue, Addr : Add
   }
 }
 
-abstract class EvalKontMachineTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](semantics : SemanticsTraced[Exp, Abs, Addr, Time])
+abstract class EvalKontMachineTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](sem : SemanticsTraced[Exp, Abs, Addr, Time])
   extends AbstractMachineTraced[Exp, Abs, Addr, Time] {
-  val sem : SemanticsTraced[Exp, Abs, Addr, Time] = semantics
 
   def abs = implicitly[AbstractValue[Abs]]
   def addr = implicitly[Address[Addr]]
