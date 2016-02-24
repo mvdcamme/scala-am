@@ -59,8 +59,44 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
     optimizedTrace.filter(_.isUsed).map(_.action)
   }
 
+  private def optimizeContinuationLoading(trace : sem.Trace) : sem.Trace = {
+    var stack = List[ActionMap]()
+    var optimizedTrace : List[ActionMap] = List()
+
+    def handleAction(action : Action[Exp, Abs, Addr]) : Unit = {
+
+      def handleInterferingAction = stack.headOption match {
+        case Some(action) => action.isUsed = true
+        case None =>
+      }
+
+      val actionMap = ActionMap(action, true)
+      action match {
+        case ActionEndTrace(_)  =>
+          handleInterferingAction
+        case _ if isGuard(action) =>
+          handleInterferingAction
+        case ActionPushTraced(_, _, _, _) =>
+          actionMap.isUsed = false
+          stack = actionMap :: stack
+        case ActionPopKontTraced() =>
+          stack.headOption match {
+            case Some(action) =>
+              actionMap.isUsed = action.isUsed
+              stack = stack.tail
+            case None =>
+          }
+        case _ =>
+      }
+      optimizedTrace = optimizedTrace :+ actionMap
+    }
+    trace.foreach(handleAction(_))
+    optimizedTrace.filter(_.isUsed).map(_.action)
+  }
+
   val optimisations : List[(Boolean, (sem.Trace => sem.Trace))] =
-    List((APPLY_OPTIMIZATIONS_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)))
+    List((APPLY_OPTIMIZATIONS_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
+         (APPLY_OPTIMIZATIONS_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)))
 
   def optimize(trace : sem.Trace) : sem.Trace = {
     println(s"Size of unoptimized trace = ${trace.length}")
