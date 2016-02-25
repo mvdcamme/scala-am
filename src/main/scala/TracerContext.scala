@@ -4,7 +4,7 @@
 class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
     (sem : SemanticsTraced[Exp, Abs, Addr, Time], traceOptimizer : TraceOptimizer[Exp, Abs, Addr, Time]) {
 
-  val PRINT_ENTIRE_TRACE = false
+  val PRINT_ENTIRE_TRACE = true
 
   val semantics = sem
   type Label = semantics.Label
@@ -48,16 +48,16 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     if (! isLooping) {
       finishedTracerContext = appendTrace(tracerContext, List(semantics.endTraceInstruction(restartPoint.get)))
     }
+    val traceNodeAddedTc = addTrace(finishedTracerContext)
+    val newTrace = getTrace(traceNodeAddedTc, tracerContext.label.get).trace
     println(s"Complete trace")
     if (PRINT_ENTIRE_TRACE) {
       println("------------ START TRACE ------------")
-      for (action <- finishedTracerContext.trace) {
+      for (action <- newTrace) {
         println(action)
       }
       println("------------ END TRACE ------------")
     }
-    val traceNodeAddedTc = addTrace(finishedTracerContext)
-    val newTrace = traceNodeAddedTc.trace
     clearTrace(traceNodeAddedTc)
   }
 
