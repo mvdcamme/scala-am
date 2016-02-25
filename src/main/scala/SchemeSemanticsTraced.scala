@@ -108,10 +108,10 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
     val fromPrim = abs.getPrimitive(function) match {
       case Some(prim) =>
-        val primCallFrame = ActionPrimCallTraced(valsToPop, fexp, argsv.map(_._1))
+        val primCallAction = ActionPrimCallTraced(valsToPop, fexp, argsv.map(_._1))
         Set(InterpreterReturn(actions :+
-                              ActionGuardSamePrimitive[SchemeExp, Abs, Addr, RestartPoint](function, RestartGuardDifferentPrimitive(), primCallFrame) :+
-                              primCallFrame :+ actionPopKont,
+                              ActionGuardSamePrimitive[SchemeExp, Abs, Addr, RestartPoint](function, RestartGuardDifferentPrimitive(), primCallAction) :+
+                              primCallAction :+ actionPopKont,
           new TracingSignalFalse()))
       case None => Set()
     }
@@ -311,6 +311,17 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   }
 
   def parse(program: String): SchemeExp = Scheme.parse(program)
+
+  def bindClosureArgs(clo : Abs, argsv : List[(SchemeExp, Abs)], σ : Store[Addr, Abs], t : Time) : Set[(Environment[Addr], Store[Addr, Abs])] = {
+    abs.getClosures[SchemeExp, Addr](clo).map({
+      case (SchemeLambda(args, body), ρ1) =>
+        if (args.length == argsv.length) {
+          bindArgs(args.zip(argsv), ρ1, σ, t)
+        } else {
+          throw new InvalidArityException
+        }
+    })
+  }
 }
 
 /**
