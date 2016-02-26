@@ -3,7 +3,7 @@
   */
 class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Addr, Time]) {
 
-  val APPLY_OPTIMIZATIONS = true
+  val APPLY_OPTIMIZATIONS = false
   val APPLY_OPTIMIZATIONS_ENVIRONMENTS_LOADING = true
   val APPLY_OPTIMIZATIONS_CONTINUATIONS_LOADING = true
 

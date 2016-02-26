@@ -71,7 +71,7 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
 
   case class TracingSignalFalse() extends TracingSignal
   case class TracingSignalStart(label: Label) extends TracingSignal
-  case class TracingSignalEnd(label: Label, restartPoint: RestartPoint[SchemeExp, Abs, Addr]) extends TracingSignal
+  case class TracingSignalEnd(label: Label, restartPoint: RestartPoint[Exp, Abs, Addr]) extends TracingSignal
 
   /*
    * Interpreter return
@@ -84,8 +84,8 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
   trait InstructionReturn
 
   case class TraceStep() extends InstructionReturn
-  case class GuardFailed(restartPoint: RestartPoint[SchemeExp, Abs, Addr]) extends InstructionReturn
-  case class EndTrace(restartPoint: RestartPoint[SchemeExp, Abs, Addr]) extends InstructionReturn
+  case class GuardFailed(restartPoint: RestartPoint[Exp, Abs, Addr]) extends InstructionReturn
+  case class EndTrace(restartPoint: RestartPoint[Exp, Abs, Addr]) extends InstructionReturn
   case class LoopTrace() extends InstructionReturn
 
   /*
