@@ -25,6 +25,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   var ACTIONS_EXECUTED : sem.Trace = List()
   
   type HybridValue = HybridLattice.Hybrid
+
+  type TraceInstruction = sem.TraceInstruction
+  type TraceWithStates = List[(TraceInstruction, Option[ProgramState])]
   
   def name = "HybridMachine"
 
@@ -60,8 +63,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     * continuation should be popped from the stack to continue the evaluation
     */
   case class ControlKont(ka : KontAddr) extends Control {
-    override def toString() = s"ko(${ka})"
-    override def toString(store: Store[HybridAddress, HybridValue]) = s"ko(${ka})"
+    override def toString = s"ko($ka)"
+    override def toString(store: Store[HybridAddress, HybridValue]) = s"ko($ka)"
     def subsumes(that: Control) = that match {
       case ControlKont(ka2) => ka == ka2
       case _ => false
@@ -275,9 +278,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
             NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, res, newVStack), action)
         }
       /* When a continuation needs to be pushed, push it in the continuation store */
-      /*
-      Replace frame to be pushed by fnction that takes a store and returns a new frame
-       */
       case ActionPushTraced(e, frame, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
         NormalInstructionStep(ProgramState(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, v, vStack), action)
@@ -310,11 +310,21 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
   }
 
-  def applyTrace(state : ProgramState, trace : sem.Trace) : ProgramState = {
-    trace.foldLeft(state)((currentState, action) => applyAction(currentState, action) match {
+  def applyTraceIntermediateResults(state : ProgramState, trace : sem.Trace) : List[ProgramState] = {
+    trace.scanLeft(state)((currentState, action) => applyAction(currentState, action) match {
       case NormalInstructionStep(updatedState, _) => updatedState
       case _ => throw new Exception(s"Unexpected result while applying action $action")
     })
+  }
+
+  def applyTraceAndGetStates(state : ProgramState, trace : sem.Trace) : (ProgramState, TraceWithStates) = {
+    val intermediateStates = applyTraceIntermediateResults(state, trace)
+    val resultingState = intermediateStates.last
+    (resultingState, trace.zip(intermediateStates.map(Some(_))))
+  }
+
+  def applyTrace(state : ProgramState, trace : sem.Trace) : ProgramState = {
+    applyTraceIntermediateResults(state, trace).last
   }
 
   type Storable = Either[HybridValue, Environment[HybridAddress]]
@@ -347,7 +357,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       *
       * The tracer context is ignored in this check, because it only stores "meta" information not relevant to the actual program state.
       */
-    def subsumes(that: ProgramState): Boolean = control.subsumes(that.control) && ρ.subsumes(that.ρ) && σ.subsumes(that.σ) && a == that.a && kstore.subsumes(that.kstore) && t == that.t
+    def subsumes(that: ProgramState): Boolean = control.subsumes(that.control) && ρ.subsumes(that.ρ) && σ.subsumes(that.σ) &&
+                                                a == that.a && kstore.subsumes(that.kstore) && t == that.t
 
     private def integrate(a: KontAddr, interpreterReturns: Set[sem.InterpreterReturn]): Set[ProgramState] = {
       interpreterReturns.map({itpRet => itpRet match {
@@ -443,8 +454,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
 
     def continueWithProgramStateTracing(state : ProgramState, trace : sem.Trace) : ExecutionState = {
-      val traceAppendedTc = tracerContext.appendTrace(tc, trace)
-      val newState = applyTrace(state, trace)
+      val intermediateStates = applyTraceIntermediateResults(state, trace)
+      val traceAppendedTc = tracerContext.appendTrace(tc, trace.zip(intermediateStates.map(Some(_))))
+      val newState = intermediateStates.last
       ExecutionState(ep, newState, traceAppendedTc, tn)
     }
 
@@ -462,8 +474,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       }
     }
 
-    def canStartLoopEncounteredTracing(newState : ProgramState, trace : sem.Trace, label : sem.Label) : ExecutionState = {
-      val traceAppendedTc = tracerContext.appendTrace(tc, trace)
+    def canStartLoopEncounteredTracing(state : ProgramState, trace : sem.Trace, label : sem.Label) : ExecutionState = {
+      val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
+      val traceAppendedTc = tracerContext.appendTrace(tc, traceWithStates)
       if (tracerContext.isTracingLabel(traceAppendedTc, label)) {
         println(s"Stopped tracing $label; LOOP DETECTED")
         val tcTRStopped = tracerContext.stopTracing(traceAppendedTc, true, None)
@@ -473,13 +486,15 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       }
     }
 
-    def canEndLoopEncounteredTracing(newState : ProgramState, trace : sem.Trace, restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], label : sem.Label) : ExecutionState = {
+    def canEndLoopEncounteredTracing(state : ProgramState, trace : sem.Trace, restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], label : sem.Label) : ExecutionState = {
+      val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       if (tracerContext.isTracingLabel(tc, label)) {
         println(s"Stopped tracing $label; NO LOOP DETECTED")
-        val tcTRStopped = tracerContext.stopTracing(tc, false, Some(RestartTraceEnded()))
+        val traceEndedInstruction = sem.endTraceInstruction(RestartTraceEnded())
+        val tcTRStopped = tracerContext.stopTracing(tc, false, Some(traceEndedInstruction))
         ExecutionState(NI, newState, tcTRStopped, tn)
       } else {
-        val traceAppendedTc = tracerContext.appendTrace(tc, trace)
+        val traceAppendedTc = tracerContext.appendTrace(tc, traceWithStates)
         ExecutionState(TR, newState, traceAppendedTc, tn)
       }
     }
@@ -489,9 +504,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       case sem.TracingSignalStart(label) => canStartLoopEncounteredRegular(applyTrace(state, trace), trace, label)
     }
 
-    def handleSignalTracing(newState : ProgramState, trace : sem.Trace, signal : TracingSignal) : ExecutionState = signal match {
-      case sem.TracingSignalEnd(label, restartPoint) => canEndLoopEncounteredTracing(newState, trace, restartPoint, label)
-      case sem.TracingSignalStart(label) => canStartLoopEncounteredTracing(newState, trace, label)
+    def handleSignalTracing(state : ProgramState, trace : sem.Trace, signal : TracingSignal) : ExecutionState = signal match {
+      case sem.TracingSignalEnd(label, restartPoint) => canEndLoopEncounteredTracing(state, trace, restartPoint, label)
+      case sem.TracingSignalStart(label) => canStartLoopEncounteredTracing(state, trace, label)
     }
 
     def handleResponseRegular(responses : Set[sem.InterpreterReturn]) : Set[ExecutionState] = {
@@ -504,7 +519,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     def handleResponseTracing(responses : Set[sem.InterpreterReturn]) : Set[ExecutionState] = {
       responses.map({
         case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => continueWithProgramStateTracing(ps, trace)
-        case sem.InterpreterReturn(trace, signal) => handleSignalTracing(applyTrace(ps, trace), trace, signal)
+        case sem.InterpreterReturn(trace, signal) => handleSignalTracing(ps, trace, signal)
       })
     }
 
@@ -627,7 +642,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     val newTodo = convTodo.map(_._2)
     val newVisited = convVisited.map(_._2)
     val newHalted = convHalted.map(_._2)
-    val newGraph = graph.map(mapF(convTodo, "Converted todo")_ compose mapF(convVisited, "Converted visited")_ compose mapF(convHalted, "Converted halted")_)
+    val newGraph = graph.map(mapF(convTodo, "Converted todo")_ compose mapF(convVisited, "Converted visited") compose mapF(convHalted, "Converted halted"))
     loopAbstract(newTodo, newVisited, newHalted, startingTime, newGraph)
   }
 

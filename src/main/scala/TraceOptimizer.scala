@@ -3,15 +3,17 @@
   */
 class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Addr, Time]) {
 
-  val APPLY_OPTIMIZATIONS = false
+  type ProgramState = HybridMachine[Exp, Time]#ProgramState
+  type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
+  type Trace = HybridMachine[Exp, Time]#TraceWithStates
+
+  val APPLY_OPTIMIZATIONS = true
   val APPLY_OPTIMIZATIONS_ENVIRONMENTS_LOADING = true
   val APPLY_OPTIMIZATIONS_CONTINUATIONS_LOADING = true
 
   type HybridValue = HybridLattice.Hybrid
 
-  private case class ActionMap(action : Action[Exp, Abs, Addr], var isUsed : Boolean)
-
-  def isGuard(action : Action[Exp, Abs, Addr]) : Boolean = action match {
+  def isGuard(action : TraceInstruction) : Boolean = action match {
     case ActionGuardFalseTraced(_) |
          ActionGuardTrueTraced(_) |
          ActionGuardSameClosure(_, _) |
@@ -21,40 +23,43 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
     case _ => false
   }
 
-  private def removeMatchingActions(trace : sem.Trace, isAPushingAction : Action[Exp, Abs, Addr] => Boolean,
-                                    isAPoppingAction : Action[Exp, Abs, Addr] => Boolean, isAnInterferingAction : Action[Exp, Abs, Addr] => Boolean) : sem.Trace = {
-    var stack = List[ActionMap]()
-    var optimizedTrace : List[ActionMap] = List()
+  private case class ActionStateMap(actionState : (TraceInstruction, Option[ProgramState]), var isUsed : Boolean)
 
-    def handleAction(action : Action[Exp, Abs, Addr]) : Unit = {
+  private def removeMatchingActions(trace : Trace, isAPushingAction : TraceInstruction => Boolean,
+                                    isAPoppingAction : TraceInstruction => Boolean, isAnInterferingAction : TraceInstruction => Boolean) : Trace = {
 
-      val actionMap = ActionMap(action, true)
-      action match {
-        case _ if isAnInterferingAction(action)  =>
+    var stack = List[ActionStateMap]()
+    var optimizedTrace : List[ActionStateMap] = List()
+
+    def handleAction(actionState : (TraceInstruction, Option[ProgramState])) : Unit = {
+
+      val actionStateMap = ActionStateMap(actionState, true)
+      actionState._1 match {
+        case _ if isAnInterferingAction(actionState._1)  =>
           stack.headOption match {
             case Some(action) => action.isUsed = true
             case None =>
           }
-        case _ if isAPushingAction(action) =>
-          actionMap.isUsed = false
-          stack = actionMap :: stack
-        case _ if isAPoppingAction(action) =>
+        case _ if isAPushingAction(actionState._1) =>
+          actionStateMap.isUsed = false
+          stack = actionStateMap :: stack
+        case _ if isAPoppingAction(actionState._1) =>
           stack.headOption match {
             case Some(action) =>
-              actionMap.isUsed = action.isUsed
+              actionStateMap.isUsed = action.isUsed
               stack = stack.tail
             case None =>
           }
         case _ =>
       }
-      optimizedTrace = optimizedTrace :+ actionMap
+      optimizedTrace = optimizedTrace :+ actionStateMap
     }
     trace.foreach(handleAction(_))
-    optimizedTrace.filter(_.isUsed).map(_.action)
+    optimizedTrace.filter(_.isUsed).map(_.actionState)
   }
 
-  private def optimizeEnvironmentLoading(trace : sem.Trace) : sem.Trace = {
-    def isAnInterferingAction(action : Action[Exp, Abs, Addr]) = action match {
+  private def optimizeEnvironmentLoading(trace : Trace) : Trace = {
+    def isAnInterferingAction(action : TraceInstruction) = action match {
       case ActionAllocVarsTraced(_) |
            ActionDefineVarsTraced(_) |
            ActionEndTrace(_) |
@@ -69,8 +74,8 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
                           _.isInstanceOf[ActionRestoreEnvTraced[Exp, Abs, Addr]], isAnInterferingAction)
   }
 
-  private def optimizeContinuationLoading(trace : sem.Trace) : sem.Trace = {
-    def isAnInterferingAction(action : Action[Exp, Abs, Addr]) = action match {
+  private def optimizeContinuationLoading(trace : Trace) : Trace = {
+    def isAnInterferingAction(action : TraceInstruction) : Boolean = action match {
       case ActionEndTrace(_) =>
         true
       case _ if isGuard(action) =>
@@ -82,11 +87,11 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
                           _.isInstanceOf[ActionPopKontTraced[Exp, Abs, Addr]], isAnInterferingAction)
   }
 
-  val optimisations : List[(Boolean, (sem.Trace => sem.Trace))] =
+  val optimisations : List[(Boolean, (Trace => Trace))] =
     List((APPLY_OPTIMIZATIONS_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
          (APPLY_OPTIMIZATIONS_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)))
 
-  def optimize(trace : sem.Trace) : sem.Trace = {
+  def optimize(trace : Trace) : Trace = {
     println(s"Size of unoptimized trace = ${trace.length}")
     if (APPLY_OPTIMIZATIONS) {
       val optimizedTrace = optimisations.foldLeft(trace)({ (trace, pair) => if (pair._1) { pair._2(trace) } else { trace }})

@@ -8,9 +8,10 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
 
   val semantics = sem
   type Label = semantics.Label
-  type Trace = semantics.Trace
   type InstructionReturn = semantics.InstructionReturn
-  type TraceInstruction = semantics.TraceInstruction
+  type ProgramState = HybridMachine[Exp, Time]#ProgramState
+  type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
+  type Trace = HybridMachine[Exp, Time]#TraceWithStates
 
   case class TraceNode(label : Label, trace : Trace)
 
@@ -36,10 +37,10 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Stop tracing
    */
 
-  def stopTracing(tracerContext: TracerContext, isLooping : Boolean, restartPoint: Option[RestartPoint[Exp, Abs, Addr]]) : TracerContext = {
+  def stopTracing(tracerContext: TracerContext, isLooping : Boolean, traceEndedInstruction: Option[TraceInstruction]) : TracerContext = {
     var finishedTracerContext : TracerContext = tracerContext
     if (! isLooping) {
-      finishedTracerContext = appendTrace(tracerContext, List(semantics.endTraceInstruction(restartPoint.get)))
+      finishedTracerContext = appendTrace(tracerContext, List((traceEndedInstruction.get, None)))
     }
     val traceNodeAddedTc = addTrace(finishedTracerContext)
     val newTrace = getTrace(traceNodeAddedTc, tracerContext.label.get).trace
@@ -115,7 +116,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
 
     val traceHead = currentTraceNode.trace.head
     val updatedTraceNode = TraceNode(traceNode.label, currentTraceNode.trace.tail)
-    (traceHead, updatedTraceNode)
+    (traceHead._1, updatedTraceNode)
   }
 
   /*
