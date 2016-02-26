@@ -64,12 +64,6 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
 
   type Label = List[Exp]
 
-  trait RestartPoint
-
-  case class RestartGuardDifferentClosure() extends RestartPoint
-  case class RestartGuardDifferentPrimitive() extends RestartPoint
-  case class RestartGuardFailed(newControl: Exp) extends RestartPoint
-
   case class RestartTraceEnded() extends RestartPoint
 
   /*
@@ -246,8 +240,13 @@ case class ActionJoin[Exp : Expression, Abs : AbstractValue, Addr : Address]
 *                                                   TRACED ACTIONS                                                 *
 ********************************************************************************************************************/
 
-abstract class ActionGuardTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint) extends Action[Exp, Abs, Addr] {
-val restartPoint = rp
+trait RestartPoint[Exp, Abs, Addr]
+
+case class RestartGuardDifferentClosure[Exp : Expression, Abs : AbstractValue, Addr : Address](action : ActionStepInTraced[Exp, Abs, Addr]) extends RestartPoint[Exp, Abs, Addr]
+case class RestartGuardDifferentPrimitive[Exp : Expression, Abs : AbstractValue, Addr : Address](action : ActionPrimCallTraced[Exp, Abs, Addr]) extends RestartPoint[Exp, Abs, Addr]
+case class RestartGuardFailed[Exp : Expression, Abs : AbstractValue, Addr : Address](newControl: Exp) extends RestartPoint[Exp, Abs, Addr]
+
+abstract class ActionGuardTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, RP : RestartPoint](val rp: RP) extends Action[Exp, Abs, Addr] {
 }
 
 case class ActionAllocVarsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varNames : List[String]) extends Action[Exp, Abs, Addr]
@@ -265,14 +264,16 @@ case class ActionErrorTraced[Exp : Expression, Abs : AbstractValue, Addr : Addre
 case class ActionEvalTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
 (e: Exp, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionExtendEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String) extends Action[Exp, Abs, Addr]
-case class ActionGuardTrueTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint)
-  extends ActionGuardTraced[Exp, Abs, Addr, RestartPoint](rp)
-case class ActionGuardFalseTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](rp: RestartPoint)
-  extends ActionGuardTraced[Exp, Abs, Addr, RestartPoint](rp)
-case class ActionGuardSameClosure[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](recordedClosure : Abs, rp : RestartPoint, action : ActionStepInTraced[Exp, Abs, Addr])
-  extends ActionGuardTraced[Exp, Abs, Addr, RestartPoint](rp)
-case class ActionGuardSamePrimitive[Exp : Expression, Abs : AbstractValue, Addr : Address, RestartPoint](recordedPrimitive : Abs, rp : RestartPoint, action : ActionPrimCallTraced[Exp, Abs, Addr])
-  extends ActionGuardTraced[Exp, Abs, Addr, RestartPoint](rp)
+case class ActionGuardTrueTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, RP : RestartPoint](override val rp: RP)
+  extends ActionGuardTraced[Exp, Abs, Addr, RP](rp)
+case class ActionGuardFalseTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, RP : RestartPoint](override val rp: RP)
+  extends ActionGuardTraced[Exp, Abs, Addr, RP](rp)
+case class ActionGuardSameClosure[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (recordedClosure : Abs, override val rp : RestartGuardDifferentClosure[Exp, Abs, Addr])
+  extends ActionGuardTraced[Exp, Abs, Addr, RestartGuardDifferentClosure[Exp, Abs, Addr]](rp)
+case class ActionGuardSamePrimitive[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (recordedPrimitive : Abs, override val rp : RestartGuardDifferentPrimitive[Exp, Abs, Addr])
+  extends ActionGuardTraced[Exp, Abs, Addr, RestartGuardDifferentPrimitive[Exp, Abs, Addr]](rp)
 /**
 * Waits for the execution of a thread, with tid as its identifier.
 */

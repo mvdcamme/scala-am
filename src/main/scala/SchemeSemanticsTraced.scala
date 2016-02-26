@@ -100,7 +100,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       case (SchemeLambda(args, body), ρ1) =>
         val stepInFrame = ActionStepInTraced(fexp, body.head, args, argsv.map(_._1), valsToPop, FrameFunBody(body, body.tail))
         InterpreterReturn(actions :+
-                          ActionGuardSameClosure[SchemeExp, Abs, Addr, RestartPoint](function, RestartGuardDifferentClosure(), stepInFrame) :+
+                          ActionGuardSameClosure[SchemeExp, Abs, Addr](function, RestartGuardDifferentClosure(stepInFrame)) :+
                           stepInFrame,
                           new TracingSignalStart(body))
       case (λ, _) => interpreterReturn(List(ActionErrorTraced[SchemeExp, Abs, Addr](s"Incorrect closure with lambda-expression ${λ}")))
@@ -110,7 +110,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       case Some(prim) =>
         val primCallAction = ActionPrimCallTraced(valsToPop, fexp, argsv.map(_._1))
         Set(InterpreterReturn(actions :+
-                              ActionGuardSamePrimitive[SchemeExp, Abs, Addr, RestartPoint](function, RestartGuardDifferentPrimitive(), primCallAction) :+
+                              ActionGuardSamePrimitive[SchemeExp, Abs, Addr](function, RestartGuardDifferentPrimitive(primCallAction)) :+
                               primCallAction :+ actionPopKont,
           new TracingSignalFalse()))
       case None => Set()
