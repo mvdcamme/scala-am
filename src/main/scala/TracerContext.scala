@@ -12,19 +12,17 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   type InstructionReturn = semantics.InstructionReturn
   type TraceInstruction = semantics.TraceInstruction
   type RestartPoint = semantics.RestartPoint
-  type ExecutionPhase = semantics.ExecutionPhase.ExecutionPhase
 
   case class TraceNode(label : Label, trace : Trace)
 
   case class TracerContext(label : Option[Label], labelCounters : Map[Label, Integer],
-                           traceNodes : List[TraceNode], trace : Trace,
-                           executionPhase : ExecutionPhase, traceExecuting : Option[TraceNode])
+                           traceNodes : List[TraceNode], trace : Trace)
 
   /*
    * Generating tracer context
    */
 
-  def newTracerContext = new TracerContext(None, Map(), List(), List(), NI, None)
+  def newTracerContext = new TracerContext(None, Map(), List(), List())
 
   /*
    * Start tracing
@@ -32,7 +30,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
 
   def startTracingLabel(tracerContext: TracerContext, label: Label) : TracerContext = tracerContext match {
     case TracerContext(_, labelCounters, traceNodes, _, ep, te) =>
-      new TracerContext(Some(label), labelCounters, traceNodes, List(), TR, te)
+      new TracerContext(Some(label), labelCounters, traceNodes, List())
   }
 
   /*
@@ -81,11 +79,11 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
 
   def appendTrace(tracerContext: TracerContext, newPart : Trace) : TracerContext =
     new TracerContext(tracerContext.label, tracerContext.labelCounters, tracerContext.traceNodes,
-                      tracerContext.trace ++ newPart, tracerContext.executionPhase, tracerContext.traceExecuting)
+                      tracerContext.trace ++ newPart)
 
   private def clearTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
     case TracerContext(_, labelCounters, traceNodes, _, _, _) =>
-      new TracerContext(None, labelCounters, traceNodes, List(), NI, None)
+      new TracerContext(None, labelCounters, traceNodes, List())
   }
 
   def isTracing(tracerContext: TracerContext) : Boolean = tracerContext.label match {
@@ -102,52 +100,36 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Executing traces
    */
 
-  def isExecuting(tracerContext: TracerContext) : Boolean = tracerContext.executionPhase match {
-    case TE => true
-    case _ => false
-  }
+  def stepTrace(traceNode: TraceNode, tracerContext: TracerContext) : (TraceInstruction, TraceNode) = {
+    var currentTraceNode = traceNode
+    def resetTrace() = {
+      println("Resetting the trace")
+      currentTraceNode = getTrace(tracerContext, traceNode.label)
+    }
 
-  def isTraceEmpty(tracerContext: TracerContext) : Boolean = tracerContext.traceExecuting match {
-    case Some(traceNode) => traceNode.trace.isEmpty
-    case None => throw new Exception("Error: no trace is being executed")
-  }
+    /*
+     * Make sure the trace isn't empty
+     */
+    if (traceNode.trace.isEmpty) {
+      resetTrace()
+    }
 
-  def stepTrace(tracerContext: TracerContext) : (TraceInstruction, TracerContext) = tracerContext.traceExecuting match {
-    case Some(TraceNode(label, trace)) =>
-
-      var traceNodeExecuting = TraceNode(label, trace)
-      def resetTrace(traceNode : TraceNode) : TraceNode = {
-        println("Resetting the trace")
-        getTrace(tracerContext, traceNode.label)
-      }
-
-      /*
-       * Make sure the trace isn't empty
-       */
-      if (trace.isEmpty) {
-        traceNodeExecuting = resetTrace(traceNodeExecuting)
-      }
-
-      val traceHead = traceNodeExecuting.trace.head
-
-      val newTraceNode = TraceNode(label, traceNodeExecuting.trace.tail)
-      val newTc = new TracerContext(tracerContext.label, tracerContext.labelCounters, tracerContext.traceNodes,
-                                    tracerContext.trace, tracerContext.executionPhase, Some(newTraceNode))
-      (traceHead, newTc)
-    case None => throw new Exception("Error: no trace is being executed")
+    val traceHead = currentTraceNode.trace.head
+    val updatedTraceNode = TraceNode(traceNode.label, currentTraceNode.trace.tail)
+    (traceHead, updatedTraceNode)
   }
 
   def stopExecuting(tracerContext: TracerContext) : TracerContext =
-    new TracerContext(None, tracerContext.labelCounters, tracerContext.traceNodes, List(), NI, None)
+    new TracerContext(None, tracerContext.labelCounters, tracerContext.traceNodes, List())
 
   /*
    * Adding traces
    */
 
   private def addTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
-    case TracerContext(label, labelCounters, traceNodes, trace, ep, te) =>
+    case TracerContext(label, labelCounters, traceNodes, trace) =>
       val optimizedTrace = traceOptimizer.optimize(trace)
-      new TracerContext(label, labelCounters, new TraceNode(label.get, optimizedTrace) :: traceNodes, trace, ep, te)
+      new TracerContext(label, labelCounters, new TraceNode(label.get, optimizedTrace) :: traceNodes, trace)
   }
 
   /*
@@ -158,10 +140,10 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     tc.labelCounters.getOrElse(label, 0)
 
   def incLabelCounter(tc : TracerContext, label : Label) : TracerContext = tc match {
-    case TracerContext(labelTracing, labelCounters, traceNodes, trace, ep, te) =>
+    case TracerContext(labelTracing, labelCounters, traceNodes, trace) =>
       val oldCounter = getLabelCounter(tc, label)
       val newLabelCounters : Map[Label, Integer] = labelCounters.updated(label, oldCounter + 1)
-      new TracerContext(labelTracing, newLabelCounters, traceNodes, trace, ep, te)
+      new TracerContext(labelTracing, newLabelCounters, traceNodes, trace)
   }
 
 }
