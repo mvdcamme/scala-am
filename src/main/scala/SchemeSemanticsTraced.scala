@@ -80,9 +80,9 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   /*
    * TODO: Debugging: run tests only using if-expressions. Remove function ASAP and use function "conditional" instead!
    */
-  def conditionalIf(v: Abs, t: Trace, tRestart : RestartPoint, f: Trace, fRestart : RestartPoint): Set[InterpreterReturn] =
-    (if (abs.isTrue(v)) Set[InterpreterReturn](new InterpreterReturn(actionRestoreEnv :: ActionGuardTrueTraced[SchemeExp, Abs, Addr, RestartPoint](fRestart) :: t, TracingSignalFalse())) else Set[InterpreterReturn]()) ++
-    (if (abs.isFalse(v)) Set[InterpreterReturn](new InterpreterReturn(actionRestoreEnv :: ActionGuardFalseTraced[SchemeExp, Abs, Addr, RestartPoint](tRestart) :: f, TracingSignalFalse())) else Set[InterpreterReturn]())
+  def conditionalIf(v: Abs, t: Trace, tRestart : RestartPoint[SchemeExp, Abs, Addr], f: Trace, fRestart : RestartPoint[SchemeExp, Abs, Addr]): Set[InterpreterReturn] =
+    (if (abs.isTrue(v)) Set[InterpreterReturn](new InterpreterReturn(actionRestoreEnv :: ActionGuardTrueTraced[SchemeExp, Abs, Addr](fRestart) :: t, TracingSignalFalse())) else Set[InterpreterReturn]()) ++
+    (if (abs.isFalse(v)) Set[InterpreterReturn](new InterpreterReturn(actionRestoreEnv :: ActionGuardFalseTraced[SchemeExp, Abs, Addr](tRestart) :: f, TracingSignalFalse())) else Set[InterpreterReturn]())
 
   /**
    * @param argsv are the Scheme-expressions of the operands of the call

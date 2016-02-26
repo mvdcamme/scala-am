@@ -14,8 +14,8 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
   def isGuard(action : Action[Exp, Abs, Addr]) : Boolean = action match {
     case ActionGuardFalseTraced(_) |
          ActionGuardTrueTraced(_) |
-         ActionGuardSameClosure(_, _, _) |
-         ActionGuardSamePrimitive(_, _, _) |
+         ActionGuardSameClosure(_, _) |
+         ActionGuardSamePrimitive(_, _) |
          ActionGuardFalseTraced(_) =>
       true
     case _ => false

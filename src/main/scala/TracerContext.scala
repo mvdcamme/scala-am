@@ -11,7 +11,6 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   type Trace = semantics.Trace
   type InstructionReturn = semantics.InstructionReturn
   type TraceInstruction = semantics.TraceInstruction
-  type RestartPoint = semantics.RestartPoint
 
   case class TraceNode(label : Label, trace : Trace)
 
@@ -29,7 +28,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    */
 
   def startTracingLabel(tracerContext: TracerContext, label: Label) : TracerContext = tracerContext match {
-    case TracerContext(_, labelCounters, traceNodes, _, ep, te) =>
+    case TracerContext(_, labelCounters, traceNodes, _) =>
       new TracerContext(Some(label), labelCounters, traceNodes, List())
   }
 
@@ -37,7 +36,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Stop tracing
    */
 
-  def stopTracing(tracerContext: TracerContext, isLooping : Boolean, restartPoint: Option[RestartPoint]) : TracerContext = {
+  def stopTracing(tracerContext: TracerContext, isLooping : Boolean, restartPoint: Option[RestartPoint[Exp, Abs, Addr]]) : TracerContext = {
     var finishedTracerContext : TracerContext = tracerContext
     if (! isLooping) {
       finishedTracerContext = appendTrace(tracerContext, List(semantics.endTraceInstruction(restartPoint.get)))
@@ -60,7 +59,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    */
 
   private def searchTrace(tracerContext: TracerContext, label: Label) : Option[TraceNode] = tracerContext match {
-    case TracerContext(_, _, traceNodes, _, _, _) => traceNodes.find({traceNode => traceNode.label == label})
+    case TracerContext(_, _, traceNodes, _) => traceNodes.find({traceNode => traceNode.label == label})
   }
 
   def getTrace(tracerContext: TracerContext, label: Label) : TraceNode = searchTrace(tracerContext, label) match {
@@ -82,7 +81,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
                       tracerContext.trace ++ newPart)
 
   private def clearTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
-    case TracerContext(_, labelCounters, traceNodes, _, _, _) =>
+    case TracerContext(_, labelCounters, traceNodes, _) =>
       new TracerContext(None, labelCounters, traceNodes, List())
   }
 
