@@ -7,7 +7,6 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
   type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
   type Trace = HybridMachine[Exp, Time]#TraceWithStates
 
-  val APPLY_OPTIMIZATIONS = true
   val APPLY_OPTIMIZATIONS_ENVIRONMENTS_LOADING = true
   val APPLY_OPTIMIZATIONS_CONTINUATIONS_LOADING = true
 
@@ -93,10 +92,10 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
 
   def optimize(trace : Trace) : Trace = {
     println(s"Size of unoptimized trace = ${trace.length}")
-    if (APPLY_OPTIMIZATIONS) {
       val optimizedTrace = optimisations.foldLeft(trace)({ (trace, pair) => if (pair._1) { pair._2(trace) } else { trace }})
       println(s"Size of optimized trace = ${optimizedTrace.length}")
       optimizedTrace
+    if (TracerFlags.APPLY_OPTIMIZATIONS) {
     } else {
       trace
     }

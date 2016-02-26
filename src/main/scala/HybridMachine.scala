@@ -21,7 +21,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     extends EvalKontMachineTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time](sem) {
 
 
-  val PRINT_ACTIONS_EXECUTED = false
   var ACTIONS_EXECUTED : sem.Trace = List()
   
   type HybridValue = HybridLattice.Hybrid
@@ -30,9 +29,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   type TraceWithStates = List[(TraceInstruction, Option[ProgramState])]
   
   def name = "HybridMachine"
-
-  val SWITCH_ABSTRACT = false
-  val DO_TRACING = true
 
   val TRACING_THRESHOLD = 0
 
@@ -226,7 +222,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       }
     }
 
-    if (PRINT_ACTIONS_EXECUTED) {
+    if (TracerFlags.PRINT_ACTIONS_EXECUTED) {
       ACTIONS_EXECUTED = ACTIONS_EXECUTED :+ action
     }
 
@@ -454,9 +450,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
 
     def continueWithProgramStateTracing(state : ProgramState, trace : sem.Trace) : ExecutionState = {
-      val intermediateStates = applyTraceIntermediateResults(state, trace)
-      val traceAppendedTc = tracerContext.appendTrace(tc, trace.zip(intermediateStates.map(Some(_))))
-      val newState = intermediateStates.last
+      val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
+      val traceAppendedTc = tracerContext.appendTrace(tc, traceWithStates)
       ExecutionState(ep, newState, traceAppendedTc, tn)
     }
 
@@ -465,7 +460,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       val labelCounter = tracerContext.getLabelCounter(newTc, label)
       if (tracerContext.traceExists(newTc, label)) {
         startExecutingTrace(newState, newTc, label)
-      } else if (DO_TRACING && labelCounter >= TRACING_THRESHOLD) {
+      } else if (TracerFlags.DO_TRACING && labelCounter >= TRACING_THRESHOLD) {
         println(s"Started tracing $label")
         val tcTRStarted = tracerContext.startTracingLabel(newTc, label)
         ExecutionState(TR, newState, tcTRStarted, tn)
@@ -605,7 +600,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
            * the new successors on the todo list */
           val succs = s.stepConcrete()
           val newExecutionPhase = succs.head.ep
-          if (SWITCH_ABSTRACT && previousExecutionPhase == TR && newExecutionPhase != TR) {
+          if (TracerFlags.SWITCH_ABSTRACT && previousExecutionPhase == TR && newExecutionPhase != TR) {
             numberOfTracesRecorded += 1
             val abstractOutput = switchToAbstract(todo, visited, halted, startingTime, graph)
             abstractOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
@@ -616,7 +611,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         }
       case None =>
 
-        if (PRINT_ACTIONS_EXECUTED) {
+        if (TracerFlags.PRINT_ACTIONS_EXECUTED) {
           println("####### actions executed #######")
           for (ac <- ACTIONS_EXECUTED) {
             println(ac)
