@@ -14,10 +14,6 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   type RestartPoint = semantics.RestartPoint
   type ExecutionPhase = semantics.ExecutionPhase.ExecutionPhase
 
-  val NI = semantics.ExecutionPhase.NI
-  val TE = semantics.ExecutionPhase.TE
-  val TR = semantics.ExecutionPhase.TR
-
   case class TraceNode(label : Label, trace : Trace)
 
   case class TracerContext(label : Option[Label], labelCounters : Map[Label, Integer],

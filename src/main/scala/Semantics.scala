@@ -73,16 +73,6 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
   case class RestartTraceEnded() extends RestartPoint
 
   /*
-   * Enumeration of possible execution phases
-   */
-  object ExecutionPhase extends Enumeration {
-    type ExecutionPhase = Value
-    val NI = Value("NormalInterpretation")
-    val TR = Value("TraceRecording")
-    val TE = Value("TraceExecution")
-  }
-
-  /*
    * Tracing signals
    */
   trait TracingSignal
