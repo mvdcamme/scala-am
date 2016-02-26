@@ -86,16 +86,25 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
                           _.isInstanceOf[ActionPopKontTraced[Exp, Abs, Addr]], isAnInterferingAction)
   }
 
-  val optimisations : List[(Boolean, (Trace => Trace))] =
+  val basicOptimisations : List[(Boolean, (Trace => Trace))] =
     List((APPLY_OPTIMIZATIONS_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
          (APPLY_OPTIMIZATIONS_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)))
 
+  val detailedOptimisations : List[(Boolean, (Trace => Trace))] =
+    List()
+
+  def foldOptimisations(trace : Trace, optimisations : List[(Boolean, (Trace => Trace))]) : Trace = {
+    optimisations.foldLeft(trace)({ (trace, pair) => if (pair._1) { pair._2(trace) } else { trace }})
+  }
+
   def optimize(trace : Trace) : Trace = {
     println(s"Size of unoptimized trace = ${trace.length}")
-      val optimizedTrace = optimisations.foldLeft(trace)({ (trace, pair) => if (pair._1) { pair._2(trace) } else { trace }})
-      println(s"Size of optimized trace = ${optimizedTrace.length}")
-      optimizedTrace
     if (TracerFlags.APPLY_OPTIMIZATIONS) {
+      val basicOptimizedTrace = foldOptimisations(trace, basicOptimisations)
+      println(s"Size of basic optimized trace = ${basicOptimizedTrace.length}")
+      val detailedOptimizedTrace = foldOptimisations(basicOptimizedTrace, detailedOptimisations)
+      println(s"Size of detailed optimized trace = ${detailedOptimizedTrace.length}")
+      detailedOptimizedTrace
     } else {
       trace
     }
