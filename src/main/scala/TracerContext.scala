@@ -119,9 +119,6 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     (traceHead, updatedTraceNode)
   }
 
-  def stopExecuting(tracerContext: TracerContext) : TracerContext =
-    new TracerContext(None, tracerContext.labelCounters, tracerContext.traceNodes, List())
-
   /*
    * Adding traces
    */
