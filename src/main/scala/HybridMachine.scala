@@ -317,7 +317,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   def applyTraceAndGetStates(state : ProgramState, trace : sem.Trace) : (ProgramState, TraceWithStates) = {
     val intermediateStates = applyTraceIntermediateResults(state, trace)
     val resultingState = intermediateStates.last
-    (resultingState, trace.zip(intermediateStates.map({ s => if (TracerFlags.APPLY_DETAILED_OPTIMIZATIONS) Some(s) else None})))
+    (resultingState, trace.zip(intermediateStates.tail.map({ s => if (TracerFlags.APPLY_DETAILED_OPTIMIZATIONS) Some(s) else None})))
   }
 
   def applyTrace(state : ProgramState, trace : sem.Trace) : ProgramState = {
