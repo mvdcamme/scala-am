@@ -4,11 +4,13 @@
 class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Addr, Time]) {
 
   type ProgramState = HybridMachine[Exp, Time]#ProgramState
+  type TraceInstructionStates = HybridMachine[Exp, Time]#TraceInstructionStates
   type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
   type Trace = HybridMachine[Exp, Time]#TraceWithStates
 
-  val APPLY_OPTIMIZATIONS_ENVIRONMENTS_LOADING = true
-  val APPLY_OPTIMIZATIONS_CONTINUATIONS_LOADING = true
+  val APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
+  val APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
+  val APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
 
   type HybridValue = HybridLattice.Hybrid
 
@@ -22,7 +24,7 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
     case _ => false
   }
 
-  private case class ActionStateMap(actionState : (TraceInstruction, Option[ProgramState]), var isUsed : Boolean)
+  private case class ActionStateMap(actionState : TraceInstructionStates, var isUsed : Boolean)
 
   private def removeMatchingActions(trace : Trace, isAPushingAction : TraceInstruction => Boolean,
                                     isAPoppingAction : TraceInstruction => Boolean, isAnInterferingAction : TraceInstruction => Boolean) : Trace = {
@@ -30,7 +32,7 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
     var stack = List[ActionStateMap]()
     var optimizedTrace : List[ActionStateMap] = List()
 
-    def handleAction(actionState : (TraceInstruction, Option[ProgramState])) : Unit = {
+    def handleAction(actionState : TraceInstructionStates) : Unit = {
 
       val actionStateMap = ActionStateMap(actionState, true)
       actionState._1 match {
@@ -86,12 +88,62 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
                           _.isInstanceOf[ActionPopKontTraced[Exp, Abs, Addr]], isAnInterferingAction)
   }
 
+  private def findNextPushVal(it : Iterator[TraceInstructionStates]) : Boolean = {
+    it.find({case (ActionPushValTraced(), _) => true
+             case _ => false})
+    it.hasNext
+  }
+
+  private def findNextPrimCall(it : Iterator[TraceInstructionStates]) : Option[(HybridValue, Integer)] = {
+    it.find({case (ActionPrimCallTraced(_, _, _), Some(_)) => true
+             case _ => false}) match {
+      case Some((action, state)) => println(s"Found state $state"); action match {
+        case ActionPrimCallTraced(n, _, _) => Some((state.get.v, n))
+      }
+      case None => None
+    }
+  }
+
+  private def checkPrimitive(it : Iterator[TraceInstructionStates], result : HybridValue, n : Integer) : Boolean = {
+    1.to(n - 1).foldLeft(true)({ (previousResult, _) =>
+      val pushFound = findNextPushVal(it)
+      previousResult && pushFound && it.next._1.isInstanceOf[ActionReachedValueTraced[Exp, HybridValue, HybridAddress]]
+    })
+  }
+
+  private def doDifficultStuff(trace : Trace, it : Iterator[TraceInstructionStates]) : Trace = {
+    findNextPrimCall(it) match {
+      case Some((result, n)) =>
+        val onlyUsesConstants = checkPrimitive(it, result, n)
+        if (onlyUsesConstants) {
+          println(s"Suitable primitive application found: $result")
+          trace
+        } else {
+          println("No suitable primitive application found")
+          if (it.hasNext) {
+            println("Going further back in the trace")
+            doDifficultStuff(trace, it)
+          } else {
+            println("Can't go any further back in the trace")
+            trace
+          }
+        }
+      /* Absolutely no primitive is applied in the given trace  */
+      case None => trace
+    }
+  }
+
+  private def optimizeConstantFolding(trace: Trace) : Trace = {
+    val it = trace.reverse.toIterator
+    doDifficultStuff(trace, it)
+  }
+
   val basicOptimisations : List[(Boolean, (Trace => Trace))] =
-    List((APPLY_OPTIMIZATIONS_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
-         (APPLY_OPTIMIZATIONS_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)))
+    List((APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
+         (APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)))
 
   val detailedOptimisations : List[(Boolean, (Trace => Trace))] =
-    List()
+    List((APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)))
 
   def foldOptimisations(trace : Trace, optimisations : List[(Boolean, (Trace => Trace))]) : Trace = {
     optimisations.foldLeft(trace)({ (trace, pair) => if (pair._1) { pair._2(trace) } else { trace }})

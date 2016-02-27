@@ -26,7 +26,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   type HybridValue = HybridLattice.Hybrid
 
   type TraceInstruction = sem.TraceInstruction
-  type TraceWithStates = List[(TraceInstruction, Option[ProgramState])]
+  type TraceInstructionStates = (TraceInstruction, Option[ProgramState])
+  type TraceWithStates = List[TraceInstructionStates]
   
   def name = "HybridMachine"
 
