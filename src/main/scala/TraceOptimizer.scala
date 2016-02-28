@@ -98,17 +98,18 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
     }
   }
 
-  private def findNextPrimCall(trace : Trace) : Option[(Trace, HybridValue, Integer)] = {
-    val newTrace = trace.dropWhile({case (ActionPrimCallTraced(_, _, _), Some(_)) => false
-                                    case _ => true})
-    if (newTrace.isEmpty) {
+  private def findNextPrimCall(trace : Trace) : Option[(Trace, Trace, HybridValue, Integer)] = {
+    val (traceBefore, traceAfterPrimCall) =
+      trace.span({case (ActionPrimCallTraced(_, _, _), Some(_)) => true
+                  case _ => false})
+    if (traceAfterPrimCall.isEmpty) {
       None
     } else {
-      val action = newTrace.head._1
-      val state = newTrace.head._2
+      val action = traceAfterPrimCall.head._1
+      val state = traceAfterPrimCall.head._2
       println(s"Found state $state")
       action match {
-        case ActionPrimCallTraced(n, _, _) => Some((newTrace.tail, state.get.v, n))
+        case ActionPrimCallTraced(n, _, _) => Some((traceBefore, traceAfterPrimCall.tail, state.get.v, n))
       }
     }
   }
@@ -120,7 +121,7 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
         val pushFound = findNextPushVal(currentTrace)
         pushFound.flatMap({ updatedTrace =>
           if (updatedTrace.head._1.isInstanceOf[ActionReachedValueTraced[Exp, HybridValue, HybridAddress]]) {
-            Some(updatedTrace)
+            Some(updatedTrace.tail)
           } else {
             println(s"Does not work because uses action ${updatedTrace.head._1}")
             None
@@ -138,12 +139,14 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
   private def doDifficultStuff(trace : Trace) : Trace = {
     val originalTrace = trace
     findNextPrimCall(trace) match {
-      case Some((traceAfterPrimCall, result, n)) =>
+      case Some((traceBefore, traceAfterPrimCall, result, n)) =>
         val onlyUsesConstants = checkPrimitive(traceAfterPrimCall, result, n)
         onlyUsesConstants match {
-          case Some(_) =>
+          case Some(traceAfterLastConstant) =>
             println(s"Suitable primitive application found: $result")
-            originalTrace
+            val replacingConstantAction : TraceInstructionStates = (ActionReachedValueTraced[Exp, HybridValue, HybridAddress](result), None)
+            val newTrace = (traceBefore :+ replacingConstantAction) :: traceAfterLastConstant
+            newTrace
           case None =>
             if (traceAfterPrimCall.isEmpty) {
               println("Can't go any further back in the trace")
