@@ -88,54 +88,79 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
                           _.isInstanceOf[ActionPopKontTraced[Exp, Abs, Addr]], isAnInterferingAction)
   }
 
-  private def findNextPushVal(it : Iterator[TraceInstructionStates]) : Boolean = {
-    it.find({case (ActionPushValTraced(), _) => true
-             case _ => false})
-    it.hasNext
-  }
-
-  private def findNextPrimCall(it : Iterator[TraceInstructionStates]) : Option[(HybridValue, Integer)] = {
-    it.find({case (ActionPrimCallTraced(_, _, _), Some(_)) => true
-             case _ => false}) match {
-      case Some((action, state)) => println(s"Found state $state"); action match {
-        case ActionPrimCallTraced(n, _, _) => Some((state.get.v, n))
-      }
-      case None => None
+  private def findNextPushVal(trace : Trace) : Option[Trace] = {
+    val updatedTrace = trace.dropWhile({case (ActionPushValTraced(), _) => false
+                                        case _ => true})
+    if (updatedTrace.isEmpty) {
+      None
+    } else {
+      Some(updatedTrace.tail)
     }
   }
 
-  private def checkPrimitive(it : Iterator[TraceInstructionStates], result : HybridValue, n : Integer) : Boolean = {
-    1.to(n - 1).foldLeft(true)({ (previousResult, _) =>
-      val pushFound = findNextPushVal(it)
-      previousResult && pushFound && it.next._1.isInstanceOf[ActionReachedValueTraced[Exp, HybridValue, HybridAddress]]
+  private def findNextPrimCall(trace : Trace) : Option[(Trace, HybridValue, Integer)] = {
+    val newTrace = trace.dropWhile({case (ActionPrimCallTraced(_, _, _), Some(_)) => false
+                                    case _ => true})
+    if (newTrace.isEmpty) {
+      None
+    } else {
+      val action = newTrace.head._1
+      val state = newTrace.head._2
+      println(s"Found state $state")
+      action match {
+        case ActionPrimCallTraced(n, _, _) => Some((newTrace.tail, state.get.v, n))
+      }
+    }
+  }
+
+  private def checkPrimitive(trace : Trace, result : HybridValue, n : Integer) : Option[Trace] = {
+    println(s"Checking whether primitive application only uses ${n - 1} constants")
+    1.to(n - 1).foldLeft(Some(trace) : Option[Trace])({ (previousResult : Option[Trace], x) =>
+      previousResult.flatMap({ currentTrace =>
+        val pushFound = findNextPushVal(currentTrace)
+        pushFound.flatMap({ updatedTrace =>
+          if (updatedTrace.head._1.isInstanceOf[ActionReachedValueTraced[Exp, HybridValue, HybridAddress]]) {
+            Some(updatedTrace)
+          } else {
+            println(s"Does not work because uses action ${updatedTrace.head._1}")
+            None
+          }
+        })
+      })
     })
   }
 
-  private def doDifficultStuff(trace : Trace, it : Iterator[TraceInstructionStates]) : Trace = {
-    findNextPrimCall(it) match {
-      case Some((result, n)) =>
-        val onlyUsesConstants = checkPrimitive(it, result, n)
-        if (onlyUsesConstants) {
-          println(s"Suitable primitive application found: $result")
-          trace
-        } else {
-          println("No suitable primitive application found")
-          if (it.hasNext) {
-            println("Going further back in the trace")
-            doDifficultStuff(trace, it)
-          } else {
-            println("Can't go any further back in the trace")
-            trace
-          }
+  /*
+  /* One of the operands in the primitive application is not a constant */
+
+   */
+
+  private def doDifficultStuff(trace : Trace) : Trace = {
+    val originalTrace = trace
+    findNextPrimCall(trace) match {
+      case Some((traceAfterPrimCall, result, n)) =>
+        val onlyUsesConstants = checkPrimitive(traceAfterPrimCall, result, n)
+        onlyUsesConstants match {
+          case Some(_) =>
+            println(s"Suitable primitive application found: $result")
+            originalTrace
+          case None =>
+            if (traceAfterPrimCall.isEmpty) {
+              println("Can't go any further back in the trace")
+              originalTrace
+            } else {
+              println("Going further back in the trace")
+              doDifficultStuff(traceAfterPrimCall.tail)
+            }
         }
       /* Absolutely no primitive is applied in the given trace  */
-      case None => trace
+      case None => originalTrace
     }
   }
 
   private def optimizeConstantFolding(trace: Trace) : Trace = {
-    val it = trace.reverse.toIterator
-    doDifficultStuff(trace, it)
+    doDifficultStuff(trace.reverse)
+    trace
   }
 
   val basicOptimisations : List[(Boolean, (Trace => Trace))] =
