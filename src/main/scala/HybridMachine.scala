@@ -240,6 +240,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         val (vals, newVStack) = popStackItems(vStack, variables.length)
         val (ρ1, σ1) = vals.zip(variables.zip(addresses)).foldLeft((ρ, σ))({ case ((ρ2, σ2), (value, (currV, currA))) => (ρ2.extend(currV, currA), σ2.extend(currA, value.left.get)) })
         NormalInstructionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, newVStack), action)
+      case ActionDropValsTraced(n) =>
+        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, vStack.drop(n)), action)
       /* When an error is reached, we go to an error state */
       case ActionError(err) =>
         NormalInstructionStep(ProgramState(ControlError(err), ρ, σ, kstore, a, t, v, vStack), action)

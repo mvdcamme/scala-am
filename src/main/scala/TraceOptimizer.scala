@@ -1,7 +1,7 @@
 /**
   * Created by mvdcamme on 24/02/16.
   */
-class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Addr, Time]) {
+class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: SemanticsTraced[Exp, Abs, Addr, Time]) {
 
   type ProgramState = HybridMachine[Exp, Time]#ProgramState
   type TraceInstructionStates = HybridMachine[Exp, Time]#TraceInstructionStates
@@ -100,8 +100,8 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
 
   private def findNextPrimCall(trace : Trace) : Option[(Trace, Trace, HybridValue, Integer)] = {
     val (traceBefore, traceAfterPrimCall) =
-      trace.span({case (ActionPrimCallTraced(_, _, _), Some(_)) => true
-                  case _ => false})
+      trace.span({case (ActionPrimCallTraced(_, _, _), Some(_)) => false
+                  case _ => true})
     if (traceAfterPrimCall.isEmpty) {
       None
     } else {
@@ -144,8 +144,9 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
         onlyUsesConstants match {
           case Some(traceAfterLastConstant) =>
             println(s"Suitable primitive application found: $result")
+            val dropOperatorPushAction : TraceInstructionStates = (ActionDropValsTraced(1), None)
             val replacingConstantAction : TraceInstructionStates = (ActionReachedValueTraced[Exp, HybridValue, HybridAddress](result), None)
-            val newTrace = (traceBefore :+ replacingConstantAction) :: traceAfterLastConstant
+            val newTrace = (traceBefore:+ replacingConstantAction :+ dropOperatorPushAction) ++ traceAfterLastConstant
             newTrace
           case None =>
             if (traceAfterPrimCall.isEmpty) {
@@ -162,8 +163,7 @@ class TraceOptimizer[Exp, Abs, Addr, Time](val sem: SemanticsTraced[Exp, Abs, Ad
   }
 
   private def optimizeConstantFolding(trace: Trace) : Trace = {
-    doDifficultStuff(trace.reverse)
-    trace
+    doDifficultStuff(trace.reverse).reverse
   }
 
   val basicOptimisations : List[(Boolean, (Trace => Trace))] =
