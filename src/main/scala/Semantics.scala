@@ -252,6 +252,8 @@ case class ActionAllocVarsTraced[Exp : Expression, Abs : AbstractValue, Addr : A
 case class ActionCreateClosureTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](λ : Exp) extends Action[Exp, Abs, Addr]
 case class ActionDefineVarsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varNames : List[String]) extends Action[Exp, Abs, Addr]
 case class ActionDropValsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](n : Integer) extends Action[Exp, Abs, Addr]
+case class ActionEndClosureCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
+case class ActionEndPrimCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionEndTrace[Exp : Expression, Abs : AbstractValue, Addr : Address](restartPoint: RestartPoint[Exp, Abs, Addr]) extends Action[Exp, Abs, Addr]
 /**
 * An error has been reached
@@ -315,3 +317,4 @@ read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Ex
 case class ActionStepInTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
 (fexp: Exp, e: Exp, args : List[String], argsv : List[Exp], n : Integer,
 frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionStartFunCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]

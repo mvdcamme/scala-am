@@ -242,6 +242,10 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         NormalInstructionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, newVStack), action)
       case ActionDropValsTraced(n) =>
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, vStack.drop(n)), action)
+      case ActionEndClosureCallTraced() =>
+        NormalInstructionStep(state, action)
+      case ActionEndPrimCallTraced() =>
+        NormalInstructionStep(state, action)
       /* When an error is reached, we go to an error state */
       case ActionError(err) =>
         NormalInstructionStep(ProgramState(ControlError(err), ρ, σ, kstore, a, t, v, vStack), action)
@@ -291,6 +295,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, Right(ρ) :: vStack), action)
       case ActionSetVarTraced(variable) =>
         NormalInstructionStep(ProgramState(control, ρ, σ.update(ρ.lookup(variable).get, v), kstore, a, t, v, vStack), action)
+      case ActionStartFunCallTraced() =>
+        NormalInstructionStep(state, action)
       /* When a function is stepped in, we also go to an eval state */
       case ActionStepInTraced(fexp, e, args, argsv, n, frame, _, _) =>
         NormalInstructionStep(doActionStepInTraced(state, action), action)

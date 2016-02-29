@@ -12,10 +12,13 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
    * Some unparametrized actions.
    * Defined here so that we don't have to give all type parameters each time these actions are used.
    */
+  val actionEndPrimCall = ActionEndPrimCallTraced[SchemeExp, Abs, Addr]()
+  val actionEndClosureCall = ActionEndClosureCallTraced[SchemeExp, Abs, Addr]()
   val actionPopKont = ActionPopKontTraced[SchemeExp, Abs, Addr]()
   val actionPushVal = ActionPushValTraced[SchemeExp, Abs, Addr]()
   val actionRestoreEnv = ActionRestoreEnvTraced[SchemeExp, Abs, Addr]()
   val actionSaveEnv = ActionSaveEnvTraced[SchemeExp, Abs, Addr]()
+  val actionStartFunCall = ActionStartFunCallTraced[SchemeExp, Abs, Addr]()
 
   trait SchemeFrame extends Frame {
     def subsumes(that: Frame) = that.equals(this)
@@ -101,7 +104,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
         val stepInFrame = ActionStepInTraced(fexp, body.head, args, argsv.map(_._1), valsToPop, FrameFunBody(body, body.tail))
         InterpreterReturn(actions :+
                           ActionGuardSameClosure[SchemeExp, Abs, Addr](function, RestartGuardDifferentClosure(stepInFrame)) :+
-                          stepInFrame,
+                          stepInFrame :+
+                          actionEndClosureCall,
                           new TracingSignalStart(body))
       case (λ, _) => interpreterReturn(List(ActionErrorTraced[SchemeExp, Abs, Addr](s"Incorrect closure with lambda-expression ${λ}")))
     })
@@ -111,7 +115,9 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
         val primCallAction = ActionPrimCallTraced(valsToPop, fexp, argsv.map(_._1))
         Set(InterpreterReturn(actions :+
                               ActionGuardSamePrimitive[SchemeExp, Abs, Addr](function, RestartGuardDifferentPrimitive(primCallAction)) :+
-                              primCallAction :+ actionPopKont,
+                              primCallAction :+
+                              actionPopKont :+
+                              actionEndPrimCall,
           new TracingSignalFalse()))
       case None => Set()
     }
@@ -190,7 +196,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       val σ1 = σ.extend(a, v)
       Set(interpreterReturn(List(ActionReachedValueTraced(v), actionPopKont)))
     }
-    case SchemeFuncall(f, args) => Set(interpreterReturn(List(actionSaveEnv, ActionPushTraced(f, FrameFuncallOperator(f, args, ρ)))))
+    case SchemeFuncall(f, args) => Set(interpreterReturn(List(actionStartFunCall, actionSaveEnv, ActionPushTraced(f, FrameFuncallOperator(f, args, ρ)))))
     case SchemeIdentifier(name) => ρ.lookup(name) match {
       case Some(a) => Set(interpreterReturn(List(ActionLookupVariableTraced(name, Set[Addr](a)), actionPopKont))) /* reads on a */
       case None => Set(interpreterReturn(List(ActionErrorTraced(s"Unbound variable: $name"))))
