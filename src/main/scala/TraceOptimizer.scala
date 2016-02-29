@@ -116,7 +116,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   private def checkPrimitive(trace : Trace, result : HybridValue, n : Integer) : Option[Trace] = {
     println(s"Checking whether primitive application only uses ${n - 1} constants")
-    1.to(n - 1).foldLeft(Some(trace) : Option[Trace])({ (previousResult : Option[Trace], x) =>
+    val onlyUsesConstants = 1.to(n - 1).foldLeft(Some(trace) : Option[Trace])({ (previousResult : Option[Trace], x) =>
       previousResult.flatMap({ currentTrace =>
         val pushFound = findNextPushVal(currentTrace)
         pushFound.flatMap({ updatedTrace =>
@@ -129,12 +129,10 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
         })
       })
     })
+    onlyUsesConstants.flatMap({ (traceAfterLastConstant) =>
+      findNextPushVal(traceAfterLastConstant)
+    })
   }
-
-  /*
-  /* One of the operands in the primitive application is not a constant */
-
-   */
 
   private def doDifficultStuff(trace : Trace) : Trace = {
     val originalTrace = trace
@@ -144,9 +142,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
         onlyUsesConstants match {
           case Some(traceAfterLastConstant) =>
             println(s"Suitable primitive application found: $result")
-            val dropOperatorPushAction : TraceInstructionStates = (ActionDropValsTraced(1), None)
             val replacingConstantAction : TraceInstructionStates = (ActionReachedValueTraced[Exp, HybridValue, HybridAddress](result), None)
-            val newTrace = (traceBefore:+ replacingConstantAction :+ dropOperatorPushAction) ++ traceAfterLastConstant
+            val newTrace = (traceBefore:+ replacingConstantAction) ++ traceAfterLastConstant
             newTrace
           case None =>
             if (traceAfterPrimCall.isEmpty) {
