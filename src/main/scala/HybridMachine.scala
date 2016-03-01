@@ -257,8 +257,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         val ρ1 = ρ.extend(name, va)
         val σ1 = σ.extend(va, v)
         NormalInstructionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, vStack), action)
-      case ActionLiteralTraced(lit) =>
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, lit, vStack), action)
       case ActionLookupVariableTraced(varName, _, _) =>
         val newV = σ.lookup(ρ.lookup(varName).get)
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, vStack), action)

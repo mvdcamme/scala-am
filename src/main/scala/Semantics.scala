@@ -282,7 +282,6 @@ case class ActionGuardSamePrimitive[Exp : Expression, Abs : AbstractValue, Addr 
 case class ActionJoinTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
 (tid: Abs, σ: Store[Addr, Abs],
 read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-case class ActionLiteralTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](v: Abs) extends Action[Exp, Abs, Addr]
 case class ActionLookupVariableTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionPopKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionPrimCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]

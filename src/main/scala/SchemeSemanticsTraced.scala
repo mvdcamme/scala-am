@@ -116,8 +116,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
         Set(InterpreterReturn(actions :+
                               ActionGuardSamePrimitive[SchemeExp, Abs, Addr](function, RestartGuardDifferentPrimitive(primCallAction)) :+
                               primCallAction :+
-                              actionPopKont :+
-                              actionEndPrimCall,
+                              actionEndPrimCall :+
+                              actionPopKont,
           new TracingSignalFalse()))
       case None => Set()
     }
@@ -172,7 +172,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       case Some(a) => {
         val v = σ.lookup(a)
         /* Only performs a step if the lock is possibly unlocked (true is unlocked, false is locked) */
-        if (abs.isTrue(v)) Set(InterpreterReturn(List(ActionLiteralTraced(abs.inject(false)), ActionSetVarTraced(variable),
+        if (abs.isTrue(v)) Set(InterpreterReturn(List(ActionReachedValueTraced(abs.inject(false)), ActionSetVarTraced(variable),
                                                       ActionReachedValueTraced(abs.inject(true)), actionPopKont),
                                                  new TracingSignalFalse())) else Set()
       }
@@ -219,7 +219,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 //      case (value, σ2) => Set(interpreterReturn(ActionReachedValue(value, σ2), actionPopKont))
 //    }
     case SchemeRelease(variable) => ρ.lookup(variable) match {
-      case Some(a) => Set(InterpreterReturn(List(ActionLiteralTraced(abs.inject(true)), ActionSetVarTraced(variable),
+      case Some(a) => Set(InterpreterReturn(List(ActionReachedValueTraced(abs.inject(true)), ActionSetVarTraced(variable),
                                                  ActionReachedValueTraced(abs.inject(true)), actionPopKont), new TracingSignalFalse()))
       case None => Set(interpreterReturn(List(ActionErrorTraced(s"Unbound variable: $variable"))))
     }
