@@ -108,7 +108,6 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       None
     } else {
       val action = traceAtEndPrimCall.head._1
-      println(s"Found action $action")
       Some((traceBefore, traceAtEndPrimCall))
     }
   }
@@ -151,7 +150,6 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
               currentTrace = traceAtStartOptimizedBlock.tail
             case None =>
               /* Should not happen */
-              println("NO STOP OPTIMIZED BLOCK ENCOUNTERED")
               continue = false
           }
         case None =>
@@ -173,7 +171,6 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   }
 
   private def checkPrimitive(trace : Trace, n : Integer) : Option[Trace] = {
-    println(s"Checking whether primitive application only uses ${n - 1} constants")
     val onlyUsesConstants = 1.to(n - 1).foldLeft(Some(trace) : Option[Trace])({ (previousResult : Option[Trace], x) =>
       previousResult.flatMap({ currentTrace =>
         val someTraceAfterPush = findNextPushVal(currentTrace)
@@ -203,14 +200,11 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
        findNextStartFunCall(traceAtPrimCall.tail) match {
          case Some((traceBetweenMarks, traceAtStartCall)) =>
            val optimizedBlocks = filterAllOptimizedBlocks(traceBetweenMarks)
-           println(s"optimizedBlocks = $optimizedBlocks")
            val actionStatePrimCall = traceBetweenMarks.find(_._1.isInstanceOf[ActionPrimCallTraced[Exp, Abs, Addr]])
-           println(s"actionStatePrimCall = $actionStatePrimCall")
            actionStatePrimCall match {
              case Some((ActionPrimCallTraced(n, _, _), state)) =>
                val result = state.get.v
                val x = findNextEndPrimCall(traceBetweenMarks)
-               println(s"x = $x")
                x match {
                  /* Another primitive is applied in this block */
                  case Some((_, betweenInnerEndPrimCallAndOuterStartMark)) =>
@@ -227,7 +221,6 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
                      val replacingTrace = firstPart ++ (traceBefore :+ actionEndOptimizedBlock :+ replacingConstantAction) ++
                                           optimizedBlocks.foldLeft(List() : Trace)({ (acc, current) => acc ++ current}) ++
                                           (traceAfterOperatorPush :+ actionStartOptimizedBlock) ++ traceAtStartCall.tail
-                     println("Got here")
                      Some(replacingTrace)
                    })
                }
@@ -246,13 +239,6 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     def loop(trace : Trace) : Trace = {
       doDifficultStuff(List(), trace) match {
         case Some(updatedTrace) =>
-          println("-----------------------")
-          println("The updated trace is")
-          for (action <- updatedTrace) {
-            println(action)
-          }
-          println("-----------------------")
-          println("RESTARTING THE LOOP")
           loop(updatedTrace)
         case None =>
           trace
