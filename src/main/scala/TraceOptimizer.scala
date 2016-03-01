@@ -133,9 +133,12 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     case _ => true})
   }
 
-  private def filterAllOptimizedBlocks(trace : Trace) : (Trace, List[Trace]) = {
+  /*
+   * Have to filter the optimized blocks out because otherwise they will get removed
+   * when the outer block is constant folded -> lose the guards stored in these optimized blocks.
+   */
+  private def filterAllOptimizedBlocks(trace : Trace) : List[Trace] = {
     var continue = true
-    var filteredTrace : Trace = List()
     var currentTrace = trace
     var acc = List[Trace]()
     while (continue) {
@@ -145,20 +148,17 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
             case Some((traceBetweenMarks, traceAtStartOptimizedBlock)) =>
               val optimizedPart = (traceAtEndOptimizedBlock.head :: traceBetweenMarks) :+ traceAtStartOptimizedBlock.head
               acc = acc :+ optimizedPart
-              filteredTrace = filteredTrace ++ traceBefore
               currentTrace = traceAtStartOptimizedBlock.tail
             case None =>
               /* Should not happen */
               println("NO STOP OPTIMIZED BLOCK ENCOUNTERED")
-              filteredTrace = filteredTrace ++ traceBefore
               continue = false
           }
         case None =>
           continue = false
-          filteredTrace = filteredTrace ++ currentTrace
       }
     }
-    (filteredTrace, acc)
+    acc
   }
 
   private def changesValueRegister(action : TraceInstruction) : Boolean = action match {
@@ -202,23 +202,24 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case Some((traceBefore, traceAtPrimCall)) =>
        findNextStartFunCall(traceAtPrimCall.tail) match {
          case Some((traceBetweenMarks, traceAtStartCall)) =>
-           val (filteredTrace, optimizedBlocks) = filterAllOptimizedBlocks(traceBetweenMarks)
+           val optimizedBlocks = filterAllOptimizedBlocks(traceBetweenMarks)
            println(s"optimizedBlocks = $optimizedBlocks")
-           val actionStatePrimCall = filteredTrace.find(_._1.isInstanceOf[ActionPrimCallTraced[Exp, Abs, Addr]])
+           val actionStatePrimCall = traceBetweenMarks.find(_._1.isInstanceOf[ActionPrimCallTraced[Exp, Abs, Addr]])
            println(s"actionStatePrimCall = $actionStatePrimCall")
            actionStatePrimCall match {
              case Some((ActionPrimCallTraced(n, _, _), state)) =>
                val result = state.get.v
-               val x = findNextEndPrimCall(filteredTrace)
+               val x = findNextEndPrimCall(traceBetweenMarks)
                println(s"x = $x")
                x match {
                  /* Another primitive is applied in this block */
-                 case Some((betweenOuterPrimCallAndInnerEndPrimCall, betweenInnerEndPrimCallAndOuterStartMark)) =>
+                 case Some((_, betweenInnerEndPrimCallAndOuterStartMark)) =>
+                   val betweenOuterPrimCallAndInnerEndPrimCall = findNextEndPrimCall(traceBetweenMarks).get._1
                    val newFirstPart = firstPart ++ (traceBefore :+ traceAtPrimCall.head) ++ betweenOuterPrimCallAndInnerEndPrimCall
                    val newTrace = betweenInnerEndPrimCallAndOuterStartMark ++ traceAtStartCall
                    doDifficultStuff(newFirstPart, newTrace)
                  case None =>
-                   checkPrimitive(filteredTrace, n).flatMap({ (traceAfterOperatorPush) =>
+                   checkPrimitive(traceBetweenMarks, n).flatMap({ (traceAfterOperatorPush) =>
                      //val guard = (ActionGuardSamePrimitive(), None)
                      val replacingConstantAction : TraceInstructionStates = (ActionReachedValueTraced[Exp, HybridValue, HybridAddress](result), None)
                      val actionEndOptimizedBlock = (ActionEndOptimizedBlock[Exp, HybridValue, HybridAddress], None)
