@@ -78,7 +78,12 @@ object AbstractType {
     override def binaryOp(op: BinaryOperator)(that: AbstractType) = that match {
       case AbstractTop => AbstractTop
       case AbstractInt => op match {
-        case Plus | Minus | Times | Div | Modulo => AbstractInt
+        case Plus | PlusI | Minus | Times | Div | Modulo => AbstractInt
+        case Lt | NumEq => AbstractBool
+        case _ => super.binaryOp(op)(that)
+      }
+      case AbstractFloat => op match {
+        case Plus | Minus | Times | Div => AbstractFloat
         case Lt | NumEq => AbstractBool
         case _ => super.binaryOp(op)(that)
       }
