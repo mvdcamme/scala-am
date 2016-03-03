@@ -1,7 +1,9 @@
+import scala.annotation.tailrec
+
 /**
   * Created by mvdcamme on 24/02/16.
   */
-class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: SemanticsTraced[Exp, Abs, Addr, Time]) {
+class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: SemanticsTraced[Exp, Abs, Addr, Time], val hybridMachine : HybridMachine[Exp, Time]) {
 
   type ProgramState = HybridMachine[Exp, Time]#ProgramState
   type TraceInstructionStates = HybridMachine[Exp, Time]#TraceInstructionStates
@@ -11,8 +13,45 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   val APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
   val APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
   val APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
+  val APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
 
   type HybridValue = HybridLattice.Hybrid
+
+  val basicOptimisations : List[(Boolean, (Trace => Trace))] =
+    List((APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
+      (APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)))
+
+  val detailedOptimisations : List[(Boolean, (Trace => Trace))] =
+    List((APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)),
+         (APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, { (tr : Trace) => println(tr); optimizeTypeSpecialization(tr)} ))
+
+  def foldOptimisations(trace : Trace, optimisations : List[(Boolean, (Trace => Trace))]) : Trace = {
+    optimisations.foldLeft(trace)({ (trace, pair) => if (pair._1) { pair._2(trace) } else { trace }})
+  }
+
+  def optimize(trace : Trace) : Trace = {
+    println(s"Size of unoptimized trace = ${trace.length}")
+    if (TracerFlags.APPLY_OPTIMIZATIONS) {
+      val basicOptimizedTrace = foldOptimisations(trace, basicOptimisations)
+      println(s"Size of basic optimized trace = ${basicOptimizedTrace.length}")
+      val tier2OptimizedTrace = if (TracerFlags.APPLY_DETAILED_OPTIMIZATIONS) {
+        val detailedOptimizedTrace = foldOptimisations(basicOptimizedTrace, detailedOptimisations)
+        println(s"Size of detailed optimized trace = ${detailedOptimizedTrace.length}")
+        detailedOptimizedTrace
+      } else {
+        basicOptimizedTrace
+      }
+      val finalOptimizedTrace = removeFunCallBlockActions(tier2OptimizedTrace)
+      println(s"Size of final optimized trace = ${finalOptimizedTrace.length}")
+      finalOptimizedTrace
+    } else {
+      trace
+    }
+  }
+
+  /********************************************************************************************************************
+   *                                                 COMMON FUNCTIONS                                                 *
+   ********************************************************************************************************************/
 
   def isGuard(action : TraceInstruction) : Boolean = action match {
     case ActionGuardFalseTraced(_) |
@@ -59,6 +98,10 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     optimizedTrace.filter(_.isUsed).map(_.actionState)
   }
 
+  /********************************************************************************************************************
+   *                                         ENVIRONMENT LOADING OPTIMIZATION                                         *
+   ********************************************************************************************************************/
+
   private def optimizeEnvironmentLoading(trace : Trace) : Trace = {
     def isAnInterferingAction(action : TraceInstruction) = action match {
       case ActionAllocVarsTraced(_) |
@@ -75,6 +118,10 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
                           _.isInstanceOf[ActionRestoreEnvTraced[Exp, Abs, Addr]], isAnInterferingAction)
   }
 
+  /********************************************************************************************************************
+   *                                        CONTINUATION LOADING OPTIMIZATION                                         *
+   ********************************************************************************************************************/
+
   private def optimizeContinuationLoading(trace : Trace) : Trace = {
     def isAnInterferingAction(action : TraceInstruction) : Boolean = action match {
       case ActionEndTrace(_) =>
@@ -87,6 +134,10 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     removeMatchingActions(trace, _.isInstanceOf[ActionPushTraced[Exp, Abs, Addr]],
                           _.isInstanceOf[ActionPopKontTraced[Exp, Abs, Addr]], isAnInterferingAction)
   }
+
+  /********************************************************************************************************************
+   *                                          CONSTANT FOLDING OPTIMIZATION                                           *
+   ********************************************************************************************************************/
 
   case class ActionStartOptimizedBlock[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
   case class ActionEndOptimizedBlock[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
@@ -248,6 +299,87 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     loop(trace.reverse).reverse
   }
 
+  /********************************************************************************************************************
+   *                                          TYPE SPECIALIZATION OPTIMIZATION                                        *
+   ********************************************************************************************************************/
+
+  object OperandsTypes extends Enumeration {
+    type OperandsTypes = Value
+    val Bottom = Value("Bottom")
+    val AllFloats = Value("Floats")
+    val AllIntegers = Value("Integers")
+    val Top = Value("Top")
+  }
+
+  private def getOperandType(operand : HybridValue) : OperandsTypes.Value = operand match {
+    case HybridLattice.Left(AbstractConcrete.AbstractFloat(_)) => OperandsTypes.AllFloats
+    case HybridLattice.Left(AbstractConcrete.AbstractInt(_)) => OperandsTypes.AllIntegers
+    case _ => OperandsTypes.Top
+  }
+
+  private def checkOperandsTypes(operands : List[HybridValue]) : OperandsTypes.Value = {
+    operands.foldLeft(OperandsTypes.Bottom)({ (operandsTypes, operand) =>
+      if (operandsTypes == OperandsTypes.Bottom) {
+        getOperandType(operand)
+      } else if (operandsTypes == getOperandType(operand)) {
+        operandsTypes
+      } else {
+        OperandsTypes.Top
+      }
+    })
+  }
+
+  val primitives = hybridMachine.primitives
+
+  private def typeSpecializePrimitive(prim: Primitive[HybridAddress, HybridValue], operandsTypes: OperandsTypes.Value) : Primitive[HybridAddress, HybridValue] = prim match {
+    case primitives.Plus => operandsTypes match {
+      case OperandsTypes.AllFloats => println(s"Replacing Plus by PlusFloat"); primitives.PlusFloat
+      case OperandsTypes.AllIntegers => println(s"Replacing Plus by PlusInteger"); primitives.PlusInteger
+      case _ => println(s"Couldn't replace Plus"); prim
+    }
+    case primitives.Minus => operandsTypes match {
+      case OperandsTypes.AllFloats => println(s"Replacing Minus by MinusFloat"); primitives.MinusFloat
+      case OperandsTypes.AllIntegers => println(s"Replacing Minus by MinusInteger"); primitives.MinusInteger
+      case _ => println(s"Couldn't replace Minus"); prim
+    }
+    case _ => println(s"Couldn't replace $prim"); prim
+  }
+
+  private def optimizeTypeSpecialization(trace : Trace) : Trace = {
+    trace match {
+      case Nil =>
+        Nil
+      case (actionState1@(_, someState)) :: (actionState2@(ActionPrimCallTraced(n, fExp, argsExps), _)) :: rest => someState match {
+        case Some(state) =>
+          val operands = state.vStack.take(n - 1)
+          val operator = state.vStack(n - 1)
+          val operandsTypes = checkOperandsTypes(operands.map(_.left.get))
+          val specializedOperator = operator.left.get match {
+            case prim: HybridLattice.Prim[HybridAddress, HybridValue] => prim match {
+              case HybridLattice.Prim(primitive) => primitive match {
+                case primitive: Primitive[HybridAddress, HybridValue] =>
+                  println("here")
+                  val specializedPrim = typeSpecializePrimitive(primitive, operandsTypes)
+                  HybridLattice.Prim(specializedPrim)
+              }
+            }
+          }
+          val newVStack = (operands :+ Left(specializedOperator)) ++ state.vStack.drop(n)
+          val newState = state.changeVStack(newVStack)
+          (actionState1._1, Some(newState)) :: actionState2 :: optimizeTypeSpecialization(rest)
+        /* Since the state before applying the function was not recorded, we cannot know what the types of the operands were */
+        case None =>
+          actionState1 :: actionState2 :: optimizeTypeSpecialization(rest)
+      }
+      case action :: rest =>
+        action :: optimizeTypeSpecialization(rest)
+    }
+  }
+
+  /********************************************************************************************************************
+   *                                       FUNCALL BLOCK FILTERING OPTIMIZATION                                       *
+   ********************************************************************************************************************/
+
   def removeFunCallBlockActions(trace : Trace) : Trace =
     trace.filter({
       case (ActionEndClosureCallTraced(), _) => false
@@ -256,36 +388,5 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case (ActionStartFunCallTraced(), _) => false
       case (ActionStartOptimizedBlock(), _) => false
       case (_, _) => true})
-
-  val basicOptimisations : List[(Boolean, (Trace => Trace))] =
-    List((APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
-         (APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)))
-
-  val detailedOptimisations : List[(Boolean, (Trace => Trace))] =
-    List((APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)))
-
-  def foldOptimisations(trace : Trace, optimisations : List[(Boolean, (Trace => Trace))]) : Trace = {
-    optimisations.foldLeft(trace)({ (trace, pair) => if (pair._1) { pair._2(trace) } else { trace }})
-  }
-
-  def optimize(trace : Trace) : Trace = {
-    println(s"Size of unoptimized trace = ${trace.length}")
-    if (TracerFlags.APPLY_OPTIMIZATIONS) {
-      val basicOptimizedTrace = foldOptimisations(trace, basicOptimisations)
-      println(s"Size of basic optimized trace = ${basicOptimizedTrace.length}")
-      val tier2OptimizedTrace = if (TracerFlags.APPLY_DETAILED_OPTIMIZATIONS) {
-        val detailedOptimizedTrace = foldOptimisations(basicOptimizedTrace, detailedOptimisations)
-        println(s"Size of detailed optimized trace = ${detailedOptimizedTrace.length}")
-        detailedOptimizedTrace
-      } else {
-        basicOptimizedTrace
-      }
-      val finalOptimizedTrace = removeFunCallBlockActions(tier2OptimizedTrace)
-      println(s"Size of final optimized trace = ${finalOptimizedTrace.length}")
-      finalOptimizedTrace
-    } else {
-      trace
-    }
-  }
 
 }

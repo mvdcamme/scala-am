@@ -33,11 +33,11 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
   val TRACING_THRESHOLD = 0
 
-  val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] =
-    new TracerContext[Exp, HybridValue, HybridAddress, Time](sem, new TraceOptimizer[Exp, HybridValue, HybridAddress, Time](sem))
-
   /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
   val primitives = new Primitives[HybridAddress, HybridValue]()
+
+  val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] =
+    new TracerContext[Exp, HybridValue, HybridAddress, Time](sem, new TraceOptimizer[Exp, HybridValue, HybridAddress, Time](sem, this))
 
   /**
    * The store used for continuations is a KontStore (defined in
@@ -350,6 +350,10 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     override def toString = control match {
       case ControlKont(_) => s"ko($v)"
       case _ => control.toString()
+    }
+
+    def changeVStack(newVStack : List[Storable]) : ProgramState = {
+      this.copy(vStack = newVStack)
     }
 
     /**
