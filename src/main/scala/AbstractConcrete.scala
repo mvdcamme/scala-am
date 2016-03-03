@@ -26,12 +26,44 @@ trait AbstractConcrete {
 }
 
 object AbstractConcrete {
+
+  private def doFloatBinaryOp(op: BinaryOperator, v1 : Float, v2 : Float) : Option[AbstractConcrete] = op match {
+    case Plus => Some(AbstractFloat(v1 + v2))
+    case Minus => Some(AbstractFloat(v1 - v2))
+    case Times => Some(AbstractFloat(v1 * v2))
+    case Div => Some(AbstractFloat(v1 / v2))
+    case Lt => Some(AbstractBool(v1 < v2))
+    case NumEq => Some(AbstractBool(v1 == v2))
+    case _ => None
+  }
+
+  case class AbstractFloat(v : Float) extends AbstractConcrete {
+    override def toString = s"${v.toString}f"
+    override def unaryOp(op: UnaryOperator) = op match {
+      case Ceiling => AbstractInt(scala.math.ceil(v).toInt)
+      case Log => AbstractFloat(scala.math.log(v).toFloat)
+      case _ => super.unaryOp(op)
+    }
+
+    override def binaryOp(op: BinaryOperator)(that: AbstractConcrete) = that match {
+      case AbstractFloat(v2) => doFloatBinaryOp(op, v, v2) match {
+        case Some(value) => value
+        case None => super.binaryOp(op)(that)
+      }
+      case AbstractInt(v2) => doFloatBinaryOp(op, v, v2) match {
+        case Some(value) => value
+        case None => super.binaryOp(op)(that)
+      }
+      case _ => super.binaryOp(op)(that)
+    }
+  }
+
   case class AbstractInt(v: Int) extends AbstractConcrete {
     override def toString = v.toString
     override def unaryOp(op: UnaryOperator) = op match {
       case IsInteger => AbstractTrue
       case Ceiling => AbstractInt(v)
-      case Log => AbstractInt(scala.math.log(v).toInt) /* TODO: float */
+      case Log => AbstractFloat(scala.math.log(v).toFloat)
       case Random => AbstractInt(scala.util.Random.nextInt % v)
       case _ => super.unaryOp(op)
     }
@@ -45,6 +77,10 @@ object AbstractConcrete {
         case Lt => AbstractBool(v < v2)
         case NumEq => AbstractBool(v == v2)
         case _ => super.binaryOp(op)(that)
+      }
+      case AbstractFloat(v2) => doFloatBinaryOp(op, v, v2) match {
+        case Some(value) => value
+        case None => super.binaryOp(op)(that)
       }
       case _ => super.binaryOp(op)(that)
     }
@@ -179,6 +215,7 @@ object AbstractConcrete {
 
     def bottom = AbstractBottom
     def error(x: AbstractConcrete) = AbstractError(x.toString)
+    def inject(x: Float) = AbstractFloat(x)
     def inject(x: Int) = AbstractInt(x)
     def inject(x: String) = AbstractString(x)
     def inject(x: Char) = AbstractChar(x)

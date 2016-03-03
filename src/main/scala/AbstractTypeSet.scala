@@ -44,21 +44,50 @@ object AbstractTypeSet {
     override def isError = true
   }
 
+  object AbstractFloat extends AbstractTypeSet {
+    override def toString = "Float"
+    override def unaryOp(op: UnaryOperator) = op match {
+      case Ceiling  => AbstractInt
+      case Log => AbstractFloat
+      case _ => super.unaryOp(op)
+    }
+    override def binaryOp(op: BinaryOperator)(that: AbstractTypeSet) = op match {
+      case Plus | Minus | Times | Div  => that match {
+        case AbstractInt | AbstractFloat => AbstractFloat
+        case AbstractSet(content) => content.foldLeft(AbstractBottom)((acc, v) => acc.join(binaryOp(op)(that)))
+        case _ => super.binaryOp(op)(that)
+      }
+      case Lt | NumEq => that match {
+        case AbstractInt | AbstractFloat => AbstractBool
+        case AbstractSet(content) => content.foldLeft(AbstractBottom)((acc, v) => acc.join(binaryOp(op)(that)))
+        case _ => super.binaryOp(op)(that)
+      }
+      case _ => super.binaryOp(op)(that)
+    }
+  }
+
   object AbstractInt extends AbstractTypeSet {
     override def toString = "Int"
     override def unaryOp(op: UnaryOperator) = op match {
       case IsInteger => AbstractTrue
-      case Ceiling | Log | Random => AbstractInt
+      case Ceiling | Random => AbstractInt
+      case Log => AbstractFloat
       case _ => super.unaryOp(op)
     }
     override def binaryOp(op: BinaryOperator)(that: AbstractTypeSet) = op match {
-      case Plus | Minus | Times | Div | Modulo => that match {
+      case Plus | Minus | Times | Div => that match {
+        case AbstractInt => AbstractInt
+        case AbstractFloat => AbstractFloat
+        case AbstractSet(content) => content.foldLeft(AbstractBottom)((acc, v) => acc.join(binaryOp(op)(that)))
+        case _ => super.binaryOp(op)(that)
+      }
+      case Modulo => that match {
         case AbstractInt => AbstractInt
         case AbstractSet(content) => content.foldLeft(AbstractBottom)((acc, v) => acc.join(binaryOp(op)(that)))
         case _ => super.binaryOp(op)(that)
       }
       case Lt | NumEq => that match {
-        case AbstractInt => AbstractBool
+        case AbstractInt | AbstractFloat => AbstractBool
         case AbstractSet(content) => content.foldLeft(AbstractBottom)((acc, v) => acc.join(binaryOp(op)(v)))
         case _ => super.binaryOp(op)(that)
       }
@@ -302,6 +331,7 @@ object AbstractTypeSet {
 
     def bottom = AbstractBottom
     def error(x: AbstractTypeSet) = AbstractError
+    def inject(x: Float) = AbstractFloat
     def inject(x: Int) = AbstractInt
     def inject(x: String) = AbstractString
     def inject(x: Char) = AbstractChar

@@ -49,10 +49,30 @@ object AbstractType {
     override def toString = "error"
     override def isError = true
   }
+
+  object AbstractFloat extends AbstractType {
+    override def toString = "Float"
+    override def unaryOp(op: UnaryOperator) = op match {
+      case Ceiling  => AbstractInt
+      case Log => AbstractFloat
+      case _ => super.unaryOp(op)
+    }
+    override def binaryOp(op: BinaryOperator)(that: AbstractType) = that match {
+      case AbstractTop => AbstractTop
+      case AbstractInt | AbstractFloat => op match {
+        case Plus | Minus | Times | Div  => AbstractFloat
+        case Lt | NumEq => AbstractBool
+        case _ => super.binaryOp(op)(that)
+      }
+      case _ => super.binaryOp(op)(that)
+    }
+  }
+
   object AbstractInt extends AbstractType {
     override def toString = "Int"
     override def unaryOp(op: UnaryOperator) = op match {
-      case Ceiling | Log | Random => AbstractInt
+      case Ceiling | Random => AbstractInt
+      case Log => AbstractFloat
       case _ => super.unaryOp(op)
     }
     override def binaryOp(op: BinaryOperator)(that: AbstractType) = that match {
@@ -169,6 +189,7 @@ object AbstractType {
 
     def bottom = AbstractBottom
     def error(x: AbstractType) = AbstractError
+    def inject(x: Float) = AbstractFloat
     def inject(x: Int) = AbstractInt
     def inject(x: String) = AbstractString
     def inject(x: Boolean) = AbstractBool
