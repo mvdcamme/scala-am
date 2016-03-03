@@ -219,7 +219,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
                      val actionEndOptimizedBlock = (ActionEndOptimizedBlock[Exp, HybridValue, HybridAddress], None)
                      val actionStartOptimizedBlock = (ActionStartOptimizedBlock[Exp, HybridValue, HybridAddress], None)
                      val replacingTrace = firstPart ++ (traceBefore :+ actionEndOptimizedBlock :+ replacingConstantAction) ++
-                                          optimizedBlocks.foldLeft(List() : Trace)({ (acc, current) => acc ++ current}) ++
+                                          /* Add all parts of the inner optimized blocks, except for the constants themselves that were folded there; those are folded away in the new block */
+                                          optimizedBlocks.foldLeft(List() : Trace)({ (acc, current) => acc ++ current.filter({ (actionState) => ! actionState._1.isInstanceOf[ActionReachedValueTraced[Exp, Abs, Addr]] })}) ++
                                           (traceAfterOperatorPush :+ actionStartOptimizedBlock) ++ traceAtStartCall.tail
                      Some(replacingTrace)
                    })
