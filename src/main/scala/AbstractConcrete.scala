@@ -27,18 +27,17 @@ trait AbstractConcrete {
 
 object AbstractConcrete {
 
-  private def doFloatBinaryOp(op: BinaryOperator, v1 : Float, v2 : Float) : Option[AbstractConcrete] = op match {
-    case Plus => Some(AbstractFloat(v1 + v2))
-    case Minus => Some(AbstractFloat(v1 - v2))
-    case Times => Some(AbstractFloat(v1 * v2))
-    case Div => Some(AbstractFloat(v1 / v2))
-    case Lt => Some(AbstractBool(v1 < v2))
-    case NumEq => Some(AbstractBool(v1 == v2))
-    case _ => None
-  }
-
   case class AbstractFloat(v : Float) extends AbstractConcrete {
     override def toString = s"${v.toString}f"
+    private def handleGenericBinOp(op: BinaryOperator, that : AbstractConcrete, v1 : Float, v2 : Float) : AbstractConcrete = op match {
+      case Plus => AbstractFloat(v1 + v2)
+      case Minus => AbstractFloat(v1 - v2)
+      case Times => AbstractFloat(v1 * v2)
+      case Div => AbstractFloat(v1 / v2)
+      case Lt => AbstractBool(v1 < v2)
+      case NumEq => AbstractBool(v1 == v2)
+      case _ => super.binaryOp(op)(that)
+    }
     override def unaryOp(op: UnaryOperator) = op match {
       case Ceiling => AbstractInt(scala.math.ceil(v).toInt)
       case Log => AbstractFloat(scala.math.log(v).toFloat)
@@ -46,20 +45,28 @@ object AbstractConcrete {
     }
 
     override def binaryOp(op: BinaryOperator)(that: AbstractConcrete) = that match {
-      case AbstractFloat(v2) => doFloatBinaryOp(op, v, v2) match {
-        case Some(value) => value
-        case None => super.binaryOp(op)(that)
+      case AbstractFloat(v2) => op match {
+        case PlusF => AbstractFloat(v + v2)
+        case MinusF => AbstractFloat(v - v2)
+        case _ => handleGenericBinOp(op, that, v, v2)
       }
-      case AbstractInt(v2) => doFloatBinaryOp(op, v, v2) match {
-        case Some(value) => value
-        case None => super.binaryOp(op)(that)
-      }
+      case AbstractInt(v2) => handleGenericBinOp(op, that, v, v2)
       case _ => super.binaryOp(op)(that)
     }
   }
 
   case class AbstractInt(v: Int) extends AbstractConcrete {
     override def toString = v.toString
+    private def handleGenericBinOp(op : BinaryOperator, that : AbstractConcrete, v1 : Float, v2 : Float, f : Float => AbstractConcrete) = op match {
+      case Plus => f(v + v2)
+      case Minus => f(v - v2)
+      case Times => f(v * v2)
+      case Div => f(v / v2)
+      case Modulo => f(v % v2)
+      case Lt => AbstractBool(v < v2)
+      case NumEq => AbstractBool(v == v2)
+      case _ => super.binaryOp(op)(that)
+    }
     override def unaryOp(op: UnaryOperator) = op match {
       case IsInteger => AbstractTrue
       case Ceiling => AbstractInt(v)
@@ -69,19 +76,12 @@ object AbstractConcrete {
     }
     override def binaryOp(op: BinaryOperator)(that: AbstractConcrete) = that match {
       case AbstractInt(v2) => op match {
-        case Plus => AbstractInt(v + v2)
-        case Minus => AbstractInt(v - v2)
-        case Times => AbstractInt(v * v2)
-        case Div => AbstractInt(v / v2)
+        case PlusI => AbstractInt(v + v2)
+        case MinusI => AbstractInt(v - v2)
         case Modulo => AbstractInt(v % v2)
-        case Lt => AbstractBool(v < v2)
-        case NumEq => AbstractBool(v == v2)
-        case _ => super.binaryOp(op)(that)
+        case _ => handleGenericBinOp(op, that, v, v2, { (f) => AbstractInt(f.toInt) })
       }
-      case AbstractFloat(v2) => doFloatBinaryOp(op, v, v2) match {
-        case Some(value) => value
-        case None => super.binaryOp(op)(that)
-      }
+      case AbstractFloat(v2) => handleGenericBinOp(op, that, v, v2, AbstractFloat)
       case _ => super.binaryOp(op)(that)
     }
   }

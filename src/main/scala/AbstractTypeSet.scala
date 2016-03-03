@@ -46,19 +46,21 @@ object AbstractTypeSet {
 
   object AbstractFloat extends AbstractTypeSet {
     override def toString = "Float"
+    private def handleGenericBinOp(op : BinaryOperator, that : AbstractTypeSet, result : AbstractTypeSet) : AbstractTypeSet = that match {
+      case AbstractInt | AbstractFloat => result
+      case AbstractSet(content) => content.foldLeft(AbstractBottom)((acc, v) => acc.join(binaryOp(op)(that)))
+      case _ => super.binaryOp(op)(that)
+    }
     override def unaryOp(op: UnaryOperator) = op match {
       case Ceiling  => AbstractInt
       case Log => AbstractFloat
       case _ => super.unaryOp(op)
     }
     override def binaryOp(op: BinaryOperator)(that: AbstractTypeSet) = op match {
-      case Plus | Minus | Times | Div  => that match {
-        case AbstractInt | AbstractFloat => AbstractFloat
-        case AbstractSet(content) => content.foldLeft(AbstractBottom)((acc, v) => acc.join(binaryOp(op)(that)))
-        case _ => super.binaryOp(op)(that)
-      }
-      case Lt | NumEq => that match {
-        case AbstractInt | AbstractFloat => AbstractBool
+      case Plus | Minus | Times | Div  => handleGenericBinOp(op, that, AbstractFloat)
+      case Lt | NumEq => handleGenericBinOp(op, that, AbstractBool)
+      case PlusF | MinusF => that match {
+        case AbstractFloat => AbstractFloat
         case AbstractSet(content) => content.foldLeft(AbstractBottom)((acc, v) => acc.join(binaryOp(op)(that)))
         case _ => super.binaryOp(op)(that)
       }
@@ -81,7 +83,7 @@ object AbstractTypeSet {
         case AbstractSet(content) => content.foldLeft(AbstractBottom)((acc, v) => acc.join(binaryOp(op)(that)))
         case _ => super.binaryOp(op)(that)
       }
-      case Modulo => that match {
+      case PlusI | MinusI | Modulo => that match {
         case AbstractInt => AbstractInt
         case AbstractSet(content) => content.foldLeft(AbstractBottom)((acc, v) => acc.join(binaryOp(op)(that)))
         case _ => super.binaryOp(op)(that)

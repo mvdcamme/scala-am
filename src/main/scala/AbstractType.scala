@@ -52,6 +52,13 @@ object AbstractType {
 
   object AbstractFloat extends AbstractType {
     override def toString = "Float"
+
+    private def handleGenericBinOp(op: BinaryOperator, that : AbstractType) = op match {
+      case Plus | Minus | Times | Div  => AbstractFloat
+      case Lt | NumEq => AbstractBool
+      case _ => super.binaryOp(op)(that)
+    }
+
     override def unaryOp(op: UnaryOperator) = op match {
       case Ceiling  => AbstractInt
       case Log => AbstractFloat
@@ -59,10 +66,10 @@ object AbstractType {
     }
     override def binaryOp(op: BinaryOperator)(that: AbstractType) = that match {
       case AbstractTop => AbstractTop
-      case AbstractInt | AbstractFloat => op match {
-        case Plus | Minus | Times | Div  => AbstractFloat
-        case Lt | NumEq => AbstractBool
-        case _ => super.binaryOp(op)(that)
+      case AbstractInt  => handleGenericBinOp(op, that)
+      case AbstractFloat => op match {
+        case PlusF | MinusF => AbstractFloat
+        case _ => handleGenericBinOp(op, that)
       }
       case _ => super.binaryOp(op)(that)
     }
@@ -70,6 +77,11 @@ object AbstractType {
 
   object AbstractInt extends AbstractType {
     override def toString = "Int"
+    private def handleGenericBinOp(op : BinaryOperator, that : AbstractType, result : AbstractType) = op match {
+      case Plus | Minus | Times | Div => result
+      case Lt | NumEq => AbstractBool
+      case _ => super.binaryOp(op)(that)
+    }
     override def unaryOp(op: UnaryOperator) = op match {
       case Ceiling | Random => AbstractInt
       case Log => AbstractFloat
@@ -78,15 +90,10 @@ object AbstractType {
     override def binaryOp(op: BinaryOperator)(that: AbstractType) = that match {
       case AbstractTop => AbstractTop
       case AbstractInt => op match {
-        case Plus | PlusI | Minus | Times | Div | Modulo => AbstractInt
-        case Lt | NumEq => AbstractBool
-        case _ => super.binaryOp(op)(that)
+        case PlusI | MinusI | Modulo => AbstractInt
+        case _ => handleGenericBinOp(op, that, AbstractInt)
       }
-      case AbstractFloat => op match {
-        case Plus | Minus | Times | Div => AbstractFloat
-        case Lt | NumEq => AbstractBool
-        case _ => super.binaryOp(op)(that)
-      }
+      case AbstractFloat => handleGenericBinOp(op, that, AbstractFloat)
       case _ => super.binaryOp(op)(that)
     }
   }
