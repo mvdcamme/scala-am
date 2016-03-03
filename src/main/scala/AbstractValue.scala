@@ -25,7 +25,7 @@ import UnaryOperator._
 
 object BinaryOperator extends Enumeration {
   type BinaryOperator = Value
-  val Plus, Minus, Times, Div, Modulo, Lt, NumEq, Eq = Value
+  val Plus, PlusF, PlusI, Minus, MinusF, MinusI, Times, Div, Modulo, Lt, NumEq, Eq = Value
 }
 import BinaryOperator._
 
@@ -125,7 +125,11 @@ class Primitives[Addr : Address, Abs : AbstractValue] {
   def not = abs.unaryOp(UnaryOperator.Not) _
   def random = abs.unaryOp(UnaryOperator.Random) _
   def plus = abs.binaryOp(BinaryOperator.Plus) _
+  def plusF = abs.binaryOp(BinaryOperator.PlusF) _
+  def plusI = abs.binaryOp(BinaryOperator.PlusI) _
   def minus = abs.binaryOp(BinaryOperator.Minus) _
+  def minusF = abs.binaryOp(BinaryOperator.MinusF) _
+  def minusI = abs.binaryOp(BinaryOperator.MinusI) _
   def times = abs.binaryOp(BinaryOperator.Times) _
   def div = abs.binaryOp(BinaryOperator.Div) _
   def modulo = abs.binaryOp(BinaryOperator.Modulo) _
@@ -213,6 +217,26 @@ class Primitives[Addr : Address, Abs : AbstractValue] {
       }
     }
   }
+  object PlusFloat extends VariadicOperation {
+    val name = "+f"
+    def call(args: List[Abs]) = args match {
+      case Nil => Right(abs.inject(0))
+      case x :: rest => call(rest) match {
+        case Right(y) => Right(plusF(x, y))
+        case Left(err) => Left(err)
+      }
+    }
+  }
+  object PlusInteger extends VariadicOperation {
+    val name = "+i"
+    def call(args: List[Abs]) = args match {
+      case Nil => Right(abs.inject(0))
+      case x :: rest => call(rest) match {
+        case Right(y) => Right(plusI(x, y))
+        case Left(err) => Left(err)
+      }
+    }
+  }
   object Minus extends VariadicOperation {
     val name = "-"
     def call(args: List[Abs]) = args match {
@@ -220,6 +244,28 @@ class Primitives[Addr : Address, Abs : AbstractValue] {
       case x :: Nil => Right(minus(abs.inject(0), x))
       case x :: rest => Plus.call(rest) match {
         case Right(y) => Right(minus(x, y))
+        case Left(err) => Left(err)
+      }
+    }
+  }
+  object MinusFloat extends VariadicOperation {
+    val name = "-f"
+    def call(args: List[Abs]) = args match {
+      case Nil => Left("-f: at least 1 operand expected, got 0")
+      case x :: Nil => Right(minus(abs.inject(0), x))
+      case x :: rest => PlusFloat.call(rest) match {
+        case Right(y) => Right(minusF(x, y))
+        case Left(err) => Left(err)
+      }
+    }
+  }
+  object MinusInteger extends VariadicOperation {
+    val name = "-i"
+    def call(args: List[Abs]) = args match {
+      case Nil => Left("-i: at least 1 operand expected, got 0")
+      case x :: Nil => Right(minus(abs.inject(0), x))
+      case x :: rest => PlusInteger.call(rest) match {
+        case Right(y) => Right(minusI(x, y))
         case Left(err) => Left(err)
       }
     }
@@ -316,7 +362,7 @@ class Primitives[Addr : Address, Abs : AbstractValue] {
 
   /** Bundles all the primitives together */
   val all: List[Primitive[Addr, Abs]] = List(
-    Plus, Minus, Times, Div,
+    Plus, PlusFloat, PlusInteger, Minus, MinusFloat, MinusInteger, Times, Div,
     BinaryOperation("quotient", div),
     BinaryOperation("<", lt), // TODO: <, <=, =, >, >= should accept any number of arguments
     BinaryOperation("<=", (x, y) => abs.or(lt(x, y), numEq(x, y))),
