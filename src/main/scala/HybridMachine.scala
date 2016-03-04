@@ -359,10 +359,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       case _ => control.toString()
     }
 
-    def changeVStack(newVStack : List[Storable]) : ProgramState = {
-      this.copy(vStack = newVStack)
-    }
-
     /**
       * Checks whether a states subsumes another, i.e., if it is "bigger". This
       * is used to perform subsumption checking when exploring the state space,
