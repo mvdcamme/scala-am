@@ -95,6 +95,7 @@ class ProductLattice[X : AbstractValue, Y : AbstractValue] {
       case Prod(x, y) => Prod(xabs.error(x), yabs.error(y))
       case Prim(_) => error(inject(p.toString))
     }
+    def inject(x: Float) = Prod(xabs.inject(x), yabs.inject(x))
     def inject(x: Int) = Prod(xabs.inject(x), yabs.inject(x))
     def inject(x: String) = Prod(xabs.inject(x), yabs.inject(x))
     def inject(x: Char) = Prod(xabs.inject(x), yabs.inject(x))

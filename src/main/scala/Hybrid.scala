@@ -132,7 +132,8 @@ object HybridLattice {
         return Right(g(x))
       }
     }
-    
+
+    def inject(x: Float) = injectCorrectValue[Float](x, concreteValue.inject, abstractType.inject)
     def inject(x: Int) = injectCorrectValue[Int](x, concreteValue.inject, abstractType.inject)
     def inject(x: String) = injectCorrectValue[String](x, concreteValue.inject, abstractType.inject)
     def inject(x: Char) = injectCorrectValue[Char](x, concreteValue.inject, abstractType.inject)

@@ -85,6 +85,8 @@ trait AbstractValue[A] extends Semigroup[A] {
   def bottom: A
   /** Injection of an error value */
   def error(x: A): A
+  /** Injection of a float */
+  def inject(x: Float): A
   /** Injection of an integer */
   def inject(x: Int): A
   /** Injection of a string */

@@ -129,6 +129,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   }
 
   protected def evalValue(v: Value): Option[Abs] = v match {
+    case ValueFloat(f) => Some(abs.inject(f))
     case ValueString(s) => Some(abs.inject(s))
     case ValueInteger(n) => Some(abs.inject(n))
     case ValueBoolean(b) => Some(abs.inject(b))
@@ -158,7 +159,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       case ValueCharacter(c) => throw new Exception("character not yet supported")
       case ValueSymbol(sym) => abs.injectSymbol(sym) /* shouldn't happen */
       case ValueInteger(n) => abs.inject(n)
-      case ValueFloat(n) => throw new Exception("floats not yet supported")
+      case ValueFloat(n) => abs.inject(n)
       case ValueBoolean(b) => abs.inject(b)
       case ValueNil() => abs.nil
     }, σ)

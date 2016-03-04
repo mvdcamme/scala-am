@@ -26,6 +26,7 @@ class ANFSemantics[Abs : AbstractValue, Addr : Address, Time : Timestamp]
       case Some(a) => Right(σ.lookup(a))
       case None => Left(s"Unbound variable: $name")
     }
+    case ANFValue(ValueFloat(f)) => Right(abs.inject(f))
     case ANFValue(ValueString(s)) => Right(abs.inject(s))
     case ANFValue(ValueInteger(n)) => Right(abs.inject(n))
     case ANFValue(ValueBoolean(b)) => Right(abs.inject(b))
