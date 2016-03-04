@@ -12,7 +12,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   val APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
   val APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
-  val APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
+  val APPLY_OPTIMIZATION_CONSTANT_FOLDING = false
   val APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
 
   type HybridValue = HybridLattice.Hybrid
@@ -23,7 +23,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   val detailedOptimisations : List[(Boolean, (Trace => Trace))] =
     List((APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)),
-         (APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, { (tr : Trace) => println(tr); optimizeTypeSpecialization(tr)} ))
+         (APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, optimizeTypeSpecialization(_)))
 
   def foldOptimisations(trace : Trace, optimisations : List[(Boolean, (Trace => Trace))]) : Trace = {
     optimisations.foldLeft(trace)({ (trace, pair) => if (pair._1) { pair._2(trace) } else { trace }})
@@ -307,16 +307,16 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   private def typeSpecializePrimitive(prim: Primitive[HybridAddress, HybridValue], operandsTypes: AbstractType) : Primitive[HybridAddress, HybridValue] = prim match {
     case primitives.Plus => operandsTypes match {
-      case AbstractType.AbstractFloat => println(s"Replacing Plus by PlusFloat"); primitives.PlusFloat
-      case AbstractType.AbstractInt => println(s"Replacing Plus by PlusInteger"); primitives.PlusInteger
-      case _ => println(s"Couldn't replace Plus"); prim
+      case AbstractType.AbstractFloat => primitives.PlusFloat
+      case AbstractType.AbstractInt => primitives.PlusInteger
+      case _ => prim
     }
     case primitives.Minus => operandsTypes match {
-      case AbstractType.AbstractFloat => println(s"Replacing Minus by MinusFloat"); primitives.MinusFloat
-      case AbstractType.AbstractInt => println(s"Replacing Minus by MinusInteger"); primitives.MinusInteger
-      case _ => println(s"Couldn't replace Minus"); prim
+      case AbstractType.AbstractFloat => primitives.MinusFloat
+      case AbstractType.AbstractInt => primitives.MinusInteger
+      case _ => prim
     }
-    case _ => println(s"Couldn't replace $prim"); prim
+    case _ => prim
   }
 
   private def optimizeTypeSpecialization(trace : Trace) : Trace = {
@@ -332,7 +332,6 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
             case prim: HybridLattice.Prim[HybridAddress, HybridValue] => prim match {
               case HybridLattice.Prim(primitive) => primitive match {
                 case primitive: Primitive[HybridAddress, HybridValue] =>
-                  println("here")
                   val specializedPrim = typeSpecializePrimitive(primitive, operandsTypes)
                   HybridLattice.Prim(specializedPrim)
               }
