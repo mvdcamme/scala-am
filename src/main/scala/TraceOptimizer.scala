@@ -303,43 +303,17 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                          TYPE SPECIALIZATION OPTIMIZATION                                        *
    ********************************************************************************************************************/
 
-  object OperandsTypes extends Enumeration {
-    type OperandsTypes = Value
-    val Bottom = Value("Bottom")
-    val AllFloats = Value("Floats")
-    val AllIntegers = Value("Integers")
-    val Top = Value("Top")
-  }
-
-  private def getOperandType(operand : HybridValue) : OperandsTypes.Value = operand match {
-    case HybridLattice.Left(AbstractConcrete.AbstractFloat(_)) => OperandsTypes.AllFloats
-    case HybridLattice.Left(AbstractConcrete.AbstractInt(_)) => OperandsTypes.AllIntegers
-    case _ => OperandsTypes.Top
-  }
-
-  private def checkOperandsTypes(operands : List[HybridValue]) : OperandsTypes.Value = {
-    operands.foldLeft(OperandsTypes.Bottom)({ (operandsTypes, operand) =>
-      if (operandsTypes == OperandsTypes.Bottom) {
-        getOperandType(operand)
-      } else if (operandsTypes == getOperandType(operand)) {
-        operandsTypes
-      } else {
-        OperandsTypes.Top
-      }
-    })
-  }
-
   val primitives = hybridMachine.primitives
 
-  private def typeSpecializePrimitive(prim: Primitive[HybridAddress, HybridValue], operandsTypes: OperandsTypes.Value) : Primitive[HybridAddress, HybridValue] = prim match {
+  private def typeSpecializePrimitive(prim: Primitive[HybridAddress, HybridValue], operandsTypes: AbstractType) : Primitive[HybridAddress, HybridValue] = prim match {
     case primitives.Plus => operandsTypes match {
-      case OperandsTypes.AllFloats => println(s"Replacing Plus by PlusFloat"); primitives.PlusFloat
-      case OperandsTypes.AllIntegers => println(s"Replacing Plus by PlusInteger"); primitives.PlusInteger
+      case AbstractType.AbstractFloat => println(s"Replacing Plus by PlusFloat"); primitives.PlusFloat
+      case AbstractType.AbstractInt => println(s"Replacing Plus by PlusInteger"); primitives.PlusInteger
       case _ => println(s"Couldn't replace Plus"); prim
     }
     case primitives.Minus => operandsTypes match {
-      case OperandsTypes.AllFloats => println(s"Replacing Minus by MinusFloat"); primitives.MinusFloat
-      case OperandsTypes.AllIntegers => println(s"Replacing Minus by MinusInteger"); primitives.MinusInteger
+      case AbstractType.AbstractFloat => println(s"Replacing Minus by MinusFloat"); primitives.MinusFloat
+      case AbstractType.AbstractInt => println(s"Replacing Minus by MinusInteger"); primitives.MinusInteger
       case _ => println(s"Couldn't replace Minus"); prim
     }
     case _ => println(s"Couldn't replace $prim"); prim
@@ -351,10 +325,10 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
         Nil
       case (actionState1@(_, someState)) :: (actionState2@(ActionPrimCallTraced(n, fExp, argsExps), _)) :: rest => someState match {
         case Some(state) =>
-          val operands = state.vStack.take(n - 1)
-          val operator = state.vStack(n - 1)
-          val operandsTypes = checkOperandsTypes(operands.map(_.left.get))
-          val specializedOperator = operator.left.get match {
+          val operands = state.vStack.take(n - 1).map(_.left.get)
+          val operator = state.vStack(n - 1).left.get
+          val operandsTypes = hybridMachine.checkValuesTypes(operands)
+          val specializedOperator = operator match {
             case prim: HybridLattice.Prim[HybridAddress, HybridValue] => prim match {
               case HybridLattice.Prim(primitive) => primitive match {
                 case primitive: Primitive[HybridAddress, HybridValue] =>
@@ -364,7 +338,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
               }
             }
           }
-          val specializedPrimCallAction = ActionSpecializePrimitive[Exp, HybridValue, HybridAddress](specializedOperator, n, fExp, argsExps)
+          val specializedPrimCallAction = ActionSpecializePrimitive[Exp, HybridValue, HybridAddress](operandsTypes, specializedOperator, operator, n, fExp, argsExps)
           actionState1 :: (specializedPrimCallAction, actionState2._2) :: optimizeTypeSpecialization(rest)
         /* Since the state before applying the function was not recorded, we cannot know what the types of the operands were */
         case None =>

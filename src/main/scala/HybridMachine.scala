@@ -115,6 +115,26 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
   }
 
+  private def getOperandType(operand : HybridValue) : AbstractType = operand match {
+    case HybridLattice.Left(AbstractConcrete.AbstractFloat(_)) => AbstractType.AbstractFloat
+    case HybridLattice.Left(AbstractConcrete.AbstractInt(_)) => AbstractType.AbstractInt
+    case _ => AbstractType.AbstractTop
+  }
+
+  def checkValuesTypes(operands : List[HybridValue]) : AbstractType = {
+    operands.foldLeft(AbstractType.AbstractBottom : AbstractType)({ (operandsTypes, operand) =>
+      if (operandsTypes == AbstractType.AbstractBottom) {
+        getOperandType(operand)
+      } else if (operandsTypes == getOperandType(operand)) {
+        operandsTypes
+      } else {
+        AbstractType.AbstractTop
+      }
+    })
+  }
+
+  case class RestartSpecializedPrimCall(originalPrim : HybridValue, n : Integer, fExp : Exp, argsExps : List[Exp]) extends RestartPoint[Exp, HybridValue, HybridAddress]
+
   def popStack[A](stack : List[A]) : (A, List[A]) = (stack.head, stack.tail)
   def popStackItems[A](stack : List[A], n : Integer) : (List[A], List[A]) = stack.splitAt(n)
 
@@ -135,6 +155,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     case RestartGuardDifferentPrimitive(action) =>
       handlePrimitiveRestart(state, action)
     case RestartTraceEnded() => state
+    case RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps) =>
+      val primAppliedState = applyPrimitive(state, originalPrim, n, fExp, argsExps)
+      applyTrace(primAppliedState, List(ActionPopKontTraced()))
   }
 
   def doActionStepInTraced(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : ProgramState = state match {
@@ -156,6 +179,22 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
   def handleClosureRestart(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : ProgramState =
     doActionStepInTraced(state, action)
+
+  def applyPrimitive(state : ProgramState, operator: HybridValue, n : Integer, fExp : Exp, argsExps : List[Exp]) : ProgramState = {
+    val (vals, newVStack) = popStackItems(state.vStack, n)
+    val operands : List[HybridValue] = vals.take(n - 1).map(_.left.get)
+    val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
+    val result = primitive match {
+      case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), state.σ, state.t)
+      case None => throw new Exception(s"Operator $fExp not a primitive: $operator")
+    }
+    result match {
+      case Left(error) =>
+        throw new Exception(error)
+      case Right((res, _)) =>
+        state.copy(v = res, vStack = newVStack)
+    }
+  }
 
   def handlePrimitiveRestart(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : ProgramState = {
     action match {
@@ -223,22 +262,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       }
     }
 
-    def applyPrimitive(operator: HybridValue, n : Integer, fExp : Exp, argsExps : List[Exp]) : InstructionStep = {
-      val (vals, newVStack) = popStackItems(vStack, n)
-      val operands : List[HybridValue] = vals.take(n - 1).map(_.left.get)
-      val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
-      val result = primitive match {
-        case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), σ, t)
-        case None => throw new Exception(s"Operator $fExp not a primitive: $operator")
-      }
-      result match {
-        case Left(error) =>
-          throw new Exception(error)
-        case Right((res, newσ)) =>
-          NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, res, newVStack), action)
-      }
-    }
-
     if (TracerFlags.PRINT_ACTIONS_EXECUTED) {
       ACTIONS_EXECUTED = ACTIONS_EXECUTED :+ action
     }
@@ -282,7 +305,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       case ActionPrimCallTraced(n : Integer, fExp, argsExps) =>
         val (vals, newVStack) = popStackItems(vStack, n)
         val operator = vals.last.left.get
-        applyPrimitive(operator, n, fExp, argsExps)
+        NormalInstructionStep(applyPrimitive(state, operator, n, fExp, argsExps), action)
       /* When a continuation needs to be pushed, push it in the continuation store */
       case ActionPushTraced(e, frame, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
@@ -298,8 +321,14 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, Right(ρ) :: vStack), action)
       case ActionSetVarTraced(variable) =>
         NormalInstructionStep(ProgramState(control, ρ, σ.update(ρ.lookup(variable).get, v), kstore, a, t, v, vStack), action)
-      case ActionSpecializePrimitive(prim, n, fExp, argsExps) =>
-        applyPrimitive(prim, n, fExp, argsExps)
+      case ActionSpecializePrimitive(expectedType, prim, originalPrim, n, fExp, argsExps) =>
+        val operands = popStackItems(vStack, n - 1)._1.map(_.left.get)
+        val currentOperandsTypes = checkValuesTypes(operands)
+        if (currentOperandsTypes == expectedType) {
+          NormalInstructionStep(applyPrimitive(state, prim, n, fExp, argsExps), action)
+        } else {
+          GuardFailed(RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps))
+        }
       case ActionStartFunCallTraced() =>
         NormalInstructionStep(state, action)
       /* When a function is stepped in, we also go to an eval state */
