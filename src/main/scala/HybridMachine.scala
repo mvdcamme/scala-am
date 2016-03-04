@@ -286,7 +286,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       case ActionEndPrimCallTraced() =>
         NormalInstructionStep(state, action)
       /* When an error is reached, we go to an error state */
-      case ActionError(err) =>
+      case ActionErrorTraced(err) =>
         NormalInstructionStep(ProgramState(ControlError(err), ρ, σ, kstore, a, t, v, vStack), action)
       /* When a value needs to be evaluated, we go to an eval state */
       case ActionEvalTraced(e, _, _) =>
