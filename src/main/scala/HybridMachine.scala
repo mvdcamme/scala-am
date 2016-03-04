@@ -223,6 +223,22 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       }
     }
 
+    def applyPrimitive(operator: HybridValue, n : Integer, fExp : Exp, argsExps : List[Exp]) : InstructionStep = {
+      val (vals, newVStack) = popStackItems(vStack, n)
+      val operands : List[HybridValue] = vals.take(n - 1).map(_.left.get)
+      val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
+      val result = primitive match {
+        case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), σ, t)
+        case None => throw new Exception(s"Operator $fExp not a primitive: $operator")
+      }
+      result match {
+        case Left(error) =>
+          throw new Exception(error)
+        case Right((res, newσ)) =>
+          NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, res, newVStack), action)
+      }
+    }
+
     if (TracerFlags.PRINT_ACTIONS_EXECUTED) {
       ACTIONS_EXECUTED = ACTIONS_EXECUTED :+ action
     }
@@ -265,19 +281,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         NormalInstructionStep(ProgramState(ControlKont(a), ρ, σ, kstore, next, t, v, vStack), action)
       case ActionPrimCallTraced(n : Integer, fExp, argsExps) =>
         val (vals, newVStack) = popStackItems(vStack, n)
-        val operator : HybridValue = vals.last.left.get
-        val operands : List[HybridValue] = vals.take(n - 1).map(_.left.get)
-        val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
-        val result = primitive match {
-          case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), σ, t)
-          case None => throw new Exception(s"Operator $fExp not a primitive: $operator")
-        }
-        result match {
-          case Left(error) =>
-            throw new Exception(error)
-          case Right((res, newσ)) =>
-            NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, res, newVStack), action)
-        }
+        val operator = vals.last.left.get
+        applyPrimitive(operator, n, fExp, argsExps)
       /* When a continuation needs to be pushed, push it in the continuation store */
       case ActionPushTraced(e, frame, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
@@ -293,6 +298,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, Right(ρ) :: vStack), action)
       case ActionSetVarTraced(variable) =>
         NormalInstructionStep(ProgramState(control, ρ, σ.update(ρ.lookup(variable).get, v), kstore, a, t, v, vStack), action)
+      case ActionSpecializePrimitive(prim, n, fExp, argsExps) =>
+        applyPrimitive(prim, n, fExp, argsExps)
       case ActionStartFunCallTraced() =>
         NormalInstructionStep(state, action)
       /* When a function is stepped in, we also go to an eval state */

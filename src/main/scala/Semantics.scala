@@ -308,6 +308,8 @@ case class ActionSetVarTraced[Exp : Expression, Abs : AbstractValue, Addr : Addr
 case class ActionSpawnTraced[TID : ThreadIdentifier, Exp : Expression, Abs : AbstractValue, Addr : Address]
 (t: TID, e: Exp, ρ: Environment[Addr], act: Action[Exp, Abs, Addr],
 read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionSpecializePrimitive[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (primitive: Abs, n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
 /**
 * Similar to ActionEval, but only used when stepping inside a function's body
 * (clo is therefore the function stepped into). The number of arguments should

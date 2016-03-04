@@ -366,7 +366,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
           }
           val newVStack = (operands :+ Left(specializedOperator)) ++ state.vStack.drop(n)
           val newState = state.changeVStack(newVStack)
-          (actionState1._1, Some(newState)) :: actionState2 :: optimizeTypeSpecialization(rest)
+          val specializedPrimCallAction = ActionSpecializePrimitive[Exp, HybridValue, HybridAddress](specializedOperator, n, fExp, argsExps)
+          actionState1 :: (specializedPrimCallAction, actionState2._2) :: optimizeTypeSpecialization(rest)
         /* Since the state before applying the function was not recorded, we cannot know what the types of the operands were */
         case None =>
           actionState1 :: actionState2 :: optimizeTypeSpecialization(rest)
