@@ -303,7 +303,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         val next = if (a == HaltKontAddress) { HaltKontAddress } else { kstore.lookup(a).head.next }
         NormalInstructionStep(ProgramState(ControlKont(a), ρ, σ, kstore, next, t, v, vStack), action)
       case ActionPrimCallTraced(n : Integer, fExp, argsExps) =>
-        val (vals, newVStack) = popStackItems(vStack, n)
+        val (vals, _) = popStackItems(vStack, n)
         val operator = vals.last.left.get
         NormalInstructionStep(applyPrimitive(state, operator, n, fExp, argsExps), action)
       /* When a continuation needs to be pushed, push it in the continuation store */

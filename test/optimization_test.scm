@@ -1,5 +1,6 @@
-(letrec ((test (lambda (a b)
+(letrec ((x 10)
+         (test (lambda (a b ignored)
                  (if (< a 1)
-                   0
-                   (test (- a 1) (* (+ 1 2) (- 11 1)))))))
-  (test 5 0))
+                   b
+                   (test (- a 1) (+ 1 x) (set! x 2.0))))))
+  (test 5 0 0))
