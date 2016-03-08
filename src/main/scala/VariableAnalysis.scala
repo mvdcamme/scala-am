@@ -1,4 +1,5 @@
 import scala.collection.mutable.Stack
+import scala.collection.mutable.Set
 
 /**
   * Created by mvdcamme on 08/03/16.
@@ -20,6 +21,8 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
 
     val framesStack : Stack[List[String]] = Stack(List())
 
+    val assignedVars : Set[String] = Set()
+
     def addVariable(varName : String) = {
       val varInfo = VariableInfo(varName, false, true)
       boundVariables + (varName -> varInfo)
@@ -32,15 +35,23 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
       }
     }
 
-    def restoreEnvironment() {
+    def handleRestoreEnvironment() {
       val boundVariablesFrame = framesStack.pop()
       for (varName <- boundVariablesFrame) {
         boundVariables - varName
       }
     }
 
-    def saveEnvironment() = {
+    def handleSaveEnvironment() = {
       framesStack.push(List())
+    }
+
+    def handleSetVar(varName : String) = {
+      if (! boundVariables.contains(varName)) {
+        val varInfo = VariableInfo(varName, false, true)
+        assignedVars + varName
+        boundVariables + (varName -> varInfo)
+      }
     }
 
     def handleAction(action : Action[Exp, HybridValue, HybridAddress]) = action match {
@@ -51,15 +62,17 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
       case ActionExtendEnvTraced(varName) =>
         addVariable(varName)
       case ActionSaveEnvTraced() =>
-        saveEnvironment()
+        handleSaveEnvironment()
+      case ActionSetVarTraced(varName) =>
+        handleSetVar(varName)
       case ActionStepInTraced(_, _, args, _, _, _, _, _) =>
         addVariables(args)
       case ActionRestoreEnvTraced() =>
-        restoreEnvironment()
+        handleRestoreEnvironment()
      }
 
     def loop(trace : Trace) : List[Map[String, VariableInfo]] = {
-      trace.map({ (actionState) => handleAction(actionState._1); boundVariables})
+      trace.map({ (actionState) => handleAction(actionState._1); boundVariables })
     }
 
     loop(trace)
