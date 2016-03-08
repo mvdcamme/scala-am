@@ -505,7 +505,11 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         startExecutingTrace(newState, newTc, label)
       } else if (TracerFlags.DO_TRACING && labelCounter >= TRACING_THRESHOLD) {
         println(s"Started tracing $label")
-        val tcTRStarted = tracerContext.startTracingLabel(newTc, label)
+        val someBoundVariables = trace.find(_.isInstanceOf[ActionStepInTraced[Exp, HybridValue, HybridAddress]]).flatMap({
+          case ActionStepInTraced(_, _, args, _, _, _, _, _) => Some(args)
+          case _ => None /* Should not happen */
+        })
+        val tcTRStarted = tracerContext.startTracingLabel(newTc, label, someBoundVariables.getOrElse(List[String]()))
         ExecutionState(TR, newState, tcTRStarted, tn)
       } else {
         ExecutionState(NI, newState, newTc, tn)

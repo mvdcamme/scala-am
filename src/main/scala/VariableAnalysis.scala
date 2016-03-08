@@ -15,7 +15,7 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
 
   case class VariableInfo(variable : String, isFree : Boolean, isLive : Boolean)
 
-  def analyze(trace : Trace) : List[Set[String]] = {
+  def analyze(initialBoundVariables : Set[String], trace : Trace) : List[Set[String]] = {
 
     var boundVariables : Set[String] = Set()
     var assignedVariables : Set[String] = Set()
@@ -71,7 +71,7 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
         boundVariables
      }
 
-    val traceBoundVariables = trace.scanLeft(Set[String]())({ (boundVariables, actionState) => handleAction(actionState._1, boundVariables)})
+    val traceBoundVariables = trace.scanLeft(initialBoundVariables)({ (boundVariables, actionState) => handleAction(actionState._1, boundVariables)})
     traceBoundVariables.map({ (boundVariables) =>
       boundVariables ++ assignedVariables
     }).tail

@@ -24,8 +24,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     List((APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
       (APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)))
 
-  val detailedOptimisations : List[(Boolean, (Trace => Trace))] =
-    List((APPLY_OPTIMIZATION_VARIABLE_FOLDING, optimizeVariableFolding(_)),
+  def detailedOptimisations(boundVariables : List[String]) : List[(Boolean, (Trace => Trace))] =
+    List((APPLY_OPTIMIZATION_VARIABLE_FOLDING, optimizeVariableFolding(boundVariables)),
          (APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)),
          (APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, optimizeTypeSpecialization(_)))
 
@@ -33,14 +33,13 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     optimisations.foldLeft(trace)({ (trace, pair) => if (pair._1) { pair._2(trace) } else { trace }})
   }
 
-  def optimize(trace : Trace) : Trace = {
-    variableAnalyzer.analyze(trace)
+  def optimize(trace : Trace, boundVariables : List[String]) : Trace = {
     println(s"Size of unoptimized trace = ${trace.length}")
     if (TracerFlags.APPLY_OPTIMIZATIONS) {
       val basicOptimizedTrace = foldOptimisations(trace, basicOptimisations)
       println(s"Size of basic optimized trace = ${basicOptimizedTrace.length}")
       val tier2OptimizedTrace = if (TracerFlags.APPLY_DETAILED_OPTIMIZATIONS) {
-        val detailedOptimizedTrace = foldOptimisations(basicOptimizedTrace, detailedOptimisations)
+        val detailedOptimizedTrace = foldOptimisations(basicOptimizedTrace, detailedOptimisations(boundVariables))
         println(s"Size of detailed optimized trace = ${detailedOptimizedTrace.length}")
         detailedOptimizedTrace
       } else {
@@ -357,8 +356,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                            VARIABLE FOLDING OPTIMIZATION                                         *
    ********************************************************************************************************************/
 
-  def optimizeVariableFolding(trace : Trace) : Trace = {
-    val boundVariablesList = variableAnalyzer.analyze(trace)
+  def optimizeVariableFolding(initialBoundVariables : List[String])(trace : Trace) : Trace = {
+    val boundVariablesList = variableAnalyzer.analyze(initialBoundVariables.toSet, trace)
     val traceBoundVariablesZipped = trace.zip(boundVariablesList)
 
     def replaceVariableLookups(action : ActionLookupVariableTraced[Exp, HybridValue, HybridAddress], someState : Option[ProgramState], boundVariables : Set[String]) = {
@@ -374,6 +373,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
               case Some(address) =>
                 val variableValue = σ.lookup(address)
                 val newAction = ActionReachedValueTraced[Exp, HybridValue, HybridAddress](variableValue)
+                println(s"Replaced old action $action by new action $newAction")
                 (newAction, someState)
               case None => (action, someState) /* Variable could not be found in the store for some reason */
             }
