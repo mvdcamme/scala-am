@@ -10,19 +10,23 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
   type Trace = HybridMachine[Exp, Time]#TraceWithStates
 
+  type HybridValue = HybridLattice.Hybrid
+
+  val variableAnalyzer = new VariableAnalysis(sem, hybridMachine)
+
   val APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
   val APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
   val APPLY_OPTIMIZATION_CONSTANT_FOLDING = false
   val APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
-
-  type HybridValue = HybridLattice.Hybrid
+  val APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
 
   val basicOptimisations : List[(Boolean, (Trace => Trace))] =
     List((APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
       (APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)))
 
   val detailedOptimisations : List[(Boolean, (Trace => Trace))] =
-    List((APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)),
+    List((APPLY_OPTIMIZATION_VARIABLE_FOLDING, optimizeVariableFolding(_)),
+         (APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)),
          (APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, optimizeTypeSpecialization(_)))
 
   def foldOptimisations(trace : Trace, optimisations : List[(Boolean, (Trace => Trace))]) : Trace = {
@@ -30,6 +34,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   }
 
   def optimize(trace : Trace) : Trace = {
+    variableAnalyzer.analyze(trace)
     println(s"Size of unoptimized trace = ${trace.length}")
     if (TracerFlags.APPLY_OPTIMIZATIONS) {
       val basicOptimizedTrace = foldOptimisations(trace, basicOptimisations)
@@ -346,6 +351,42 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case action :: rest =>
         action :: optimizeTypeSpecialization(rest)
     }
+  }
+
+  /********************************************************************************************************************
+   *                                            VARIABLE FOLDING OPTIMIZATION                                         *
+   ********************************************************************************************************************/
+
+  def optimizeVariableFolding(trace : Trace) : Trace = {
+    val boundVariablesList = variableAnalyzer.analyze(trace)
+    val traceBoundVariablesZipped = trace.zip(boundVariablesList)
+
+    def replaceVariableLookups(action : ActionLookupVariableTraced[Exp, HybridValue, HybridAddress], someState : Option[ProgramState], boundVariables : Set[String]) = {
+      if (boundVariables.contains(action.varName)) {
+        /* Variable is bound and can therefore not be replaced */
+        (action, someState)
+      } else {
+        someState match {
+          case Some(state) =>
+            val ρ = state.ρ
+            val σ = state.σ
+            ρ.lookup(action.varName) match {
+              case Some(address) =>
+                val variableValue = σ.lookup(address)
+                val newAction = ActionReachedValueTraced[Exp, HybridValue, HybridAddress](variableValue)
+                (newAction, someState)
+              case None => (action, someState) /* Variable could not be found in the store for some reason */
+            }
+          case None => (action, someState) /* No state was recorded for this action => do not optimize this instruction, just to play it safe */
+        }
+      }
+    }
+
+    traceBoundVariablesZipped.map({
+      case ((action @ ActionLookupVariableTraced(varName, _, _), someState), boundVariables) =>
+        replaceVariableLookups(action, someState, boundVariables)
+      case ((action, someState), _) => (action, someState)
+    })
   }
 
   /********************************************************************************************************************
