@@ -15,7 +15,7 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
 
   case class VariableInfo(variable : String, isFree : Boolean, isLive : Boolean)
 
-  def analyze(trace : Trace) : List[Map[String, VariableInfo]] = {
+  def analyze(trace : Trace) : Map[String, VariableInfo] = {
 
     val boundVariables : Map[String, VariableInfo] = Map()
 
@@ -71,11 +71,9 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
         handleRestoreEnvironment()
      }
 
-    def loop(trace : Trace) : List[Map[String, VariableInfo]] = {
-      trace.map({ (actionState) => handleAction(actionState._1); boundVariables })
-    }
+    trace.foreach({ (actionState) => handleAction(actionState._1)})
+    boundVariables
 
-    loop(trace)
   }
 
 }
