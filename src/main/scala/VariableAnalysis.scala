@@ -33,13 +33,18 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
     }
 
     def handleRestoreEnvironment(boundVariables : Set[String]) : Set[String] = {
-      val boundVariablesFrame = framesStack.pop()
-      boundVariablesFrame.foldLeft(boundVariables)({ (boundVariables, varName) =>
-        boundVariables - varName })
+      if (framesStack.isEmpty) {
+        boundVariables
+      } else {
+        val boundVariablesFrame = framesStack.pop()
+        boundVariablesFrame.foldLeft(boundVariables)({ (boundVariables, varName) =>
+          boundVariables - varName })
+      }
     }
 
-    def handleSaveEnvironment() = {
+    def handleSaveEnvironment(boundVariables : Set[String]) : Set[String] = {
       framesStack.push(List())
+      boundVariables
     }
 
     def handleSetVar(varName : String, boundVariables : Set[String]) : Set[String] = {
@@ -59,12 +64,11 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
       case ActionExtendEnvTraced(varName) =>
         addVariable(varName, boundVariables)
       case ActionSaveEnvTraced() =>
-        handleSaveEnvironment()
-        boundVariables
+        handleSaveEnvironment(boundVariables)
       case ActionSetVarTraced(varName) =>
         handleSetVar(varName, boundVariables)
       case ActionStepInTraced(_, _, args, _, _, _, _, _) =>
-        addVariables(args, boundVariables)
+        addVariables(args, handleSaveEnvironment(boundVariables))
       case ActionRestoreEnvTraced() =>
         handleRestoreEnvironment(boundVariables)
       case _ =>
