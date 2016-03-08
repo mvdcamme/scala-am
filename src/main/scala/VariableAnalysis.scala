@@ -67,6 +67,8 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
         addVariables(args, boundVariables)
       case ActionRestoreEnvTraced() =>
         handleRestoreEnvironment(boundVariables)
+      case _ =>
+        boundVariables
      }
 
     val traceBoundVariables = trace.scanLeft(Set[String]())({ (boundVariables, actionState) => handleAction(actionState._1, boundVariables)})
