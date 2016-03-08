@@ -1,79 +1,80 @@
+import scala.collection.mutable.Map
 import scala.collection.mutable.Stack
-import scala.collection.mutable.Set
 
 /**
   * Created by mvdcamme on 08/03/16.
   */
 class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: SemanticsTraced[Exp, Abs, Addr, Time], val hybridMachine : HybridMachine[Exp, Time]) {
 
-  type ProgramState = hybridMachine.ProgramState
-  type TraceInstructionStates = hybridMachine.TraceInstructionStates
-  type TraceInstruction = hybridMachine.TraceInstruction
-  type Trace = hybridMachine.TraceWithStates
+  type ProgramState = HybridMachine[Exp, Time]#ProgramState
+  type TraceInstructionStates = HybridMachine[Exp, Time]#TraceInstructionStates
+  type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
+  type Trace = HybridMachine[Exp, Time]#TraceWithStates
 
   type HybridValue = HybridLattice.Hybrid
 
   case class VariableInfo(variable : String, isFree : Boolean, isLive : Boolean)
 
-  def analyze(trace : Trace) : Map[String, VariableInfo] = {
+  def analyze(trace : Trace) : List[Set[String]] = {
 
-    val boundVariables : Map[String, VariableInfo] = Map()
+    var boundVariables : Set[String] = Set()
+    var assignedVariables : Set[String] = Set()
 
     val framesStack : Stack[List[String]] = Stack(List())
 
-    val assignedVars : Set[String] = Set()
-
-    def addVariable(varName : String) = {
-      val varInfo = VariableInfo(varName, false, true)
-      boundVariables + (varName -> varInfo)
+    def addVariable(varName : String, boundVariables : Set[String]) : Set[String] = {
       framesStack.top + varName
+      boundVariables + varName
     }
 
-    def addVariables(varNames : List[String]) = {
-      for (varName <- varNames) {
-        addVariable(varName)
-      }
+    def addVariables(varNames : List[String], boundVariables : Set[String]) : Set[String]  = {
+      varNames.foldLeft(boundVariables)({ (boundVariables, varName) =>
+          addVariable(varName, boundVariables)})
     }
 
-    def handleRestoreEnvironment() {
+    def handleRestoreEnvironment(boundVariables : Set[String]) : Set[String] = {
       val boundVariablesFrame = framesStack.pop()
-      for (varName <- boundVariablesFrame) {
-        boundVariables - varName
-      }
+      boundVariablesFrame.foldLeft(boundVariables)({ (boundVariables, varName) =>
+        boundVariables - varName })
     }
 
     def handleSaveEnvironment() = {
       framesStack.push(List())
     }
 
-    def handleSetVar(varName : String) = {
+    def handleSetVar(varName : String, boundVariables : Set[String]) : Set[String] = {
       if (! boundVariables.contains(varName)) {
-        val varInfo = VariableInfo(varName, false, true)
-        assignedVars + varName
-        boundVariables + (varName -> varInfo)
+        assignedVariables += varName
+        boundVariables + varName
+      } else {
+        boundVariables
       }
     }
 
-    def handleAction(action : Action[Exp, HybridValue, HybridAddress]) = action match {
+    def handleAction(action : Action[Exp, HybridValue, HybridAddress], boundVariables : Set[String]) = action match {
       case ActionAllocVarsTraced(varNames) =>
-        addVariables(varNames)
+        addVariables(varNames, boundVariables)
       case ActionDefineVarsTraced(varNames) =>
-        addVariables(varNames)
+        addVariables(varNames, boundVariables)
       case ActionExtendEnvTraced(varName) =>
-        addVariable(varName)
+        addVariable(varName, boundVariables)
       case ActionSaveEnvTraced() =>
         handleSaveEnvironment()
+        boundVariables
       case ActionSetVarTraced(varName) =>
-        handleSetVar(varName)
+        handleSetVar(varName, boundVariables)
       case ActionStepInTraced(_, _, args, _, _, _, _, _) =>
-        addVariables(args)
+        addVariables(args, boundVariables)
       case ActionRestoreEnvTraced() =>
-        handleRestoreEnvironment()
+        handleRestoreEnvironment(boundVariables)
      }
 
-    trace.foreach({ (actionState) => handleAction(actionState._1)})
-    boundVariables
+    val traceBoundVariables = trace.scanLeft(Set[String]())({ (boundVariables, actionState) => handleAction(actionState._1, boundVariables)})
+    traceBoundVariables.map({ (boundVariables) =>
+      boundVariables ++ assignedVariables
+    }).tail
 
+    traceBoundVariables
   }
 
 }
