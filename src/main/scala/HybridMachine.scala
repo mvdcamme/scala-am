@@ -169,7 +169,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
           val clo = vals.last.left.get
           try {
             val (ρ2, σ2) = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.left.get)), σ, t).head
-            ProgramState(ControlEval(e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, Right(ρ) :: newVStack)
+            ProgramState(ControlEval(e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, Right(ρ2) :: newVStack)
           } catch {
             case e: sem.InvalidArityException =>
               ProgramState(ControlError(s"Arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, v, newVStack)
