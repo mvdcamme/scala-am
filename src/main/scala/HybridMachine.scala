@@ -649,7 +649,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
           val newExecutionPhase = succs.head.ep
           if (TracerFlags.SWITCH_ABSTRACT && previousExecutionPhase == TR && newExecutionPhase != TR) {
             numberOfTracesRecorded += 1
-            val abstractOutput = switchToAbstract(todo, visited, halted, startingTime, graph)
+            val abstractOutput = switchToAbstract(todo.tail ++ succs, visited + s, halted, startingTime, graph)
             abstractOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
             switchToConcrete()
           }
