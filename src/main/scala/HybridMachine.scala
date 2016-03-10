@@ -165,7 +165,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       action match {
         case ActionStepInTraced(fexp, e, args, argsv, n, frame, _, _) =>
           val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-        val (vals, newVStack) = popStackItems(vStack, n)
+          val (vals, newVStack) = popStackItems(vStack, n)
           val clo = vals.last.left.get
           try {
             val (ρ2, σ2) = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.left.get)), σ, t).head
@@ -412,7 +412,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         /* In a continuation state, if the value reached is not an error, call the
          * semantic's continuation method */
         case ControlKont(_) if abs.isError(v) => Set()
-        case ControlKont(ka) => integrate(a, sem.stepKont(v, kstore.lookup(ka).head.frame, σ, t))
+        case ControlKont(ka) => kstore.lookup(ka).flatMap({
+          case Kont(frame, next) => integrate(next, sem.stepKont(v, frame, σ, t))
+        })
         /* In an error state, the state is not able to make a step */
         case ControlError(_) => Set()
       }
