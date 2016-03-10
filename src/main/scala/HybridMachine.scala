@@ -399,9 +399,28 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     def subsumes(that: ProgramState): Boolean = control.subsumes(that.control) && ρ.subsumes(that.ρ) && σ.subsumes(that.σ) &&
                                                 a == that.a && kstore.subsumes(that.kstore) && t == that.t
 
+    private def applyActionAbstract(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : Set[ProgramState] = {
+      action match {
+        case ActionPopKontTraced() =>
+          val nextsSet = if (a == HaltKontAddress) { Set(HaltKontAddress) } else { kstore.lookup(a).map(_.next) }
+          nextsSet.map(ProgramState(ControlKont(a), ρ, σ, kstore, _, t, v, vStack))
+        case _ =>
+          val result = applyAction(state, action)
+          result match {
+          case NormalInstructionStep(newState, _) => Set(newState)
+          case GuardFailed(_) => Set(state) /* Guard failures (though they might happen) are not relevant here, so we ignore the result */
+          case _ => throw new Exception(s"Encountered an unexpected result while performing abstract interpretation: $result")
+        }
+      }
+    }
+
+    private def applyTraceAbstract(state : ProgramState, trace : sem.Trace) : Set[ProgramState] = {
+      trace.foldLeft(Set(state))((currentStates, action) => currentStates.flatMap(applyActionAbstract(_, action)))
+    }
+
     private def integrate(a: KontAddr, interpreterReturns: Set[sem.InterpreterReturn]): Set[ProgramState] = {
-      interpreterReturns.map({itpRet => itpRet match {
-        case sem.InterpreterReturn(trace, _) => applyTrace(this, trace)
+      interpreterReturns.flatMap({itpRet => itpRet match {
+        case sem.InterpreterReturn(trace, _) => applyTraceAbstract(this, trace)
       }})
     }
 
