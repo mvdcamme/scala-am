@@ -71,8 +71,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     * @param frameGen A function that generates the next frame to push, given the non-evaluated expressions of the body
     */
   protected def evalBody(body: List[SchemeExp], frameGen : List[SchemeExp] => Frame): Trace = body match {
-    case Nil => List(ActionReachedValueTraced(abs.inject(false)), actionPopKont)
-    case List(exp) => List(ActionEvalTraced(exp))
+    case Nil => List(actionPopKont)
     case exp :: rest => List(actionSaveEnv, ActionPushTraced(exp, frameGen(rest)))
   }
 
