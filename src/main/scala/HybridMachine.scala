@@ -101,8 +101,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         val newA = convertKontAddress(a)
         val newV = convertValue(σ)(v)
         val newVStack = vStack.map({
-          case Left(v) => Left(convertValue(σ)(v))
-          case Right(ρ) => Right(convertEnvironment(ρ))
+          case StoreVal(v) => StoreVal(convertValue(σ)(v))
+          case StoreEnv(ρ) => StoreEnv(convertEnvironment(ρ))
         })
         def addToNewStore(tuple: (HybridAddress, HybridValue)): Boolean = {
           val newAddress = HybridAddress.convertAddress(tuple._1)
@@ -166,10 +166,10 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         case ActionStepInTraced(fexp, e, args, argsv, n, frame, _, _) =>
           val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
           val (vals, newVStack) = popStackItems(vStack, n)
-          val clo = vals.last.left.get
+          val clo = vals.last.getVal
           try {
-            val (ρ2, σ2) = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.left.get)), σ, t).head
-            ProgramState(ControlEval(e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, Right(ρ2) :: newVStack)
+            val (ρ2, σ2) = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.getVal)), σ, t).head
+            ProgramState(ControlEval(e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, StoreEnv(ρ2) :: newVStack)
           } catch {
             case e: sem.InvalidArityException =>
               ProgramState(ControlError(s"Arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, v, newVStack)
@@ -182,7 +182,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
   def applyPrimitive(state : ProgramState, operator: HybridValue, n : Integer, fExp : Exp, argsExps : List[Exp]) : ProgramState = {
     val (vals, newVStack) = popStackItems(state.vStack, n)
-    val operands : List[HybridValue] = vals.take(n - 1).map(_.left.get)
+    val operands : List[HybridValue] = vals.take(n - 1).map(_.getVal)
     val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
     val result = primitive match {
       case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), state.σ, state.t)
@@ -200,8 +200,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     action match {
       case ActionPrimCallTraced(n : Integer, fExp, argsExps) =>
         val (vals, newVStack) = popStackItems(state.vStack, n)
-        val operator : HybridValue = vals.last.left.get
-        val operands : List[HybridValue] = vals.take(n - 1).map(_.left.get)
+        val operator : HybridValue = vals.last.getVal
+        val operands : List[HybridValue] = vals.take(n - 1).map(_.getVal)
         val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
         val result = primitive match {
           case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), state.σ, state.t)
@@ -218,7 +218,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   }
 
   case class IncorrectStackLengthException() extends Exception {}
-  case class IncorrectStorableException() extends Exception {}
+  case class IncorrectStorableException(message : String) extends Exception {}
 
   def applyAction(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : InstructionStep = {
 
@@ -280,7 +280,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       case ActionDefineVarsTraced(variables) =>
         val addresses = variables.map(v => addr.variable(v, t))
         val (vals, newVStack) = popStackItems(vStack, variables.length)
-        val (ρ1, σ1) = vals.zip(variables.zip(addresses)).foldLeft((ρ, σ))({ case ((ρ2, σ2), (value, (currV, currA))) => (ρ2.extend(currV, currA), σ2.extend(currA, value.left.get)) })
+        val (ρ1, σ1) = vals.zip(variables.zip(addresses)).foldLeft((ρ, σ))({ case ((ρ2, σ2), (value, (currV, currA))) => (ρ2.extend(currV, currA), σ2.extend(currA, value.getVal)) })
         NormalInstructionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, newVStack), action)
       case ActionDropValsTraced(n) =>
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, vStack.drop(n)), action)
@@ -307,30 +307,30 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         NormalInstructionStep(ProgramState(ControlKont(a), ρ, σ, kstore, next, t, v, vStack), action)
       case ActionPrimCallTraced(n : Integer, fExp, argsExps) =>
         val (vals, _) = popStackItems(vStack, n)
-        val operator = vals.last.left.get
+        val operator = vals.last.getVal
         NormalInstructionStep(applyPrimitive(state, operator, n, fExp, argsExps), action)
       /* When a continuation needs to be pushed, push it in the continuation store */
       case ActionPushTraced(e, frame, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
         NormalInstructionStep(ProgramState(ControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, v, vStack), action)
       case ActionPushValTraced() =>
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, Left(v) :: vStack), action)
+        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreVal(v) :: vStack), action)
       case ActionReachedValueTraced(lit, _, _) =>
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, lit, vStack), action)
       case ActionRestoreEnvTraced() =>
         try {
           val (newρ, newVStack) = popStack(vStack)
-          NormalInstructionStep(ProgramState(control, newρ.right.get, σ, kstore, a, t, v, newVStack), action)
+          NormalInstructionStep(ProgramState(control, newρ.getEnv, σ, kstore, a, t, v, newVStack), action)
         } catch {
           case e : java.lang.IndexOutOfBoundsException =>
             throw new IncorrectStackLengthException()
         }
       case ActionSaveEnvTraced() =>
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, Right(ρ) :: vStack), action)
+        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreEnv(ρ) :: vStack), action)
       case ActionSetVarTraced(variable) =>
         NormalInstructionStep(ProgramState(control, ρ, σ.update(ρ.lookup(variable).get, v), kstore, a, t, v, vStack), action)
       case ActionSpecializePrimitive(expectedType, prim, originalPrim, n, fExp, argsExps) =>
-        val operands = popStackItems(vStack, n - 1)._1.map(_.left.get)
+        val operands = popStackItems(vStack, n - 1)._1.map(_.getVal)
         val currentOperandsTypes = checkValuesTypes(operands)
         if (currentOperandsTypes == expectedType) {
           NormalInstructionStep(applyPrimitive(state, prim, n, fExp, argsExps), action)
@@ -351,14 +351,14 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       case action : ActionGuardSameClosure[Exp, HybridValue, HybridAddress] =>
         val n = action.rp.action.n
         try {
-          handleClosureGuard(action, vStack(n - 1).left.get)
+          handleClosureGuard(action, vStack(n - 1).getVal)
         } catch {
           case e : java.lang.IndexOutOfBoundsException =>
             throw new IncorrectStackLengthException
         }
       case action : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress] =>
         val n = action.rp.action.n
-        handlePrimitiveGuard(action, vStack(n - 1).left.get)
+        handlePrimitiveGuard(action, vStack(n - 1).getVal)
     }
   }
 
@@ -379,7 +379,25 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     applyTraceIntermediateResults(state, trace).last
   }
 
-  type Storable = Either[HybridValue, Environment[HybridAddress]]
+  class Storable(combo : Either[HybridValue, Environment[HybridAddress]]) {
+
+    def getVal : HybridValue = combo match {
+      case Left(value) =>
+        value
+      case Right(env) =>
+        throw new IncorrectStorableException(s"Environment $env is not a Hybridvalue")
+    }
+
+    def getEnv : Environment[HybridAddress] = combo match {
+      case Left(value) =>
+        throw new IncorrectStorableException(s"Hybridvalue $value is not an environment")
+      case Right(env) =>
+        env
+    }
+  }
+
+  case class StoreVal(value : HybridValue) extends Storable(Left(value))
+  case class StoreEnv(env : Environment[HybridAddress]) extends Storable(Right(env))
 
   /**
    * A machine state is made of a control component, a value store, a
@@ -437,7 +455,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
             }
         }
       } catch {
-        case e : IncorrectStackLengthException =>
+        case _ : IncorrectStackLengthException |
+             _ : IncorrectStorableException =>
           Set[ProgramState]()
       }
 

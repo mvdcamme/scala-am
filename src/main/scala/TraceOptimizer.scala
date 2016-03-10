@@ -329,8 +329,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
         Nil
       case (actionState1@(_, someState)) :: (actionState2@(ActionPrimCallTraced(n, fExp, argsExps), _)) :: rest => someState match {
         case Some(state) =>
-          val operands = state.vStack.take(n - 1).map(_.left.get)
-          val operator = state.vStack(n - 1).left.get
+          val operands = state.vStack.take(n - 1).map(_.getVal)
+          val operator = state.vStack(n - 1).getVal
           val operandsTypes = hybridMachine.checkValuesTypes(operands)
           val specializedOperator = operator match {
             case prim: HybridLattice.Prim[HybridAddress, HybridValue] => prim match {
