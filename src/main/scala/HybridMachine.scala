@@ -217,6 +217,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
   }
 
+  case class IncorrectStackLengthException() extends Exception {}
+  case class IncorrectStorableException() extends Exception {}
+
   def applyAction(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : InstructionStep = {
 
     val control = state.control
@@ -315,8 +318,13 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       case ActionReachedValueTraced(lit, _, _) =>
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, lit, vStack), action)
       case ActionRestoreEnvTraced() =>
-        val (newρ, newVStack) = popStack(vStack)
-        NormalInstructionStep(ProgramState(control, newρ.right.get, σ, kstore, a, t, v, newVStack), action)
+        try {
+          val (newρ, newVStack) = popStack(vStack)
+          NormalInstructionStep(ProgramState(control, newρ.right.get, σ, kstore, a, t, v, newVStack), action)
+        } catch {
+          case e : java.lang.IndexOutOfBoundsException =>
+            throw new IncorrectStackLengthException()
+        }
       case ActionSaveEnvTraced() =>
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, Right(ρ) :: vStack), action)
       case ActionSetVarTraced(variable) =>
@@ -342,7 +350,12 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         handleGuard(action, abs.isTrue)
       case action : ActionGuardSameClosure[Exp, HybridValue, HybridAddress] =>
         val n = action.rp.action.n
-        handleClosureGuard(action, vStack(n - 1).left.get)
+        try {
+          handleClosureGuard(action, vStack(n - 1).left.get)
+        } catch {
+          case e : java.lang.IndexOutOfBoundsException =>
+            throw new IncorrectStackLengthException
+        }
       case action : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress] =>
         val n = action.rp.action.n
         handlePrimitiveGuard(action, vStack(n - 1).left.get)
@@ -410,18 +423,24 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       val v = state.v
       val vStack = state.vStack
 
-      action match {
-        case ActionPopKontTraced() =>
-          val nextsSet = if (a == HaltKontAddress) { Set(HaltKontAddress) } else { kstore.lookup(a).map(_.next) }
-          nextsSet.map(ProgramState(ControlKont(a), ρ, σ, kstore, _, t, v, vStack))
-        case _ =>
-          val result = applyAction(state, action)
-          result match {
-          case NormalInstructionStep(newState, _) => Set(newState)
-          case GuardFailed(_) => Set(state) /* Guard failures (though they might happen) are not relevant here, so we ignore the result */
-          case _ => throw new Exception(s"Encountered an unexpected result while performing abstract interpretation: $result")
+      try {
+        action match {
+          case ActionPopKontTraced() =>
+            val nextsSet = if (a == HaltKontAddress) { Set(HaltKontAddress) } else { kstore.lookup(a).map(_.next) }
+            nextsSet.map(ProgramState(ControlKont(a), ρ, σ, kstore, _, t, v, vStack))
+          case _ =>
+            val result = applyAction(state, action)
+            result match {
+              case NormalInstructionStep(newState, _) => Set(newState)
+              case GuardFailed(_) => Set(state) /* Guard failures (though they might happen) are not relevant here, so we ignore them */
+              case _ => throw new Exception(s"Encountered an unexpected result while performing abstract interpretation: $result")
+            }
         }
+      } catch {
+        case e : IncorrectStackLengthException =>
+          Set[ProgramState]()
       }
+
     }
 
     private def applyTraceAbstract(state : ProgramState, trace : sem.Trace) : Set[ProgramState] = {
