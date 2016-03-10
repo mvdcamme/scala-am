@@ -400,6 +400,16 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
                                                 a == that.a && kstore.subsumes(that.kstore) && t == that.t
 
     private def applyActionAbstract(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : Set[ProgramState] = {
+
+      val control = state.control
+      val ρ = state.ρ
+      val σ = state.σ
+      val kstore = state.kstore
+      val a = state.a
+      val t = state.t
+      val v = state.v
+      val vStack = state.vStack
+
       action match {
         case ActionPopKontTraced() =>
           val nextsSet = if (a == HaltKontAddress) { Set(HaltKontAddress) } else { kstore.lookup(a).map(_.next) }
@@ -415,12 +425,15 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
 
     private def applyTraceAbstract(state : ProgramState, trace : sem.Trace) : Set[ProgramState] = {
-      trace.foldLeft(Set(state))((currentStates, action) => currentStates.flatMap(applyActionAbstract(_, action)))
+      trace.foldLeft(Set(state))({ (currentStates, action) =>
+       currentStates.flatMap(applyActionAbstract(_, action))
+      })
     }
 
     private def integrate(a: KontAddr, interpreterReturns: Set[sem.InterpreterReturn]): Set[ProgramState] = {
       interpreterReturns.flatMap({itpRet => itpRet match {
-        case sem.InterpreterReturn(trace, _) => applyTraceAbstract(this, trace)
+        case sem.InterpreterReturn(trace, _) =>
+          applyTraceAbstract(this, trace)
       }})
     }
 
