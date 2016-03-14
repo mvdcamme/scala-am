@@ -186,7 +186,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
     val result = primitive match {
       case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), state.σ, state.t)
-      case None => throw new Exception(s"Operator $fExp not a primitive: $operator")
+      case None => throw new NotAPrimitiveException(s"Operator $fExp not a primitive: $operator")
     }
     result match {
       case Left(error) =>
@@ -205,7 +205,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
         val result = primitive match {
           case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), state.σ, state.t)
-          case None => throw new Exception(s"Operator $fExp not a primitive: $operator")
+          case None => throw new NotAPrimitiveException(s"Operator $fExp not a primitive: $operator")
         }
         result match {
           case Left(error) => throw new Exception(error)
@@ -217,9 +217,10 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
   }
 
-  case class IncorrectStackLengthException() extends Exception
-  case class IncorrectStorableException(message : String) extends Exception
-  case class VariableNotFoundException(variable : String) extends Exception
+  case class IncorrectStackSizeException() extends Exception
+  case class IncorrectStorableException(message : String) extends Exception(message)
+  case class VariableNotFoundException(variable : String) extends Exception(variable)
+  case class NotAPrimitiveException(message : String) extends Exception(message)
 
   def applyAction(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : InstructionStep = {
 
@@ -324,7 +325,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
           NormalInstructionStep(ProgramState(control, newρ.getEnv, σ, kstore, a, t, v, newVStack), action)
         } catch {
           case e : java.lang.IndexOutOfBoundsException =>
-            throw new IncorrectStackLengthException()
+            throw new IncorrectStackSizeException()
         }
       case ActionSaveEnvTraced() =>
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreEnv(ρ) :: vStack), action)
@@ -360,7 +361,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
           handleClosureGuard(action, vStack(n - 1).getVal)
         } catch {
           case e : java.lang.IndexOutOfBoundsException =>
-            throw new IncorrectStackLengthException
+            throw new IncorrectStackSizeException
         }
       case action : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress] =>
         val n = action.rp.action.n
@@ -461,9 +462,10 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
             }
         }
       } catch {
-        case _ : IncorrectStackLengthException |
+        case _ : IncorrectStackSizeException |
              _ : IncorrectStorableException |
-             _ : VariableNotFoundException =>
+             _ : VariableNotFoundException |
+             _ : NotAPrimitiveException =>
           Set[ProgramState]()
       }
 
