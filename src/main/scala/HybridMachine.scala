@@ -217,8 +217,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
   }
 
-  case class IncorrectStackLengthException() extends Exception {}
-  case class IncorrectStorableException(message : String) extends Exception {}
+  case class IncorrectStackLengthException() extends Exception
+  case class IncorrectStorableException(message : String) extends Exception
+  case class VariableNotFoundException(variable : String) extends Exception
 
   def applyAction(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : InstructionStep = {
 
@@ -328,7 +329,12 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       case ActionSaveEnvTraced() =>
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreEnv(ρ) :: vStack), action)
       case ActionSetVarTraced(variable) =>
-        NormalInstructionStep(ProgramState(control, ρ, σ.update(ρ.lookup(variable).get, v), kstore, a, t, v, vStack), action)
+        ρ.lookup(variable) match {
+          case Some(address) =>
+            NormalInstructionStep(ProgramState(control, ρ, σ.update(address, v), kstore, a, t, v, vStack), action)
+          case None =>
+            throw new VariableNotFoundException(variable)
+        }
       case ActionSpecializePrimitive(expectedType, prim, originalPrim, n, fExp, argsExps) =>
         val operands = popStackItems(vStack, n - 1)._1.map(_.getVal)
         val currentOperandsTypes = checkValuesTypes(operands)
@@ -456,7 +462,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         }
       } catch {
         case _ : IncorrectStackLengthException |
-             _ : IncorrectStorableException =>
+             _ : IncorrectStorableException |
+             _ : VariableNotFoundException =>
           Set[ProgramState]()
       }
 
