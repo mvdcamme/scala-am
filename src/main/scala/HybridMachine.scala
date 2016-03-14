@@ -28,7 +28,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   type TraceInstruction = sem.TraceInstruction
   type TraceInstructionStates = (TraceInstruction, Option[ProgramState])
   type TraceWithStates = List[TraceInstructionStates]
-  type AssertedTrace = (TraceWithStates, TraceWithStates)
+  type TraceWithoutStates = List[TraceInstruction]
+  type AssertedTrace = (TraceWithoutStates, TraceWithStates)
   
   def name = "HybridMachine"
 

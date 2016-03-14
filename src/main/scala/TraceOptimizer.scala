@@ -8,8 +8,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   type ProgramState = HybridMachine[Exp, Time]#ProgramState
   type TraceInstructionStates = HybridMachine[Exp, Time]#TraceInstructionStates
   type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
+  type TraceWithoutStates = HybridMachine[Exp, Time]#TraceWithoutStates
   type Trace = HybridMachine[Exp, Time]#TraceWithStates
-
   type AssertedTrace = HybridMachine[Exp, Time]#AssertedTrace
 
   type HybridValue = HybridLattice.Hybrid
@@ -24,7 +24,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   val basicOptimisations : List[(Boolean, (AssertedTrace => AssertedTrace))] =
     List((APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
-      (APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)))
+         (APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)))
 
   def detailedOptimisations(boundVariables : List[String]) : List[(Boolean, (AssertedTrace => AssertedTrace))] =
     List((APPLY_OPTIMIZATION_VARIABLE_FOLDING, optimizeVariableFolding(boundVariables)),
@@ -32,12 +32,14 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
          (APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, optimizeTypeSpecialization(_)))
 
   def foldOptimisations(assertedTrace: AssertedTrace, optimisations : List[(Boolean, (AssertedTrace => AssertedTrace))]) : AssertedTrace = {
-    optimisations.foldLeft(assertedTrace)({ (assertedTrace, pair) => if (pair._1) { pair._2(assertedTrace) } else { assertedTrace }})
+    optimisations.foldLeft(assertedTrace)({ (assertedTrace, pair) =>
+      val function : AssertedTrace => AssertedTrace = pair._2
+      if (pair._1) { function(assertedTrace) } else { assertedTrace }})
   }
 
   def optimize(trace : Trace, boundVariables : List[String]) : AssertedTrace = {
     println(s"Size of unoptimized trace = ${trace.length}")
-    val initialAssertedTrace : AssertedTrace = (List[TraceInstructionStates](), trace)
+    val initialAssertedTrace : AssertedTrace = (List[TraceInstruction](), trace)
     if (TracerFlags.APPLY_OPTIMIZATIONS) {
       val basicAssertedOptimizedTrace : AssertedTrace = foldOptimisations(initialAssertedTrace, basicOptimisations)
       println(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace._2.length}")
@@ -403,8 +405,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case ((action, someState), _) => (action, someState)
     })
 
-    val assertions : Trace = variablesToCheck.map({ (freeVariable) =>
-      (ActionGuardAssertFreeVariable[Exp, HybridValue, HybridAddress](freeVariable._1, freeVariable._2, RestartAssertion[Exp, HybridValue, HybridAddress]()), None)
+    val assertions : TraceWithoutStates = variablesToCheck.map({ (freeVariable) =>
+      ActionGuardAssertFreeVariable[Exp, HybridValue, HybridAddress](freeVariable._1, freeVariable._2, RestartAssertion[Exp, HybridValue, HybridAddress]())
     })
 
     (assertions, optimisedTrace)
