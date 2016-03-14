@@ -360,6 +360,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     val boundVariablesList = variableAnalyzer.analyze(initialBoundVariables.toSet, trace)
     val traceBoundVariablesZipped = trace.zip(boundVariablesList)
 
+    var variablesToCheck : List[(String, HybridValue)] = List()
+
     def replaceVariableLookups(action : ActionLookupVariableTraced[Exp, HybridValue, HybridAddress], someState : Option[ProgramState], boundVariables : Set[String]) = {
       if (boundVariables.contains(action.varName)) {
         /* Variable is bound and can therefore not be replaced */
@@ -371,7 +373,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
             val σ = state.σ
             ρ.lookup(action.varName) match {
               case Some(address) =>
-                val variableValue = σ.lookup(address)
+                val variableValue : HybridValue = σ.lookup(address)
+                variablesToCheck = variablesToCheck :+ (action.varName, variableValue)
                 val newAction = ActionReachedValueTraced[Exp, HybridValue, HybridAddress](variableValue)
                 println(s"Replaced old action $action by new action $newAction")
                 (newAction, someState)
@@ -386,6 +389,10 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case ((action @ ActionLookupVariableTraced(varName, _, _), someState), boundVariables) =>
         replaceVariableLookups(action, someState, boundVariables)
       case ((action, someState), _) => (action, someState)
+    })
+
+    val assertions : Trace = variablesToCheck.map({ (freeVariable) =>
+      (ActionGuardAssertFreeVariable(freeVariable._1, freeVariable._2, RestartAssertion[Exp, HybridValue, HybridAddress]()), None)
     })
   }
 
