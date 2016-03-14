@@ -545,10 +545,41 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
     type InterpreterReturn = SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time]#InterpreterReturn
 
+    def runAssertions(assertions : TraceWithoutStates, state : ProgramState) : Boolean =
+      assertions.foldLeft(true)({ (assertionsValid, assertion) =>
+        if (! assertionsValid) {
+          assertionsValid
+        } else {
+          assertion match {
+            case ActionGuardAssertFreeVariable(variableName, expectedValue, _) =>
+              val ρ = state.ρ
+              val σ = state.σ
+              ρ.lookup(variableName) match {
+                case Some(address) =>
+                  val currentValue = σ.lookup(address)
+                  if (currentValue == expectedValue) {
+                    true
+                  } else {
+                    println(s"Variable $variableName with current value $currentValue does not match its expected value $expectedValue")
+                    false
+                  }
+                case None => false
+              }
+          }
+        }
+      })
+
     def startExecutingTrace(state : ProgramState, tc : tracerContext.TracerContext, label : tracerContext.Label): ExecutionState = {
       println(s"Trace with label $label already exists; EXECUTING TRACE")
       val traceNode = tracerContext.getTrace(tc, label)
-      ExecutionState(TE, state, tc, Some(traceNode))
+      val assertions = traceNode.trace._1
+      if (runAssertions(assertions, state)) {
+        println(s"Assertions still valid; executing trace")
+        ExecutionState(TE, state, tc, Some(traceNode))
+      } else {
+        println(s"Assertions invalidated: trace will NOT be executed")
+        this
+      }
     }
 
     def doTraceExecutingStep() : Set[ExecutionState] = {
