@@ -4,7 +4,7 @@
 class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
     (sem : SemanticsTraced[Exp, Abs, Addr, Time], traceOptimizer : TraceOptimizer[Exp, Abs, Addr, Time]) {
 
-  val PRINT_ENTIRE_TRACE = false
+  val PRINT_ENTIRE_TRACE = true
 
   val semantics = sem
   type Label = semantics.Label

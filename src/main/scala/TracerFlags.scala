@@ -3,7 +3,7 @@
   */
 object TracerFlags {
 
-  val APPLY_OPTIMIZATIONS = false
+  val APPLY_OPTIMIZATIONS = true
   val APPLY_DETAILED_OPTIMIZATIONS = true
 
   val PRINT_ACTIONS_EXECUTED = false
