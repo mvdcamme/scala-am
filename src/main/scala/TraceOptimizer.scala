@@ -428,4 +428,12 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     constructedAssertedTrace(assertedTrace, optimizedTrace)
   }
 
+  /*********************************************************************************************************************
+   *                                            STATIC ANALYSIS OPTIMIZATION                                           *
+   *********************************************************************************************************************/
+
+  def applyStaticAnalysisOptimization(trace : AssertedTrace, output : HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]) : AssertedTrace = {
+    trace
+  }
+
 }

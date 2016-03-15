@@ -28,7 +28,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   type TraceInstruction = sem.TraceInstruction
   type TraceInstructionStates = (TraceInstruction, Option[ProgramState])
   type TraceWithStates = List[TraceInstructionStates]
-  type TraceWithoutStates = List[TraceInstruction]
+  type TraceWithoutStates = sem.Trace
   type AssertedTrace = (TraceWithoutStates, TraceWithStates)
   
   def name = "HybridMachine"
@@ -690,7 +690,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
   }
 
-  case class AAMOutput[Annotation](halted: Set[ProgramState], count: Int, t: Double, val graph: Option[Graph[ProgramState, Annotation]])
+  case class AAMOutput[Annotation](halted: Set[ProgramState], count: Int, t: Double, graph: Option[Graph[ProgramState, Annotation]])
       extends Output[HybridValue] {
 
     /**
@@ -746,7 +746,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
                    halted: Set[ExecutionState], startingTime: Long, graph: Option[Graph[ProgramState, String]]): AAMOutput[String] = {
     todo.headOption match {
       case Some(s) =>
-        val previousExecutionPhase = s.ep
         if (visited.contains(s)) {
           /* If we already visited the state, or if it is subsumed by another already
            * visited state, we ignore it. The subsumption part reduces the
@@ -762,11 +761,12 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
            * the new successors on the todo list */
           val succs = s.stepConcrete()
           val newExecutionPhase = succs.head.ep
-          if (TracerFlags.SWITCH_ABSTRACT && previousExecutionPhase == TR && newExecutionPhase != TR) {
+          if (TracerFlags.SWITCH_ABSTRACT && s.ep == TR && newExecutionPhase != TR) {
             numberOfTracesRecorded += 1
             val abstractOutput = switchToAbstract(todo.tail ++ succs, visited + s, halted, startingTime)
             abstractOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
             switchToConcrete()
+            val traceOptimizedTc = tracerContext.applyStaticAnalysisOptimization(s.tc.traceInfo.get.label, succs.head.tc, abstractOutput)
           }
           val newGraph = graph.map(_.addEdges(succs.map(s2 => (s.ps, "", s2.ps))))
           loop(todo.tail ++ succs, visited + s, halted, startingTime, newGraph)

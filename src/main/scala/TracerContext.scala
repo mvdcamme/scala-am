@@ -137,6 +137,12 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
       new TracerContext(traceInfo, labelCounters, new TraceNode(traceInfo.get.label, optimizedAssertedTrace) :: traceNodes, trace)
   }
 
+  private def replaceTrace(tracerContext: TracerContext, label : Label, newTrace : AssertedTrace) = {
+    val newTraceNode = TraceNode(label, newTrace)
+    val newTraceNodes = tracerContext.traceNodes.filter({ (traceNode) => traceNode.label != label})
+    tracerContext.copy(traceNodes = newTraceNode :: newTraceNodes)
+  }
+
   /*
    * Hotness counter
    */
@@ -149,6 +155,16 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
       val oldCounter = getLabelCounter(tc, label)
       val newLabelCounters : Map[Label, Integer] = labelCounters.updated(label, oldCounter + 1)
       new TracerContext(traceInfo, newLabelCounters, traceNodes, trace)
+  }
+
+  /*
+   * Static analysis optimizations
+   */
+
+  def applyStaticAnalysisOptimization(label : Label, tc : TracerContext, output : HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]) : TracerContext = {
+    val traceNode = getTrace(tc, label)
+    val optimizedTrace = traceOptimizer.applyStaticAnalysisOptimization(traceNode.trace, output)
+    replaceTrace(tc, label, optimizedTrace)
   }
 
 }
