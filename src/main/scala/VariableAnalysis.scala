@@ -13,11 +13,8 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
 
   type HybridValue = HybridLattice.Hybrid
 
-  case class VariableInfo(variable : String, isFree : Boolean, isLive : Boolean)
+  def analyzeBoundVariables(initialBoundVariables : Set[String], trace : Trace) : List[Set[String]] = {
 
-  def analyze(initialBoundVariables : Set[String], trace : Trace) : List[Set[String]] = {
-
-    var boundVariables : Set[String] = Set()
     var assignedVariables : Set[String] = Set()
 
     val framesStack : Stack[List[String]] = Stack(List())
@@ -81,6 +78,46 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
     }).tail
 
     traceBoundVariables
+  }
+
+  def analyzeDeadVariables(trace : Trace) : Set[String] = {
+
+    def addVariable(variableName : String, liveVariables : Set[String], deadVariables : Set[String]) : (Set[String], Set[String]) = {
+      if (liveVariables.contains(variableName)) {
+        (liveVariables, deadVariables)
+      } else {
+        (liveVariables, deadVariables + variableName)
+      }
+    }
+
+    def addVariables(varNames : List[String], liveVariables : Set[String], deadVariables : Set[String]) = {
+      varNames.foldLeft((liveVariables, deadVariables))({ (liveDeadVariables, variableName) =>
+        addVariable(variableName, liveDeadVariables._1, liveDeadVariables._2)})
+    }
+
+    val initialLiveDeadVariables : (Set[String], Set[String]) = (Set(), Set())
+    val liveDeadVariables = trace.foldLeft(initialLiveDeadVariables)({ (liveDeadVariables, action) => {
+      val (liveVariables, deadVariables) = liveDeadVariables
+      action._1 match {
+        case ActionLookupVariableTraced(variableName, _, _) =>
+          /* The variable is used somewhere, because it is being looked up */
+          (liveVariables + variableName, deadVariables - variableName)
+          /* Whenever we allocate a new variable, we initially assign it to the set of dead variables,
+           * unless a variable with that name already exists, to avoid confusing two variables with the same name. */
+        case ActionAllocVarsTraced(varNames) =>
+          addVariables(varNames, liveVariables, deadVariables)
+        case ActionDefineVarsTraced(varNames) =>
+          addVariables(varNames, liveVariables, deadVariables)
+        case ActionExtendEnvTraced(variableName) =>
+          addVariable(variableName, liveVariables, deadVariables)
+        case ActionSetVarTraced(variableName) =>
+          addVariable(variableName, liveVariables, deadVariables)
+        case _ => liveDeadVariables
+    }
+    }})
+
+    /* Only return the variables found to be dead, we're not interested in the live variables. */
+    liveDeadVariables._2
   }
 
 }

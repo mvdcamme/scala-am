@@ -371,7 +371,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    ********************************************************************************************************************/
 
   def optimizeVariableFolding(initialBoundVariables : List[String])(assertedTrace : AssertedTrace) : AssertedTrace = {
-    val boundVariablesList = variableAnalyzer.analyze(initialBoundVariables.toSet, assertedTrace._2)
+    val boundVariablesList = variableAnalyzer.analyzeBoundVariables(initialBoundVariables.toSet, assertedTrace._2)
     val traceBoundVariablesZipped = assertedTrace._2.zip(boundVariablesList)
 
     var variablesToCheck : List[(String, HybridValue)] = List()
