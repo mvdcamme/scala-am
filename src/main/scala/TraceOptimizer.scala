@@ -388,7 +388,10 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
             ρ.lookup(action.varName) match {
               case Some(address) =>
                 val variableValue : HybridValue = σ.lookup(address)
-                variablesToCheck = variablesToCheck :+ (action.varName, variableValue)
+                if (! variablesToCheck.exists(_._1 == action.varName)) {
+                  /* Add a guard for this free variable, if no guard for this variable exists already */
+                  variablesToCheck = variablesToCheck :+ (action.varName, variableValue)
+                }
                 val newAction = ActionReachedValueTraced[Exp, HybridValue, HybridAddress](variableValue)
                 println(s"Replaced old action $action by new action $newAction")
                 (newAction, someState)
@@ -432,27 +435,39 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                            STATIC ANALYSIS OPTIMIZATION                                           *
    *********************************************************************************************************************/
 
-  def applyStaticAnalysisOptimization(trace : AssertedTrace, output : HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]) : AssertedTrace = {
-    println(s"Hier: $output")
-    val assertions = trace._1
-    val freeVariables = assertions.flatMap({
-      case ActionGuardAssertFreeVariable(variableName, _, _) => List(variableName)
-      case _ => List() })
+  def findAssignedFreeVariables(freeVariables : List[String], output : HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]) : List[String] = {
     var assignedFreeVariables = List[String]()
     for ((_, transitions) <- output.graph.get.edges) {
       for ((trace, _) <- transitions) {
         trace.foreach({
           case ActionSetVarTraced(variableName) =>
-            if (freeVariables.contains(variableName)) {
+            if (freeVariables.contains(variableName) && ! assignedFreeVariables.contains(variableName)) {
               assignedFreeVariables = variableName :: assignedFreeVariables
             }
           case _ =>
         })
       }
     }
-    println(s"Free variables: $freeVariables")
-    println(s"Assigned free variables: $assignedFreeVariables")
-    trace
+    assignedFreeVariables
+  }
+
+  def filterUnassignedFreeVariables(assertions : TraceWithoutStates, assignedFreeVariables : List[String]) : TraceWithoutStates = {
+    assertions.filter({
+      case ActionGuardAssertFreeVariable(variableName, _, _) =>
+        assignedFreeVariables.contains(variableName)
+      case _ => true})
+  }
+
+  def applyStaticAnalysisOptimization(trace : AssertedTrace, output : HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]) : AssertedTrace = {
+    val assertions = trace._1
+    val freeVariables = assertions.flatMap({
+      case ActionGuardAssertFreeVariable(variableName, _, _) => List(variableName)
+      case _ => List() })
+    val assignedFreeVariables = findAssignedFreeVariables(freeVariables, output)
+    val optimizedAssertions = filterUnassignedFreeVariables(assertions, assignedFreeVariables)
+    println(s"Unoptimized assertions: ${assertions.length}")
+    println(s"Optimized assertions: ${optimizedAssertions.length}")
+    (optimizedAssertions, trace._2)
   }
 
 }
