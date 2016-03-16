@@ -616,8 +616,12 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     def canStartLoopEncounteredRegular(newState : ProgramState, trace : sem.Trace, label : sem.Label) : ExecutionState = {
       val newTc = tracerContext.incLabelCounter(tc, label)
       val labelCounter = tracerContext.getLabelCounter(newTc, label)
-      if (tracerContext.traceExists(newTc, label) && checkTraceAssertions(newState, newTc, label)) {
-        startExecutingTrace(newState, newTc, label)
+      if (tracerContext.traceExists(newTc, label)) {
+        if (checkTraceAssertions(newState, newTc, label)) {
+          startExecutingTrace(newState, newTc, label)
+        } else {
+          ExecutionState(NI, newState, newTc, tn)
+        }
       } else if (TracerFlags.DO_TRACING && labelCounter >= TRACING_THRESHOLD) {
         println(s"Started tracing $label")
         val someBoundVariables = trace.find(_.isInstanceOf[ActionStepInTraced[Exp, HybridValue, HybridAddress]]).flatMap({
