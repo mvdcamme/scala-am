@@ -7,6 +7,7 @@ run -m Hybrid -f test/gcipd.scm -l Concrete -c
 run -m Hybrid -f test/inc.scm -l Concrete -c
 run -m Hybrid -f test/kcfa2.scm -l Concrete -c
 run -m Hybrid -f test/kcfa3.scm -l Concrete -c
+run -m Hybrid -f test/loop2.scm -l Concrete -c
 run -m Hybrid -f test/mj09.scm -l Concrete -c
 run -m Hybrid -f test/mut-rec.scm -l Concrete -c
 run -m Hybrid -f test/rotate.scm -l Concrete -c
