@@ -433,6 +433,25 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *********************************************************************************************************************/
 
   def applyStaticAnalysisOptimization(trace : AssertedTrace, output : HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]) : AssertedTrace = {
+    println(s"Hier: $output")
+    val assertions = trace._1
+    val freeVariables = assertions.flatMap({
+      case ActionGuardAssertFreeVariable(variableName, _, _) => List(variableName)
+      case _ => List() })
+    var assignedFreeVariables = List[String]()
+    for ((_, transitions) <- output.graph.get.edges) {
+      for ((trace, _) <- transitions) {
+        trace.foreach({
+          case ActionSetVarTraced(variableName) =>
+            if (freeVariables.contains(variableName)) {
+              assignedFreeVariables = variableName :: assignedFreeVariables
+            }
+          case _ =>
+        })
+      }
+    }
+    println(s"Free variables: $freeVariables")
+    println(s"Assigned free variables: $assignedFreeVariables")
     trace
   }
 

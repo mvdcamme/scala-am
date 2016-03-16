@@ -764,16 +764,21 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
           /* Otherwise, compute the successors of this state, update the graph, and push
            * the new successors on the todo list */
           val succs = s.stepConcrete()
-          val newExecutionPhase = succs.head.ep
+          assert(succs.size == 1)
+          val succHead = succs.head
+          val newGraph = graph.map(_.addEdges(succs.map(s2 => (s.ps, "", s2.ps))))
+          val newExecutionPhase = succHead.ep
           if (TracerFlags.SWITCH_ABSTRACT && s.ep == TR && newExecutionPhase != TR) {
             numberOfTracesRecorded += 1
             val abstractOutput = switchToAbstract(todo.tail ++ succs, visited + s, halted, startingTime)
             abstractOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
             switchToConcrete()
-            val traceOptimizedTc = tracerContext.applyStaticAnalysisOptimization(s.tc.traceInfo.get.label, succs.head.tc, abstractOutput)
+            val traceOptimizedTc = tracerContext.applyStaticAnalysisOptimization(s.tc.traceInfo.get.label, succHead.tc, abstractOutput)
+            val tcUpdatedSuccHead = succHead.copy(tc = traceOptimizedTc)
+            loop(todo.tail ++ Set(tcUpdatedSuccHead), visited + s, halted, startingTime, newGraph)
+          } else {
+            loop(todo.tail ++ succs, visited + s, halted, startingTime, newGraph)
           }
-          val newGraph = graph.map(_.addEdges(succs.map(s2 => (s.ps, "", s2.ps))))
-          loop(todo.tail ++ succs, visited + s, halted, startingTime, newGraph)
         }
       case None =>
 
