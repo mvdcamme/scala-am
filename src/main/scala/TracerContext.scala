@@ -134,8 +134,8 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   private def addTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
     case TracerContext(traceInfo, labelCounters, traceNodes, trace) =>
       val traceFull = hybridMachine.TraceFull(traceInfo.get.startState, List(), trace)
-      val optimizedAssertedTrace : TraceFull = traceOptimizer.optimize(traceFull, traceInfo.get.boundVariables)
-      new TracerContext(traceInfo, labelCounters, new TraceNode(traceInfo.get.label, optimizedAssertedTrace) :: traceNodes, trace)
+      val optimizedTraceFull : TraceFull = traceOptimizer.optimize(traceFull, traceInfo.get.boundVariables)
+      new TracerContext(traceInfo, labelCounters, new TraceNode(traceInfo.get.label, optimizedTraceFull) :: traceNodes, trace)
   }
 
   private def replaceTrace(tracerContext: TracerContext, label : Label, newTrace : TraceFull) = {

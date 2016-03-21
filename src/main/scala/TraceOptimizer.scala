@@ -31,10 +31,10 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
          (APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)),
          (APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, optimizeTypeSpecialization(_)))
 
-  def foldOptimisations(assertedTrace: TraceFull, optimisations : List[(Boolean, (TraceFull => TraceFull))]) : TraceFull = {
-    optimisations.foldLeft(assertedTrace)({ (assertedTrace, pair) =>
+  def foldOptimisations(traceFull: TraceFull, optimisations : List[(Boolean, (TraceFull => TraceFull))]) : TraceFull = {
+    optimisations.foldLeft(traceFull)({ (traceFull, pair) =>
       val function : TraceFull => TraceFull = pair._2
-      if (pair._1) { function(assertedTrace) } else { assertedTrace }})
+      if (pair._1) { function(traceFull) } else { traceFull }})
   }
 
   def optimize(trace : TraceFull, boundVariables : List[String]) : TraceFull = {
@@ -109,7 +109,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                         ENVIRONMENT LOADING OPTIMIZATION                                         *
    ********************************************************************************************************************/
 
-  private def optimizeEnvironmentLoading(assertedTrace : TraceFull) : TraceFull = {
+  private def optimizeEnvironmentLoading(traceFull : TraceFull) : TraceFull = {
     def isAnInterferingAction(action : TraceInstruction) = action match {
       case ActionAllocVarsTraced(_) |
            ActionDefineVarsTraced(_) |
@@ -121,16 +121,16 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case _ =>
         false
     }
-    val optimizedTrace = removeMatchingActions(assertedTrace.trace, _.isInstanceOf[ActionSaveEnvTraced[Exp, Abs, Addr]],
+    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionSaveEnvTraced[Exp, Abs, Addr]],
                                                _.isInstanceOf[ActionRestoreEnvTraced[Exp, Abs, Addr]], isAnInterferingAction)
-    constructedFulltTrace(assertedTrace, optimizedTrace)
+    constructedFulltTrace(traceFull, optimizedTrace)
   }
 
   /********************************************************************************************************************
    *                                        CONTINUATION LOADING OPTIMIZATION                                         *
    ********************************************************************************************************************/
 
-  private def optimizeContinuationLoading(assertedTrace : TraceFull) : TraceFull = {
+  private def optimizeContinuationLoading(traceFull : TraceFull) : TraceFull = {
     def isAnInterferingAction(action : TraceInstruction) : Boolean = action match {
       case ActionEndTrace(_) =>
         true
@@ -139,9 +139,9 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case _ =>
         false
     }
-    val optimizedTrace = removeMatchingActions(assertedTrace.trace, _.isInstanceOf[ActionPushTraced[Exp, Abs, Addr]],
+    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionPushTraced[Exp, Abs, Addr]],
                                                _.isInstanceOf[ActionPopKontTraced[Exp, Abs, Addr]], isAnInterferingAction)
-    constructedFulltTrace(assertedTrace, optimizedTrace)
+    constructedFulltTrace(traceFull, optimizedTrace)
   }
 
   /********************************************************************************************************************
@@ -295,7 +295,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     }
   }
 
-  private def optimizeConstantFolding(assertedTrace: TraceFull) : TraceFull = {
+  private def optimizeConstantFolding(traceFull: TraceFull) : TraceFull = {
     def loop(trace : Trace) : Trace = {
       doOneConstantFold(List(), trace) match {
         case Some(updatedTrace) =>
@@ -304,8 +304,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
           trace
       }
     }
-    val optimizedTrace = loop(assertedTrace.trace.reverse).reverse
-    constructedFulltTrace(assertedTrace, optimizedTrace)
+    val optimizedTrace = loop(traceFull.trace.reverse).reverse
+    constructedFulltTrace(traceFull, optimizedTrace)
   }
 
   /********************************************************************************************************************
@@ -328,7 +328,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     case _ => prim
   }
 
-  private def optimizeTypeSpecialization(assertedTrace : TraceFull) : TraceFull = {
+  private def optimizeTypeSpecialization(traceFull : TraceFull) : TraceFull = {
     def loop(trace : Trace) : Trace = trace match {
       case Nil =>
         Nil
@@ -355,8 +355,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case action :: rest =>
         action :: loop(rest)
     }
-    val optimizedTrace = loop(assertedTrace.trace)
-    constructedFulltTrace(assertedTrace, optimizedTrace)
+    val optimizedTrace = loop(traceFull.trace)
+    constructedFulltTrace(traceFull, optimizedTrace)
   }
 
   /********************************************************************************************************************
@@ -409,8 +409,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                       FUNCALL BLOCK FILTERING OPTIMIZATION                                       *
    ********************************************************************************************************************/
 
-  def removeFunCallBlockActions(assertedTrace: TraceFull) : TraceFull = {
-    val optimizedTrace = assertedTrace.trace.filter({
+  def removeFunCallBlockActions(traceFull: TraceFull) : TraceFull = {
+    val optimizedTrace = traceFull.trace.filter({
       case (ActionEndClosureCallTraced(), _) => false
       case (ActionEndOptimizedBlock(), _) => false
       case (ActionEndPrimCallTraced(), _) => false
@@ -418,7 +418,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case (ActionStartOptimizedBlock(), _) => false
       case (_, _) => true
     })
-    constructedFulltTrace(assertedTrace, optimizedTrace)
+    constructedFulltTrace(traceFull, optimizedTrace)
   }
 
   /*********************************************************************************************************************
@@ -432,10 +432,10 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   val staticAnalysisOptimisations : List[(Boolean, (TraceFull, AnalysisOutput) => TraceFull)] =
     List((APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS, optimizeVariableFoldingAssertions(_, _)))
 
-  def foldStaticOptimisations(assertedTrace: TraceFull, output : AnalysisOutput, optimisations : List[(Boolean, (TraceFull, AnalysisOutput) => TraceFull)]) : TraceFull = {
-    optimisations.foldLeft(assertedTrace)({ (assertedTrace, pair) =>
+  def foldStaticOptimisations(traceFull: TraceFull, output : AnalysisOutput, optimisations : List[(Boolean, (TraceFull, AnalysisOutput) => TraceFull)]) : TraceFull = {
+    optimisations.foldLeft(traceFull)({ (traceFull, pair) =>
       val function : (TraceFull, AnalysisOutput) => TraceFull = pair._2
-      if (pair._1) { function(assertedTrace, output) } else { assertedTrace }})
+      if (pair._1) { function(traceFull, output) } else { traceFull }})
   }
 
   def applyStaticAnalysisOptimization(trace : TraceFull, output : AnalysisOutput) : TraceFull = {
@@ -488,8 +488,9 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                         DEAD STORE ELIMINATION OPTIMIZATION                                       *
    *********************************************************************************************************************/
 
-  private def optimizeDeadStoreElimination(assertedTrace: TraceFull, output: AnalysisOutput) : TraceFull = {
-    assertedTrace
+  private def optimizeDeadStoreElimination(traceFull: TraceFull, output: AnalysisOutput) : TraceFull = {
+    val deadVariables = variableAnalyzer.analyzeDeadVariables(traceFull.trace)
+    traceFull
   }
 
 }
