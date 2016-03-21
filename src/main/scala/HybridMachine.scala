@@ -217,7 +217,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   }
 
   case class IncorrectStackSizeException() extends Exception
-  case class IncorrectStorableException(message : String) extends Exception(message)
   case class VariableNotFoundException(variable : String) extends Exception(variable)
   case class NotAPrimitiveException(message : String) extends Exception(message)
 
@@ -385,25 +384,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     applyTraceIntermediateResults(state, trace).last
   }
 
-  class Storable(combo : Either[HybridValue, Environment[HybridAddress]]) {
 
-    def getVal : HybridValue = combo match {
-      case Left(value) =>
-        value
-      case Right(env) =>
-        throw new IncorrectStorableException(s"Environment $env is not a Hybridvalue")
-    }
-
-    def getEnv : Environment[HybridAddress] = combo match {
-      case Left(value) =>
-        throw new IncorrectStorableException(s"Hybridvalue $value is not an environment")
-      case Right(env) =>
-        env
-    }
-  }
-
-  case class StoreVal(value : HybridValue) extends Storable(Left(value))
-  case class StoreEnv(env : Environment[HybridAddress]) extends Storable(Right(env))
 
   /**
    * A machine state is made of a control component, a value store, a
