@@ -26,10 +26,11 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   type HybridValue = HybridLattice.Hybrid
 
   type TraceInstruction = sem.TraceInstruction
-  type TraceInstructionStates = (TraceInstruction, Option[ProgramState])
-  type TraceWithStates = List[TraceInstructionStates]
+  type TraceInstructionInfo = (TraceInstruction, Option[TraceInformation[HybridValue]])
+  type TraceWithInfos = List[TraceInstructionInfo]
   type TraceWithoutStates = sem.Trace
-  type AssertedTrace = (TraceWithoutStates, TraceWithStates)
+
+  case class TraceFull(startProgramState : HybridMachine[Exp, Time]#ProgramState, assertions : TraceWithoutStates, trace : TraceWithInfos)
   
   def name = "HybridMachine"
 
@@ -39,7 +40,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   val primitives = new Primitives[HybridAddress, HybridValue]()
 
   val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] =
-    new TracerContext[Exp, HybridValue, HybridAddress, Time](sem, new TraceOptimizer[Exp, HybridValue, HybridAddress, Time](sem, this))
+    new TracerContext[Exp, HybridValue, HybridAddress, Time](sem, new TraceOptimizer[Exp, HybridValue, HybridAddress, Time](sem, this), this)
 
   /**
    * The store used for continuations is a KontStore (defined in
@@ -374,10 +375,19 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     })
   }
 
-  def applyTraceAndGetStates(state : ProgramState, trace : sem.Trace) : (ProgramState, TraceWithStates) = {
+  def generateTraceInformation(currentInstruction : TraceInstruction, currentState : ProgramState) : Option[TraceInformation[HybridValue]] = currentInstruction match {
+    case ActionPrimCallTraced(_, _, _) =>
+      Some(PrimitiveAppliedInfo(currentState.v, currentState.vStack))
+    case _ =>
+      None
+  }
+
+  def applyTraceAndGetStates(state : ProgramState, trace : sem.Trace) : (ProgramState, TraceWithInfos) = {
     val intermediateStates = applyTraceIntermediateResults(state, trace)
     val resultingState = intermediateStates.last
-    (resultingState, trace.zip(intermediateStates.tail.map({ s => if (TracerFlags.APPLY_DETAILED_OPTIMIZATIONS) Some(s) else None})))
+    val traceStatesZipped = trace.zip(intermediateStates.tail)
+    val traceSomeTraceInfoZipped : TraceWithInfos = traceStatesZipped.map({ (instructionState) => (instructionState._1, generateTraceInformation(instructionState._1, instructionState._2)) })
+    (resultingState, traceSomeTraceInfoZipped)
   }
 
   def applyTrace(state : ProgramState, trace : sem.Trace) : ProgramState = {
@@ -550,14 +560,14 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
     def checkTraceAssertions(state : ProgramState, tc : tracerContext.TracerContext, label : tracerContext.Label) : Boolean = {
       val traceNode = tracerContext.getTrace(tc, label)
-      val assertions = traceNode.trace._1
+      val assertions = traceNode.trace.assertions
       runAssertions(assertions, state)
     }
 
     def startExecutingTrace(state : ProgramState, tc : tracerContext.TracerContext, label : tracerContext.Label): ExecutionState = {
       println(s"Trace with label $label already exists; EXECUTING TRACE")
       val traceNode = tracerContext.getTrace(tc, label)
-      val assertions = traceNode.trace._1
+      val assertions = traceNode.trace.assertions
       ExecutionState(TE, state, tc, Some(traceNode))
     }
 
@@ -586,8 +596,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
 
     def continueWithProgramStateTracing(state : ProgramState, trace : sem.Trace) : ExecutionState = {
-      val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
-      val traceAppendedTc = tracerContext.appendTrace(tc, traceWithStates)
+      val (newState, traceWithInfos) = applyTraceAndGetStates(ps, trace)
+      val traceAppendedTc = tracerContext.appendTrace(tc, traceWithInfos)
       ExecutionState(ep, newState, traceAppendedTc, tn)
     }
 
@@ -606,7 +616,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
           case ActionStepInTraced(_, _, args, _, _, _, _, _) => Some(args)
           case _ => None /* Should not happen */
         })
-        val tcTRStarted = tracerContext.startTracingLabel(newTc, label, someBoundVariables.getOrElse(List[String]()))
+        val tcTRStarted = tracerContext.startTracingLabel(newTc, label, someBoundVariables.getOrElse(List[String]()), newState)
         ExecutionState(TR, newState, tcTRStarted, tn)
       } else {
         ExecutionState(NI, newState, newTc, tn)

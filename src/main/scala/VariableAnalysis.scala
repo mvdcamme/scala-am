@@ -7,9 +7,9 @@ import scala.collection.mutable.Stack
 class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: SemanticsTraced[Exp, Abs, Addr, Time], val hybridMachine : HybridMachine[Exp, Time]) {
 
   type ProgramState = HybridMachine[Exp, Time]#ProgramState
-  type TraceInstructionStates = HybridMachine[Exp, Time]#TraceInstructionStates
+  type TraceInstructionStates = HybridMachine[Exp, Time]#TraceInstructionInfo
   type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
-  type Trace = HybridMachine[Exp, Time]#TraceWithStates
+  type Trace = HybridMachine[Exp, Time]#TraceWithInfos
 
   type HybridValue = HybridLattice.Hybrid
 

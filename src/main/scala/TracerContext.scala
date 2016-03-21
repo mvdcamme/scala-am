@@ -2,21 +2,21 @@
   * Created by mvdcamme on 02/02/16.
   */
 class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
-    (sem : SemanticsTraced[Exp, Abs, Addr, Time], traceOptimizer : TraceOptimizer[Exp, Abs, Addr, Time]) {
+    (sem : SemanticsTraced[Exp, Abs, Addr, Time], traceOptimizer : TraceOptimizer[Exp, Abs, Addr, Time], hybridMachine: HybridMachine[Exp, Time]) {
 
   val PRINT_ENTIRE_TRACE = false
 
   val semantics = sem
   type Label = semantics.Label
   type InstructionReturn = semantics.InstructionReturn
-  type ProgramState = HybridMachine[Exp, Time]#ProgramState
+  //type ProgramState = HybridMachine[Exp, Time]#ProgramState
   type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
-  type Trace = HybridMachine[Exp, Time]#TraceWithStates
-  type AssertedTrace = HybridMachine[Exp, Time]#AssertedTrace
+  type Trace = HybridMachine[Exp, Time]#TraceWithInfos
+  type TraceFull = HybridMachine[Exp, Time]#TraceFull
 
 
-  case class TraceInfo(label : Label, boundVariables : List[String])
-  case class TraceNode(label : Label, trace : AssertedTrace)
+  case class TraceInfo(label : Label, boundVariables : List[String], startState : HybridMachine[Exp, Time]#ProgramState)
+  case class TraceNode(label : Label, trace : TraceFull)
 
   case class TracerContext(traceInfo : Option[TraceInfo], labelCounters : Map[Label, Integer],
                            traceNodes : List[TraceNode], trace : Trace)
@@ -31,9 +31,9 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Start tracing
    */
 
-  def startTracingLabel(tracerContext: TracerContext, label: Label, boundVariables : List[String]) : TracerContext = tracerContext match {
+  def startTracingLabel(tracerContext: TracerContext, label: Label, boundVariables : List[String], startState : HybridMachine[Exp, Time]#ProgramState) : TracerContext = tracerContext match {
     case TracerContext(_, labelCounters, traceNodes, _) =>
-      new TracerContext(Some(TraceInfo(label, boundVariables)), labelCounters, traceNodes, List())
+      new TracerContext(Some(TraceInfo(label, boundVariables, startState)), labelCounters, traceNodes, List())
   }
 
   /*
@@ -51,11 +51,11 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     if (PRINT_ENTIRE_TRACE) {
       println("------------ START TRACE ------------")
       println("------------- ASSERTIONS ------------")
-      for (action <- newTrace._1) {
+      for (action <- newTrace.assertions) {
         println(action)
       }
       println("-------------- ACTIONS --------------")
-      for (action <- newTrace._2) {
+      for (action <- newTrace.trace) {
         println(action)
       }
       println("------------ END TRACE ------------")
@@ -118,12 +118,12 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     /*
      * Make sure the trace isn't empty
      */
-    if (traceNode.trace._2.isEmpty) {
+    if (traceNode.trace.trace.isEmpty) {
       resetTrace()
     }
 
-    val traceHead = currentTraceNode.trace._2.head
-    val updatedTraceNode = TraceNode(traceNode.label, (currentTraceNode.trace._1, currentTraceNode.trace._2.tail))
+    val traceHead = currentTraceNode.trace.trace.head
+    val updatedTraceNode = TraceNode(traceNode.label, traceNode.trace.copy(currentTraceNode.trace.startProgramState, currentTraceNode.trace.assertions, currentTraceNode.trace.trace.tail))
     (traceHead._1, updatedTraceNode)
   }
 
@@ -133,11 +133,12 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
 
   private def addTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
     case TracerContext(traceInfo, labelCounters, traceNodes, trace) =>
-      val optimizedAssertedTrace : AssertedTrace = traceOptimizer.optimize(trace, traceInfo.get.boundVariables)
+      val traceFull = hybridMachine.TraceFull(traceInfo.get.startState, List(), trace)
+      val optimizedAssertedTrace : TraceFull = traceOptimizer.optimize(traceFull, traceInfo.get.boundVariables)
       new TracerContext(traceInfo, labelCounters, new TraceNode(traceInfo.get.label, optimizedAssertedTrace) :: traceNodes, trace)
   }
 
-  private def replaceTrace(tracerContext: TracerContext, label : Label, newTrace : AssertedTrace) = {
+  private def replaceTrace(tracerContext: TracerContext, label : Label, newTrace : TraceFull) = {
     val newTraceNode = TraceNode(label, newTrace)
     val newTraceNodes = tracerContext.traceNodes.filter({ (traceNode) => traceNode.label != label})
     tracerContext.copy(traceNodes = newTraceNode :: newTraceNodes)
