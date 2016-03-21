@@ -260,7 +260,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     })
   }
 
-  private def doDifficultStuff(firstPart : Trace, trace : Trace) : Option[Trace] = {
+  private def doOneConstantFold(firstPart : Trace, trace : Trace) : Option[Trace] = {
     findNextEndPrimCall(trace) match {
       case Some((traceBefore, traceAtPrimCall)) =>
        findNextStartFunCall(traceAtPrimCall.tail) match {
@@ -277,7 +277,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
                    val betweenOuterPrimCallAndInnerEndPrimCall = findNextEndPrimCall(traceBetweenMarks).get._1
                    val newFirstPart = firstPart ++ (traceBefore :+ traceAtPrimCall.head) ++ betweenOuterPrimCallAndInnerEndPrimCall
                    val newTrace = betweenInnerEndPrimCallAndOuterStartMark ++ traceAtStartCall
-                   doDifficultStuff(newFirstPart, newTrace)
+                   doOneConstantFold(newFirstPart, newTrace)
                  case None =>
                    checkPrimitive(traceBetweenMarks, n).flatMap({ (traceAfterOperatorPush) =>
                      //val guard = (ActionGuardSamePrimitive(), None)
@@ -304,7 +304,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   private def optimizeConstantFolding(assertedTrace: AssertedTrace) : AssertedTrace = {
     def loop(trace : Trace) : Trace = {
-      doDifficultStuff(List(), trace) match {
+      doOneConstantFold(List(), trace) match {
         case Some(updatedTrace) =>
           loop(updatedTrace)
         case None =>
@@ -461,7 +461,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   /*
    * Takes a list of variables and
    */
-  def findAssignedFreeVariables(freeVariables : List[String], output : AnalysisOutput) : List[String] = {
+  private def findAssignedFreeVariables(freeVariables : List[String], output : AnalysisOutput) : List[String] = {
     var assignedFreeVariables = List[String]()
     for ((_, transitions) <- output.graph.get.edges) {
       for ((trace, _) <- transitions) {
@@ -477,14 +477,14 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     assignedFreeVariables
   }
 
-  def filterUnassignedFreeVariables(assertions : TraceWithoutStates, assignedFreeVariables : List[String]) : TraceWithoutStates = {
+  private def filterUnassignedFreeVariables(assertions : TraceWithoutStates, assignedFreeVariables : List[String]) : TraceWithoutStates = {
     assertions.filter({
       case ActionGuardAssertFreeVariable(variableName, _, _) =>
         assignedFreeVariables.contains(variableName)
       case _ => true})
   }
 
-  def optimizeVariableFoldingAssertions(trace : AssertedTrace, output : AnalysisOutput) : AssertedTrace = {
+  private def optimizeVariableFoldingAssertions(trace : AssertedTrace, output : AnalysisOutput) : AssertedTrace = {
     val assertions = trace._1
     val freeVariables = assertions.flatMap({
       case ActionGuardAssertFreeVariable(variableName, _, _) => List(variableName)
@@ -499,5 +499,9 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   /*********************************************************************************************************************
    *                                         DEAD STORE ELIMINATION OPTIMIZATION                                       *
    *********************************************************************************************************************/
+
+  private def optimizeDeadStoreElimination(assertedTrace: AssertedTrace, output: AnalysisOutput) : AssertedTrace = {
+    assertedTrace
+  }
 
 }
