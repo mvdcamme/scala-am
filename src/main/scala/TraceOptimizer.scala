@@ -22,11 +22,11 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   val APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
   val APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
 
-  val basicOptimisations : List[(Boolean, (AssertedTrace => AssertedTrace))] =
+  val basicOptimizations : List[(Boolean, (AssertedTrace => AssertedTrace))] =
     List((APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
          (APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)))
 
-  def detailedOptimisations(boundVariables : List[String]) : List[(Boolean, (AssertedTrace => AssertedTrace))] =
+  def detailedOptimizations(boundVariables : List[String]) : List[(Boolean, (AssertedTrace => AssertedTrace))] =
     List((APPLY_OPTIMIZATION_VARIABLE_FOLDING, optimizeVariableFolding(boundVariables)),
          (APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)),
          (APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, optimizeTypeSpecialization(_)))
@@ -41,10 +41,10 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     println(s"Size of unoptimized trace = ${trace.length}")
     val initialAssertedTrace : AssertedTrace = (List[TraceInstruction](), trace)
     if (TracerFlags.APPLY_OPTIMIZATIONS) {
-      val basicAssertedOptimizedTrace : AssertedTrace = foldOptimisations(initialAssertedTrace, basicOptimisations)
+      val basicAssertedOptimizedTrace : AssertedTrace = foldOptimisations(initialAssertedTrace, basicOptimizations)
       println(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace._2.length}")
       val tier2AssertedOptimizedTrace = if (TracerFlags.APPLY_DETAILED_OPTIMIZATIONS) {
-        val detailedAssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimisations(boundVariables))
+        val detailedAssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations(boundVariables))
         println(s"Size of detailed optimized trace = ${detailedAssertedOptimizedTrace._2.length}")
         detailedAssertedOptimizedTrace
       } else {
@@ -373,6 +373,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   def optimizeVariableFolding(initialBoundVariables : List[String])(assertedTrace : AssertedTrace) : AssertedTrace = {
     val boundVariablesList = variableAnalyzer.analyzeBoundVariables(initialBoundVariables.toSet, assertedTrace._2)
     val traceBoundVariablesZipped = assertedTrace._2.zip(boundVariablesList)
+    val deadVariablesList = variableAnalyzer.analyzeDeadVariables(assertedTrace._2)
+    println(s"Dead variables: $deadVariablesList")
 
     var variablesToCheck : List[(String, HybridValue)] = List()
 
@@ -435,7 +437,31 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                            STATIC ANALYSIS OPTIMIZATION                                           *
    *********************************************************************************************************************/
 
-  def findAssignedFreeVariables(freeVariables : List[String], output : HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]) : List[String] = {
+  type AnalysisOutput = HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]
+
+  val APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS = true
+
+  val staticAnalysisOptimisations : List[(Boolean, (AssertedTrace, AnalysisOutput) => AssertedTrace)] =
+    List((APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS, optimizeVariableFoldingAssertions(_, _)))
+
+  def foldStaticOptimisations(assertedTrace: AssertedTrace, output : AnalysisOutput, optimisations : List[(Boolean, (AssertedTrace, AnalysisOutput) => AssertedTrace)]) : AssertedTrace = {
+    optimisations.foldLeft(assertedTrace)({ (assertedTrace, pair) =>
+      val function : (AssertedTrace, AnalysisOutput) => AssertedTrace = pair._2
+      if (pair._1) { function(assertedTrace, output) } else { assertedTrace }})
+  }
+
+  def applyStaticAnalysisOptimization(trace : AssertedTrace, output : AnalysisOutput) : AssertedTrace = {
+    foldStaticOptimisations(trace, output, staticAnalysisOptimisations)
+  }
+
+  /*********************************************************************************************************************
+   *                                      VARIABLE FOLDING ASSERTIONS OPTIMIZATION                                     *
+   *********************************************************************************************************************/
+
+  /*
+   * Takes a list of variables and
+   */
+  def findAssignedFreeVariables(freeVariables : List[String], output : AnalysisOutput) : List[String] = {
     var assignedFreeVariables = List[String]()
     for ((_, transitions) <- output.graph.get.edges) {
       for ((trace, _) <- transitions) {
@@ -458,7 +484,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case _ => true})
   }
 
-  def applyStaticAnalysisOptimization(trace : AssertedTrace, output : HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]) : AssertedTrace = {
+  def optimizeVariableFoldingAssertions(trace : AssertedTrace, output : AnalysisOutput) : AssertedTrace = {
     val assertions = trace._1
     val freeVariables = assertions.flatMap({
       case ActionGuardAssertFreeVariable(variableName, _, _) => List(variableName)
@@ -469,5 +495,9 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     println(s"Optimized assertions: ${optimizedAssertions.length}")
     (optimizedAssertions, trace._2)
   }
+
+  /*********************************************************************************************************************
+   *                                         DEAD STORE ELIMINATION OPTIMIZATION                                       *
+   *********************************************************************************************************************/
 
 }
