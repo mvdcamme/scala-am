@@ -7,7 +7,7 @@ object TracerFlags {
 
   val PRINT_ACTIONS_EXECUTED = false
 
-  val SWITCH_ABSTRACT = false
+  val SWITCH_ABSTRACT = true
 
   val DO_TRACING = true
 

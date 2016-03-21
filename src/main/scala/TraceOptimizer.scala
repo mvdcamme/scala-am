@@ -366,8 +366,6 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   def optimizeVariableFolding(initialBoundVariables : List[String])(traceFull : TraceFull) : TraceFull = {
     val boundVariablesList = variableAnalyzer.analyzeBoundVariables(initialBoundVariables.toSet, traceFull.trace)
     val traceBoundVariablesZipped = traceFull.trace.zip(boundVariablesList)
-    val deadVariablesList = variableAnalyzer.analyzeDeadVariables(traceFull.trace)
-    println(s"Dead variables: $deadVariablesList")
 
     var variablesToCheck : List[(String, HybridValue)] = List()
 
@@ -428,9 +426,11 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   type AnalysisOutput = HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]
 
   val APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS = true
+  val APPLY_OPTIMIZATION_DEAD_STORE_ELIMINATION = true
 
   val staticAnalysisOptimisations : List[(Boolean, (TraceFull, AnalysisOutput) => TraceFull)] =
-    List((APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS, optimizeVariableFoldingAssertions(_, _)))
+    List((APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS, optimizeVariableFoldingAssertions(_, _)),
+         (APPLY_OPTIMIZATION_DEAD_STORE_ELIMINATION, optimizeDeadStoreElimination(_, _)))
 
   def foldStaticOptimisations(traceFull: TraceFull, output : AnalysisOutput, optimisations : List[(Boolean, (TraceFull, AnalysisOutput) => TraceFull)]) : TraceFull = {
     optimisations.foldLeft(traceFull)({ (traceFull, pair) =>
@@ -489,7 +489,20 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *********************************************************************************************************************/
 
   private def optimizeDeadStoreElimination(traceFull: TraceFull, output: AnalysisOutput) : TraceFull = {
-    val deadVariables = variableAnalyzer.analyzeDeadVariables(traceFull.trace)
+    var deadVariables = variableAnalyzer.analyzeDeadVariables(traceFull.trace)
+    println(s"Dead variables in the trace $deadVariables")
+    for ((_, transitions) <- output.graph.get.edges) {
+      for ((trace, _) <- transitions) {
+        trace.foreach({
+          case ActionLookupVariableTraced(variableName, _, _) =>
+            if (deadVariables.contains(variableName)) {
+              deadVariables = deadVariables - variableName
+            }
+          case _ =>
+        })
+      }
+    }
+    println(s"All truly dead variables: $deadVariables")
     traceFull
   }
 
