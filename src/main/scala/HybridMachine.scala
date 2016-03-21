@@ -140,9 +140,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   def popStack[A](stack : List[A]) : (A, List[A]) = (stack.head, stack.tail)
   def popStackItems[A](stack : List[A], n : Integer) : (List[A], List[A]) = stack.splitAt(n)
 
-  def replaceTc(state: ExecutionState, tc : tracerContext.TracerContext) =
-    new ExecutionState(state.ep, state.ps, tc, state.tn)
-
   trait InstructionStep
   case class NormalInstructionStep(newState : ProgramState, instruction : sem.TraceInstruction) extends InstructionStep
   case class GuardFailed(rp : RestartPoint[Exp, HybridValue, HybridAddress]) extends InstructionStep
@@ -300,7 +297,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         NormalInstructionStep(ProgramState(ControlEval(e), ρ, σ, kstore, a, t, v, vStack), action)
       case ActionExtendEnvTraced(varName : String) =>
         val va = addr.variable(varName, t)
-        val ρ1 = ρ.extend(name, va)
+        val ρ1 = ρ.extend(varName, va)
         val σ1 = σ.extend(va, v)
         NormalInstructionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, vStack), action)
       case ActionLookupVariableTraced(varName, _, _) =>
