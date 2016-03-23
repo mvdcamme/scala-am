@@ -628,19 +628,24 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       val traceAppendedTc = tracerContext.appendTrace(tc, traceWithStates)
       if (tracerContext.isTracingLabel(traceAppendedTc, label)) {
         println(s"Stopped tracing $label; LOOP DETECTED")
-        val tcTRStopped = tracerContext.stopTracing(traceAppendedTc, true, None)
+        numberOfTracesRecorded += 1
+        val analysisOutput = findAnalysisOutput(newState)
+        val tcTRStopped = tracerContext.stopTracing(traceAppendedTc, true, None, analysisOutput)
         startExecutingTrace(newState, tcTRStopped, label)
       } else {
         ExecutionState(ep, newState, traceAppendedTc, tn)
       }
     }
 
-    def canEndLoopEncounteredTracing(state : ProgramState, trace : sem.Trace, restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], label : sem.Label) : ExecutionState = {
+    def canEndLoopEncounteredTracing(state : ProgramState, trace : sem.Trace,
+                                     restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], label : sem.Label) : ExecutionState = {
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       if (tracerContext.isTracingLabel(tc, label)) {
         println(s"Stopped tracing $label; NO LOOP DETECTED")
+        numberOfTracesRecorded += 1
         val traceEndedInstruction = sem.endTraceInstruction(RestartTraceEnded())
-        val tcTRStopped = tracerContext.stopTracing(tc, false, Some(traceEndedInstruction))
+        val analysisOutput = findAnalysisOutput(newState)
+        val tcTRStopped = tracerContext.stopTracing(tc, false, Some(traceEndedInstruction), analysisOutput)
         ExecutionState(NI, newState, tcTRStopped, tn)
       } else {
         val traceAppendedTc = tracerContext.appendTrace(tc, traceWithStates)
@@ -753,20 +758,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
            * the new successors on the todo list */
           val succs = s.stepConcrete()
           assert(succs.size == 1)
-          val succHead = succs.head
           val newGraph = graph.map(_.addEdges(succs.map(s2 => (s.ps, "", s2.ps))))
-          val newExecutionPhase = succHead.ep
-          if (TracerFlags.SWITCH_ABSTRACT && s.ep == TR && newExecutionPhase != TR) {
-            numberOfTracesRecorded += 1
-            val abstractOutput = switchToAbstract(todo.tail ++ succs, visited + s, halted, startingTime)
-            abstractOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
-            switchToConcrete()
-            val traceOptimizedTc = tracerContext.applyStaticAnalysisOptimization(s.tc.traceInfo.get.label, succHead.tc, abstractOutput)
-            val tcUpdatedSuccHead = succHead.copy(tc = traceOptimizedTc)
-            loop(todo.tail ++ Set(tcUpdatedSuccHead), visited + s, halted, startingTime, newGraph)
-          } else {
-            loop(todo.tail ++ succs, visited + s, halted, startingTime, newGraph)
-          }
+          loop(todo.tail ++ succs, visited + s, halted, startingTime, newGraph)
         }
       case None =>
 
@@ -782,28 +775,37 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
   }
 
-  private def switchToAbstract(todo: Set[ExecutionState], visited: Set[ExecutionState], halted: Set[ExecutionState],
-                               startingTime: Long) : AAMOutput[sem.Trace] = {
+  private def switchToAbstract(currentProgramState: ProgramState) : AAMOutput[sem.Trace] = {
     println("HybridMachine switching to abstract")
-    def mapF(states : Set[(ProgramState, ProgramState)], annotation : String)(graph : Graph[ProgramState, String]) = {
-      graph.addEdges(states.map(tuple => (tuple._1, annotation, tuple._2)))
-    }
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
-    val convTodo = todo.map((es) => Converter.convertState(es.ps))
-    val convVisited = visited.map((es) => Converter.convertState(es.ps))
-    val convHalted = halted.map((es) => Converter.convertState(es.ps))
-    val newTodo = convTodo.map(_._2)
-    val newVisited = convVisited.map(_._2)
-    val newHalted = convHalted.map(_._2)
+    val convertedExecutionState = Converter.convertState(currentProgramState)
+    val newTodo = Set[ProgramState](convertedExecutionState._2)
+    val newVisited, newHalted = Set[ProgramState]()
     val newGraph = new Graph[ProgramState, sem.Trace]()
-    loopAbstract(newTodo, newVisited, newHalted, startingTime, newGraph)
+    loopAbstract(newTodo, newVisited, newHalted, System.nanoTime, newGraph)
   }
 
   private def switchToConcrete() : Unit = {
     println("HybridMachine switching to concrete")
     HybridLattice.switchToConcrete
     HybridAddress.switchToConcrete
+  }
+
+  private def runStaticAnalysis(currentProgramState : ProgramState) : AAMOutput[sem.Trace] = {
+    val analysisOutput = switchToAbstract(currentProgramState)
+    switchToConcrete()
+    analysisOutput
+  }
+
+  private def findAnalysisOutput(currentProgramState : ProgramState) : Option[AAMOutput[sem.Trace]] = {
+    if (TracerFlags.SWITCH_ABSTRACT) {
+      val analysisOutput = runStaticAnalysis(currentProgramState)
+      analysisOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
+      Some(analysisOutput)
+    } else {
+      None
+    }
   }
 
   @scala.annotation.tailrec

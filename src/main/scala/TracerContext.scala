@@ -14,6 +14,8 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   type Trace = HybridMachine[Exp, Time]#TraceWithInfos
   type TraceFull = HybridMachine[Exp, Time]#TraceFull
 
+  type AnalysisOutput = HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]
+
 
   case class TraceInfo(label : Label, boundVariables : List[String], startState : HybridMachine[Exp, Time]#ProgramState)
   case class TraceNode(label : Label, trace : TraceFull)
@@ -40,12 +42,13 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Stop tracing
    */
 
-  def stopTracing(tracerContext: TracerContext, isLooping : Boolean, traceEndedInstruction: Option[TraceInstruction]) : TracerContext = {
+  def stopTracing(tracerContext: TracerContext, isLooping : Boolean,
+                  traceEndedInstruction: Option[TraceInstruction], someAnalysisOutput: Option[AnalysisOutput]) : TracerContext = {
     var finishedTracerContext : TracerContext = tracerContext
     if (! isLooping) {
       finishedTracerContext = appendTrace(tracerContext, List((traceEndedInstruction.get, None)))
     }
-    val traceNodeAddedTc = addTrace(finishedTracerContext)
+    val traceNodeAddedTc = addTrace(finishedTracerContext, someAnalysisOutput)
     val newTrace = getTrace(traceNodeAddedTc, tracerContext.traceInfo.get.label).trace
     println(s"Complete trace")
     if (PRINT_ENTIRE_TRACE) {
@@ -131,10 +134,10 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Adding traces
    */
 
-  private def addTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
+  private def addTrace(tracerContext: TracerContext, someAnalysisOutput: Option[AnalysisOutput]) : TracerContext = tracerContext match {
     case TracerContext(traceInfo, labelCounters, traceNodes, trace) =>
       val traceFull = hybridMachine.TraceFull(traceInfo.get.startState, List(), trace)
-      val optimizedTraceFull : TraceFull = traceOptimizer.optimize(traceFull, traceInfo.get.boundVariables)
+      val optimizedTraceFull : TraceFull = traceOptimizer.optimize(traceFull, traceInfo.get.boundVariables, someAnalysisOutput)
       new TracerContext(traceInfo, labelCounters, new TraceNode(traceInfo.get.label, optimizedTraceFull) :: traceNodes, trace)
   }
 
@@ -156,16 +159,6 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
       val oldCounter = getLabelCounter(tc, label)
       val newLabelCounters : Map[Label, Integer] = labelCounters.updated(label, oldCounter + 1)
       new TracerContext(traceInfo, newLabelCounters, traceNodes, trace)
-  }
-
-  /*
-   * Static analysis optimizations
-   */
-
-  def applyStaticAnalysisOptimization(label : Label, tc : TracerContext, output : HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]) : TracerContext = {
-    val traceNode = getTrace(tc, label)
-    val optimizedTrace = traceOptimizer.applyStaticAnalysisOptimization(traceNode.trace, output)
-    replaceTrace(tc, label, optimizedTrace)
   }
 
 }

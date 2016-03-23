@@ -37,14 +37,21 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       if (pair._1) { function(traceFull) } else { traceFull }})
   }
 
-  def optimize(trace : TraceFull, boundVariables : List[String]) : TraceFull = {
+  def optimize(trace : TraceFull, boundVariables : List[String], someAnalysisOutput : Option[AnalysisOutput]) : TraceFull = {
     println(s"Size of unoptimized trace = ${trace.trace.length}")
     if (TracerFlags.APPLY_OPTIMIZATIONS) {
       val basicAssertedOptimizedTrace = foldOptimisations(trace, basicOptimizations)
       println(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}")
       val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations(boundVariables))
       println(s"Size of detailed optimized trace = ${tier2AssertedOptimizedTrace.trace.length}")
-      val finalAssertedOptimizedTrace = removeFunCallBlockActions(tier2AssertedOptimizedTrace)
+      val tier3AssertedOptimizedTrace = someAnalysisOutput match {
+        case Some(analysisOutput) =>
+          applyStaticAnalysisOptimization(tier2AssertedOptimizedTrace, analysisOutput)
+        case None =>
+          tier2AssertedOptimizedTrace
+      }
+      println(s"Size of statically optimized trace = ${tier3AssertedOptimizedTrace.trace.length}")
+      val finalAssertedOptimizedTrace = removeFunCallBlockActions(tier3AssertedOptimizedTrace)
       println(s"Size of final optimized trace = ${finalAssertedOptimizedTrace.trace.length}")
       finalAssertedOptimizedTrace
     } else {
