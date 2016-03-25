@@ -4,8 +4,6 @@
 class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
     (sem : SemanticsTraced[Exp, Abs, Addr, Time], traceOptimizer : TraceOptimizer[Exp, Abs, Addr, Time], hybridMachine: HybridMachine[Exp, Time]) {
 
-  val PRINT_ENTIRE_TRACE = false
-
   val semantics = sem
   type Label = semantics.Label
   type InstructionReturn = semantics.InstructionReturn
@@ -51,7 +49,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     val traceNodeAddedTc = addTrace(finishedTracerContext, someAnalysisOutput)
     val newTrace = getTrace(traceNodeAddedTc, tracerContext.traceInfo.get.label).trace
     println(s"Complete trace")
-    if (PRINT_ENTIRE_TRACE) {
+    if (TracerFlags.PRINT_ENTIRE_TRACE) {
       println("------------ START TRACE ------------")
       println("------------- ASSERTIONS ------------")
       for (action <- newTrace.assertions) {
