@@ -60,7 +60,7 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
   class InvalidArityException extends Exception
 
   @throws(classOf[InvalidArityException])
-  def bindClosureArgs(clo : Abs, argsv : List[(Exp, Abs)], σ : Store[Addr, Abs], t : Time) : Set[(Environment[Addr], Store[Addr, Abs])]
+  def bindClosureArgs(clo : Abs, argsv : List[(Exp, Abs)], σ : Store[Addr, Abs], t : Time) : Set[(Environment[Addr], Store[Addr, Abs], Exp)]
 
   type Label = List[Exp]
 

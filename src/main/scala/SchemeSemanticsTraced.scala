@@ -198,7 +198,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     }
     case SchemeFuncall(f, args) => Set(interpreterReturn(List(actionStartFunCall, actionSaveEnv, ActionPushTraced(f, FrameFuncallOperator(f, args, ρ)))))
     case SchemeIdentifier(name) => ρ.lookup(name) match {
-      case Some(a) => Set(interpreterReturn(List(ActionLookupVariableTraced(name, Set[Addr](a)), actionPopKont))) /* reads on a */
+      case Some(a) => Set(interpreterReturn(List(ActionLookupVariableTraced(name), actionPopKont))) /* reads on a */
       case None => Set(interpreterReturn(List(ActionErrorTraced(s"Unbound variable: $name"))))
     }
     case SchemeIf(cond, cons, alt) => Set(interpreterReturn(List(actionSaveEnv, ActionPushTraced(cond, FrameIf(cons, alt)))))
@@ -318,11 +318,13 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
   def parse(program: String): SchemeExp = Scheme.parse(program)
 
-  def bindClosureArgs(clo : Abs, argsv : List[(SchemeExp, Abs)], σ : Store[Addr, Abs], t : Time) : Set[(Environment[Addr], Store[Addr, Abs])] = {
+  def bindClosureArgs(clo : Abs, argsv : List[(SchemeExp, Abs)], σ : Store[Addr, Abs], t : Time) : Set[(Environment[Addr], Store[Addr, Abs], SchemeExp)] = {
     abs.getClosures[SchemeExp, Addr](clo).map({
       case (SchemeLambda(args, body), ρ1) =>
         if (args.length == argsv.length) {
-          bindArgs(args.zip(argsv), ρ1, σ, t)
+          val (ρ2, σ2) = bindArgs(args.zip(argsv), ρ1, σ, t)
+          val formattedBody = if (body.length == 1) { body.head } else { SchemeBegin(body) }
+          (ρ2, σ2, formattedBody)
         } else {
           throw new InvalidArityException
         }

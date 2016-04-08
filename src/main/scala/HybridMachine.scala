@@ -163,16 +163,16 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   def doActionStepInTraced(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : ProgramState = state match {
     case ProgramState(control, ρ, σ, kstore, a, t, v, vStack) =>
       action match {
-        case ActionStepInTraced(fexp, e, args, argsv, n, frame, _, _) =>
-          val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
+        case ActionStepInTraced(fexp, _, _, argsv, n, frame, _, _) =>
           val (vals, newVStack) = popStackItems(vStack, n)
           val clo = vals.last.getVal
           try {
-            val (ρ2, σ2) = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.getVal)), σ, t).head
+            val (ρ2, σ2, e) = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.getVal)), σ, t).head
+            val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
             ProgramState(ControlEval(e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, StoreEnv(ρ2) :: newVStack)
           } catch {
             case e: sem.InvalidArityException =>
-              ProgramState(ControlError(s"Arity error when calling $fexp. (${args.length} arguments expected, got ${n - 1})"), ρ, σ, kstore, a, t, v, newVStack)
+              ProgramState(ControlError(s"Arity error when calling $fexp. got ${n - 1})"), ρ, σ, kstore, a, t, v, newVStack)
           }
       }
   }
