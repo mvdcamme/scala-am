@@ -530,7 +530,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   val TE = ExecutionPhase.TE
   val TR = ExecutionPhase.TR
 
-  case class ExecutionState(ep: ExecutionPhase.Value, ps : ProgramState, tc : tracerContext.TracerContext, tn : Option[tracerContext.TraceNode]) {
+  case class ExecutionState(ep: ExecutionPhase.Value, ps : ProgramState)(tc : tracerContext.TracerContext, tn : Option[tracerContext.TraceNode]) {
 
     type InterpreterReturn = SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time]#InterpreterReturn
 
@@ -568,7 +568,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       println(s"Trace with label $label already exists; EXECUTING TRACE")
       val traceNode = tracerContext.getTrace(tc, label)
       val assertions = traceNode.trace.assertions
-      ExecutionState(TE, state, tc, Some(traceNode))
+      ExecutionState(TE, state)(tc, Some(traceNode))
     }
 
     def doTraceExecutingStep() : Set[ExecutionState] = {
@@ -576,15 +576,15 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       val instructionStep = applyAction(ps, traceHead)
       instructionStep match {
         case NormalInstructionStep(newPs, _) =>
-          Set(ExecutionState(ep, newPs, tc, Some(updatedTraceNode)))
+          Set(ExecutionState(ep, newPs)(tc, Some(updatedTraceNode)))
         case GuardFailed(rp) =>
           println(s"Guard $traceHead failed")
           val psRestarted = restart(rp, ps)
-          Set(ExecutionState(NI, psRestarted, tc, None))
+          Set(ExecutionState(NI, psRestarted)(tc, None))
         case TraceEnded(rp) =>
           println("Non-looping trace finished executing")
           val psRestarted = restart(rp, ps)
-          Set(ExecutionState(NI, psRestarted, tc, None))
+          Set(ExecutionState(NI, psRestarted)(tc, None))
       }
     }
 
@@ -592,13 +592,13 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
     def continueWithProgramState(state : ProgramState, trace : sem.Trace) : ExecutionState = {
       val updatedPs = applyTrace(state, trace)
-      ExecutionState(ep, updatedPs, tc, tn)
+      ExecutionState(ep, updatedPs)(tc, tn)
     }
 
     def continueWithProgramStateTracing(state : ProgramState, trace : sem.Trace) : ExecutionState = {
       val (newState, traceWithInfos) = applyTraceAndGetStates(ps, trace)
       val traceAppendedTc = tracerContext.appendTrace(tc, traceWithInfos)
-      ExecutionState(ep, newState, traceAppendedTc, tn)
+      ExecutionState(ep, newState)(traceAppendedTc, tn)
     }
 
     def canStartLoopEncounteredRegular(newState : ProgramState, trace : sem.Trace, label : sem.Label) : ExecutionState = {
@@ -608,7 +608,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         if (checkTraceAssertions(newState, newTc, label)) {
           startExecutingTrace(newState, newTc, label)
         } else {
-          ExecutionState(NI, newState, newTc, tn)
+          ExecutionState(NI, newState)(newTc, tn)
         }
       } else if (TracerFlags.DO_TRACING && labelCounter >= TRACING_THRESHOLD) {
         println(s"Started tracing $label")
@@ -617,9 +617,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
           case _ => None /* Should not happen */
         })
         val tcTRStarted = tracerContext.startTracingLabel(newTc, label, someBoundVariables.getOrElse(List[String]()), newState)
-        ExecutionState(TR, newState, tcTRStarted, tn)
+        ExecutionState(TR, newState)(tcTRStarted, tn)
       } else {
-        ExecutionState(NI, newState, newTc, tn)
+        ExecutionState(NI, newState)(newTc, tn)
       }
     }
 
@@ -633,7 +633,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         val tcTRStopped = tracerContext.stopTracing(traceAppendedTc, true, None, analysisOutput)
         startExecutingTrace(newState, tcTRStopped, label)
       } else {
-        ExecutionState(ep, newState, traceAppendedTc, tn)
+        ExecutionState(ep, newState)(traceAppendedTc, tn)
       }
     }
 
@@ -646,10 +646,10 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         val traceEndedInstruction = sem.endTraceInstruction(RestartTraceEnded())
         val analysisOutput = findAnalysisOutput(newState)
         val tcTRStopped = tracerContext.stopTracing(tc, false, Some(traceEndedInstruction), analysisOutput)
-        ExecutionState(NI, newState, tcTRStopped, tn)
+        ExecutionState(NI, newState)(tcTRStopped, tn)
       } else {
         val traceAppendedTc = tracerContext.appendTrace(tc, traceWithStates)
-        ExecutionState(TR, newState, traceAppendedTc, tn)
+        ExecutionState(TR, newState)(traceAppendedTc, tn)
       }
     }
 
@@ -724,7 +724,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
           case ControlError(_) => "#FF0000"
         }}, _.toString.take(20))
       case None =>
-        println("Not generating graph because no graph was computed")
+      println("Not generating graph because no graph was computed")
     }
   }
 
@@ -743,13 +743,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
                    halted: Set[ExecutionState], startingTime: Long, graph: Option[Graph[ProgramState, String]]): AAMOutput[String] = {
     todo.headOption match {
       case Some(s) =>
-        if (visited.contains(s)) {
-          /* If we already visited the state, or if it is subsumed by another already
-           * visited state, we ignore it. The subsumption part reduces the
-           * number of visited states but leads to non-determinism due to the
-           * non-determinism of Scala's headOption (it seems so at least). */
-          loop(todo.tail, visited, halted, startingTime, graph)
-        } else if (s.ps.halted) {
+        if (s.ps.halted) {
           /* If the state is a final state, add it to the list of final states and
            * continue exploring the graph */
           loop(todo.tail, visited + s, halted + s, startingTime, graph)
@@ -836,7 +830,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   }
 
   def injectExecutionState(exp : Exp) : ExecutionState =
-    new ExecutionState(NI, new ProgramState(exp), tracerContext.newTracerContext, None)
+    new ExecutionState(NI, new ProgramState(exp))(tracerContext.newTracerContext, None)
 
   /**
    * Performs the evaluation of an expression, possibly writing the output graph
