@@ -1,5 +1,6 @@
 import scala.io.StdIn
 import Timestamps._
+import java.io._
 
 /**
  * This is the entry point. It parses the arguments, parses the input file and
@@ -97,6 +98,15 @@ object Config {
 
 object Main {
 
+  var currentProgram : String = ""
+
+  def printExecutionTimes[Abs : AbstractValue](result: Output[Abs]): Unit = {
+    val file = new File("benchmark_times.txt")
+    val bw = new BufferedWriter(new FileWriter(file, true))
+    bw.write(s"$currentProgram: ${result.time}\n")
+    bw.close()
+  }
+
   /**
    *
    */
@@ -111,6 +121,9 @@ object Main {
       case None => ()
     }
     println(s"Visited ${result.numberOfStates} states in ${result.time} seconds, ${result.finalValues.size} possible results: ${result.finalValues}")
+    if (TracerFlags.PRINT_EXECUTION_TIME) {
+      printExecutionTimes(result)
+    }
   }
 
   /** Run a machine on a program with the given semantics. If @param output is
@@ -201,7 +214,7 @@ object Main {
         try {
           do {
             val program = config.file match {
-              case Some(file) => fileContent(file)
+              case Some(file) => currentProgram = file; fileContent(file)
               case None => StdIn.readLine(">>> ")
             }
             if (program == null) throw Done
