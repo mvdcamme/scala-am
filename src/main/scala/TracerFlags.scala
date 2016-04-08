@@ -3,11 +3,13 @@
   */
 object TracerFlags {
 
-  val DO_TRACING = true
+  val DO_TRACING = false
 
-  val APPLY_OPTIMIZATIONS = true
-  val SWITCH_ABSTRACT = true
+  val APPLY_OPTIMIZATIONS = false
+  val SWITCH_ABSTRACT = false
 
-  val PRINT_ENTIRE_TRACE = true
+  val PRINT_ENTIRE_TRACE = false
   val PRINT_ACTIONS_EXECUTED = false
+
+  val PRINT_EXECUTION_TIME = false
 }
