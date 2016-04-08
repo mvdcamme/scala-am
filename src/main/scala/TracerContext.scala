@@ -48,7 +48,6 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     }
     val traceNodeAddedTc = addTrace(finishedTracerContext, someAnalysisOutput)
     val newTrace = getTrace(traceNodeAddedTc, tracerContext.traceInfo.get.label).trace
-    println(s"Complete trace")
     if (TracerFlags.PRINT_ENTIRE_TRACE) {
       println("------------ START TRACE ------------")
       println("------------- ASSERTIONS ------------")
@@ -88,7 +87,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
 
   def appendTrace(tracerContext: TracerContext, newPart : Trace) : TracerContext =
     new TracerContext(tracerContext.traceInfo, tracerContext.labelCounters, tracerContext.traceNodes,
-                      tracerContext.trace ++ newPart)
+                      newPart.reverse ++ tracerContext.trace)
 
   private def clearTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
     case TracerContext(_, labelCounters, traceNodes, _) =>
@@ -134,8 +133,8 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
 
   private def addTrace(tracerContext: TracerContext, someAnalysisOutput: Option[AnalysisOutput]) : TracerContext = tracerContext match {
     case TracerContext(traceInfo, labelCounters, traceNodes, trace) =>
-      val traceFull = hybridMachine.TraceFull(traceInfo.get.startState, List(), trace)
-      val optimizedTraceFull : TraceFull = traceOptimizer.optimize(traceFull, traceInfo.get.boundVariables, someAnalysisOutput)
+      val traceFull = hybridMachine.TraceFull(traceInfo.get.startState, List(), trace.reverse)
+      val optimizedTraceFull : TraceFull = if (TracerFlags.APPLY_OPTIMIZATIONS) { traceOptimizer.optimize(traceFull, traceInfo.get.boundVariables, someAnalysisOutput) } else { traceFull }
       new TracerContext(traceInfo, labelCounters, new TraceNode(traceInfo.get.label, optimizedTraceFull) :: traceNodes, trace)
   }
 
