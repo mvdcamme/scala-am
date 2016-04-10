@@ -247,7 +247,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
           if (lam1 == lam2) {
             NormalInstructionStep(state, guard)
           } else {
-            println(s"Closure guard failed: recorded closure $lam1 does not match current closure $lam2")
+            //println(s"Closure guard failed: recorded closure $lam1 does not match current closure $lam2")
             GuardFailed(guard.rp)
           }
         case (HybridLattice.Right(_), HybridLattice.Right(_)) =>
@@ -261,7 +261,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       if (guard.recordedPrimitive == currentPrimitive) {
         NormalInstructionStep(state, guard)
       } else {
-        println(s"Primitive guard failed: recorded primitive ${guard.recordedPrimitive} does not match current primitive $currentPrimitive")
+        //println(s"Primitive guard failed: recorded primitive ${guard.recordedPrimitive} does not match current primitive $currentPrimitive")
         GuardFailed(guard.rp)
       }
     }
@@ -303,6 +303,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       case ActionLookupVariableTraced(varName, _, _) =>
         val newV = σ.lookup(ρ.lookup(varName).get)
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, vStack), action)
+      case ActionLookupVariablePushTraced(varName, _, _) =>
+        val newV = σ.lookup(ρ.lookup(varName).get)
+        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, StoreVal(newV) :: vStack), action)
       case ActionPopKontTraced() =>
         val next = if (a == HaltKontAddress) { HaltKontAddress } else { kstore.lookup(a).head.next }
         NormalInstructionStep(ProgramState(ControlKont(a), ρ, σ, kstore, next, t, v, vStack), action)
@@ -318,6 +321,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreVal(v) :: vStack), action)
       case ActionReachedValueTraced(lit, _, _) =>
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, lit, vStack), action)
+      case ActionReachedValuePushTraced(lit, _, _) =>
+        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, lit, StoreVal(lit) :: vStack), action)
       case ActionRestoreEnvTraced() =>
         try {
           val (newρ, newVStack) = popStack(vStack)
@@ -565,7 +570,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
 
     def startExecutingTrace(state : ProgramState, tc : tracerContext.TracerContext, label : tracerContext.Label): ExecutionState = {
-      println(s"Trace with label $label already exists; EXECUTING TRACE")
+      //println(s"Trace with label $label already exists; EXECUTING TRACE")
       val traceNode = tracerContext.getTrace(tc, label)
       val assertions = traceNode.trace.assertions
       ExecutionState(TE, state)(tc, Some(traceNode))
@@ -578,11 +583,11 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         case NormalInstructionStep(newPs, _) =>
           Set(ExecutionState(ep, newPs)(tc, Some(updatedTraceNode)))
         case GuardFailed(rp) =>
-          println(s"Guard $traceHead failed")
+          //println(s"Guard $traceHead failed")
           val psRestarted = restart(rp, ps)
           Set(ExecutionState(NI, psRestarted)(tc, None))
         case TraceEnded(rp) =>
-          println("Non-looping trace finished executing")
+          //println("Non-looping trace finished executing")
           val psRestarted = restart(rp, ps)
           Set(ExecutionState(NI, psRestarted)(tc, None))
       }
@@ -611,7 +616,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
           ExecutionState(NI, newState)(newTc, tn)
         }
       } else if (TracerFlags.DO_TRACING && labelCounter >= TRACING_THRESHOLD) {
-        println(s"Started tracing $label")
+        //println(s"Started tracing $label")
         val someBoundVariables = trace.find(_.isInstanceOf[ActionStepInTraced[Exp, HybridValue, HybridAddress]]).flatMap({
           case ActionStepInTraced(_, _, args, _, _, _, _, _) => Some(args)
           case _ => None /* Should not happen */
@@ -627,7 +632,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       val traceAppendedTc = tracerContext.appendTrace(tc, traceWithStates)
       if (tracerContext.isTracingLabel(traceAppendedTc, label)) {
-        println(s"Stopped tracing $label; LOOP DETECTED")
+        //println(s"Stopped tracing $label; LOOP DETECTED")
         numberOfTracesRecorded += 1
         val analysisOutput = findAnalysisOutput(newState)
         val tcTRStopped = tracerContext.stopTracing(traceAppendedTc, true, None, analysisOutput)
@@ -641,7 +646,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
                                      restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], label : sem.Label) : ExecutionState = {
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       if (tracerContext.isTracingLabel(tc, label)) {
-        println(s"Stopped tracing $label; NO LOOP DETECTED")
+        //println(s"Stopped tracing $label; NO LOOP DETECTED")
         numberOfTracesRecorded += 1
         val traceEndedInstruction = sem.endTraceInstruction(RestartTraceEnded())
         val analysisOutput = findAnalysisOutput(newState)

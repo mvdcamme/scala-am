@@ -21,6 +21,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   val APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
   val APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
   val APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
+  val APPLY_OPTIMIZATION_MERGE_ACTIONS = true
 
   val basicOptimizations : List[(Boolean, (TraceFull => TraceFull))] =
     List((APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
@@ -29,7 +30,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   def detailedOptimizations(boundVariables : List[String]) : List[(Boolean, (TraceFull => TraceFull))] =
     List((APPLY_OPTIMIZATION_VARIABLE_FOLDING, optimizeVariableFolding(boundVariables)),
          (APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)),
-         (APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, optimizeTypeSpecialization(_)))
+         (APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, optimizeTypeSpecialization(_)),
+         (APPLY_OPTIMIZATION_MERGE_ACTIONS, optimizeMergeActions(_)))
 
   def foldOptimisations(traceFull: TraceFull, optimisations : List[(Boolean, (TraceFull => TraceFull))]) : TraceFull = {
     optimisations.foldLeft(traceFull)({ (traceFull, pair) =>
@@ -43,7 +45,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       val basicAssertedOptimizedTrace = foldOptimisations(trace, basicOptimizations)
       println(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}")
       val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations(boundVariables))
-      println(s"Size of detailed optimized trace = ${tier2AssertedOptimizedTrace.trace.length}")
+      println(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}")
       val tier3AssertedOptimizedTrace = someAnalysisOutput match {
         case Some(analysisOutput) =>
           applyStaticAnalysisOptimization(tier2AssertedOptimizedTrace, analysisOutput)
@@ -411,6 +413,25 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   }
 
   /********************************************************************************************************************
+   *                                              SUPERACTION OPTIMIZATION                                            *
+   ********************************************************************************************************************/
+
+  def optimizeMergeActions(traceFull : TraceFull) : TraceFull = {
+    def loop(trace: Trace) : Trace = trace match {
+      case Nil => Nil
+      case (ActionLookupVariableTraced(varName, read, write), s1) :: (ActionPushValTraced(), s2) :: rest =>
+        (ActionLookupVariablePushTraced[Exp, HybridValue, HybridAddress](varName, read, write), s2) :: loop(rest)
+      case (ActionReachedValueTraced(lit, read, write), s1) :: (ActionPushValTraced(), s2) :: rest =>
+        (ActionReachedValuePushTraced[Exp, HybridValue, HybridAddress](lit, read, write), s2) :: loop(rest)
+      case otherAction :: rest =>
+        otherAction :: loop(rest)
+    }
+
+    val optimizedTrace = loop(traceFull.trace)
+    constructedFulltTrace(traceFull, optimizedTrace)
+  }
+
+  /********************************************************************************************************************
    *                                       FUNCALL BLOCK FILTERING OPTIMIZATION                                       *
    ********************************************************************************************************************/
 
@@ -432,8 +453,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   type AnalysisOutput = HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]
 
-  val APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS = true
-  val APPLY_OPTIMIZATION_DEAD_STORE_ELIMINATION = true
+  val APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS = false
+  val APPLY_OPTIMIZATION_DEAD_STORE_ELIMINATION = false
 
   val staticAnalysisOptimisations : List[(Boolean, (TraceFull, AnalysisOutput) => TraceFull)] =
     List((APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS, optimizeVariableFoldingAssertions(_, _)),

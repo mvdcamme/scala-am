@@ -111,7 +111,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   def stepTrace(traceNode: TraceNode, tracerContext: TracerContext) : (TraceInstruction, TraceNode) = {
     var currentTraceNode = traceNode
     def resetTrace() = {
-      println("Resetting the trace")
+      //println("Resetting the trace")
       currentTraceNode = getTrace(tracerContext, traceNode.label)
     }
 

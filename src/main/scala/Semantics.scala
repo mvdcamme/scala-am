@@ -283,9 +283,12 @@ case class ActionGuardSamePrimitive[Exp : Expression, Abs : AbstractValue, Addr 
 * Waits for the execution of a thread, with tid as its identifier.
 */
 case class ActionJoinTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(tid: Abs, σ: Store[Addr, Abs],
+  (tid: Abs, σ: Store[Addr, Abs],
 read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-case class ActionLookupVariableTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionLookupVariableTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionLookupVariablePushTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionPopKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionPrimCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
 /**
@@ -300,7 +303,9 @@ case class ActionPushValTraced[Exp : Expression, Abs : AbstractValue, Addr : Add
 * popped with the given reached value.
 */
 case class ActionReachedValueTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(v: Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (v: Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionReachedValuePushTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (v : Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionRestoreEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionSaveEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionSetVarTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](variable : String) extends Action[Exp, Abs, Addr]
@@ -309,7 +314,7 @@ case class ActionSetVarTraced[Exp : Expression, Abs : AbstractValue, Addr : Addr
 * thread continues its execution by performing action act.
 */
 case class ActionSpawnTraced[TID : ThreadIdentifier, Exp : Expression, Abs : AbstractValue, Addr : Address]
-(t: TID, e: Exp, ρ: Environment[Addr], act: Action[Exp, Abs, Addr],
+  (t: TID, e: Exp, ρ: Environment[Addr], act: Action[Exp, Abs, Addr],
 read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionSpecializePrimitive[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (expectedType : AbstractType, primitive: Abs, originalPrimitive : Abs, n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
@@ -319,6 +324,6 @@ case class ActionSpecializePrimitive[Exp : Expression, Abs : AbstractValue, Addr
 * also be provided, as they can be needed by the abstract machine.
 */
 case class ActionStepInTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(fexp: Exp, e: Exp, args : List[String], argsv : List[Exp], n : Integer,
+  (fexp: Exp, e: Exp, args : List[String], argsv : List[Exp], n : Integer,
 frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionStartFunCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
