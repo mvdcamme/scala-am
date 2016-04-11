@@ -4,6 +4,7 @@
 object TracerFlags {
 
   val DO_TRACING = true
+  val TRACING_THRESHOLD = 0
 
   val APPLY_OPTIMIZATIONS = true
   val SWITCH_ABSTRACT = false

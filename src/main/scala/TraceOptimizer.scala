@@ -18,10 +18,10 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   val APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
   val APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
-  val APPLY_OPTIMIZATION_CONSTANT_FOLDING = false
-  val APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = false
-  val APPLY_OPTIMIZATION_VARIABLE_FOLDING = false
-  val APPLY_OPTIMIZATION_MERGE_ACTIONS = false
+  val APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
+  val APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
+  val APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
+  val APPLY_OPTIMIZATION_MERGE_ACTIONS = true
 
   val basicOptimizations : List[(Boolean, (TraceFull => TraceFull))] =
     List((APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
@@ -40,21 +40,21 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   }
 
   def optimize(trace : TraceFull, boundVariables : List[String], someAnalysisOutput : Option[AnalysisOutput]) : TraceFull = {
-    println(s"Size of unoptimized trace = ${trace.trace.length}")
+    Logger.log(s"Size of unoptimized trace = ${trace.trace.length}", Logger.V)
     if (TracerFlags.APPLY_OPTIMIZATIONS) {
       val basicAssertedOptimizedTrace = foldOptimisations(trace, basicOptimizations)
-      println(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}")
+      Logger.log(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}", Logger.V)
       val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations(boundVariables))
-      println(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}")
+      Logger.log(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}", Logger.V)
       val tier3AssertedOptimizedTrace = someAnalysisOutput match {
         case Some(analysisOutput) =>
           applyStaticAnalysisOptimization(tier2AssertedOptimizedTrace, analysisOutput)
         case None =>
           tier2AssertedOptimizedTrace
       }
-      println(s"Size of statically optimized trace = ${tier3AssertedOptimizedTrace.trace.length}")
+      Logger.log(s"Size of statically optimized trace = ${tier3AssertedOptimizedTrace.trace.length}", Logger.V)
       val finalAssertedOptimizedTrace = removeFunCallBlockActions(tier3AssertedOptimizedTrace)
-      println(s"Size of final optimized trace = ${finalAssertedOptimizedTrace.trace.length}")
+      Logger.log(s"Size of final optimized trace = ${finalAssertedOptimizedTrace.trace.length}", Logger.V)
       finalAssertedOptimizedTrace
     } else {
       trace
@@ -507,8 +507,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case _ => List() })
     val assignedFreeVariables = findAssignedFreeVariables(freeVariables, output)
     val optimizedAssertions = filterUnassignedFreeVariables(assertions, assignedFreeVariables)
-    println(s"Unoptimized assertions: ${assertions.length}")
-    println(s"Optimized assertions: ${optimizedAssertions.length}")
+    Logger.log(s"Unoptimized assertions: ${assertions.length}", Logger.V)
+    Logger.log(s"Optimized assertions: ${optimizedAssertions.length}", Logger.V)
     hybridMachine.TraceFull(trace.startProgramState, optimizedAssertions, trace.trace)
   }
 
@@ -518,7 +518,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   private def optimizeDeadStoreElimination(traceFull: TraceFull, output: AnalysisOutput) : TraceFull = {
     var deadVariables = variableAnalyzer.analyzeDeadVariables(traceFull.trace)
-    println(s"Dead variables in the trace $deadVariables")
+    Logger.log(s"Dead variables in the trace $deadVariables", Logger.V)
     for ((_, transitions) <- output.graph.get.edges) {
       for ((trace, _) <- transitions) {
         trace.foreach({
@@ -530,7 +530,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
         })
       }
     }
-    println(s"All truly dead variables: $deadVariables")
+    Logger.log(s"All truly dead variables: $deadVariables", Logger.V)
     traceFull
   }
 

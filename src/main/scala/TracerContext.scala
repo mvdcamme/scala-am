@@ -49,16 +49,16 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     val traceNodeAddedTc = addTrace(finishedTracerContext, someAnalysisOutput)
     val newTrace = getTrace(traceNodeAddedTc, tracerContext.traceInfo.get.label).trace
     if (TracerFlags.PRINT_ENTIRE_TRACE) {
-      println("------------ START TRACE ------------")
-      println("------------- ASSERTIONS ------------")
+      Logger.log("------------ START TRACE ------------", Logger.E)
+      Logger.log("------------- ASSERTIONS ------------", Logger.E)
       for (action <- newTrace.assertions) {
-        println(action)
+        Logger.log(action, Logger.E)
       }
-      println("-------------- ACTIONS --------------")
+      Logger.log("-------------- ACTIONS --------------", Logger.E)
       for (action <- newTrace.trace) {
-        println(action)
+        Logger.log(action, Logger.E)
       }
-      println("------------ END TRACE ------------")
+      Logger.log("------------ END TRACE ------------", Logger.E)
     }
     clearTrace(traceNodeAddedTc)
   }
@@ -111,7 +111,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   def stepTrace(traceNode: TraceNode, tracerContext: TracerContext) : (TraceInstruction, TraceNode) = {
     var currentTraceNode = traceNode
     def resetTrace() = {
-      //println("Resetting the trace")
+      Logger.log("Resetting the trace", Logger.D)
       currentTraceNode = getTrace(tracerContext, traceNode.label)
     }
 

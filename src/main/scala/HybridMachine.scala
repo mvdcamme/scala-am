@@ -34,8 +34,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   
   def name = "HybridMachine"
 
-  val TRACING_THRESHOLD = 0
-
   /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
   val primitives = new Primitives[HybridAddress, HybridValue]()
 
@@ -247,7 +245,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
           if (lam1 == lam2) {
             NormalInstructionStep(state, guard)
           } else {
-            //println(s"Closure guard failed: recorded closure $lam1 does not match current closure $lam2")
+            Logger.log(s"Closure guard failed: recorded closure $lam1 does not match current closure $lam2", Logger.D)
             GuardFailed(guard.rp)
           }
         case (HybridLattice.Right(_), HybridLattice.Right(_)) =>
@@ -261,7 +259,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       if (guard.recordedPrimitive == currentPrimitive) {
         NormalInstructionStep(state, guard)
       } else {
-        //println(s"Primitive guard failed: recorded primitive ${guard.recordedPrimitive} does not match current primitive $currentPrimitive")
+        Logger.log(s"Primitive guard failed: recorded primitive ${guard.recordedPrimitive} does not match current primitive $currentPrimitive", Logger.D)
         GuardFailed(guard.rp)
       }
     }
@@ -554,7 +552,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
                   if (currentValue == expectedValue) {
                     true
                   } else {
-                    println(s"Variable $variableName with current value $currentValue does not match its expected value $expectedValue")
+                    Logger.log(s"Variable $variableName with current value $currentValue does not match its expected value $expectedValue", Logger.V)
                     false
                   }
                 case None => false
@@ -570,7 +568,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
 
     def startExecutingTrace(state : ProgramState, tc : tracerContext.TracerContext, label : tracerContext.Label): ExecutionState = {
-      //println(s"Trace with label $label already exists; EXECUTING TRACE")
+      Logger.log(s"Trace with label $label already exists; EXECUTING TRACE", Logger.D)
       val traceNode = tracerContext.getTrace(tc, label)
       val assertions = traceNode.trace.assertions
       ExecutionState(TE, state)(tc, Some(traceNode))
@@ -583,11 +581,11 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         case NormalInstructionStep(newPs, _) =>
           Set(ExecutionState(ep, newPs)(tc, Some(updatedTraceNode)))
         case GuardFailed(rp) =>
-          //println(s"Guard $traceHead failed")
+          Logger.log(s"Guard $traceHead failed", Logger.D)
           val psRestarted = restart(rp, ps)
           Set(ExecutionState(NI, psRestarted)(tc, None))
         case TraceEnded(rp) =>
-          //println("Non-looping trace finished executing")
+          Logger.log("Non-looping trace finished executing", Logger.D)
           val psRestarted = restart(rp, ps)
           Set(ExecutionState(NI, psRestarted)(tc, None))
       }
@@ -615,8 +613,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         } else {
           ExecutionState(NI, newState)(newTc, tn)
         }
-      } else if (TracerFlags.DO_TRACING && labelCounter >= TRACING_THRESHOLD) {
-        //println(s"Started tracing $label")
+      } else if (TracerFlags.DO_TRACING && labelCounter >= TracerFlags.TRACING_THRESHOLD) {
+        Logger.log(s"Started tracing $label", Logger.I)
         val someBoundVariables = trace.find(_.isInstanceOf[ActionStepInTraced[Exp, HybridValue, HybridAddress]]).flatMap({
           case ActionStepInTraced(_, _, args, _, _, _, _, _) => Some(args)
           case _ => None /* Should not happen */
@@ -632,7 +630,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       val traceAppendedTc = tracerContext.appendTrace(tc, traceWithStates)
       if (tracerContext.isTracingLabel(traceAppendedTc, label)) {
-        //println(s"Stopped tracing $label; LOOP DETECTED")
+        Logger.log(s"Stopped tracing $label; LOOP DETECTED", Logger.I)
         numberOfTracesRecorded += 1
         val analysisOutput = findAnalysisOutput(newState)
         val tcTRStopped = tracerContext.stopTracing(traceAppendedTc, true, None, analysisOutput)
@@ -646,7 +644,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
                                      restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], label : sem.Label) : ExecutionState = {
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       if (tracerContext.isTracingLabel(tc, label)) {
-        //println(s"Stopped tracing $label; NO LOOP DETECTED")
+        Logger.log(s"Stopped tracing $label; NO LOOP DETECTED", Logger.I)
         numberOfTracesRecorded += 1
         val traceEndedInstruction = sem.endTraceInstruction(RestartTraceEnded())
         val analysisOutput = findAnalysisOutput(newState)
@@ -729,7 +727,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
           case ControlError(_) => "#FF0000"
         }}, _.toString.take(20))
       case None =>
-      println("Not generating graph because no graph was computed")
+        Logger.log("Not generating graph because no graph was computed", Logger.E)
     }
   }
 
@@ -746,11 +744,11 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   private def loop(s: ExecutionState, nrVisited: Integer, startingTime: Long, graph: Option[Graph[ProgramState, String]]): AAMOutput[String] = {
     def endEvalLoop(): AAMOutput[String] = {
       if (TracerFlags.PRINT_ACTIONS_EXECUTED) {
-        println("####### actions executed #######")
+        Logger.log("####### actions executed #######", Logger.E)
         for (ac <- ACTIONS_EXECUTED) {
-          println(ac)
+          Logger.log(ac, Logger.E)
         }
-        println("####### actions executed #######")
+        Logger.log("####### actions executed #######", Logger.E)
       }
       AAMOutput[String](Set(s.ps), nrVisited,
         (System.nanoTime - startingTime) / Math.pow(10, 9), graph)
@@ -770,7 +768,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   }
 
   private def switchToAbstract(currentProgramState: ProgramState) : AAMOutput[sem.Trace] = {
-    println("HybridMachine switching to abstract")
+    Logger.log("HybridMachine switching to abstract", Logger.E)
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
     val convertedExecutionState = Converter.convertState(currentProgramState)
@@ -781,7 +779,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   }
 
   private def switchToConcrete() : Unit = {
-    println("HybridMachine switching to concrete")
+    Logger.log("HybridMachine switching to concrete", Logger.E)
     HybridLattice.switchToConcrete
     HybridAddress.switchToConcrete
   }
