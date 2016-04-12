@@ -5,6 +5,18 @@
 trait SchemeExp extends scala.util.parsing.input.Positional
 
 /**
+  * An amb expression: (amb exp1 ...).
+  * Used by the non-deterministic, ambiguous, Scheme interpreter. See SICP chapter 4.3.
+  */
+case class SchemeAmb(exps: List[SchemeExp]) extends SchemeExp {
+  override def equals(that: Any) = that.isInstanceOf[SchemeAmb] && pos == that.asInstanceOf[SchemeAmb].pos && super.equals(that)
+  override def toString() = {
+    val expsString = exps.mkString(" ")
+    s"(amb $expsString)"
+  }
+}
+
+/**
  * A lambda expression: (lambda (args...) body...)
  * Not supported: "rest"-arguments, of the form (lambda arg body), or (lambda (arg1 . args) body...)
  */
@@ -235,9 +247,9 @@ case class SchemeJoin(exp: SchemeExp) extends SchemeExp {
 }
 
 /**
- * Object that provides a method to compile an s-expression into a Scheme expression
+ * Trait that provides a method to compile an s-expression into a Scheme expression
  */
-object SchemeCompiler {
+trait SchemeCompiler {
   /**
     * Reserved keywords
     */
@@ -393,6 +405,30 @@ object SchemeCompiler {
       SchemeValue(ValueSymbol(id)).setPos(objects.pos) :: compileCaseObjects(rest)
     case SExpValue(ValueNil()) => Nil
     case _ => throw new Exception(s"Invalid Scheme case objects: $objects")
+  }
+}
+/**
+ * Object that provides a method to compile an s-expression into a Scheme expression
+ */
+object SchemeCompiler extends SchemeCompiler
+
+/**
+ * Object that provides a method to compile an s-expression into an Amb Scheme expression.
+ * Amb Scheme is identical to regular Scheme, except that it contains amb expressions.
+ */
+object AmbSchemeCompiler extends SchemeCompiler {
+
+  /*
+   * Add the amb keyword to the list of reserved identifiers.
+   */
+  override val reserved = "amb" :: super.reserved
+
+  override def compile(exp: SExp): SchemeExp = exp match {
+    case SExpPair("amb", exps) =>
+      val exp2 = SchemeAmb(compileBody(exps))
+      exp2.setPos(exp.pos)
+    case other =>
+      super.compile(other)
   }
 }
 
@@ -651,24 +687,33 @@ object SchemeUndefiner {
   }
 }
 
-object Scheme {
+trait Scheme {
   /**
-   * Compiles a s-expression into a scheme expression
-   */
+    * Compiles a s-expression into a scheme expression
+    */
   def compile(exp: SExp): SchemeExp = SchemeCompiler.compile(exp)
 
   /**
-   * Performs alpha-renaming to ensure that every variable has a unique name
-   */
+    * Performs alpha-renaming to ensure that every variable has a unique name
+    */
   def rename(exp: SchemeExp): SchemeExp = SchemeRenamer.rename(exp)
 
   /**
-   * Replace defines in a program (a list of expressions) by a big letrec as a single expression
-   */
+    * Replace defines in a program (a list of expressions) by a big letrec as a single expression
+    */
   def undefine(exps: List[SchemeExp]): SchemeExp = SchemeUndefiner.undefine(exps)
 
   /**
-   * Parse a string representing a Scheme program
-   */
+    * Parse a string representing a Scheme program
+    */
   def parse(s: String): SchemeExp = undefine(SExpParser.parse(s).map(compile _))
+}
+
+object Scheme extends Scheme {
+
+}
+
+object AmbScheme extends Scheme {
+
+  override def compile(exp: SExp): SchemeExp = SchemeCompiler.compile(exp)
 }
