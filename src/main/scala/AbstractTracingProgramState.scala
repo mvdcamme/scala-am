@@ -4,7 +4,7 @@ trait AbstractTracingProgramState[Exp, Abs, Addr, Time] {
 
   def applyActionAbstract(action: Action[Exp, Abs, Addr]): Set[AbstractTracingProgramState[Exp, Abs, Addr, Time]]
 
-  def stepAbstract(abstractState: AbstractTracingProgramState[Exp, Abs, Addr, Time]): Set[(AbstractTracingProgramState[Exp, Abs, Addr, Time], sem.Trace)]
+  def stepAbstract(): Set[(AbstractTracingProgramState[Exp, Abs, Addr, Time], sem.Trace)]
 
 }
 
@@ -13,7 +13,9 @@ class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteState: Pr
 
   type HybridValue = HybridLattice.Hybrid
 
-  def applyActionAbstract(action : Action[Exp, HybridValue, HybridAddress]): Set[AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]] = {
+  val abs = implicitly[AbstractValue[HybridValue]]
+
+  def applyActionAbstract(action : Action[Exp, HybridValue, HybridAddress]): Set[AbstractProgramState[Exp, Time]] = {
     try {
       action match {
         case ActionPopKontTraced() =>
@@ -50,6 +52,35 @@ class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteState: Pr
            _ : VariableNotFoundException |
            _ : NotAPrimitiveException =>
         Set()
+    }
+  }
+
+  private def applyTraceAbstract(trace : sem.Trace) : Set[(AbstractProgramState[Exp, Time], sem.Trace)] = {
+    val newStates = trace.foldLeft(Set(this))({ (currentStates, action) =>
+      currentStates.flatMap(_.applyActionAbstract(action))
+    })
+    newStates.map({ (newState) => (newState, trace) })
+  }
+
+  private def integrate(a: KontAddr, interpreterReturns: Set[sem.InterpreterReturn]): Set[(AbstractProgramState[Exp, Time], sem.Trace)] = {
+    interpreterReturns.flatMap({itpRet => itpRet match {
+      case sem.InterpreterReturn(trace, _) =>
+        applyTraceAbstract(trace)
+    }})
+  }
+
+  def stepAbstract(): Set[(AbstractProgramState[Exp, Time], sem.Trace)] = {
+    concreteState.control match {
+      /* In a eval state, call the semantic's evaluation method */
+      case TracingControlEval(e) => integrate(concreteState.a, sem.stepEval(e, concreteState.ρ, concreteState.σ, concreteState.t))
+      /* In a continuation state, if the value reached is not an error, call the
+       * semantic's continuation method */
+      case TracingControlKont(_) if abs.isError(concreteState.v) => Set()
+      case TracingControlKont(ka) => concreteState.kstore.lookup(ka).flatMap({
+        case Kont(frame, next) => integrate(next, sem.stepKont(concreteState.v, frame, concreteState.σ, concreteState.t))
+      })
+      /* In an error state, the state is not able to make a step */
+      case TracingControlError(_) => Set()
     }
   }
 

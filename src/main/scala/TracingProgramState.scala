@@ -24,6 +24,8 @@ trait TracingProgramState[Exp, Abs, Addr, Time] {
   def applyAction(action: Action[Exp, Abs, Addr]): InstructionStep[Exp, Abs, Addr, Time]
   def restart(restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): TracingProgramState[Exp, Abs, Addr, Time]
 
+  def runAssertions(assertions: List[Action[Exp, Abs, Addr]]): Boolean
+
   def halted: Boolean
 
   def convertState(): (TracingProgramState[Exp, Abs, Addr, Time], TracingProgramState[Exp, Abs, Addr, Time])
@@ -66,19 +68,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def popStack[A](stack : List[A]) : (A, List[A]) = (stack.head, stack.tail)
   def popStackItems[A](stack : List[A], n : Integer) : (List[A], List[A]) = stack.splitAt(n)
 
-  def restart(restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): TracingProgramState[Exp, HybridValue, HybridAddress, Time] = restartPoint match {
-    case RestartGuardFailed(newControlExp) =>
-      ProgramState(TracingControlEval(newControlExp), ρ, σ, kstore, a, t, v, vStack)
-    case RestartGuardDifferentClosure(action) =>
-      handleClosureRestart(action)
-    case RestartGuardDifferentPrimitive(action) =>
-      handlePrimitiveRestart(action)
-    case RestartTraceEnded() => this
-    case RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps) =>
-      val primAppliedState = applyPrimitive(originalPrim, n, fExp, argsExps)
-      primAppliedState.applyAction(ActionPopKontTraced()).getState
-  }
-
   /**
     * Computes the set of states that follow the current state
     */
@@ -99,7 +88,42 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         Some(set.head)
       case None => None
     }
+  }
 
+  def restart(restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): TracingProgramState[Exp, HybridValue, HybridAddress, Time] = restartPoint match {
+    case RestartGuardFailed(newControlExp) =>
+      ProgramState(TracingControlEval(newControlExp), ρ, σ, kstore, a, t, v, vStack)
+    case RestartGuardDifferentClosure(action) =>
+      handleClosureRestart(action)
+    case RestartGuardDifferentPrimitive(action) =>
+      handlePrimitiveRestart(action)
+    case RestartTraceEnded() => this
+    case RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps) =>
+      val primAppliedState = applyPrimitive(originalPrim, n, fExp, argsExps)
+      primAppliedState.applyAction(ActionPopKontTraced()).getState
+  }
+
+  def runAssertions(assertions: List[Action[Exp, HybridValue, HybridAddress]]): Boolean = {
+    assertions.foldLeft(true)({ (assertionsValid, assertion) =>
+      if (!assertionsValid) {
+        assertionsValid
+      } else {
+        assertion match {
+          case ActionGuardAssertFreeVariable(variableName, expectedValue, _) =>
+            ρ.lookup(variableName) match {
+              case Some(address) =>
+                val currentValue = σ.lookup(address)
+                if (currentValue == expectedValue) {
+                  true
+                } else {
+                  Logger.log(s"Variable $variableName with current value $currentValue does not match its expected value $expectedValue", Logger.V)
+                  false
+                }
+              case None => false
+            }
+        }
+      }
+    })
   }
 
   def doActionStepInTraced(action : Action[Exp, HybridValue, HybridAddress]) : ProgramState[Exp, Time] = action match {
