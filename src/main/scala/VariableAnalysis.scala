@@ -1,4 +1,5 @@
 import scala.collection.mutable.Map
+import scala.collection.mutable.Map
 import scala.collection.mutable.Stack
 
 /**
@@ -10,20 +11,53 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
   type TraceInstructionStates = HybridMachine[Exp, Time]#TraceInstructionInfo
   type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
   type Trace = HybridMachine[Exp, Time]#TraceWithInfos
+  type TraceFull = HybridMachine[Exp, Time]#TraceFull
 
   type HybridValue = HybridLattice.Hybrid
 
-  def analyzeBoundVariables(initialBoundVariables : Set[String], trace : Trace) : List[Set[String]] = {
+  /**
+    * Computes the set of bound variables in the given trace.
+    * @param initialBoundVariables The list of variables, if any, that are initially bound in the trace: e.g.,
+    *                              the parameters of the function being traced.
+    * @param traceFull The trace of which the bound variables must be computed.
+    * @return The set of bound variables in the trace.
+    */
+  def analyzeBoundVariables(initialBoundVariables : Set[String], traceFull : TraceFull) : Set[String] = {
 
+    var currentEnv: Environment[HybridAddress] = traceFull.startProgramState.ρ
+    var vStack: List[Storable] = traceFull.startProgramState.vStack
+
+    /*
+     * The set of variables that are assigned, not defined, to inside of the trace.
+     * I.e., the set of variables involved in an ActionSetVarTraced.
+     */
     var assignedVariables : Set[String] = Set()
 
+    /*
+     * Simulates the environment stack: saving the environment triggers a push of a new, empty, list of vars on this
+     * stack, restoring the environment triggers a pop.
+     *
+     */
     val framesStack : Stack[List[String]] = Stack(List())
 
+    /**
+      * Adds a new bound variable, i.e., because an action is encountered that defines this variable in the environment.
+      * If the variable was not already placed in the boundVariables-set, it is inserted there.
+      * @param varName The name of the bound variable.
+      * @param boundVariables The set of previously encountered bound variables
+      * @return The updated set of bound variables.
+      */
     def addVariable(varName : String, boundVariables : Set[String]) : Set[String] = {
       framesStack.top + varName
       boundVariables + varName
     }
 
+    /**
+      * Adds a list of newly bound variables. Similar to [[addVariable(String, Set[String]].
+      * @param varNames The names of the list of bound variables.
+      * @param boundVariables The set of previously encountered bound variables
+      * @return The updated set of bound variables.
+      */
     def addVariables(varNames : List[String], boundVariables : Set[String]) : Set[String]  = {
       varNames.foldLeft(boundVariables)({ (boundVariables, varName) =>
           addVariable(varName, boundVariables)})
@@ -72,12 +106,10 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
         boundVariables
      }
 
-    val traceBoundVariables = trace.scanLeft(initialBoundVariables)({ (boundVariables, actionState) => handleAction(actionState._1, boundVariables)})
+    val traceBoundVariables = traceFull.trace.scanLeft(initialBoundVariables)({ (boundVariables, actionState) => handleAction(actionState._1, boundVariables)})
     traceBoundVariables.map({ (boundVariables) =>
       boundVariables ++ assignedVariables
-    }).tail
-
-    traceBoundVariables
+    }).last
   }
 
   def analyzeDeadVariables(trace : Trace) : Set[String] = {
