@@ -373,8 +373,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    ********************************************************************************************************************/
 
   def optimizeVariableFolding(initialBoundVariables : List[String])(traceFull : TraceFull) : TraceFull = {
-    val boundVariablesList = variableAnalyzer.analyzeBoundVariables(initialBoundVariables.toSet, traceFull.trace)
-    val traceBoundVariablesZipped = traceFull.trace.zip(boundVariablesList)
+    val boundVariables = variableAnalyzer.analyzeBoundVariables(initialBoundVariables.toSet, traceFull)
 
     var variablesToCheck : List[(String, HybridValue)] = List()
 
@@ -383,37 +382,37 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
         /* Variable is bound and can therefore not be replaced */
         (action, None)
       } else {
-            val ρ = state.ρ
-            val σ = state.σ
-            ρ.lookup(action.varName) match {
-              case Some(address) =>
-                val variableValue : HybridValue = σ.lookup(address)
-                if (! variablesToCheck.exists(_._1 == action.varName)) {
-                  /* Add a guard for this free variable, if no guard for this variable exists already */
-                  variablesToCheck = variablesToCheck :+ (action.varName, variableValue)
-                }
-                val newAction = ActionReachedValueTraced[Exp, HybridValue, HybridAddress](variableValue)
-                (newAction, None)
-              case None => (action, None) /* Variable could not be found in the store for some reason */
+        val ρ = state.ρ
+        val σ = state.σ
+        ρ.lookup(action.varName) match {
+          case Some(address) =>
+            val variableValue : HybridValue = σ.lookup(address)
+            if (! variablesToCheck.exists(_._1 == action.varName)) {
+              /* Add a guard for this free variable, if no guard for this variable exists already */
+              variablesToCheck = variablesToCheck :+ (action.varName, variableValue)
             }
+            val newAction = ActionReachedValueTraced[Exp, HybridValue, HybridAddress](variableValue)
+            (newAction, None)
+          case None => (action, None) /* Variable could not be found in the store for some reason */
+        }
       }
     }
 
-    val optimisedTrace : Trace = traceBoundVariablesZipped.map({
-      case ((action @ ActionLookupVariableTraced(varName, _, _), _), boundVariables) =>
+    val optimisedTrace : Trace = traceFull.trace.map({
+      case (action @ ActionLookupVariableTraced(varName, _, _), _) =>
         replaceVariableLookups(action, traceFull.startProgramState, boundVariables)
-      case ((action, someState), _) => (action, someState)
+      case (action, someState) => (action, someState)
     })
 
     val assertions : TraceWithoutStates = variablesToCheck.map({ (freeVariable) =>
       ActionGuardAssertFreeVariable[Exp, HybridValue, HybridAddress](freeVariable._1, freeVariable._2, RestartAssertion[Exp, HybridValue, HybridAddress]())
     })
 
-    hybridMachine.TraceFull(traceFull.startProgramState, assertions, optimisedTrace)
+    hybridMachine.TraceFull(traceFull.startProgramState, traceFull.assertions ++ assertions, optimisedTrace)
   }
 
   /********************************************************************************************************************
-   *                                              SUPERACTION OPTIMIZATION                                            *
+   *                                              MERGE ACTIONS OPTIMIZATION                                          *
    ********************************************************************************************************************/
 
   def optimizeMergeActions(traceFull : TraceFull) : TraceFull = {
