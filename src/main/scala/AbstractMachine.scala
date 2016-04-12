@@ -141,33 +141,4 @@ abstract class EvalKontMachineTraced[Exp : Expression, Abs : AbstractValue, Addr
   def addr = implicitly[Address[Addr]]
   def exp = implicitly[Expression[Exp]]
   def time = implicitly[Timestamp[Time]]
-
-  /**
-    * The control component of the machine
-    */
-  trait Control {
-    def subsumes(that: Control): Boolean
-    def toString(store: Store[Addr, Abs]): String = toString()
-  }
-
-  /**
-    * It can either be an eval component, where an expression needs to be
-    * evaluated in an environment
-    */
-  case class ControlEval(exp: Exp) extends Control {
-    override def toString() = s"ev(${exp})"
-    def subsumes(that: Control) = that match {
-      case ControlEval(exp2) => exp.equals(exp2)
-      case _ => false
-    }
-  }
-
-  /**
-    * Or an error component, in case an error is reached (e.g., incorrect number
-    * of arguments in a function call)
-    */
-  case class ControlError(reason: String) extends Control {
-    override def toString() = s"err($reason)"
-    def subsumes(that: Control) = that.equals(this)
-  }
 }

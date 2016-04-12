@@ -421,7 +421,7 @@ object AmbSchemeCompiler extends SchemeCompiler {
   /*
    * Add the amb keyword to the list of reserved identifiers.
    */
-  override val reserved = "amb" :: super.reserved
+  override val reserved: List[String] = List("amb", "lambda", "if", "let", "let*", "letrec", "cond", "case", "set!", "begin", "define", "while", "cas", "acquire", "release")
 
   override def compile(exp: SExp): SchemeExp = exp match {
     case SExpPair(SExpIdentifier("amb"), exps) =>

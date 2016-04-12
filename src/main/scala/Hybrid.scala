@@ -13,7 +13,7 @@ object HybridLattice {
     doConcrete = true
   }
   
-  trait Hybrid  
+  trait Hybrid
   
   val concreteValue = implicitly[AbstractValue[AbstractConcrete]]
   val abstractType = implicitly[AbstractValue[AbstractType]]
