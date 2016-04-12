@@ -1,30 +1,32 @@
-trait InstructionStep[Exp, Abs, Addr] {
-  def getState: TracingProgramState[Exp, Abs, Addr] =
+trait InstructionStep[Exp, Abs, Addr, Time] {
+  def getState: TracingProgramState[Exp, Abs, Addr, Time] =
     throw new Exception(s"Unexpected result: $this does not have a resulting state")
 }
-case class NormalInstructionStep[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (newState : TracingProgramState[Exp, Abs, Addr], action : Action[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr] {
-  override def getState: TracingProgramState[Exp, Abs, Addr] = newState
+case class NormalInstructionStep[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
+  (newState : TracingProgramState[Exp, Abs, Addr, Time], action : Action[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time] {
+  override def getState: TracingProgramState[Exp, Abs, Addr, Time] = newState
 }
-case class GuardFailed[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr]
-case class TraceEnded[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr]
+case class GuardFailed[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
+  (rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time]
+case class TraceEnded[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
+  (rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time]
 
 case class IncorrectStackSizeException() extends Exception
 case class VariableNotFoundException(variable : String) extends Exception(variable)
 case class NotAPrimitiveException(message : String) extends Exception(message)
 
-trait TracingProgramState[Exp, Abs, Addr] {
+trait TracingProgramState[Exp, Abs, Addr, Time] {
   type HybridValue = HybridLattice.Hybrid
 
-  def step(): InstructionStep[Exp, Abs, Addr]
-  def applyAction(action: Action[Exp, Abs, Addr]): InstructionStep[Exp, Abs, Addr]
-  def restart(restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): TracingProgramState[Exp, Abs, Addr]
+  val sem = implicitly[SemanticsTraced[Exp, HybridValue, HybridAddress, Time]]
+
+  def step(): Option[sem.InterpreterReturn]
+  def applyAction(action: Action[Exp, Abs, Addr]): InstructionStep[Exp, Abs, Addr, Time]
+  def restart(restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): TracingProgramState[Exp, Abs, Addr, Time]
 
   def halted: Boolean
 
-  def convertState(): (TracingProgramState[Exp, Abs, Addr], TracingProgramState[Exp, Abs, Addr])
+  def convertState(): (TracingProgramState[Exp, Abs, Addr, Time], TracingProgramState[Exp, Abs, Addr, Time])
 
   def generateTraceInformation(action: Action[Exp, Abs, Addr]): Option[TraceInformation[HybridValue]]
 
@@ -34,7 +36,7 @@ trait TracingProgramState[Exp, Abs, Addr] {
     * in order to avoid exploring states for which another state that subsumes
     * them has already been explored.
     */
-  def subsumes(that: TracingProgramState[Exp, Abs, Addr]): Boolean
+  def subsumes(that: TracingProgramState[Exp, Abs, Addr, Time]): Boolean
 }
 
 /**
@@ -50,12 +52,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
    a: KontAddr,
    t: Time,
    v : HybridLattice.Hybrid,
-   vStack : List[Storable]) extends TracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress] {
+   vStack : List[Storable]) extends TracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time] {
 
   val abs = implicitly[AbstractValue[HybridValue]]
   val addr = implicitly[Address[HybridAddress]]
   val time = implicitly[Timestamp[Time]]
-  val sem = implicitly[SemanticsTraced[Exp, HybridValue, HybridAddress, Time]]
 
   /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
   val primitives = new Primitives[HybridAddress, HybridValue]()
@@ -65,7 +66,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def popStack[A](stack : List[A]) : (A, List[A]) = (stack.head, stack.tail)
   def popStackItems[A](stack : List[A], n : Integer) : (List[A], List[A]) = stack.splitAt(n)
 
-  def restart(restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): TracingProgramState[Exp, HybridValue, HybridAddress] = restartPoint match {
+  def restart(restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): TracingProgramState[Exp, HybridValue, HybridAddress, Time] = restartPoint match {
     case RestartGuardFailed(newControlExp) =>
       ProgramState(TracingControlEval(newControlExp), ρ, σ, kstore, a, t, v, vStack)
     case RestartGuardDifferentClosure(action) =>
@@ -81,15 +82,24 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   /**
     * Computes the set of states that follow the current state
     */
-  def step(): Option[sem.InterpreterReturn] = control match {
-    /* In a eval state, call the semantic's evaluation method */
-    case TracingControlEval(e) => Some(sem.stepEval(e, ρ, σ, t))
-    /* In a continuation state, if the value reached is not an error, call the
-     * semantic's continuation method */
-    case TracingControlKont(_) if abs.isError(v) => None
-    case TracingControlKont(ka) => Some(sem.stepKont(v, kstore.lookup(ka).head.frame, σ, t))
-    /* In an error state, the state is not able to make a step */
-    case TracingControlError(_) => None
+  def step(): Option[sem.InterpreterReturn] = {
+    val result = control match {
+      /* In a eval state, call the semantic's evaluation method */
+      case TracingControlEval(e) => Some(sem.stepEval(e, ρ, σ, t))
+      /* In a continuation state, if the value reached is not an error, call the
+       * semantic's continuation method */
+      case TracingControlKont(_) if abs.isError(v) => None
+      case TracingControlKont(ka) => Some(sem.stepKont(v, kstore.lookup(ka).head.frame, σ, t))
+      /* In an error state, the state is not able to make a step */
+      case TracingControlError(_) => None
+    }
+    result match {
+      case Some(set) =>
+        assert(set.size == 1)
+        Some(set.head)
+      case None => None
+    }
+
   }
 
   def doActionStepInTraced(action : Action[Exp, HybridValue, HybridAddress]) : ProgramState[Exp, Time] = action match {
@@ -146,10 +156,10 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     }
   }
 
-  def applyAction(action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress] = {
+  def applyAction(action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time] = {
 
     def handleGuard(guard: ActionGuardTraced[Exp, HybridValue, HybridAddress],
-                    guardCheckFunction: HybridValue => Boolean): InstructionStep[Exp, HybridValue, HybridAddress] = {
+                    guardCheckFunction: HybridValue => Boolean): InstructionStep[Exp, HybridValue, HybridAddress, Time] = {
       if (guardCheckFunction(v)) {
         NormalInstructionStep(this, guard)
       } else {
@@ -157,7 +167,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       }
     }
 
-    def handleClosureGuard(guard : ActionGuardSameClosure[Exp, HybridValue, HybridAddress], currentClosure : HybridValue): InstructionStep[Exp, HybridValue, HybridAddress] = {
+    def handleClosureGuard(guard : ActionGuardSameClosure[Exp, HybridValue, HybridAddress], currentClosure : HybridValue): InstructionStep[Exp, HybridValue, HybridAddress, Time] = {
       (guard.recordedClosure, currentClosure) match {
         case (HybridLattice.Left(AbstractConcrete.AbstractClosure(lam1, env1)), HybridLattice.Left(AbstractConcrete.AbstractClosure(lam2, env2))) =>
           if (lam1 == lam2) {
@@ -173,7 +183,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       }
     }
 
-    def handlePrimitiveGuard(guard : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress], currentPrimitive : HybridValue): InstructionStep[Exp, HybridValue, HybridAddress] = {
+    def handlePrimitiveGuard(guard : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress], currentPrimitive : HybridValue): InstructionStep[Exp, HybridValue, HybridAddress, Time] = {
       if (guard.recordedPrimitive == currentPrimitive) {
         NormalInstructionStep(this, guard)
       } else {
@@ -360,7 +370,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       None
   }
 
-  def subsumes(that: TracingProgramState[Exp, HybridValue, HybridAddress]): Boolean = that match {
+  def subsumes(that: TracingProgramState[Exp, HybridValue, HybridAddress, Time]): Boolean = that match {
     case that: ProgramState[Exp, Time] =>
       control.subsumes(that.control) && ρ.subsumes(that.ρ) && σ.subsumes(that.σ) &&
         a == that.a && kstore.subsumes(that.kstore) && t == that.t

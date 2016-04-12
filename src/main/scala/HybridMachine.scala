@@ -30,8 +30,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   type TraceWithInfos = List[TraceInstructionInfo]
   type TraceWithoutStates = sem.Trace
 
-  type PS = TracingProgramState[Exp, HybridValue, HybridAddress]
-  type APS = AbstractTracingProgramState[Exp, HybridValue, HybridAddress]
+  type PS = TracingProgramState[Exp, HybridValue, HybridAddress, Time]
+  type APS = AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]
 
   case class TraceFull(startProgramState: PS, assertions: TraceWithoutStates, trace: TraceWithInfos)
   
@@ -74,7 +74,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       }})
     }
 
-    def stepAbstract(abstractState: APS) : Set[(APS, sem.Trace)] = {
+    def stepAbstract(abstractState: APS): Set[(APS, sem.Trace)] = {
       control match {
         /* In a eval state, call the semantic's evaluation method */
         case TracingControlEval(e) => integrate(a, sem.stepEval(e, ρ, σ, t))
@@ -163,7 +163,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
     type TracingSignal = SemanticsTraced[Exp, HybridValue, HybridAddress, Time]#TracingSignal
 
-    def continueWithProgramState(state : PS, trace : sem.Trace) : ExecutionState = {
+    def continueWithProgramState(state : PS, trace: sem.Trace): ExecutionState = {
       val updatedPs = applyTrace(state, trace)
       ExecutionState(ep, updatedPs)(tc, tn)
     }
@@ -236,25 +236,21 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       case sem.TracingSignalStart(label) => canStartLoopEncounteredTracing(state, trace, label)
     }
 
-    def handleResponseRegular(responses : Set[sem.InterpreterReturn]) : Set[ExecutionState] = {
-      responses.map({
-        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => continueWithProgramState(ps, trace)
-        case sem.InterpreterReturn(trace, signal) => handleSignalRegular(ps, trace, signal)
-      })
+    def handleResponseRegular(response: sem.InterpreterReturn): ExecutionState = response match {
+      case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => continueWithProgramState(ps, trace)
+      case sem.InterpreterReturn(trace, signal) => handleSignalRegular(ps, trace, signal)
     }
 
-    def handleResponseTracing(responses : Set[sem.InterpreterReturn]) : Set[ExecutionState] = {
-      responses.map({
-        case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => continueWithProgramStateTracing(ps, trace)
-        case sem.InterpreterReturn(trace, signal) => handleSignalTracing(ps, trace, signal)
-      })
+    def handleResponseTracing(response: sem.InterpreterReturn): ExecutionState = response match {
+      case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => continueWithProgramStateTracing(ps, trace)
+      case sem.InterpreterReturn(trace, signal) => handleSignalTracing(ps, trace, signal)
     }
 
-    def stepConcrete() : Set[ExecutionState] = {
+    def stepConcrete(): ExecutionState = {
       ep match {
-        case NI => handleResponseRegular(ps.doInterpreterStep())
+        case NI => handleResponseRegular(ps.step())
         case TE => doTraceExecutingStep()
-        case TR => handleResponseTracing(ps.doInterpreterStep())
+        case TR => handleResponseTracing(ps.step())
       }
     }
 

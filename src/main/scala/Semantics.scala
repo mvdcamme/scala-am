@@ -76,7 +76,7 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
   /*
    * Interpreter return
    */
-  case class InterpreterReturn(trace: Trace, tracingSignal: TracingSignal) extends Action[Exp, Abs, Addr]
+  case class InterpreterReturn(trace: Trace, tracingSignal: TracingSignal)
 
   /*
    * Instruction return

@@ -1,15 +1,19 @@
-trait AbstractTracingProgramState[Exp, Abs, Addr] {
+trait AbstractTracingProgramState[Exp, Abs, Addr, Time] {
 
-  def applyActionAbstract(action: Action[Exp, Abs, Addr]): Set[AbstractTracingProgramState[Exp, Abs, Addr]]
+  val sem = implicitly[SemanticsTraced[Exp, Abs, Addr, Time]]
+
+  def applyActionAbstract(action: Action[Exp, Abs, Addr]): Set[AbstractTracingProgramState[Exp, Abs, Addr, Time]]
+
+  def stepAbstract(abstractState: AbstractTracingProgramState[Exp, Abs, Addr, Time]): Set[(AbstractTracingProgramState[Exp, Abs, Addr, Time], sem.Trace)]
 
 }
 
 class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteState: ProgramState[Exp, Time])
-  extends AbstractTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress] {
+  extends AbstractTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time] {
 
   type HybridValue = HybridLattice.Hybrid
 
-  def applyActionAbstract(action : Action[Exp, HybridValue, HybridAddress]): Set[AbstractTracingProgramState[Exp, HybridValue, HybridAddress]] = {
+  def applyActionAbstract(action : Action[Exp, HybridValue, HybridAddress]): Set[AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]] = {
     try {
       action match {
         case ActionPopKontTraced() =>
