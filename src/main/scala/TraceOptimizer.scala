@@ -345,7 +345,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
         case Some(PrimitiveAppliedInfo(_, vStack)) =>
           val operands = vStack.take(n - 1).map(_.getVal)
           val operator = vStack(n - 1).getVal
-          val operandsTypes = hybridMachine.checkValuesTypes(operands)
+          val operandsTypes = HybridLattice.checkValuesTypes(operands)
           val specializedOperator = operator match {
             case prim: HybridLattice.Prim[HybridAddress, HybridValue] => prim match {
               case HybridLattice.Prim(primitive) => primitive match {

@@ -30,427 +30,51 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   type TraceWithInfos = List[TraceInstructionInfo]
   type TraceWithoutStates = sem.Trace
 
-  case class TraceFull(startProgramState : HybridMachine[Exp, Time]#ProgramState, assertions : TraceWithoutStates, trace : TraceWithInfos)
+  type PS = TracingProgramState[Exp, HybridValue, HybridAddress]
+  type APS = AbstractTracingProgramState[Exp, HybridValue, HybridAddress]
+
+  case class TraceFull(startProgramState: PS, assertions: TraceWithoutStates, trace: TraceWithInfos)
   
   def name = "HybridMachine"
-
-  /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
-  val primitives = new Primitives[HybridAddress, HybridValue]()
 
   val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] =
     new TracerContext[Exp, HybridValue, HybridAddress, Time](sem, new TraceOptimizer[Exp, HybridValue, HybridAddress, Time](sem, this), this)
 
-  object Converter {
-
-    val valueConverter : AbstractConcreteToAbstractType = new AbstractConcreteToAbstractType
-
-    def convertValue(σ : Store[HybridAddress, HybridLattice.Hybrid])(value : HybridValue) : HybridValue = value match {
-      case HybridLattice.Left(v) => HybridLattice.Right(valueConverter.convert[Exp](v, σ))
-      case HybridLattice.Right(v) => value
-      case HybridLattice.Prim(p) => value
-    }
-
-    def convertEnvironment(env : Environment[HybridAddress]) : Environment[HybridAddress] =
-      new Environment[HybridAddress](env.content.map { tuple => (tuple._1, HybridAddress.convertAddress(tuple._2))})
-
-    def convertControl(control : TracingControl[Exp, HybridValue, HybridAddress], σ : Store[HybridAddress, HybridLattice.Hybrid]): TracingControl[Exp, HybridValue, HybridAddress] = control match {
-      case TracingControlEval(exp) => TracingControlEval(exp)
-      case TracingControlKont(ka) => TracingControlKont(convertKontAddress(ka))
-      case TracingControlError(string) => TracingControlError(string)
-    }
-
-    def convertKontAddress(address : KontAddr) : KontAddr = address match {
-      case address : NormalKontAddress[Exp, HybridAddress] =>
-        NormalKontAddress(address.exp, HybridAddress.convertAddress(address.addr))
-      case HaltKontAddress => HaltKontAddress
-    }
-
-    def convertState(s : ProgramState) : (ProgramState, ProgramState) = s match {
-      case ProgramState(control, ρ, σ, kstore, a, t, v, vStack) =>
-        val newControl = convertControl(control, σ)
-        val newρ = convertEnvironment(ρ)
-        var newσ = Store.empty[HybridAddress, HybridLattice.Hybrid]
-        val newKStore = kstore.map(convertKontAddress, sem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
-        val newA = convertKontAddress(a)
-        val newV = convertValue(σ)(v)
-        val newVStack = vStack.map({
-          case StoreVal(v) => StoreVal(convertValue(σ)(v))
-          case StoreEnv(ρ) => StoreEnv(convertEnvironment(ρ))
-        })
-        def addToNewStore(tuple: (HybridAddress, HybridValue)): Boolean = {
-          val newAddress = HybridAddress.convertAddress(tuple._1)
-          val newValue = convertValue(σ)(tuple._2)
-          newσ = newσ.extend(newAddress, newValue)
-          true
-        }
-        σ.forall(addToNewStore)
-        (s, ProgramState(newControl, newρ, newσ, newKStore, newA, t, newV, newVStack))
-    }
-  }
-
-  private def getOperandType(operand : HybridValue) : AbstractType = operand match {
-    case HybridLattice.Left(AbstractConcrete.AbstractFloat(_)) => AbstractType.AbstractFloat
-    case HybridLattice.Left(AbstractConcrete.AbstractInt(_)) => AbstractType.AbstractInt
-    case _ => AbstractType.AbstractTop
-  }
-
-  def checkValuesTypes(operands : List[HybridValue]) : AbstractType = {
-    operands.foldLeft(AbstractType.AbstractBottom : AbstractType)({ (operandsTypes, operand) =>
-      if (operandsTypes == AbstractType.AbstractBottom) {
-        getOperandType(operand)
-      } else if (operandsTypes == getOperandType(operand)) {
-        operandsTypes
-      } else {
-        AbstractType.AbstractTop
-      }
-    })
-  }
-
-  case class RestartSpecializedPrimCall(originalPrim : HybridValue, n : Integer, fExp : Exp, argsExps : List[Exp]) extends RestartPoint[Exp, HybridValue, HybridAddress]
-
-  def popStack[A](stack : List[A]) : (A, List[A]) = (stack.head, stack.tail)
-  def popStackItems[A](stack : List[A], n : Integer) : (List[A], List[A]) = stack.splitAt(n)
-
-  trait InstructionStep
-  case class NormalInstructionStep(newState : ProgramState, instruction : sem.TraceInstruction) extends InstructionStep
-  case class GuardFailed(rp : RestartPoint[Exp, HybridValue, HybridAddress]) extends InstructionStep
-  case class TraceEnded(rp : RestartPoint[Exp, HybridValue, HybridAddress]) extends InstructionStep
-
-  def restart(restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], state : ProgramState) : ProgramState = restartPoint match {
-    case RestartGuardFailed(newControlExp) =>
-      ProgramState(TracingControlEval(newControlExp), state.ρ, state.σ, state.kstore,
-        state.a, state.t, state.v, state.vStack)
-    case RestartGuardDifferentClosure(action) =>
-      handleClosureRestart(state, action)
-    case RestartGuardDifferentPrimitive(action) =>
-      handlePrimitiveRestart(state, action)
-    case RestartTraceEnded() => state
-    case RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps) =>
-      val primAppliedState = applyPrimitive(state, originalPrim, n, fExp, argsExps)
-      applyTrace(primAppliedState, List(ActionPopKontTraced()))
-  }
-
-  def doActionStepInTraced(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : ProgramState = state match {
-    case ProgramState(control, ρ, σ, kstore, a, t, v, vStack) =>
-      action match {
-        case ActionStepInTraced(fexp, _, _, argsv, n, frame, _, _) =>
-          val (vals, newVStack) = popStackItems(vStack, n)
-          val clo = vals.last.getVal
-          try {
-            val (ρ2, σ2, e) = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.getVal)), σ, t).head
-            val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-            ProgramState(TracingControlEval(e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, StoreEnv(ρ2) :: newVStack)
-          } catch {
-            case e: sem.InvalidArityException =>
-              ProgramState(TracingControlError(s"Arity error when calling $fexp. got ${n - 1})"), ρ, σ, kstore, a, t, v, newVStack)
-          }
-      }
-  }
-
-  def handleClosureRestart(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : ProgramState =
-    doActionStepInTraced(state, action)
-
-  def applyPrimitive(state : ProgramState, operator: HybridValue, n : Integer, fExp : Exp, argsExps : List[Exp]) : ProgramState = {
-    val (vals, newVStack) = popStackItems(state.vStack, n)
-    val operands : List[HybridValue] = vals.take(n - 1).map(_.getVal)
-    val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
-    val result = primitive match {
-      case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), state.σ, state.t)
-      case None => throw new NotAPrimitiveException(s"Operator $fExp not a primitive: $operator")
-    }
-    result match {
-      case Left(error) =>
-        throw new Exception(error)
-      case Right((res, _)) =>
-        state.copy(v = res, vStack = newVStack)
-    }
-  }
-
-  def handlePrimitiveRestart(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : ProgramState = {
-    action match {
-      case ActionPrimCallTraced(n : Integer, fExp, argsExps) =>
-        val (vals, newVStack) = popStackItems(state.vStack, n)
-        val operator : HybridValue = vals.last.getVal
-        val operands : List[HybridValue] = vals.take(n - 1).map(_.getVal)
-        val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
-        val result = primitive match {
-          case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), state.σ, state.t)
-          case None => throw new NotAPrimitiveException(s"Operator $fExp not a primitive: $operator")
-        }
-        result match {
-          case Left(error) => throw new Exception(error)
-          case Right((v, newσ)) =>
-            val primAppliedState = ProgramState(state.control, state.ρ, state.σ, state.kstore, state.a, state.t, v, newVStack)
-            val next = if (primAppliedState.a == HaltKontAddress) { HaltKontAddress } else { primAppliedState.kstore.lookup(primAppliedState.a).head.next }
-            ProgramState(TracingControlKont(primAppliedState.a), primAppliedState.ρ, primAppliedState.σ, primAppliedState.kstore, next, primAppliedState.t, primAppliedState.v, primAppliedState.vStack)
-        }
-    }
-  }
-
-  case class IncorrectStackSizeException() extends Exception
-  case class VariableNotFoundException(variable : String) extends Exception(variable)
-  case class NotAPrimitiveException(message : String) extends Exception(message)
-
-  def applyAction(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : InstructionStep = {
-
-    val control = state.control
-    val ρ = state.ρ
-    val σ = state.σ
-    val kstore = state.kstore
-    val a = state.a
-    val t = state.t
-    val v = state.v
-    val vStack = state.vStack
-
-    def handleGuard(guard: ActionGuardTraced[Exp, HybridValue, HybridAddress],
-                    guardCheckFunction : HybridValue => Boolean) : InstructionStep = {
-      if (guardCheckFunction(v)) {
-        NormalInstructionStep(state, guard)
-      } else {
-        GuardFailed(guard.rp)
-      }
-    }
-
-    def handleClosureGuard(guard : ActionGuardSameClosure[Exp, HybridValue, HybridAddress], currentClosure : HybridValue) : InstructionStep = {
-      (guard.recordedClosure, currentClosure) match {
-        case (HybridLattice.Left(AbstractConcrete.AbstractClosure(lam1, env1)), HybridLattice.Left(AbstractConcrete.AbstractClosure(lam2, env2))) =>
-          if (lam1 == lam2) {
-            NormalInstructionStep(state, guard)
-          } else {
-            Logger.log(s"Closure guard failed: recorded closure $lam1 does not match current closure $lam2", Logger.D)
-            GuardFailed(guard.rp)
-          }
-        case (HybridLattice.Right(_), HybridLattice.Right(_)) =>
-          NormalInstructionStep(state, guard)
-        case _ =>
-          throw new Exception("Mixing concrete values with abstract values")
-      }
-    }
-
-    def handlePrimitiveGuard(guard : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress], currentPrimitive : HybridValue) = {
-      if (guard.recordedPrimitive == currentPrimitive) {
-        NormalInstructionStep(state, guard)
-      } else {
-        Logger.log(s"Primitive guard failed: recorded primitive ${guard.recordedPrimitive} does not match current primitive $currentPrimitive", Logger.D)
-        GuardFailed(guard.rp)
-      }
-    }
-
-    if (TracerFlags.PRINT_ACTIONS_EXECUTED) {
-      ACTIONS_EXECUTED = ACTIONS_EXECUTED :+ action
-    }
-
-    action match {
-      case ActionAllocVarsTraced(variables) =>
-        val addresses = variables.map(v => addr.variable(v, t))
-        val (ρ1, σ1) = variables.zip(addresses).foldLeft((ρ, σ))({ case ((ρ2, σ2), (currV, currA)) => (ρ2.extend(currV, currA), σ2.extend(currA, abs.bottom)) })
-        NormalInstructionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, vStack), action)
-      case ActionCreateClosureTraced(λ) =>
-        val newClosure = abs.inject[Exp, HybridAddress]((λ, ρ))
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, newClosure, vStack), action)
-      case ActionDefineVarsTraced(variables) =>
-        val addresses = variables.map(v => addr.variable(v, t))
-        val (vals, newVStack) = popStackItems(vStack, variables.length)
-        val (ρ1, σ1) = vals.zip(variables.zip(addresses)).foldLeft((ρ, σ))({ case ((ρ2, σ2), (value, (currV, currA))) => (ρ2.extend(currV, currA), σ2.extend(currA, value.getVal)) })
-        NormalInstructionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, newVStack), action)
-      case ActionDropValsTraced(n) =>
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, vStack.drop(n)), action)
-      case ActionEndClosureCallTraced() =>
-        NormalInstructionStep(state, action)
-      case ActionEndPrimCallTraced() =>
-        NormalInstructionStep(state, action)
-      /* When an error is reached, we go to an error state */
-      case ActionErrorTraced(err) =>
-        NormalInstructionStep(ProgramState(TracingControlError(err), ρ, σ, kstore, a, t, v, vStack), action)
-      /* When a value needs to be evaluated, we go to an eval state */
-      case ActionEvalTraced(e, _, _) =>
-        NormalInstructionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore, a, t, v, vStack), action)
-      case ActionExtendEnvTraced(varName : String) =>
-        val va = addr.variable(varName, t)
-        val ρ1 = ρ.extend(varName, va)
-        val σ1 = σ.extend(va, v)
-        NormalInstructionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, vStack), action)
-      case ActionLookupVariableTraced(varName, _, _) =>
-        val newV = σ.lookup(ρ.lookup(varName).get)
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, vStack), action)
-      case ActionLookupVariablePushTraced(varName, _, _) =>
-        val newV = σ.lookup(ρ.lookup(varName).get)
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, StoreVal(newV) :: vStack), action)
-      case ActionPopKontTraced() =>
-        val next = if (a == HaltKontAddress) { HaltKontAddress } else { kstore.lookup(a).head.next }
-        NormalInstructionStep(ProgramState(TracingControlKont(a), ρ, σ, kstore, next, t, v, vStack), action)
-      case ActionPrimCallTraced(n : Integer, fExp, argsExps) =>
-        val (vals, _) = popStackItems(vStack, n)
-        val operator = vals.last.getVal
-        NormalInstructionStep(applyPrimitive(state, operator, n, fExp, argsExps), action)
-      /* When a continuation needs to be pushed, push it in the continuation store */
-      case ActionPushTraced(e, frame, _, _) =>
-        val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-        NormalInstructionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, v, vStack), action)
-      case ActionPushValTraced() =>
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreVal(v) :: vStack), action)
-      case ActionReachedValueTraced(lit, _, _) =>
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, lit, vStack), action)
-      case ActionReachedValuePushTraced(lit, _, _) =>
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, lit, StoreVal(lit) :: vStack), action)
-      case ActionRestoreEnvTraced() =>
-        try {
-          val (newρ, newVStack) = popStack(vStack)
-          NormalInstructionStep(ProgramState(control, newρ.getEnv, σ, kstore, a, t, v, newVStack), action)
-        } catch {
-          case e : java.lang.IndexOutOfBoundsException =>
-            throw new IncorrectStackSizeException()
-        }
-      case ActionSaveEnvTraced() =>
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreEnv(ρ) :: vStack), action)
-      case ActionSetVarTraced(variable) =>
-        ρ.lookup(variable) match {
-          case Some(address) =>
-            NormalInstructionStep(ProgramState(control, ρ, σ.update(address, v), kstore, a, t, v, vStack), action)
-          case None =>
-            throw new VariableNotFoundException(variable)
-        }
-      case ActionSpecializePrimitive(expectedType, prim, originalPrim, n, fExp, argsExps) =>
-        val operands = popStackItems(vStack, n - 1)._1.map(_.getVal)
-        val currentOperandsTypes = checkValuesTypes(operands)
-        if (currentOperandsTypes == expectedType) {
-          NormalInstructionStep(applyPrimitive(state, prim, n, fExp, argsExps), action)
-        } else {
-          GuardFailed(RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps))
-        }
-      case ActionStartFunCallTraced() =>
-        NormalInstructionStep(state, action)
-      /* When a function is stepped in, we also go to an eval state */
-      case ActionStepInTraced(fexp, e, args, argsv, n, frame, _, _) =>
-        NormalInstructionStep(doActionStepInTraced(state, action), action)
-      case action : ActionEndTrace[Exp, HybridValue, HybridAddress] =>
-        TraceEnded(action.restartPoint)
-      case action : ActionGuardFalseTraced[Exp, HybridValue, HybridAddress] =>
-        handleGuard(action, abs.isFalse)
-      case action : ActionGuardTrueTraced[Exp, HybridValue, HybridAddress] =>
-        handleGuard(action, abs.isTrue)
-      case action : ActionGuardSameClosure[Exp, HybridValue, HybridAddress] =>
-        val n = action.rp.action.n
-        try {
-          handleClosureGuard(action, vStack(n - 1).getVal)
-        } catch {
-          case e : java.lang.IndexOutOfBoundsException =>
-            throw new IncorrectStackSizeException
-        }
-      case action : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress] =>
-        val n = action.rp.action.n
-        handlePrimitiveGuard(action, vStack(n - 1).getVal)
-    }
-  }
-
-  def applyTraceIntermediateResults(state : ProgramState, trace : sem.Trace) : List[ProgramState] = {
-    trace.scanLeft(state)((currentState, action) => applyAction(currentState, action) match {
+  def applyTraceIntermediateResults(state : PS, trace : sem.Trace) : List[PS] = {
+    trace.scanLeft(state)((currentState, action) => currentState.applyAction(action) match {
       case NormalInstructionStep(updatedState, _) => updatedState
       case _ => throw new Exception(s"Unexpected result while applying action $action")
     })
   }
 
-  def generateTraceInformation(currentInstruction : TraceInstruction, currentState : ProgramState) : Option[TraceInformation[HybridValue]] = currentInstruction match {
-    case ActionPrimCallTraced(_, _, _) =>
-      Some(PrimitiveAppliedInfo(currentState.v, currentState.vStack))
-    case _ =>
-      None
-  }
-
-  def applyTraceAndGetStates(state : ProgramState, trace : sem.Trace) : (ProgramState, TraceWithInfos) = {
+  def applyTraceAndGetStates(state : PS, trace : sem.Trace) : (PS, TraceWithInfos) = {
     val intermediateStates = applyTraceIntermediateResults(state, trace)
     val resultingState = intermediateStates.last
     val traceStatesZipped = trace.zip(intermediateStates.tail)
-    val traceSomeTraceInfoZipped : TraceWithInfos = traceStatesZipped.map({ (instructionState) => (instructionState._1, generateTraceInformation(instructionState._1, instructionState._2)) })
+    val traceSomeTraceInfoZipped : TraceWithInfos = traceStatesZipped.map({ (instructionState) =>
+      (instructionState._1, instructionState._2.generateTraceInformation(instructionState._1)) })
     (resultingState, traceSomeTraceInfoZipped)
   }
 
-  def applyTrace(state : ProgramState, trace : sem.Trace) : ProgramState = {
+  def applyTrace(state : PS, trace : sem.Trace) : PS = {
     applyTraceIntermediateResults(state, trace).last
   }
 
-
-
-  /**
-   * A machine state is made of a control component, a value store, a
-   * continuation store, and an address representing where the current
-   * continuation lives.
-   */
-  case class ProgramState(control: TracingControl[Exp, HybridValue, HybridAddress], ρ : Environment[HybridAddress], σ: Store[HybridAddress, HybridValue], kstore: KontStore[KontAddr],
-                          a: KontAddr, t: Time, v : HybridValue, vStack : List[Storable]) {
-
-    /**
-      * Builds the state with the initial environment and stores
-      */
-    def this(exp: Exp) = this(TracingControlEval(exp), Environment.empty[HybridAddress]().extend(primitives.forEnv),
-      Store.initial(primitives.forStore, true),
-      new KontStore[KontAddr](), HaltKontAddress, time.initial, abs.inject(false), Nil)
-
-    override def toString = control match {
-      case TracingControlKont(_) => s"ko($v)"
-      case _ => control.toString()
-    }
-
-    /**
-      * Checks whether a states subsumes another, i.e., if it is "bigger". This
-      * is used to perform subsumption checking when exploring the state space,
-      * in order to avoid exploring states for which another state that subsumes
-      * them has already been explored.
-      *
-      * The tracer context is ignored in this check, because it only stores "meta" information not relevant to the actual program state.
-      */
-    def subsumes(that: ProgramState): Boolean = control.subsumes(that.control) && ρ.subsumes(that.ρ) && σ.subsumes(that.σ) &&
-                                                a == that.a && kstore.subsumes(that.kstore) && t == that.t
-
-    private def applyActionAbstract(state : ProgramState, action : Action[Exp, HybridValue, HybridAddress]) : Set[ProgramState] = {
-
-      val control = state.control
-      val ρ = state.ρ
-      val σ = state.σ
-      val kstore = state.kstore
-      val a = state.a
-      val t = state.t
-      val v = state.v
-      val vStack = state.vStack
-
-      try {
-        action match {
-          case ActionPopKontTraced() =>
-            val nextsSet = if (a == HaltKontAddress) { Set(HaltKontAddress) } else { kstore.lookup(a).map(_.next) }
-            nextsSet.map(ProgramState(TracingControlKont(a), ρ, σ, kstore, _, t, v, vStack))
-          case _ =>
-            val result = applyAction(state, action)
-            result match {
-              case NormalInstructionStep(newState, _) => Set(newState)
-              case GuardFailed(_) => Set(state) /* Guard failures (though they might happen) are not relevant here, so we ignore them */
-              case _ => throw new Exception(s"Encountered an unexpected result while performing abstract interpretation: $result")
-            }
-        }
-      } catch {
-        case _ : IncorrectStackSizeException |
-             _ : IncorrectStorableException |
-             _ : VariableNotFoundException |
-             _ : NotAPrimitiveException =>
-          Set[ProgramState]()
-      }
-
-    }
-
-    private def applyTraceAbstract(state : ProgramState, trace : sem.Trace) : Set[(ProgramState, sem.Trace)] = {
+    private def applyTraceAbstract(state: APS, trace : sem.Trace) : Set[(APS, sem.Trace)] = {
       val newStates = trace.foldLeft(Set(state))({ (currentStates, action) =>
-       currentStates.flatMap(applyActionAbstract(_, action))
+       currentStates.flatMap(_.applyActionAbstract(action))
       })
       newStates.map({ (newState) => (newState, trace) })
     }
 
-    private def integrate(a: KontAddr, interpreterReturns: Set[sem.InterpreterReturn]): Set[(ProgramState, sem.Trace)] = {
+    private def integrate(a: KontAddr, abstractState: APS, interpreterReturns: Set[sem.InterpreterReturn]): Set[(APS, sem.Trace)] = {
       interpreterReturns.flatMap({itpRet => itpRet match {
         case sem.InterpreterReturn(trace, _) =>
-          applyTraceAbstract(this, trace)
+          applyTraceAbstract(abstractState, trace)
       }})
     }
 
-    def stepAbstract() : Set[(ProgramState, sem.Trace)] = {
+    def stepAbstract(abstractState: APS) : Set[(APS, sem.Trace)] = {
       control match {
         /* In a eval state, call the semantic's evaluation method */
         case TracingControlEval(e) => integrate(a, sem.stepEval(e, ρ, σ, t))
@@ -464,32 +88,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         case TracingControlError(_) => Set()
       }
     }
-
-    /**
-      * Computes the set of states that follow the current state
-      */
-    def doInterpreterStep() : Set[sem.InterpreterReturn] = control match {
-      /* In a eval state, call the semantic's evaluation method */
-      case TracingControlEval(e) => sem.stepEval(e, ρ, σ, t)
-      /* In a continuation state, if the value reached is not an error, call the
-       * semantic's continuation method */
-      case TracingControlKont(_) if abs.isError(v) => Set()
-      case TracingControlKont(ka) => sem.stepKont(v, kstore.lookup(ka).head.frame, σ, t)
-      /* In an error state, the state is not able to make a step */
-      case TracingControlError(_) => Set()
-    }
-
-    /**
-      * Checks if the current state is a final state. It is the case if it
-      * reached the end of the computation, or an error
-      */
-    def halted: Boolean = control match {
-      case TracingControlEval(_) => false
-      case TracingControlKont(HaltKontAddress) => true
-      case TracingControlKont(_) => abs.isError(v)
-      case TracingControlError(_) => true
-    }
-  }
 
   /*
    * Enumeration of possible execution phases
@@ -505,11 +103,11 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   val TE = ExecutionPhase.TE
   val TR = ExecutionPhase.TR
 
-  case class ExecutionState(ep: ExecutionPhase.Value, ps : ProgramState)(tc : tracerContext.TracerContext, tn : Option[tracerContext.TraceNode]) {
+  case class ExecutionState(ep: ExecutionPhase.Value, ps : TracingProgramState[Exp, HybridValue, HybridAddress])(tc : tracerContext.TracerContext, tn : Option[tracerContext.TraceNode]) {
 
     type InterpreterReturn = SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time]#InterpreterReturn
 
-    def runAssertions(assertions : TraceWithoutStates, state : ProgramState) : Boolean =
+    def runAssertions(assertions: TraceWithoutStates, state: PS) : Boolean =
       assertions.foldLeft(true)({ (assertionsValid, assertion) =>
         if (! assertionsValid) {
           assertionsValid
@@ -533,13 +131,13 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         }
       })
 
-    def checkTraceAssertions(state : ProgramState, tc : tracerContext.TracerContext, label : tracerContext.Label) : Boolean = {
+    def checkTraceAssertions(state: PS, tc : tracerContext.TracerContext, label : tracerContext.Label) : Boolean = {
       val traceNode = tracerContext.getTrace(tc, label)
       val assertions = traceNode.trace.assertions
       runAssertions(assertions, state)
     }
 
-    def startExecutingTrace(state : ProgramState, tc : tracerContext.TracerContext, label : tracerContext.Label): ExecutionState = {
+    def startExecutingTrace(state: PS, tc : tracerContext.TracerContext, label : tracerContext.Label): ExecutionState = {
       Logger.log(s"Trace with label $label already exists; EXECUTING TRACE", Logger.D)
       val traceNode = tracerContext.getTrace(tc, label)
       val assertions = traceNode.trace.assertions
@@ -548,35 +146,35 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
     def doTraceExecutingStep() : Set[ExecutionState] = {
       val (traceHead, updatedTraceNode) = tracerContext.stepTrace(tn.get, tc)
-      val instructionStep = applyAction(ps, traceHead)
+      val instructionStep = ps.applyAction(traceHead)
       instructionStep match {
         case NormalInstructionStep(newPs, _) =>
           Set(ExecutionState(ep, newPs)(tc, Some(updatedTraceNode)))
         case GuardFailed(rp) =>
           Logger.log(s"Guard $traceHead failed", Logger.D)
-          val psRestarted = restart(rp, ps)
+          val psRestarted = ps.restart(rp)
           Set(ExecutionState(NI, psRestarted)(tc, None))
         case TraceEnded(rp) =>
           Logger.log("Non-looping trace finished executing", Logger.D)
-          val psRestarted = restart(rp, ps)
+          val psRestarted = ps.restart(rp)
           Set(ExecutionState(NI, psRestarted)(tc, None))
       }
     }
 
     type TracingSignal = SemanticsTraced[Exp, HybridValue, HybridAddress, Time]#TracingSignal
 
-    def continueWithProgramState(state : ProgramState, trace : sem.Trace) : ExecutionState = {
+    def continueWithProgramState(state : PS, trace : sem.Trace) : ExecutionState = {
       val updatedPs = applyTrace(state, trace)
       ExecutionState(ep, updatedPs)(tc, tn)
     }
 
-    def continueWithProgramStateTracing(state : ProgramState, trace : sem.Trace) : ExecutionState = {
+    def continueWithProgramStateTracing(state: PS, trace: sem.Trace): ExecutionState = {
       val (newState, traceWithInfos) = applyTraceAndGetStates(ps, trace)
       val traceAppendedTc = tracerContext.appendTrace(tc, traceWithInfos)
       ExecutionState(ep, newState)(traceAppendedTc, tn)
     }
 
-    def canStartLoopEncounteredRegular(newState : ProgramState, trace : sem.Trace, label : sem.Label) : ExecutionState = {
+    def canStartLoopEncounteredRegular(newState: PS, trace: sem.Trace, label: sem.Label): ExecutionState = {
       val newTc = tracerContext.incLabelCounter(tc, label)
       val labelCounter = tracerContext.getLabelCounter(newTc, label)
       if (tracerContext.traceExists(newTc, label)) {
@@ -598,7 +196,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       }
     }
 
-    def canStartLoopEncounteredTracing(state : ProgramState, trace : sem.Trace, label : sem.Label) : ExecutionState = {
+    def canStartLoopEncounteredTracing(state: PS, trace: sem.Trace, label: sem.Label): ExecutionState = {
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       val traceAppendedTc = tracerContext.appendTrace(tc, traceWithStates)
       if (tracerContext.isTracingLabel(traceAppendedTc, label)) {
@@ -612,7 +210,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       }
     }
 
-    def canEndLoopEncounteredTracing(state : ProgramState, trace : sem.Trace,
+    def canEndLoopEncounteredTracing(state: PS, trace: sem.Trace,
                                      restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], label : sem.Label) : ExecutionState = {
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       if (tracerContext.isTracingLabel(tc, label)) {
@@ -628,12 +226,12 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       }
     }
 
-    def handleSignalRegular(state : ProgramState, trace : sem.Trace, signal : TracingSignal) : ExecutionState = signal match {
+    def handleSignalRegular(state: PS, trace: sem.Trace, signal: TracingSignal): ExecutionState = signal match {
       case sem.TracingSignalEnd(_, _) => continueWithProgramState(state, trace)
       case sem.TracingSignalStart(label) => canStartLoopEncounteredRegular(applyTrace(state, trace), trace, label)
     }
 
-    def handleSignalTracing(state : ProgramState, trace : sem.Trace, signal : TracingSignal) : ExecutionState = signal match {
+    def handleSignalTracing(state: PS, trace: sem.Trace, signal: TracingSignal): ExecutionState = signal match {
       case sem.TracingSignalEnd(label, restartPoint) => canEndLoopEncounteredTracing(state, trace, restartPoint, label)
       case sem.TracingSignalStart(label) => canStartLoopEncounteredTracing(state, trace, label)
     }
@@ -662,7 +260,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
   }
 
-  case class AAMOutput[Annotation](halted: Set[ProgramState], count: Int, t: Double, graph: Option[Graph[ProgramState, Annotation]])
+  case class AAMOutput[Annotation](halted: Set[PS], count: Int, t: Double, graph: Option[Graph[PS, Annotation]])
       extends Output[HybridValue] {
 
     /**
@@ -713,7 +311,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     * @return the final states as well as the computed graph
     */
   @scala.annotation.tailrec
-  private def loop(s: ExecutionState, nrVisited: Integer, startingTime: Long, graph: Option[Graph[ProgramState, String]]): AAMOutput[String] = {
+  private def loop(s: ExecutionState, nrVisited: Integer, startingTime: Long, graph: Option[Graph[PS, String]]): AAMOutput[String] = {
     def endEvalLoop(): AAMOutput[String] = {
       if (TracerFlags.PRINT_ACTIONS_EXECUTED) {
         Logger.log("####### actions executed #######", Logger.E)
@@ -739,12 +337,12 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
   }
 
-  private def switchToAbstract(currentProgramState: ProgramState) : AAMOutput[sem.Trace] = {
+  private def switchToAbstract(currentProgramState: PS) : AAMOutput[sem.Trace] = {
     Logger.log("HybridMachine switching to abstract", Logger.E)
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
     val convertedExecutionState = Converter.convertState(currentProgramState)
-    val newTodo = Set[ProgramState](convertedExecutionState._2)
+    val newTodo = Set[ProgramState](co  nvertedExecutionState._2)
     val newVisited, newHalted = Set[ProgramState]()
     val newGraph = new Graph[ProgramState, sem.Trace]()
     loopAbstract(newTodo, newVisited, newHalted, System.nanoTime, newGraph)

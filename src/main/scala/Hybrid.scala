@@ -14,6 +14,24 @@ object HybridLattice {
   }
   
   trait Hybrid
+
+  def getOperandType(operand : Hybrid) : AbstractType = operand match {
+    case HybridLattice.Left(AbstractConcrete.AbstractFloat(_)) => AbstractType.AbstractFloat
+    case HybridLattice.Left(AbstractConcrete.AbstractInt(_)) => AbstractType.AbstractInt
+    case _ => AbstractType.AbstractTop
+  }
+
+  def checkValuesTypes(operands : List[Hybrid]) : AbstractType = {
+    operands.foldLeft(AbstractType.AbstractBottom : AbstractType)({ (operandsTypes, operand) =>
+      if (operandsTypes == AbstractType.AbstractBottom) {
+        getOperandType(operand)
+      } else if (operandsTypes == getOperandType(operand)) {
+        operandsTypes
+      } else {
+        AbstractType.AbstractTop
+      }
+    })
+  }
   
   val concreteValue = implicitly[AbstractValue[AbstractConcrete]]
   val abstractType = implicitly[AbstractValue[AbstractType]]
