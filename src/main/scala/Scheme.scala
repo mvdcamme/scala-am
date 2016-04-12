@@ -424,7 +424,7 @@ object AmbSchemeCompiler extends SchemeCompiler {
   override val reserved = "amb" :: super.reserved
 
   override def compile(exp: SExp): SchemeExp = exp match {
-    case SExpPair("amb", exps) =>
+    case SExpPair(SExpIdentifier("amb"), exps) =>
       val exp2 = SchemeAmb(compileBody(exps))
       exp2.setPos(exp.pos)
     case other =>
