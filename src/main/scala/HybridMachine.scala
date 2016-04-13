@@ -30,7 +30,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   type TraceWithInfos = List[TraceInstructionInfo]
   type TraceWithoutStates = sem.Trace
 
-  type PS = TracingProgramState[Exp, HybridValue, HybridAddress, Time]
+  type PS = ConcreteTracingProgramState[Exp, HybridValue, HybridAddress, Time]
   type APS = AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]
 
   case class TraceFull(startProgramState: PS, assertions: TraceWithoutStates, trace: TraceWithInfos)
@@ -91,20 +91,20 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       ExecutionState(TE, state)(tc, Some(traceNode))
     }
 
-    def doTraceExecutingStep() : Set[ExecutionState] = {
+    def doTraceExecutingStep() : ExecutionState = {
       val (traceHead, updatedTraceNode) = tracerContext.stepTrace(tn.get, tc)
       val instructionStep = ps.applyAction(traceHead)
       instructionStep match {
         case NormalInstructionStep(newPs, _) =>
-          Set(ExecutionState(ep, newPs)(tc, Some(updatedTraceNode)))
+          ExecutionState(ep, newPs)(tc, Some(updatedTraceNode))
         case GuardFailed(rp) =>
           Logger.log(s"Guard $traceHead failed", Logger.D)
-          val psRestarted = ps.restart(rp)
-          Set(ExecutionState(NI, psRestarted)(tc, None))
+          val psRestarted = ps.restart(sem, rp)
+          ExecutionState(NI, psRestarted)(tc, None)
         case TraceEnded(rp) =>
           Logger.log("Non-looping trace finished executing", Logger.D)
-          val psRestarted = ps.restart(rp)
-          Set(ExecutionState(NI, psRestarted)(tc, None))
+          val psRestarted = ps.restart(sem, rp)
+          ExecutionState(NI, psRestarted)(tc, None)
       }
     }
 
@@ -183,21 +183,21 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       case sem.TracingSignalStart(label) => canStartLoopEncounteredTracing(state, trace, label)
     }
 
-    def handleResponseRegular(response: sem.InterpreterReturn): ExecutionState = response match {
+    def handleResponseRegular(response: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]#InterpreterReturn): ExecutionState = response match {
       case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => continueWithProgramState(ps, trace)
       case sem.InterpreterReturn(trace, signal) => handleSignalRegular(ps, trace, signal)
     }
 
-    def handleResponseTracing(response: sem.InterpreterReturn): ExecutionState = response match {
+    def handleResponseTracing(response: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]#InterpreterReturn): ExecutionState = response match {
       case sem.InterpreterReturn(trace, sem.TracingSignalFalse()) => continueWithProgramStateTracing(ps, trace)
       case sem.InterpreterReturn(trace, signal) => handleSignalTracing(ps, trace, signal)
     }
 
     def stepConcrete(): ExecutionState = {
       ep match {
-        case NI => handleResponseRegular(ps.step().get)
+        case NI => handleResponseRegular(ps.step(sem).get)
         case TE => doTraceExecutingStep()
-        case TR => handleResponseTracing(ps.step().get)
+        case TR => handleResponseTracing(ps.step(sem).get)
       }
     }
 
@@ -209,10 +209,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     /**
      * Returns the list of final values that can be reached
      */
-    def finalValues = halted.flatMap(st => st.control match {
-      case TracingControlKont(_) => Set[HybridValue](st.v)
-      case _ => Set[HybridValue]()
-    })
+    def finalValues = halted.flatMap(st => st.finalValues())
 
     /**
      * Checks if a halted state contains a value that subsumes @param v
@@ -283,10 +280,10 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     Logger.log("HybridMachine switching to abstract", Logger.E)
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
-    val convertedExecutionState = currentProgramState.convertState()
-    val newTodo = Set[PS](convertedExecutionState._2)
-    val newVisited, newHalted = Set[ProgramState]()
-    val newGraph = new Graph[ProgramState, sem.Trace]()
+    val convertedExecutionState = currentProgramState.convertState(sem)
+    val newTodo = Set[APS](new AbstractProgramState[Exp, Time](convertedExecutionState._2))
+    val newVisited, newHalted = Set[APS]()
+    val newGraph = new Graph[APS, sem.Trace]()
     loopAbstract(newTodo, newVisited, newHalted, System.nanoTime, newGraph)
   }
 

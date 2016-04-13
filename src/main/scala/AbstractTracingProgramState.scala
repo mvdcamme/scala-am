@@ -1,4 +1,4 @@
-trait AbstractTracingProgramState[Exp, Abs, Addr, Time] {
+trait AbstractTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramState[Exp, Abs, Addr, Time] {
 
   val sem = implicitly[SemanticsTraced[Exp, Abs, Addr, Time]]
 
@@ -82,6 +82,14 @@ class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteState: Pr
       /* In an error state, the state is not able to make a step */
       case TracingControlError(_) => Set()
     }
+  }
+
+  /**
+    * Returns the set of final values that can be reached
+    */
+  def finalValues = control match {
+    case TracingControlKont(_) => Set[HybridValue](v)
+    case _ => Set[HybridValue]()
   }
 
 }
