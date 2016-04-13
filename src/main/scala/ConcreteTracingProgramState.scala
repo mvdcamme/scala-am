@@ -19,13 +19,15 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
   type HybridValue = HybridLattice.Hybrid
 
   def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[SemanticsTraced[Exp, Abs, Addr, Time]#InterpreterReturn]
-  def applyAction(action: Action[Exp, Abs, Addr]): InstructionStep[Exp, Abs, Addr, Time]
+  def applyAction(sem: SemanticsTraced[Exp, Abs, Addr, Time],
+                  action: Action[Exp, Abs, Addr]): InstructionStep[Exp, Abs, Addr, Time]
   def restart(sem: SemanticsTraced[Exp, Abs, Addr, Time],
               restartPoint: RestartPoint[Exp, Abs, Addr]): ConcreteTracingProgramState[Exp, Abs, Addr, Time]
 
   def runAssertions(assertions: List[Action[Exp, Abs, Addr]]): Boolean
 
-  def convertState(sem: SemanticsTraced[Exp, Abs, Addr, Time]): (ConcreteTracingProgramState[Exp, Abs, Addr, Time], ConcreteTracingProgramState[Exp, Abs, Addr, Time])
+  def convertState(sem: SemanticsTraced[Exp, Abs, Addr, Time]):
+    (ConcreteTracingProgramState[Exp, Abs, Addr, Time], AbstractTracingProgramState[Exp, Abs, Addr, Time])
 
   def generateTraceInformation(action: Action[Exp, Abs, Addr]): Option[TraceInformation[HybridValue]]
 }
@@ -44,13 +46,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
    t: Time,
    v : HybridLattice.Hybrid,
    vStack : List[Storable]) extends ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time] {
-
-  val abs = implicitly[AbstractValue[HybridValue]]
-  val addr = implicitly[Address[HybridAddress]]
-  val time = implicitly[Timestamp[Time]]
-
-  /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
-  val primitives = new Primitives[HybridAddress, HybridValue]()
 
   case class RestartSpecializedPrimCall(originalPrim: HybridValue, n: Integer, fExp: Exp, argsExps: List[Exp]) extends RestartPoint[Exp, HybridValue, HybridAddress]
 
@@ -90,7 +85,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case RestartTraceEnded() => this
     case RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps) =>
       val primAppliedState = applyPrimitive(originalPrim, n, fExp, argsExps)
-      primAppliedState.applyAction(ActionPopKontTraced()).getState
+      primAppliedState.applyAction(sem, ActionPopKontTraced()).getState
   }
 
   def runAssertions(assertions: List[Action[Exp, HybridValue, HybridAddress]]): Boolean = {
@@ -325,17 +320,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case _ => control.toString()
   }
 
-  /**
-    * Checks if the current state is a final state. It is the case if it
-    * reached the end of the computation, or an error
-    */
-  def halted: Boolean = control match {
-    case TracingControlEval(_) => false
-    case TracingControlKont(HaltKontAddress) => true
-    case TracingControlKont(_) => abs.isError(v)
-    case TracingControlError(_) => true
-  }
-
   val valueConverter : AbstractConcreteToAbstractType = new AbstractConcreteToAbstractType
 
   def convertValue(σ : Store[HybridAddress, HybridLattice.Hybrid])(value : HybridValue) : HybridValue = value match {
@@ -359,7 +343,8 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case HaltKontAddress => HaltKontAddress
   }
 
-  def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]): (ProgramState[Exp, Time], ProgramState[Exp, Time]) = {
+  def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]):
+    (ProgramState[Exp, Time], AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]) = {
     val newControl = convertControl(control, σ)
     val newρ = convertEnvironment(ρ)
     var newσ = Store.empty[HybridAddress, HybridLattice.Hybrid]
@@ -377,7 +362,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       true
     }
     σ.forall(addToNewStore)
-    (this, ProgramState(newControl, newρ, newσ, newKStore, newA, t, newV, newVStack))
+    (this, new AbstractProgramState[Exp, Time](new ProgramState(newControl, newρ, newσ, newKStore, newA, t, newV, newVStack)))
   }
 
   def generateTraceInformation(action : Action[Exp, HybridValue, HybridAddress]): Option[TraceInformation[HybridValue]] = action match {
@@ -388,6 +373,17 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   /**
+    * Checks if the current state is a final state. It is the case if it
+    * reached the end of the computation, or an error
+    */
+  def halted: Boolean = control match {
+    case TracingControlEval(_) => false
+    case TracingControlKont(HaltKontAddress) => true
+    case TracingControlKont(_) => abs.isError(v)
+    case TracingControlError(_) => true
+  }
+
+  /**
     * Returns the set of final values that can be reached
     */
   def finalValues = control match {
@@ -395,7 +391,13 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case _ => Set[HybridValue]()
   }
 
-  def subsumes(that: ConcreteTracingProgramState[Exp, HybridValue, HybridAddress, Time]): Boolean = that match {
+  def graphNodeColor = control match {
+    case TracingControlEval(_) => "#DDFFDD"
+    case TracingControlKont(_) => "#FFDDDD"
+    case TracingControlError(_) => "#FF0000"
+  }
+
+  def subsumes(that: TracingProgramState[Exp, HybridValue, HybridAddress, Time]): Boolean = that match {
     case that: ProgramState[Exp, Time] =>
       control.subsumes(that.control) && ρ.subsumes(that.ρ) && σ.subsumes(that.σ) &&
         a == that.a && kstore.subsumes(that.kstore) && t == that.t

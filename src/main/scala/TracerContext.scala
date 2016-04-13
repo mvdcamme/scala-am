@@ -12,14 +12,14 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   type Trace = HybridMachine[Exp, Time]#TraceWithInfos
   type TraceFull = HybridMachine[Exp, Time]#TraceFull
 
-  type AnalysisOutput = HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#TraceWithoutStates]
+  type AnalysisOutput = HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#APS, HybridMachine[Exp, Time]#TraceWithoutStates]
 
 
-  case class TraceInfo(label : Label, boundVariables : List[String], startState : HybridMachine[Exp, Time]#ProgramState)
-  case class TraceNode(label : Label, trace : TraceFull)
+  case class TraceInfo(label: Label, boundVariables: List[String], startState: HybridMachine[Exp, Time]#PS)
+  case class TraceNode(label: Label, trace: TraceFull)
 
-  case class TracerContext(traceInfo : Option[TraceInfo], labelCounters : Map[Label, Integer],
-                           traceNodes : List[TraceNode], trace : Trace)
+  case class TracerContext(traceInfo: Option[TraceInfo], labelCounters: Map[Label, Integer],
+                           traceNodes: List[TraceNode], trace: Trace)
 
   /*
    * Generating tracer context
@@ -31,7 +31,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Start tracing
    */
 
-  def startTracingLabel(tracerContext: TracerContext, label: Label, boundVariables : List[String], startState : HybridMachine[Exp, Time]#ProgramState) : TracerContext = tracerContext match {
+  def startTracingLabel(tracerContext: TracerContext, label: Label, boundVariables: List[String], startState: HybridMachine[Exp, Time]#PS) : TracerContext = tracerContext match {
     case TracerContext(_, labelCounters, traceNodes, _) =>
       new TracerContext(Some(TraceInfo(label, boundVariables, startState)), labelCounters, traceNodes, List())
   }

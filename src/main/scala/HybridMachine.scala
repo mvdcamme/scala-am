@@ -41,7 +41,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     new TracerContext[Exp, HybridValue, HybridAddress, Time](sem, new TraceOptimizer[Exp, HybridValue, HybridAddress, Time](sem, this), this)
 
   def applyTraceIntermediateResults(state : PS, trace : sem.Trace) : List[PS] = {
-    trace.scanLeft(state)((currentState, action) => currentState.applyAction(action) match {
+    trace.scanLeft(state)((currentState, action) => currentState.applyAction(sem, action) match {
       case NormalInstructionStep(updatedState, _) => updatedState
       case _ => throw new Exception(s"Unexpected result while applying action $action")
     })
@@ -93,7 +93,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
     def doTraceExecutingStep() : ExecutionState = {
       val (traceHead, updatedTraceNode) = tracerContext.stepTrace(tn.get, tc)
-      val instructionStep = ps.applyAction(traceHead)
+      val instructionStep = ps.applyAction(sem, traceHead)
       instructionStep match {
         case NormalInstructionStep(newPs, _) =>
           ExecutionState(ep, newPs)(tc, Some(updatedTraceNode))
@@ -203,7 +203,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
   }
 
-  case class AAMOutput[Annotation](halted: Set[PS], count: Int, t: Double, graph: Option[Graph[PS, Annotation]])
+  case class AAMOutput[State <: TracingProgramState[Exp, HybridValue, HybridAddress, Time], Annotation](halted: Set[State], count: Int, t: Double, graph: Option[Graph[State, Annotation]])
       extends Output[HybridValue] {
 
     /**
@@ -231,11 +231,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
      */
     def toDotFile(path: String) = graph match {
       case Some(g) => g.toDotFile(path, _.toString.take(40),
-        (s) => if (halted.contains(s)) { "#FFFFDD" } else { s.control match {
-          case TracingControlEval(_) => "#DDFFDD"
-          case TracingControlKont(_) => "#FFDDDD"
-          case TracingControlError(_) => "#FF0000"
-        }}, _.toString.take(20))
+        (s) => if (halted.contains(s)) { "#FFFFDD" } else { s.graphNodeColor }, _.toString.take(20))
       case None =>
         Logger.log("Not generating graph because no graph was computed", Logger.E)
     }
@@ -251,8 +247,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     * @return the final states as well as the computed graph
     */
   @scala.annotation.tailrec
-  private def loop(s: ExecutionState, nrVisited: Integer, startingTime: Long, graph: Option[Graph[PS, String]]): AAMOutput[String] = {
-    def endEvalLoop(): AAMOutput[String] = {
+  private def loop(s: ExecutionState, nrVisited: Integer, startingTime: Long, graph: Option[Graph[PS, String]]): AAMOutput[PS, String] = {
+    def endEvalLoop(): AAMOutput[PS, String] = {
       if (TracerFlags.PRINT_ACTIONS_EXECUTED) {
         Logger.log("####### actions executed #######", Logger.E)
         for (ac <- ACTIONS_EXECUTED) {
@@ -260,7 +256,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         }
         Logger.log("####### actions executed #######", Logger.E)
       }
-      AAMOutput[String](Set(s.ps), nrVisited,
+      AAMOutput[PS, String](Set(s.ps), nrVisited,
         (System.nanoTime - startingTime) / Math.pow(10, 9), graph)
     }
     if (s.ps.halted) {
@@ -276,12 +272,12 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
   }
 
-  private def switchToAbstract(currentProgramState: PS) : AAMOutput[sem.Trace] = {
+  private def switchToAbstract(currentProgramState: PS): AAMOutput[APS, sem.Trace] = {
     Logger.log("HybridMachine switching to abstract", Logger.E)
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
-    val convertedExecutionState = currentProgramState.convertState(sem)
-    val newTodo = Set[APS](new AbstractProgramState[Exp, Time](convertedExecutionState._2))
+    val convertedExecutionState = currentProgramState.convertState(sem)._2
+    val newTodo = Set[APS](convertedExecutionState)
     val newVisited, newHalted = Set[APS]()
     val newGraph = new Graph[APS, sem.Trace]()
     loopAbstract(newTodo, newVisited, newHalted, System.nanoTime, newGraph)
@@ -293,13 +289,13 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     HybridAddress.switchToConcrete
   }
 
-  private def runStaticAnalysis(currentProgramState : PS) : AAMOutput[sem.Trace] = {
+  private def runStaticAnalysis(currentProgramState : PS) : AAMOutput[APS, sem.Trace] = {
     val analysisOutput = switchToAbstract(currentProgramState)
     switchToConcrete()
     analysisOutput
   }
 
-  private def findAnalysisOutput(currentProgramState : PS) : Option[AAMOutput[sem.Trace]] = {
+  private def findAnalysisOutput(currentProgramState : PS) : Option[AAMOutput[APS, sem.Trace]] = {
     if (TracerFlags.SWITCH_ABSTRACT) {
       val analysisOutput = runStaticAnalysis(currentProgramState)
       analysisOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
@@ -311,7 +307,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
   @scala.annotation.tailrec
   private def loopAbstract(todo: Set[APS], visited: Set[APS],
-                           halted: Set[APS], startingTime: Long, graph: Graph[APS, sem.Trace]): AAMOutput[sem.Trace] = {
+                           halted: Set[APS], startingTime: Long, graph: Graph[APS, sem.Trace]): AAMOutput[APS, sem.Trace] = {
     todo.headOption match {
       case Some(s) =>
         if (visited.contains(s) || visited.exists(s2 => s2.subsumes(s))) {
@@ -331,7 +327,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
           val newGraph = graph.addEdges(succs.map(s2 => (s, s2._2, s2._1)))
           loopAbstract(todo.tail ++ succs.map(_._1), visited + s, halted, startingTime, newGraph)
         }
-      case None => AAMOutput[sem.Trace](halted, visited.size,
+      case None => AAMOutput[APS, sem.Trace](halted, visited.size,
         (System.nanoTime - startingTime) / Math.pow(10, 9), Some(graph))
     }
   }
@@ -345,6 +341,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
    */
   def eval(exp: Exp, graph: Boolean): Output[HybridValue] = {
     loop(injectExecutionState(exp), 0, System.nanoTime,
-      if (graph) { Some(new Graph[ProgramState, String]()) } else { None })
+      if (graph) { Some(new Graph[PS, String]()) } else { None })
   }
 }
