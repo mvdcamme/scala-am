@@ -33,6 +33,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
 
   var ACTIONS_EXECUTED: TraceWithoutStates = List()
 
+  /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
+  implicit val primitives = new Primitives[HybridAddress, HybridValue]()
+
   type PS = ConcreteTracingProgramState[Exp, HybridValue, HybridAddress, Time]
   type APS = AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]
 
@@ -266,7 +269,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       /* Otherwise, compute the successors of this state, update the graph, and push
        * the new successors on the todo list */
       val succ = s.stepConcrete()
-      val newGraph = graph.map(_.addEdges((s.ps, "", succ.ps)))
+      val newGraph = graph.map(_.addEdge(s.ps, "", succ.ps))
       loop(succ, nrVisited + 1, startingTime, newGraph)
     }
   }
@@ -332,7 +335,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   }
 
   def injectExecutionState(exp : Exp) : ExecutionState =
-    new ExecutionState(NI, new ProgramState(exp))(tracerContext.newTracerContext, None)
+    new ExecutionState(NI, new ProgramState(exp, primitives, abs, time))(tracerContext.newTracerContext, None)
 
   /**
    * Performs the evaluation of an expression, possibly writing the output graph

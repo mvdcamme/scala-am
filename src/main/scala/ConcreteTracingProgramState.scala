@@ -3,13 +3,13 @@ trait InstructionStep[Exp, Abs, Addr, Time] {
     throw new Exception(s"Unexpected result: $this does not have a resulting state")
 }
 case class NormalInstructionStep[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
-  (newState : ConcreteTracingProgramState[Exp, Abs, Addr, Time], action : Action[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time] {
+(newState : ConcreteTracingProgramState[Exp, Abs, Addr, Time], action : Action[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time] {
   override def getState: ConcreteTracingProgramState[Exp, Abs, Addr, Time] = newState
 }
 case class GuardFailed[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
-  (rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time]
+(rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time]
 case class TraceEnded[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
-  (rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time]
+(rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time]
 
 case class IncorrectStackSizeException() extends Exception
 case class VariableNotFoundException(variable : String) extends Exception(variable)
@@ -27,7 +27,7 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
   def runAssertions(assertions: List[Action[Exp, Abs, Addr]]): Boolean
 
   def convertState(sem: SemanticsTraced[Exp, Abs, Addr, Time]):
-    (ConcreteTracingProgramState[Exp, Abs, Addr, Time], AbstractTracingProgramState[Exp, Abs, Addr, Time])
+  (ConcreteTracingProgramState[Exp, Abs, Addr, Time], AbstractTracingProgramState[Exp, Abs, Addr, Time])
 
   def generateTraceInformation(action: Action[Exp, Abs, Addr]): Option[TraceInformation[HybridValue]]
 }
@@ -46,6 +46,10 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
    t: Time,
    v : HybridLattice.Hybrid,
    vStack : List[Storable]) extends ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time] {
+
+  def abs = implicitly[AbstractValue[HybridValue]]
+  def addr = implicitly[Address[HybridAddress]]
+  def time = implicitly[Timestamp[Time]]
 
   case class RestartSpecializedPrimCall(originalPrim: HybridValue, n: Integer, fExp: Exp, argsExps: List[Exp]) extends RestartPoint[Exp, HybridValue, HybridAddress]
 
@@ -311,9 +315,10 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   /**
     * Builds the state with the initial environment and stores
     */
-  def this(exp: Exp) = this(TracingControlEval(exp), Environment.empty[HybridAddress]().extend(primitives.forEnv),
-    Store.initial(primitives.forStore, true),
-    new KontStore[KontAddr](), HaltKontAddress, time.initial, abs.inject(false), Nil)
+  def this(exp: Exp, primitives: Primitives[HybridAddress, HybridLattice.Hybrid], abs: AbstractValue[HybridLattice.Hybrid], time: Timestamp[Time]) =
+    this(TracingControlEval(exp), Environment.empty[HybridAddress]().extend(primitives.forEnv),
+         Store.initial(primitives.forStore, true),
+         new KontStore[KontAddr](), HaltKontAddress, time.initial, abs.inject(false), Nil)
 
   override def toString = control match {
     case TracingControlKont(_) => s"ko($v)"
@@ -344,7 +349,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]):
-    (ProgramState[Exp, Time], AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]) = {
+  (ProgramState[Exp, Time], AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]) = {
     val newControl = convertControl(control, σ)
     val newρ = convertEnvironment(ρ)
     var newσ = Store.empty[HybridAddress, HybridLattice.Hybrid]

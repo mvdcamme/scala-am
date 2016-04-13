@@ -7,7 +7,6 @@ import scala.collection.mutable.Stack
   */
 class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: SemanticsTraced[Exp, Abs, Addr, Time], val hybridMachine : HybridMachine[Exp, Time]) {
 
-  type ProgramState = HybridMachine[Exp, Time]#ProgramState
   type TraceInstructionStates = HybridMachine[Exp, Time]#TraceInstructionInfo
   type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
   type Trace = HybridMachine[Exp, Time]#TraceWithInfos
@@ -24,8 +23,13 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
     */
   def analyzeBoundVariables(initialBoundVariables : Set[String], traceFull : TraceFull) : Set[String] = {
 
-    var currentEnv: Environment[HybridAddress] = traceFull.startProgramState.ρ
-    var vStack: List[Storable] = traceFull.startProgramState.vStack
+    val initialState: ProgramState[Exp, Time] = traceFull.startProgramState match {
+      case s: ProgramState[Exp, Time] => s
+      case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.startProgramState} instead")
+    }
+
+    var currentEnv: Environment[HybridAddress] = initialState.ρ
+    var vStack: List[Storable] = initialState.vStack
 
     /*
      * The set of variables that are assigned, not defined, to inside of the trace.

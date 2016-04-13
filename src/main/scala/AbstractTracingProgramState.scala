@@ -1,6 +1,7 @@
 trait AbstractTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramState[Exp, Abs, Addr, Time] {
 
-  def applyActionAbstract(action: Action[Exp, Abs, Addr]): Set[AbstractTracingProgramState[Exp, Abs, Addr, Time]]
+  def applyActionAbstract(sem: SemanticsTraced[Exp, Abs, Addr, Time],
+                          action: Action[Exp, Abs, Addr]): Set[AbstractTracingProgramState[Exp, Abs, Addr, Time]]
 
   def stepAbstract(sem: SemanticsTraced[Exp, Abs, Addr, Time]):
     Set[(AbstractTracingProgramState[Exp, Abs, Addr, Time], List[Action[Exp, Abs, Addr]])]
@@ -12,8 +13,12 @@ case class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteStat
 
   type HybridValue = HybridLattice.Hybrid
 
+  def abs = implicitly[AbstractValue[HybridValue]]
+  def addr = implicitly[Address[HybridAddress]]
+  def time = implicitly[Timestamp[Time]]
+
   def applyActionAbstract(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
-                          action : Action[Exp, HybridValue, HybridAddress]): Set[AbstractProgramState[Exp, Time]] = {
+                          action : Action[Exp, HybridValue, HybridAddress]): Set[AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]] = {
     try {
       action match {
         case ActionPopKontTraced() =>
@@ -55,8 +60,8 @@ case class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteStat
 
   private def applyTraceAbstract(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
                                  trace: List[Action[Exp, HybridValue, HybridAddress]]):
-    Set[(AbstractProgramState[Exp, Time], List[Action[Exp, HybridValue, HybridAddress]])] = {
-    val newStates = trace.foldLeft(Set(this))({ (currentStates, action) =>
+    Set[(AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time], List[Action[Exp, HybridValue, HybridAddress]])] = {
+    val newStates = trace.foldLeft(Set[AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]](this))({ (currentStates, action) =>
       currentStates.flatMap(_.applyActionAbstract(sem, action))
     })
     newStates.map({ (newState) => (newState, trace) })
@@ -65,14 +70,14 @@ case class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteStat
   private def integrate(sem: SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time])
                        (a: KontAddr,
                         interpreterReturns: Set[InterpreterReturn[Exp, HybridValue, HybridAddress]]):
-    Set[(AbstractProgramState[Exp, Time], List[Action[Exp, HybridValue, HybridAddress]])] = {
+    Set[(AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time], List[Action[Exp, HybridValue, HybridAddress]])] = {
     interpreterReturns.flatMap({itpRet => itpRet match {
       case InterpreterReturn(trace, _) =>
         applyTraceAbstract(sem, trace)
     }})
   }
 
-  def stepAbstract(sem: SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time]): Set[(AbstractProgramState[Exp, Time], List[Action[Exp, HybridValue, HybridAddress]])] = {
+  def stepAbstract(sem: SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time]): Set[(AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time], List[Action[Exp, HybridValue, HybridAddress]])] = {
     concreteState.control match {
       /* In a eval state, call the semantic's evaluation method */
       case TracingControlEval(e) => integrate(sem)(concreteState.a, sem.stepEval(e, concreteState.ρ, concreteState.σ, concreteState.t))

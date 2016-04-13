@@ -320,24 +320,22 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                          TYPE SPECIALIZATION OPTIMIZATION                                        *
    ********************************************************************************************************************/
 
-  private def typeSpecializePrimitive(primitives: Primitives[HybridAddress, HybridValue],
-                                      prim: Primitive[HybridAddress, HybridValue],
+  private def typeSpecializePrimitive(prim: Primitive[HybridAddress, HybridValue],
                                       operandsTypes: AbstractType): Primitive[HybridAddress, HybridValue] = prim match {
-    case primitives.Plus => operandsTypes match {
-      case AbstractType.AbstractFloat => primitives.PlusFloat
-      case AbstractType.AbstractInt => primitives.PlusInteger
+    case hybridMachine.primitives.Plus => operandsTypes match {
+      case AbstractType.AbstractFloat => hybridMachine.primitives.PlusFloat
+      case AbstractType.AbstractInt => hybridMachine.primitives.PlusInteger
       case _ => prim
     }
-    case primitives.Minus => operandsTypes match {
-      case AbstractType.AbstractFloat => primitives.MinusFloat
-      case AbstractType.AbstractInt => primitives.MinusInteger
+    case hybridMachine.primitives.Minus => operandsTypes match {
+      case AbstractType.AbstractFloat => hybridMachine.primitives.MinusFloat
+      case AbstractType.AbstractInt => hybridMachine.primitives.MinusInteger
       case _ => prim
     }
     case _ => prim
   }
 
   private def optimizeTypeSpecialization(traceFull: TraceFull) : TraceFull = {
-    val primitives = traceFull.startProgramState.primitives
     def loop(trace: Trace) : Trace = trace match {
       case Nil => Nil
       case (actionState1@(_, someInfo)) :: (actionState2@(ActionPrimCallTraced(n, fExp, argsExps), _)) :: rest => someInfo match {
@@ -349,7 +347,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
             case prim: HybridLattice.Prim[HybridAddress, HybridValue] => prim match {
               case HybridLattice.Prim(primitive) => primitive match {
                 case primitive: Primitive[HybridAddress, HybridValue] =>
-                  val specializedPrim = typeSpecializePrimitive(primitives, primitive, operandsTypes)
+                  val specializedPrim = typeSpecializePrimitive(primitive, operandsTypes)
                   HybridLattice.Prim(specializedPrim)
               }
             }

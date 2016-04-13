@@ -1,14 +1,8 @@
-/**
-  * Created by mvdcamme on 12/04/16.
-  */
 trait TracingProgramState[Exp, Abs, Addr, Time] {
 
-  val abs = implicitly[AbstractValue[Abs]]
-  val addr = implicitly[Address[Addr]]
-  val time = implicitly[Timestamp[Time]]
-
-  /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
-  val primitives = new Primitives[Addr, Abs]()
+  implicit def abs : AbstractValue[Abs]
+  implicit def addr : Address[Addr]
+  implicit def time : Timestamp[Time]
 
   def halted: Boolean
 
