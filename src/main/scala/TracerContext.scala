@@ -4,8 +4,9 @@
 class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
     (sem : SemanticsTraced[Exp, Abs, Addr, Time], traceOptimizer : TraceOptimizer[Exp, Abs, Addr, Time], hybridMachine: HybridMachine[Exp, Time]) {
 
+  type Label = List[Exp]
+
   val semantics = sem
-  type Label = semantics.Label
   type InstructionReturn = semantics.InstructionReturn
   //type ProgramState = HybridMachine[Exp, Time]#ProgramState
   type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction

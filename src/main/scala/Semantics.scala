@@ -62,22 +62,6 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
   @throws(classOf[InvalidArityException])
   def bindClosureArgs(clo : Abs, argsv : List[(Exp, Abs)], σ : Store[Addr, Abs], t : Time) : Set[(Environment[Addr], Store[Addr, Abs], Exp)]
 
-  type Label = List[Exp]
-
-  /*
-   * Tracing signals
-   */
-  trait TracingSignal
-
-  case class TracingSignalFalse() extends TracingSignal
-  case class TracingSignalStart(label: Label) extends TracingSignal
-  case class TracingSignalEnd(label: Label, restartPoint: RestartPoint[Exp, Abs, Addr]) extends TracingSignal
-
-  /*
-   * Interpreter return
-   */
-  case class InterpreterReturn(trace: Trace, tracingSignal: TracingSignal)
-
   /*
    * Instruction return
    */
@@ -88,35 +72,25 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
   case class EndTrace(restartPoint: RestartPoint[Exp, Abs, Addr]) extends InstructionReturn
   case class LoopTrace() extends InstructionReturn
 
-  /*
-   * Trace instruction
-   */
-  type TraceInstruction = Action[Exp, Abs, Addr]
+  val endTraceInstruction: RestartPoint[Exp, Abs, Addr] => Action[Exp, Abs, Addr] = new ActionEndTrace(_)
 
-  val endTraceInstruction: RestartPoint[Exp, Abs, Addr] => TraceInstruction = new ActionEndTrace(_)
-
-  /*
-   * Trace
-   */
-  type Trace = List[TraceInstruction]
-
-  protected def interpreterReturn(actions: List[Action[Exp, Abs, Addr]]): InterpreterReturn =
+  protected def interpreterReturn(actions: List[Action[Exp, Abs, Addr]]): InterpreterReturn[Exp, Abs, Addr] =
     new InterpreterReturn(actions, new TracingSignalFalse)
 
-  protected def interpreterReturnStart(action: Action[Exp, Abs, Addr], label: Label): InterpreterReturn =
+  protected def interpreterReturnStart(action: Action[Exp, Abs, Addr], label: List[Exp]): InterpreterReturn[Exp, Abs, Addr] =
     new InterpreterReturn(List(action), new TracingSignalStart(label))
 
   /**
     * Defines what actions should be taken when an expression e needs to be
     * evaluated, in environment e with store σ
     */
-  def stepEval(e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn]
+  def stepEval(e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn[Exp, Abs, Addr]]
 
   /**
     * Defines what actions should be taken when a value v has been reached, and
     * the topmost frame is frame
     */
-  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn]
+  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn[Exp, Abs, Addr]]
 }
 
 /**

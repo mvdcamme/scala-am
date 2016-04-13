@@ -378,7 +378,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
     val initialState: ProgramState[Exp, Time] = traceFull.startProgramState match {
       case s: ProgramState[Exp, Time] => s
-      case _ => throw new Exception(s"Variable folding optimization expected state of type ${ProgramState[Exp, Time]}, got state ${traceFull.startProgramState} instead")
+      case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.startProgramState} instead")
     }
 
     def replaceVariableLookups(action: ActionLookupVariableTraced[Exp, HybridValue, HybridAddress],
