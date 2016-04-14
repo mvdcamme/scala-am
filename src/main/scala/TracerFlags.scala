@@ -3,10 +3,10 @@
   */
 object TracerFlags {
 
-  val DO_TRACING = true
+  val DO_TRACING = false
   val TRACING_THRESHOLD = 5
 
-  val APPLY_OPTIMIZATIONS = true
+  val APPLY_OPTIMIZATIONS = false
   val SWITCH_ABSTRACT = false
 
   val PRINT_ENTIRE_TRACE = false

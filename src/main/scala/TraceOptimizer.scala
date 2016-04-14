@@ -15,7 +15,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   val variableAnalyzer = new VariableAnalysis(sem, hybridMachine)
 
-  val APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
+  val APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = false
   val APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = false
   val APPLY_OPTIMIZATION_CONSTANT_FOLDING = false
   val APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = false

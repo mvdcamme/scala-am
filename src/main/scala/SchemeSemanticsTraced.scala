@@ -80,7 +80,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
    */
   def conditionalIf(v: Abs, t: List[Action[SchemeExp, Abs, Addr]], tRestart : RestartPoint[SchemeExp, Abs, Addr], f: List[Action[SchemeExp, Abs, Addr]], fRestart : RestartPoint[SchemeExp, Abs, Addr]): Set[InterpreterReturn[SchemeExp, Abs, Addr]] =
     (if (abs.isTrue(v)) {
-      Set[InterpreterReturn[SchemeExp, Abs, Addr]](InterpreterReturn[SchemeExp, Abs, Addr](actionRestoreEnv ::ActionGuardTrueTraced[SchemeExp, Abs, Addr](fRestart) :: t, TracingSignalFalse()))
+      Set[InterpreterReturn[SchemeExp, Abs, Addr]](InterpreterReturn[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardTrueTraced[SchemeExp, Abs, Addr](fRestart) :: t, TracingSignalFalse()))
     } else Set[InterpreterReturn[SchemeExp, Abs, Addr]]()) ++
     (if (abs.isFalse(v)) {
       Set[InterpreterReturn[SchemeExp, Abs, Addr]](InterpreterReturn[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardFalseTraced[SchemeExp, Abs, Addr](tRestart) :: f, TracingSignalFalse()))
@@ -239,15 +239,15 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time) : Set[InterpreterReturn[SchemeExp, Abs, Addr]] = frame match {
     case FrameAnd(Nil) =>
       conditionalIf(v,
-                    List(actionRestoreEnv, ActionReachedValueTraced(v), actionPopKont),
+                    List(ActionReachedValueTraced(v), actionPopKont),
                     RestartFromControl[SchemeExp, Abs, Addr](SchemeValue(ValueBoolean(false))),
-                    List(actionRestoreEnv, ActionReachedValueTraced(abs.inject(false)), actionPopKont),
+                    List(ActionReachedValueTraced(abs.inject(false)), actionPopKont),
                     RestartStop[SchemeExp, Abs, Addr]())
     case FrameAnd(e :: rest) =>
       conditionalIf(v,
-                    List(ActionPushTraced(e, FrameAnd(rest))),
+                    List(actionSaveEnv, ActionPushTraced(e, FrameAnd(rest))),
                     RestartFromControl[SchemeExp, Abs, Addr](SchemeValue(ValueBoolean(false))),
-                    List(actionRestoreEnv, ActionReachedValueTraced(abs.inject(false)), actionPopKont),
+                    List(ActionReachedValueTraced(abs.inject(false)), actionPopKont),
                     RestartFromControl[SchemeExp, Abs, Addr](e))
     case FrameBegin(body) => Set(interpreterReturn(actionRestoreEnv :: evalBody(body, FrameBegin)))
     case FrameCase(clauses, default) => {
@@ -311,15 +311,15 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     }
     case FrameOr(Nil) =>
       conditionalIf(v,
-                    List(actionRestoreEnv, ActionReachedValueTraced(v), actionPopKont),
+                    List(ActionReachedValueTraced(v), actionPopKont),
                     RestartFromControl[SchemeExp, Abs, Addr](SchemeValue(ValueBoolean(false))),
-                    List(actionRestoreEnv, ActionReachedValueTraced(abs.inject(false)), actionPopKont),
+                    List(ActionReachedValueTraced(abs.inject(false)), actionPopKont),
                     RestartStop[SchemeExp, Abs, Addr]())
     case FrameOr(e :: rest) =>
       conditionalIf(v,
-                    List(actionRestoreEnv, ActionReachedValueTraced(v), actionPopKont),
+                    List(ActionReachedValueTraced(v), actionPopKont),
                     RestartFromControl[SchemeExp, Abs, Addr](SchemeValue(ValueBoolean(false))),
-                    List(actionRestoreEnv, actionSaveEnv, ActionPushTraced(e, FrameOr(rest))),
+                    List(actionSaveEnv, ActionPushTraced(e, FrameOr(rest))),
                     RestartFromControl[SchemeExp, Abs, Addr](e))
     case FrameSet(name, ρ) => ρ.lookup(name) match {
       case Some(a) => Set(InterpreterReturn(List(ActionSetVarTraced(name), ActionReachedValueTraced(abs.inject(false), Set[Addr](), Set[Addr](a)), actionPopKont), new TracingSignalFalse)) /* writes on a */
