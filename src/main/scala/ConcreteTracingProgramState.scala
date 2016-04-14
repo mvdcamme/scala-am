@@ -185,8 +185,8 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     result match {
       case Left(error) =>
         throw new Exception(error)
-      case Right((res, _)) =>
-        ProgramState(control, ρ, σ, kstore, a, t, res, newVStack)
+      case Right((res, σ2)) =>
+        ProgramState(control, ρ, σ2, kstore, a, t, res, newVStack)
     }
   }
 

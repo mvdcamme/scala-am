@@ -1,5 +1,6 @@
 run -m Hybrid -f test/blur.scm -l Concrete -c
 run -m Hybrid -f test/count.scm -l Concrete -c
+run -m Hybrid -f test/cpstak.scm -l Concrete -c
 run -m Hybrid -f test/fib.scm -l Concrete -c
 run -m Hybrid -f test/eta.scm -l Concrete -c
 run -m Hybrid -f test/fact.scm -l Concrete -c
