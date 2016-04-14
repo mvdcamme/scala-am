@@ -138,16 +138,17 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[SchemeExp], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn[SchemeExp, Abs, Addr]] =
     funcallArgs(f, fexp, List(), args, σ, t)
 
-  protected def evalQuoted(exp: SExp, σ: Store[Addr, Abs], t: Time): (Abs, Store[Addr, Abs]) = exp match {
-    case SExpIdentifier(sym) => (abs.injectSymbol(sym), σ)
+  protected def evalQuoted(exp: SExp, t: Time): (Abs, List[Action[SchemeExp, Abs, Addr]]) = exp match {
+    case SExpIdentifier(sym) => (abs.injectSymbol(sym), List())
     case SExpPair(car, cdr) => {
       val care: SchemeExp = SchemeIdentifier(car.toString).setPos(car.pos)
       val cdre: SchemeExp = SchemeIdentifier(cdr.toString).setPos(cdr.pos)
       val cara = addr.cell(care, t)
-      val (carv, σ2) = evalQuoted(car, σ, t)
+      val (carv, actionsCar) = evalQuoted(car, t)
       val cdra = addr.cell(cdre, t)
-      val (cdrv, σ3) = evalQuoted(cdr, σ2, t)
-      (abs.cons(cara, cdra), σ3.extend(cara, carv).extend(cdra, cdrv))
+      val (cdrv, actionsCdr) = evalQuoted(cdr, t)
+      (abs.cons(cara, cdra), (actionsCar :+ ActionExtendStoreTraced[SchemeExp, Abs, Addr](cara, carv)) ++
+                             (actionsCdr :+ ActionExtendStoreTraced[SchemeExp, Abs, Addr](cdra, cdrv)))
     }
     case SExpValue(v) => (v match {
       case ValueString(str) => abs.inject(str)
@@ -157,8 +158,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       case ValueFloat(n) => abs.inject(n)
       case ValueBoolean(b) => abs.inject(b)
       case ValueNil() => abs.nil
-    }, σ)
-    case SExpQuoted(q) => evalQuoted(SExpPair(SExpIdentifier("quote"), SExpPair(q, SExpValue(ValueNil()))), σ, t)
+    }, List())
+    case SExpQuoted(q) => evalQuoted(SExpPair(SExpIdentifier("quote"), SExpPair(q, SExpValue(ValueNil()))), t)
   }
 
   def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time) : Set[InterpreterReturn[SchemeExp, Abs, Addr]] = e match {
@@ -210,9 +211,9 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case SchemeOr(Nil) => Set(interpreterReturn(List(ActionReachedValueTraced(abs.inject(false)), actionPopKont)))
     case SchemeOr(exp :: exps) => Set(interpreterReturn(List(actionSaveEnv, ActionPushTraced(exp, FrameOr(exps)))))
     case SchemeSet(variable, exp) => Set(interpreterReturn(List(ActionPushTraced(exp, FrameSet(variable, ρ)))))
-//    case SchemeQuoted(quoted) => evalQuoted(quoted, σ, t) match { TODO Take care of this: add instruction to swap the store? Since a quoted expression is static anyway?
-//      case (value, σ2) => Set(interpreterReturn(ActionReachedValue(value, σ2), actionPopKont))
-//    }
+    case SchemeQuoted(quoted) =>
+      val (value, actions) = evalQuoted(quoted, t)
+      Set(interpreterReturn(actions :+ ActionReachedValueTraced[SchemeExp, Abs, Addr](value) :+ actionPopKont))
     case SchemeRelease(variable) => ρ.lookup(variable) match {
       case Some(a) => Set(InterpreterReturn(List(ActionReachedValueTraced(abs.inject(true)), ActionSetVarTraced(variable),
                                                  ActionReachedValueTraced(abs.inject(true)), actionPopKont), new TracingSignalFalse()))

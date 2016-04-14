@@ -240,6 +240,7 @@ case class ActionErrorTraced[Exp : Expression, Abs : AbstractValue, Addr : Addre
 case class ActionEvalTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
 (e: Exp, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionExtendEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String) extends Action[Exp, Abs, Addr]
+case class ActionExtendStoreTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](addr: Addr, lit: Abs) extends Action[Exp, Abs, Addr]
 
 case class ActionGuardFalseTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](override val rp: RestartPoint[Exp, Abs, Addr])
   extends ActionGuardTraced[Exp, Abs, Addr](rp)

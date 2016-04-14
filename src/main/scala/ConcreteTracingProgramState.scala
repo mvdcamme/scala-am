@@ -250,7 +250,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         case (HybridLattice.Right(_), HybridLattice.Right(_)) =>
           NormalInstructionStep(this, guard)
         case _ =>
-          throw new Exception("Mixing concrete values with abstract values")
+          throw new Exception(s"Mixing concrete values with abstract values: ${guard.recordedClosure} and $currentClosure")
       }
     }
 
@@ -293,6 +293,9 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         val ρ1 = ρ.extend(varName, va)
         val σ1 = σ.extend(va, v)
         NormalInstructionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, vStack), action)
+      case ActionExtendStoreTraced(addr, lit) =>
+        val σ1 = σ.extend(addr, lit)
+        NormalInstructionStep(ProgramState(control, ρ, σ1, kstore, a, t, lit, vStack), action)
       case ActionLookupVariableTraced(varName, _, _) =>
         val newV = σ.lookup(ρ.lookup(varName).get)
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, vStack), action)
