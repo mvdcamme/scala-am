@@ -79,8 +79,12 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
    * TODO: Debugging: run tests only using if-expressions. Remove function ASAP and use function "conditional" instead!
    */
   def conditionalIf(v: Abs, t: List[Action[SchemeExp, Abs, Addr]], tRestart : RestartPoint[SchemeExp, Abs, Addr], f: List[Action[SchemeExp, Abs, Addr]], fRestart : RestartPoint[SchemeExp, Abs, Addr]): Set[InterpreterReturn[SchemeExp, Abs, Addr]] =
-    (if (abs.isTrue(v)) Set[InterpreterReturn[SchemeExp, Abs, Addr]](InterpreterReturn[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardTrueTraced[SchemeExp, Abs, Addr](fRestart) :: t, TracingSignalFalse())) else Set[InterpreterReturn[SchemeExp, Abs, Addr]]()) ++
-    (if (abs.isFalse(v)) Set[InterpreterReturn[SchemeExp, Abs, Addr]](InterpreterReturn[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardFalseTraced[SchemeExp, Abs, Addr](tRestart) :: f, TracingSignalFalse())) else Set[InterpreterReturn[SchemeExp, Abs, Addr]]())
+    (if (abs.isTrue(v)) {
+      Set[InterpreterReturn[SchemeExp, Abs, Addr]](InterpreterReturn[SchemeExp, Abs, Addr](actionRestoreEnv ::ActionGuardTrueTraced[SchemeExp, Abs, Addr](fRestart) :: t, TracingSignalFalse()))
+    } else Set[InterpreterReturn[SchemeExp, Abs, Addr]]()) ++
+    (if (abs.isFalse(v)) {
+      Set[InterpreterReturn[SchemeExp, Abs, Addr]](InterpreterReturn[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardFalseTraced[SchemeExp, Abs, Addr](tRestart) :: f, TracingSignalFalse()))
+    } else Set[InterpreterReturn[SchemeExp, Abs, Addr]]())
 
   /**
    * @param argsv are the Scheme-expressions of the operands of the call
@@ -234,13 +238,17 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
   def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time) : Set[InterpreterReturn[SchemeExp, Abs, Addr]] = frame match {
     case FrameAnd(Nil) =>
-      conditional(v,
-                  List(actionRestoreEnv, ActionReachedValueTraced(v), actionPopKont),
-                  List(actionRestoreEnv, ActionReachedValueTraced(abs.inject(false)), actionPopKont))
+      conditionalIf(v,
+                    List(actionRestoreEnv, ActionReachedValueTraced(v), actionPopKont),
+                    RestartFromControl[SchemeExp, Abs, Addr](SchemeValue(ValueBoolean(false))),
+                    List(actionRestoreEnv, ActionReachedValueTraced(abs.inject(false)), actionPopKont),
+                    RestartStop[SchemeExp, Abs, Addr]())
     case FrameAnd(e :: rest) =>
-      conditional(v,
-                  List(ActionPushTraced(e, FrameAnd(rest))),
-                  List(actionRestoreEnv, ActionReachedValueTraced(abs.inject(false)), actionPopKont))
+      conditionalIf(v,
+                    List(ActionPushTraced(e, FrameAnd(rest))),
+                    RestartFromControl[SchemeExp, Abs, Addr](SchemeValue(ValueBoolean(false))),
+                    List(actionRestoreEnv, ActionReachedValueTraced(abs.inject(false)), actionPopKont),
+                    RestartFromControl[SchemeExp, Abs, Addr](e))
     case FrameBegin(body) => Set(interpreterReturn(actionRestoreEnv :: evalBody(body, FrameBegin)))
     case FrameCase(clauses, default) => {
       val fromClauses = clauses.flatMap({ case (values, body) =>
@@ -281,7 +289,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case FrameFuncallOperands(f, fexp, exp, args, toeval) => funcallArgs(f, fexp, (exp, v) :: args, toeval, σ, t)
     case FrameFuncallOperator(fexp, args) => funcallArgs(v, fexp, args, σ, t)
     case FrameIf(cons, alt) =>
-      conditionalIf(v, List(ActionEvalTraced(cons)), RestartGuardFailed(cons), List(ActionEvalTraced(alt)), RestartGuardFailed(alt))
+      conditionalIf(v, List(ActionEvalTraced(cons)), RestartFromControl(cons), List(ActionEvalTraced(alt)), RestartFromControl(alt))
     case FrameLet(name, bindings, Nil, body) => {
       val variables = name :: bindings.map(_._1)
       Set(interpreterReturn(actionRestoreEnv :: actionPushVal :: ActionDefineVarsTraced[SchemeExp, Abs, Addr](variables) :: evalBody(body, FrameBegin)))
@@ -302,9 +310,17 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       }
     }
     case FrameOr(Nil) =>
-      conditional(v, List(actionRestoreEnv, ActionReachedValueTraced(v), actionPopKont), List(actionRestoreEnv, ActionReachedValueTraced(abs.inject(false)), actionPopKont))
+      conditionalIf(v,
+                    List(actionRestoreEnv, ActionReachedValueTraced(v), actionPopKont),
+                    RestartFromControl[SchemeExp, Abs, Addr](SchemeValue(ValueBoolean(false))),
+                    List(actionRestoreEnv, ActionReachedValueTraced(abs.inject(false)), actionPopKont),
+                    RestartStop[SchemeExp, Abs, Addr]())
     case FrameOr(e :: rest) =>
-      conditional(v, List(actionRestoreEnv, ActionReachedValueTraced(v), actionPopKont), List(actionRestoreEnv, actionSaveEnv, ActionPushTraced(e, FrameOr(rest))))
+      conditionalIf(v,
+                    List(actionRestoreEnv, ActionReachedValueTraced(v), actionPopKont),
+                    RestartFromControl[SchemeExp, Abs, Addr](SchemeValue(ValueBoolean(false))),
+                    List(actionRestoreEnv, actionSaveEnv, ActionPushTraced(e, FrameOr(rest))),
+                    RestartFromControl[SchemeExp, Abs, Addr](e))
     case FrameSet(name, ρ) => ρ.lookup(name) match {
       case Some(a) => Set(InterpreterReturn(List(ActionSetVarTraced(name), ActionReachedValueTraced(abs.inject(false), Set[Addr](), Set[Addr](a)), actionPopKont), new TracingSignalFalse)) /* writes on a */
       case None => Set(interpreterReturn(List(ActionErrorTraced(s"Unbound variable: $name"))))
