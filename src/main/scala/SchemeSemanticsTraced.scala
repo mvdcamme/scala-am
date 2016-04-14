@@ -28,8 +28,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   case class FrameCond(cons: List[SchemeExp], clauses: List[(SchemeExp, List[SchemeExp])], ρ: Environment[Addr]) extends SchemeFrame
   case class FrameDefine(variable: String, ρ: Environment[Addr]) extends SchemeFrame
   case class FrameFunBody(body : List[SchemeExp], rest: List[SchemeExp]) extends SchemeFrame
-  case class FrameFuncallOperands(f: Abs, fexp: SchemeExp, cur: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrame
-  case class FrameFuncallOperator(fexp: SchemeExp, args: List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrame
+  case class FrameFuncallOperands(f: Abs, fexp: SchemeExp, cur: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp]) extends SchemeFrame
+  case class FrameFuncallOperator(fexp: SchemeExp, args: List[SchemeExp]) extends SchemeFrame
   case class FrameIf(cons: SchemeExp, alt: SchemeExp) extends SchemeFrame
   case class FrameLet(variable: String, bindings: List[(String, Abs)], toeval: List[(String, SchemeExp)], body: List[SchemeExp]) extends SchemeFrame
   case class FrameLetrec(variable: String, bindings: List[(String, SchemeExp)], body: List[SchemeExp]) extends SchemeFrame
@@ -51,8 +51,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case FrameCond(cond, clauses, ρ) => FrameCond(cond, clauses, ρ.map(convertAddress))
     case FrameDefine(variable, ρ) => FrameDefine(variable, ρ.map(convertAddress))
     case FrameFunBody(body, toeval) => FrameFunBody(body, toeval)
-    case FrameFuncallOperands(f, fexp, cur, args, toeval, ρ) => FrameFuncallOperands(convertValue(f), fexp, cur, args.map({tuple => (tuple._1, convertValue(tuple._2))}), toeval, ρ.map(convertAddress))
-    case FrameFuncallOperator(fexp, args, ρ) => FrameFuncallOperator(fexp, args, ρ.map(convertAddress))
+    case FrameFuncallOperands(f, fexp, cur, args, toeval) => FrameFuncallOperands(convertValue(f), fexp, cur, args.map({tuple => (tuple._1, convertValue(tuple._2))}), toeval)
+    case FrameFuncallOperator(fexp, args) => FrameFuncallOperator(fexp, args)
     case FrameIf(cons, alt) => FrameIf(cons, alt)
     case FrameLet(variable, bindings, toeval, body) => FrameLet(variable, bindings.map({tuple => (tuple._1, convertValue(tuple._2))}), toeval, body)
     case FrameLetrec(variable, bindings, body) => FrameLetrec(variable, bindings, body)
@@ -85,7 +85,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   /**
    * @param argsv are the Scheme-expressions of the operands of the call
    */
-  def evalCall(function: Abs, fexp: SchemeExp, argsv: List[(SchemeExp, Abs)], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn[SchemeExp, Abs, Addr]] = {
+  def evalCall(function: Abs, fexp: SchemeExp, argsv: List[(SchemeExp, Abs)], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn[SchemeExp, Abs, Addr]] = {
 
     /*
      * The number of values to pop: the number of operands + the operator.
@@ -131,12 +131,12 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case _ => None
   }
 
-  protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn[SchemeExp, Abs, Addr]] = toeval match {
-    case Nil => evalCall(f, fexp, args.reverse, ρ, σ, t)
-    case e :: rest => Set(InterpreterReturn(List(actionRestoreEnv, actionPushVal, actionSaveEnv, ActionPushTraced(e, FrameFuncallOperands(f, fexp, e, args, rest, ρ))), new TracingSignalFalse))
+  protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn[SchemeExp, Abs, Addr]] = toeval match {
+    case Nil => evalCall(f, fexp, args.reverse, σ, t)
+    case e :: rest => Set(InterpreterReturn(List(actionRestoreEnv, actionPushVal, actionSaveEnv, ActionPushTraced(e, FrameFuncallOperands(f, fexp, e, args, rest))), new TracingSignalFalse))
   }
-  protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn[SchemeExp, Abs, Addr]] =
-    funcallArgs(f, fexp, List(), args, ρ, σ, t)
+  protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[SchemeExp], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn[SchemeExp, Abs, Addr]] =
+    funcallArgs(f, fexp, List(), args, σ, t)
 
   protected def evalQuoted(exp: SExp, σ: Store[Addr, Abs], t: Time): (Abs, Store[Addr, Abs]) = exp match {
     case SExpIdentifier(sym) => (abs.injectSymbol(sym), σ)
@@ -191,7 +191,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       val σ1 = σ.extend(a, v)
       Set(interpreterReturn(List(ActionReachedValueTraced(v), actionPopKont)))
     }
-    case SchemeFuncall(f, args) => Set(interpreterReturn(List(actionStartFunCall, actionSaveEnv, ActionPushTraced(f, FrameFuncallOperator(f, args, ρ)))))
+    case SchemeFuncall(f, args) => Set(interpreterReturn(List(actionStartFunCall, actionSaveEnv, ActionPushTraced(f, FrameFuncallOperator(f, args)))))
     case SchemeIdentifier(name) => ρ.lookup(name) match {
       case Some(a) => Set(interpreterReturn(List(ActionLookupVariableTraced(name), actionPopKont))) /* reads on a */
       case None => Set(interpreterReturn(List(ActionErrorTraced(s"Unbound variable: $name"))))
@@ -273,8 +273,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case FrameHalt => Set()
     case FrameFunBody(body, Nil) => Set(InterpreterReturn(List(actionRestoreEnv, actionPopKont), TracingSignalEnd(body, RestartTraceEnded())))
     case FrameFunBody(body, toeval) => Set(interpreterReturn(actionRestoreEnv :: evalBody(toeval, FrameFunBody(body, _))))
-    case FrameFuncallOperands(f, fexp, exp, args, toeval, ρ) => funcallArgs(f, fexp, (exp, v) :: args, toeval, ρ, σ, t)
-    case FrameFuncallOperator(fexp, args, ρ) => funcallArgs(v, fexp, args, ρ, σ, t)
+    case FrameFuncallOperands(f, fexp, exp, args, toeval) => funcallArgs(f, fexp, (exp, v) :: args, toeval, σ, t)
+    case FrameFuncallOperator(fexp, args) => funcallArgs(v, fexp, args, σ, t)
     case FrameIf(cons, alt) =>
       conditionalIf(v, List(ActionEvalTraced(cons)), RestartGuardFailed(cons), List(ActionEvalTraced(alt)), RestartGuardFailed(alt))
     case FrameLet(name, bindings, Nil, body) => {

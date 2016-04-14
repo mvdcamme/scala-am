@@ -61,7 +61,7 @@ abstract class OneResultTests[Exp : Expression, Abs : AbstractValue, Addr : Addr
 
   check("blur.scm", abs.inject(true))
   check("count.scm", abs.inject("done"))
-  // check("cpstak.scm", abs.inject(6)) disabled due to the time it takes
+  check("cpstak.scm", abs.inject(6))
   check("fib.scm", abs.inject(3))
   check("eta.scm", abs.inject(false))
   check("fact.scm", abs.inject(120))
