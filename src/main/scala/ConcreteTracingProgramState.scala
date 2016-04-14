@@ -214,6 +214,8 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
                   action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time] = {
 
+    ActionLogger.logAction[Exp, HybridValue, HybridAddress](action)
+
     def handleGuard(guard: ActionGuardTraced[Exp, HybridValue, HybridAddress],
                     guardCheckFunction: HybridValue => Boolean): InstructionStep[Exp, HybridValue, HybridAddress, Time] = {
       if (guardCheckFunction(v)) {

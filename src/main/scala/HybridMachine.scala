@@ -20,8 +20,6 @@
 class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time])
     extends EvalKontMachineTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time](sem) {
 
-
-  
   type HybridValue = HybridLattice.Hybrid
 
   type TraceInstruction = Action[Exp, HybridValue, HybridAddress]
@@ -30,8 +28,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   type TraceWithInfos = List[TraceInstructionInfo]
 
   type Label = List[Exp]
-
-  var ACTIONS_EXECUTED: TraceWithoutStates = List()
 
   /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
   implicit val primitives = new Primitives[HybridAddress, HybridValue]()
@@ -252,11 +248,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   private def loop(s: ExecutionState, nrVisited: Integer, startingTime: Long, graph: Option[Graph[PS, String]]): AAMOutput[PS, String] = {
     def endEvalLoop(): AAMOutput[PS, String] = {
       if (TracerFlags.PRINT_ACTIONS_EXECUTED) {
-        Logger.log("####### actions executed #######", Logger.E)
-        for (ac <- ACTIONS_EXECUTED) {
-          Logger.log(ac, Logger.E)
-        }
-        Logger.log("####### actions executed #######", Logger.E)
+        ActionLogger.printActions()
       }
       AAMOutput[PS, String](Set(s.ps), nrVisited,
         (System.nanoTime - startingTime) / Math.pow(10, 9), graph)
