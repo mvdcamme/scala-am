@@ -425,6 +425,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
         (ActionLookupVariablePushTraced[Exp, HybridValue, HybridAddress](varName, read, write), s2) :: loop(rest)
       case (ActionReachedValueTraced(lit, read, write), s1) :: (ActionPushValTraced(), s2) :: rest =>
         (ActionReachedValuePushTraced[Exp, HybridValue, HybridAddress](lit, read, write), s2) :: loop(rest)
+      case (ActionRestoreEnvTraced(), s1) :: (ActionSaveEnvTraced(), s2) :: rest =>
+        (ActionRestoreSaveEnvTraced[Exp, HybridValue, HybridAddress](), s2) :: loop(rest)
       case otherAction :: rest =>
         otherAction :: loop(rest)
     }

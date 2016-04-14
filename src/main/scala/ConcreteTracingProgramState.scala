@@ -211,6 +211,19 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     }
   }
 
+  def restoreEnv(): ProgramState[Exp, Time] = {
+    try {
+      val (newρ, newVStack) = popStack(vStack)
+      ProgramState(control, newρ.getEnv, σ, kstore, a, t, v, newVStack)
+    } catch {
+      case e : java.lang.IndexOutOfBoundsException =>
+        throw new IncorrectStackSizeException()
+    }
+  }
+
+  protected def saveEnv(): ProgramState[Exp, Time] =
+    ProgramState(control, ρ, σ, kstore, a, t, v, StoreEnv(ρ) :: vStack)
+
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
                   action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time] = {
 
@@ -304,15 +317,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case ActionReachedValuePushTraced(lit, _, _) =>
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, lit, StoreVal(lit) :: vStack), action)
       case ActionRestoreEnvTraced() =>
-        try {
-          val (newρ, newVStack) = popStack(vStack)
-          NormalInstructionStep(ProgramState(control, newρ.getEnv, σ, kstore, a, t, v, newVStack), action)
-        } catch {
-          case e : java.lang.IndexOutOfBoundsException =>
-            throw new IncorrectStackSizeException()
-        }
+        NormalInstructionStep(restoreEnv(), action)
+      case ActionRestoreSaveEnvTraced() =>
+        NormalInstructionStep(restoreEnv().saveEnv(), action)
       case ActionSaveEnvTraced() =>
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreEnv(ρ) :: vStack), action)
+        NormalInstructionStep(saveEnv(), action)
       case ActionSetVarTraced(variable) =>
         ρ.lookup(variable) match {
           case Some(address) =>

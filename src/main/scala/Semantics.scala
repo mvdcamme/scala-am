@@ -281,6 +281,7 @@ case class ActionReachedValueTraced[Exp : Expression, Abs : AbstractValue, Addr 
 case class ActionReachedValuePushTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (v : Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionRestoreEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
+case class ActionRestoreSaveEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionSaveEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionSetVarTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](variable : String) extends Action[Exp, Abs, Addr]
 /**
