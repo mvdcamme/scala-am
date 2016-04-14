@@ -70,7 +70,7 @@ object AbstractConcrete {
     override def unaryOp(op: UnaryOperator) = op match {
       case IsInteger => AbstractTrue
       case Ceiling => AbstractInt(v)
-      case Log => AbstractFloat(scala.math.log(v).toFloat)
+      case Log => AbstractInt(scala.math.log(v).toInt)
       case Random => AbstractInt(scala.util.Random.nextInt % v)
       case _ => super.unaryOp(op)
     }
