@@ -9,7 +9,8 @@ trait AbstractTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
 }
 
 case class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteState: ProgramState[Exp, Time])
-  extends AbstractTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time] {
+  extends AbstractTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time]
+  with ConcretableTracingProgramState[Exp, Time] {
 
   type HybridValue = HybridLattice.Hybrid
 
@@ -92,39 +93,11 @@ case class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteStat
     }
   }
 
-  /**
-    * Checks if the current state is a final state. It is the case if it
-    * reached the end of the computation, or an error
-    */
-  def halted: Boolean = concreteState.control match {
-    case TracingControlEval(_) => false
-    case TracingControlKont(HaltKontAddress) => true
-    case TracingControlKont(_) => abs.isError(concreteState.v)
-    case TracingControlError(_) => true
-  }
-
-  /**
-    * Returns the set of final values that can be reached
-    */
-  def finalValues = concreteState.control match {
-    case TracingControlKont(_) => Set[HybridValue](concreteState.v)
-    case _ => Set[HybridValue]()
-  }
-
-  def graphNodeColor = concreteState.control match {
-    case TracingControlEval(_) => "#DDFFDD"
-    case TracingControlKont(_) => "#FFDDDD"
-    case TracingControlError(_) => "#FF0000"
-  }
+  def concretableState = concreteState
 
   def subsumes(that: TracingProgramState[Exp, HybridValue, HybridAddress, Time]): Boolean = that match {
     case that: AbstractProgramState[Exp, Time] =>
-      concreteState.control.subsumes(that.concreteState.control) &&
-      concreteState.ρ.subsumes(that.concreteState.ρ) &&
-      concreteState.σ.subsumes(that.concreteState.σ) &&
-      concreteState.a == that.concreteState.a &&
-      concreteState.kstore.subsumes(that.concreteState.kstore) &&
-      concreteState.t == that.concreteState.t
+      concreteSubsumes(that)
     case _ => false
   }
 

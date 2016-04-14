@@ -3,7 +3,7 @@
   */
 object TracerFlags {
 
-  val DO_TRACING = true
+  val DO_TRACING = false
   val TRACING_THRESHOLD = 0
 
   val APPLY_OPTIMIZATIONS = true

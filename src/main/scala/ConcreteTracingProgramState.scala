@@ -15,6 +15,45 @@ case class IncorrectStackSizeException() extends Exception
 case class VariableNotFoundException(variable : String) extends Exception(variable)
 case class NotAPrimitiveException(message : String) extends Exception(message)
 
+trait ConcretableTracingProgramState[Exp, Time] {
+
+  def concretableState: ProgramState[Exp, Time]
+
+  /**
+    * Checks if the current state is a final state. It is the case if it
+    * reached the end of the computation, or an error
+    */
+  def halted: Boolean = concretableState.control match {
+    case TracingControlEval(_) => false
+    case TracingControlKont(HaltKontAddress) => true
+    case TracingControlKont(_) => concretableState.abs.isError(concretableState.v)
+    case TracingControlError(_) => true
+  }
+
+  /**
+    * Returns the set of final values that can be reached
+    */
+  def finalValues = concretableState.control match {
+    case TracingControlKont(_) => Set[HybridLattice.Hybrid](concretableState.v)
+    case _ => Set[HybridLattice.Hybrid]()
+  }
+
+  def graphNodeColor = concretableState.control match {
+    case TracingControlEval(_) => "#DDFFDD"
+    case TracingControlKont(_) => "#FFDDDD"
+    case TracingControlError(_) => "#FF0000"
+  }
+
+  def concreteSubsumes(that: ConcretableTracingProgramState[Exp, Time]): Boolean =
+    concretableState.control.subsumes(that.concretableState.control) &&
+    concretableState.ρ.subsumes(that.concretableState.ρ) &&
+    concretableState.σ.subsumes(that.concretableState.σ) &&
+    concretableState.a == that.concretableState.a &&
+    concretableState.kstore.subsumes(that.concretableState.kstore) &&
+    concretableState.t == that.concretableState.t
+
+}
+
 trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramState[Exp, Abs, Addr, Time] {
   type HybridValue = HybridLattice.Hybrid
 
@@ -45,7 +84,8 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
    a: KontAddr,
    t: Time,
    v : HybridLattice.Hybrid,
-   vStack : List[Storable]) extends ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time] {
+   vStack : List[Storable]) extends ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time]
+                            with ConcretableTracingProgramState[Exp, Time] {
 
   def abs = implicitly[AbstractValue[HybridValue]]
   def addr = implicitly[Address[HybridAddress]]
@@ -377,35 +417,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       None
   }
 
-  /**
-    * Checks if the current state is a final state. It is the case if it
-    * reached the end of the computation, or an error
-    */
-  def halted: Boolean = control match {
-    case TracingControlEval(_) => false
-    case TracingControlKont(HaltKontAddress) => true
-    case TracingControlKont(_) => abs.isError(v)
-    case TracingControlError(_) => true
-  }
-
-  /**
-    * Returns the set of final values that can be reached
-    */
-  def finalValues = control match {
-    case TracingControlKont(_) => Set[HybridValue](v)
-    case _ => Set[HybridValue]()
-  }
-
-  def graphNodeColor = control match {
-    case TracingControlEval(_) => "#DDFFDD"
-    case TracingControlKont(_) => "#FFDDDD"
-    case TracingControlError(_) => "#FF0000"
-  }
+  def concretableState = this
 
   def subsumes(that: TracingProgramState[Exp, HybridValue, HybridAddress, Time]): Boolean = that match {
     case that: ProgramState[Exp, Time] =>
-      control.subsumes(that.control) && ρ.subsumes(that.ρ) && σ.subsumes(that.σ) &&
-        a == that.a && kstore.subsumes(that.kstore) && t == that.t
+      concreteSubsumes(that)
     case _ => false
   }
 }
