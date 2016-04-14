@@ -19,14 +19,8 @@ object Logger {
   val I = LogLevel.Info
   val E = LogLevel.Essential
 
-  /*
-   * The current message level. All messages that are logged must have a level greater than or equal to this level
-   * in order to be printed.
-   */
-  val level = E
-
   def log(message: String, messageLevel: LogLevel.Value): Unit = {
-    if (messageLevel >= level) {
+    if (messageLevel >= TracerFlags.level) {
       println(message)
     }
   }
