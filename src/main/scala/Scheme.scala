@@ -746,6 +746,8 @@ object SchemeDesugarer {
       case SchemeRelease(variable) => SchemeRelease(variable)
       case SchemeSpawn(exp) => SchemeSpawn(unand(exp))
       case SchemeJoin(exp) => SchemeJoin(unand(exp))
+      case SchemeDefineVariable(variable, value) => SchemeDefineVariable(variable, unand(value))
+      case SchemeDefineFunction(name, args, body) => SchemeDefineFunction(name, args, body.map(unand))
     }
     exp2.setPos(exp.pos)
   }
