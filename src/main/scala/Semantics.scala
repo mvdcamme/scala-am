@@ -226,7 +226,6 @@ abstract class ActionGuardTraced[Exp : Expression, Abs : AbstractValue, Addr : A
 case class ActionAllocVarsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varNames : List[String]) extends Action[Exp, Abs, Addr]
 case class ActionCreateClosureTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](λ : Exp) extends Action[Exp, Abs, Addr]
 case class ActionDefineVarsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varNames : List[String]) extends Action[Exp, Abs, Addr]
-case class ActionDropValsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](n : Integer) extends Action[Exp, Abs, Addr]
 case class ActionEndClosureCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionEndPrimCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionEndTrace[Exp : Expression, Abs : AbstractValue, Addr : Address](restartPoint: RestartPoint[Exp, Abs, Addr]) extends Action[Exp, Abs, Addr]
@@ -234,19 +233,20 @@ case class ActionEndTrace[Exp : Expression, Abs : AbstractValue, Addr : Address]
 * An error has been reached
 */
 case class ActionErrorTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(reason: String) extends Action[Exp, Abs, Addr]
+  (reason: String) extends Action[Exp, Abs, Addr]
 /**
 * Evaluation continues with expression e in environment ρ
 */
 case class ActionEvalTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(e: Exp, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (e: Exp, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionExtendEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String) extends Action[Exp, Abs, Addr]
 case class ActionExtendStoreTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](addr: Addr, lit: Abs) extends Action[Exp, Abs, Addr]
 
 case class ActionGuardFalseTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](override val rp: RestartPoint[Exp, Abs, Addr])
   extends ActionGuardTraced[Exp, Abs, Addr](rp)
 case class ActionGuardAssertFreeVariable[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (variable : String, originalValue : Abs, override val rp: RestartPoint[Exp, Abs, Addr]) extends ActionGuardTraced[Exp, Abs, Addr](rp)
+  (variable : String, originalValue : Abs, override val rp: RestartPoint[Exp, Abs, Addr])
+  extends ActionGuardTraced[Exp, Abs, Addr](rp)
 case class ActionGuardTrueTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](override val rp: RestartPoint[Exp, Abs, Addr])
   extends ActionGuardTraced[Exp, Abs, Addr](rp)
 case class ActionGuardSameClosure[Exp : Expression, Abs : AbstractValue, Addr : Address]

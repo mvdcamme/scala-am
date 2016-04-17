@@ -277,8 +277,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         val (vals, newVStack) = popStackItems(vStack, variables.length)
         val (ρ1, σ1) = vals.zip(variables.zip(addresses)).foldLeft((ρ, σ))({ case ((ρ2, σ2), (value, (currV, currA))) => (ρ2.extend(currV, currA), σ2.extend(currA, value.getVal)) })
         NormalInstructionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, newVStack), action)
-      case ActionDropValsTraced(n) =>
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, vStack.drop(n)), action)
       case ActionEndClosureCallTraced() =>
         NormalInstructionStep(this, action)
       case ActionEndPrimCallTraced() =>
