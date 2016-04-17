@@ -703,16 +703,30 @@ object SchemeDesugarer {
   }
 
   /**
-    * Remove and expressions from a Scheme expression, replacing them by if expressions.
-    * For example:
-    * (and a b c)
-    * Will be converted to:
+    * Desugars single expressions, e.g. and-, or- and cond-expressions.
+    *
+    * (and a b c) is syntactic sugar for:
     * (if a
-    * (if b
-    * c
-    * #f)
-    * #f)
-    * Which is semantically equivalent with respect to the end result
+    *     (if b
+    *         c
+    *         #f)
+    *     #f)
+    *
+    * (or a b c) is syntactic sugar for:
+    * (let ((va a))
+    *   (if va
+    *       va
+    *       (let ((vb b))
+    *         (if vb
+    *             vb
+    *             c))))
+    *
+    * (cond (a u v w)
+    *       (else x y z))
+    * is syntactic sugar for:
+    * (if a
+    *     (begin u v w)
+    *     (begin x y z))
     */
   def desugarExp(exp: SchemeExp): SchemeExp = {
     val exp2 = exp match {
@@ -725,11 +739,33 @@ object SchemeDesugarer {
         case Nil => SchemeValue(ValueBoolean(false))
         case orExp :: Nil => desugarExp(orExp)
         case orExp :: rest =>
+          /*
+           * Generate a unique variable name by combining characters (#<>) that can't be used inside Scheme identifiers
+           * by users with a unique id.
+           */
           val tempVarName = s"#<genvar$id>"
           id += 1
           val body: SchemeExp = SchemeIf(SchemeIdentifier(tempVarName), SchemeIdentifier(tempVarName), desugarExp(SchemeOr(rest).setPos(exp.pos)))
           SchemeLet(List((tempVarName, desugarExp(orExp))), List(body))
       }
+
+      case SchemeCond(clauses) => clauses match {
+        case Nil => SchemeValue(ValueBoolean(false))
+        case (cond, body) :: rest =>
+          val desugaredRest = desugarExp(SchemeCond(rest).setPos(exp.pos))
+          val desugaredBody = body match {
+            case Nil => SchemeBegin(Nil)
+            case head :: bodyRest =>
+              SchemeBegin(body.map(desugarExp)).setPos(head.pos)
+          }
+          desugarExp(cond) match {
+            case SchemeIdentifier("else") =>
+              SchemeIf(SchemeValue(ValueBoolean(true)).setPos(cond.pos), desugaredBody, desugaredRest)
+            case other =>
+              SchemeIf(other, desugaredBody, desugaredRest)
+          }
+      }
+
       case SchemeWhile(condition, body) => SchemeWhile(desugarExp(condition), body.map(desugarExp))
       case SchemeLambda(args, body) => SchemeLambda(args, body.map(desugarExp))
       case SchemeFuncall(f, args) => SchemeFuncall(desugarExp(f), args.map(desugarExp))
@@ -739,7 +775,6 @@ object SchemeDesugarer {
       case SchemeLetrec(bindings, body) => SchemeLetrec(bindings.map({ case (b, v) => (b, desugarExp(v)) }), body.map(desugarExp))
       case SchemeSet(variable, value) => SchemeSet(variable, desugarExp(value))
       case SchemeBegin(exps) => SchemeBegin(exps.map(desugarExp))
-      case SchemeCond(clauses) => SchemeCond(clauses.map({ case (cond, body) => (desugarExp(cond), body.map(desugarExp)) }))
       case SchemeCase(key, clauses, default) => SchemeCase(desugarExp(key), clauses.map({ case (vs, body) => (vs, body.map(desugarExp)) }), default.map(desugarExp))
       case SchemeIdentifier(name) => SchemeIdentifier(name)
       case SchemeQuoted(quoted) => SchemeQuoted(quoted)

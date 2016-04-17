@@ -75,7 +75,6 @@ class BaseSchemeSemantics[Abs : AbstractValue, Addr : Address, Time : Timestamp]
     val fromPrim = abs.getPrimitive(function) match {
       case Some(prim) => prim.call(fexp, argsv, σ, t) match {
         case Right((res, σ2)) => Set(ActionReachedValue[SchemeExp, Abs, Addr](res, σ2))
-          //TODO introduce new action for completely replacing the store?
         case Left(err) => Set(ActionError[SchemeExp, Abs, Addr](err))
       }
       case None => Set()
