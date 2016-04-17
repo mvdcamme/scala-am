@@ -633,21 +633,34 @@ object SchemeRenamer {
  *     (f foo))
  * Which is semantically equivalent with respect to the end result
  */
-object SchemeUndefiner {
-  def undefine(exps: List[SchemeExp]): SchemeExp =
-    undefine(exps, List())
+object SchemeDesugarer {
+
+  var id = 0
+
+  def undefine(exps: List[SchemeExp]): SchemeExp = {
+    val undefineExp = undefine(exps, List())
+    val result = unand(undefineExp)
+    result
+  }
 
   def undefine(exps: List[SchemeExp], defs: List[(String, SchemeExp)]): SchemeExp = exps match {
     case Nil => SchemeBegin(Nil)
     case SchemeDefineFunction(name, args, body) :: rest => undefine(SchemeDefineVariable(name, SchemeLambda(args, body).setPos(exps.head.pos)) :: rest, defs)
     case SchemeDefineVariable(name, value) :: rest => undefine(rest, (name, value) :: defs)
     case _ :: _ => if (defs.isEmpty) {
+      /*
+       * The current expression does not lie in the scope of a previously encountered define expression.
+       */
       undefineBody(exps) match {
         case Nil => SchemeBegin(Nil)
         case exp :: Nil => exp
         case exps => SchemeBegin(exps).setPos(exps.head.pos)
       }
     } else {
+      /*
+       * The current expression lies in the scope of a (or several) define expressions ->
+       * Wrap all of these definitions, plus this new expression in a letrec.
+       */
       SchemeLetrec(defs.reverse, undefineBody(exps)).setPos(exps.head.pos)
     }
   }
@@ -685,6 +698,57 @@ object SchemeUndefiner {
       exp2.setPos(exp.pos) :: undefineBody(rest)
     }
   }
+
+  /**
+    * Remove and expressions from a Scheme expression, replacing them by if expressions.
+    * For example:
+    * (and a b c)
+    * Will be converted to:
+    * (if a
+    * (if b
+    * c
+    * #f)
+    * #f)
+    * Which is semantically equivalent with respect to the end result
+    */
+  def unand(exp: SchemeExp): SchemeExp = {
+    val exp2 = exp match {
+      case SchemeAnd(exps) => exps match {
+        case Nil => SchemeValue(ValueBoolean(true))
+        case andExp :: Nil => unand(andExp)
+        case andExp :: rest => SchemeIf(unand(andExp), unand(SchemeAnd(rest).setPos(exp.pos)), SchemeValue(ValueBoolean(false)))
+      }
+      case SchemeOr(exps) => exps match {
+        case Nil => SchemeValue(ValueBoolean(false))
+        case orExp :: Nil => unand(orExp)
+        case orExp :: rest =>
+          val tempVarName = s"#<genvar$id>"
+          id += 1
+          val body: SchemeExp = SchemeIf(SchemeIdentifier(tempVarName), SchemeIdentifier(tempVarName), unand(SchemeOr(rest).setPos(exp.pos)))
+          SchemeLet(List((tempVarName, unand(orExp))), List(body))
+      }
+      case SchemeWhile(condition, body) => SchemeWhile(unand(condition), body.map(unand))
+      case SchemeLambda(args, body) => SchemeLambda(args, body.map(unand))
+      case SchemeFuncall(f, args) => SchemeFuncall(unand(f), args.map(unand))
+      case SchemeIf(cond, cons, alt) => SchemeIf(unand(cond), unand(cons), unand(alt))
+      case SchemeLet(bindings, body) => SchemeLet(bindings.map({ case (b, v) => (b, unand(v)) }), body.map(unand))
+      case SchemeLetStar(bindings, body) => SchemeLetStar(bindings.map({ case (b, v) => (b, unand(v)) }), body.map(unand))
+      case SchemeLetrec(bindings, body) => SchemeLetrec(bindings.map({ case (b, v) => (b, unand(v)) }), body.map(unand))
+      case SchemeSet(variable, value) => SchemeSet(variable, unand(value))
+      case SchemeBegin(exps) => SchemeBegin(exps.map(unand))
+      case SchemeCond(clauses) => SchemeCond(clauses.map({ case (cond, body) => (unand(cond), body.map(unand)) }))
+      case SchemeCase(key, clauses, default) => SchemeCase(unand(key), clauses.map({ case (vs, body) => (vs, body.map(unand)) }), default.map(unand))
+      case SchemeIdentifier(name) => SchemeIdentifier(name)
+      case SchemeQuoted(quoted) => SchemeQuoted(quoted)
+      case SchemeValue(value) => SchemeValue(value)
+      case SchemeCas(variable, eold, enew) => SchemeCas(variable, eold, enew)
+      case SchemeAcquire(variable) => SchemeAcquire(variable)
+      case SchemeRelease(variable) => SchemeRelease(variable)
+      case SchemeSpawn(exp) => SchemeSpawn(unand(exp))
+      case SchemeJoin(exp) => SchemeJoin(unand(exp))
+    }
+    exp2.setPos(exp.pos)
+  }
 }
 
 trait Scheme {
@@ -701,7 +765,7 @@ trait Scheme {
   /**
     * Replace defines in a program (a list of expressions) by a big letrec as a single expression
     */
-  def undefine(exps: List[SchemeExp]): SchemeExp = SchemeUndefiner.undefine(exps)
+  def undefine(exps: List[SchemeExp]): SchemeExp = SchemeDesugarer.undefine(exps)
 
   /**
     * Parse a string representing a Scheme program
