@@ -15,16 +15,16 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   val variableAnalyzer = new VariableAnalysis(sem, hybridMachine)
 
-  val APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = false
-  val APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = false
-  val APPLY_OPTIMIZATION_CONSTANT_FOLDING = false
-  val APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = false
-  val APPLY_OPTIMIZATION_VARIABLE_FOLDING = false
+  val APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
+  val APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
+  val APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
+  val APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
+  val APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
   val APPLY_OPTIMIZATION_MERGE_ACTIONS = true
 
   val basicOptimizations : List[(Boolean, (TraceFull => TraceFull))] =
-    List((APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
-         (APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)))
+    List((APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)),
+         (APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)))
 
   def detailedOptimizations(boundVariables : List[String]) : List[(Boolean, (TraceFull => TraceFull))] =
     List((APPLY_OPTIMIZATION_VARIABLE_FOLDING, optimizeVariableFolding(boundVariables)),
@@ -64,33 +64,22 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                                 COMMON FUNCTIONS                                                 *
    ********************************************************************************************************************/
 
-  def isGuard(action : TraceInstruction) : Boolean = action match {
-    case ActionGuardFalseTraced(_) |
-         ActionGuardTrueTraced(_) |
-         ActionGuardSameClosure(_, _) |
-         ActionGuardSamePrimitive(_, _) |
-         ActionGuardFalseTraced(_) =>
-      true
-    case _ => false
-  }
+  def isGuard(action : TraceInstruction): Boolean = action.isInstanceOf[ActionGuardTraced[Exp, Abs, Addr]]
 
-  private case class ActionStateMap(actionState : TraceInstructionInfo, var isUsed : Boolean)
+  private case class ActionStateMap(actionState: TraceInstructionInfo, var isUsed: Boolean)
 
-  private def removeMatchingActions(trace : Trace, isAPushingAction : TraceInstruction => Boolean,
-                                    isAPoppingAction : TraceInstruction => Boolean, isAnInterferingAction : TraceInstruction => Boolean) : Trace = {
+  private def removeMatchingActions(trace: Trace, isAPushingAction: TraceInstruction => Boolean,
+                                    isAPoppingAction: TraceInstruction => Boolean, isAnInterferingAction: TraceInstruction => Boolean) : Trace = {
 
     var stack = List[ActionStateMap]()
-    var optimizedTrace : List[ActionStateMap] = List()
+    var optimizedTrace: List[ActionStateMap] = List()
 
-    def handleAction(actionState : TraceInstructionInfo) : Unit = {
+    def handleAction(actionState: TraceInstructionInfo): Unit = {
 
       val actionStateMap = ActionStateMap(actionState, true)
       actionState._1 match {
         case _ if isAnInterferingAction(actionState._1)  =>
-          stack.headOption match {
-            case Some(action) => action.isUsed = true
-            case None =>
-          }
+          stack.foreach(actionStateMap => actionStateMap.isUsed = true)
         case _ if isAPushingAction(actionState._1) =>
           actionStateMap.isUsed = false
           stack = actionStateMap :: stack
@@ -130,7 +119,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
         false
     }
     val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionSaveEnvTraced[Exp, Abs, Addr]],
-                                               _.isInstanceOf[ActionRestoreEnvTraced[Exp, Abs, Addr]], isAnInterferingAction)
+      _.isInstanceOf[ActionRestoreEnvTraced[Exp, Abs, Addr]], isAnInterferingAction)
     constructedFulltTrace(traceFull, optimizedTrace)
   }
 
