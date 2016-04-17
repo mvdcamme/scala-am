@@ -637,10 +637,13 @@ object SchemeDesugarer {
 
   var id = 0
 
+  def desugar(exps: List[SchemeExp]): SchemeExp = {
+    val undefineExp = undefine(exps)
+    desugarExp(undefineExp)
+  }
+
   def undefine(exps: List[SchemeExp]): SchemeExp = {
-    val undefineExp = undefine(exps, List())
-    val result = unand(undefineExp)
-    result
+    undefine(exps, List())
   }
 
   def undefine(exps: List[SchemeExp], defs: List[(String, SchemeExp)]): SchemeExp = exps match {
@@ -711,43 +714,43 @@ object SchemeDesugarer {
     * #f)
     * Which is semantically equivalent with respect to the end result
     */
-  def unand(exp: SchemeExp): SchemeExp = {
+  def desugarExp(exp: SchemeExp): SchemeExp = {
     val exp2 = exp match {
       case SchemeAnd(exps) => exps match {
         case Nil => SchemeValue(ValueBoolean(true))
-        case andExp :: Nil => unand(andExp)
-        case andExp :: rest => SchemeIf(unand(andExp), unand(SchemeAnd(rest).setPos(exp.pos)), SchemeValue(ValueBoolean(false)))
+        case andExp :: Nil => desugarExp(andExp)
+        case andExp :: rest => SchemeIf(desugarExp(andExp), desugarExp(SchemeAnd(rest).setPos(exp.pos)), SchemeValue(ValueBoolean(false)))
       }
       case SchemeOr(exps) => exps match {
         case Nil => SchemeValue(ValueBoolean(false))
-        case orExp :: Nil => unand(orExp)
+        case orExp :: Nil => desugarExp(orExp)
         case orExp :: rest =>
           val tempVarName = s"#<genvar$id>"
           id += 1
-          val body: SchemeExp = SchemeIf(SchemeIdentifier(tempVarName), SchemeIdentifier(tempVarName), unand(SchemeOr(rest).setPos(exp.pos)))
-          SchemeLet(List((tempVarName, unand(orExp))), List(body))
+          val body: SchemeExp = SchemeIf(SchemeIdentifier(tempVarName), SchemeIdentifier(tempVarName), desugarExp(SchemeOr(rest).setPos(exp.pos)))
+          SchemeLet(List((tempVarName, desugarExp(orExp))), List(body))
       }
-      case SchemeWhile(condition, body) => SchemeWhile(unand(condition), body.map(unand))
-      case SchemeLambda(args, body) => SchemeLambda(args, body.map(unand))
-      case SchemeFuncall(f, args) => SchemeFuncall(unand(f), args.map(unand))
-      case SchemeIf(cond, cons, alt) => SchemeIf(unand(cond), unand(cons), unand(alt))
-      case SchemeLet(bindings, body) => SchemeLet(bindings.map({ case (b, v) => (b, unand(v)) }), body.map(unand))
-      case SchemeLetStar(bindings, body) => SchemeLetStar(bindings.map({ case (b, v) => (b, unand(v)) }), body.map(unand))
-      case SchemeLetrec(bindings, body) => SchemeLetrec(bindings.map({ case (b, v) => (b, unand(v)) }), body.map(unand))
-      case SchemeSet(variable, value) => SchemeSet(variable, unand(value))
-      case SchemeBegin(exps) => SchemeBegin(exps.map(unand))
-      case SchemeCond(clauses) => SchemeCond(clauses.map({ case (cond, body) => (unand(cond), body.map(unand)) }))
-      case SchemeCase(key, clauses, default) => SchemeCase(unand(key), clauses.map({ case (vs, body) => (vs, body.map(unand)) }), default.map(unand))
+      case SchemeWhile(condition, body) => SchemeWhile(desugarExp(condition), body.map(desugarExp))
+      case SchemeLambda(args, body) => SchemeLambda(args, body.map(desugarExp))
+      case SchemeFuncall(f, args) => SchemeFuncall(desugarExp(f), args.map(desugarExp))
+      case SchemeIf(cond, cons, alt) => SchemeIf(desugarExp(cond), desugarExp(cons), desugarExp(alt))
+      case SchemeLet(bindings, body) => SchemeLet(bindings.map({ case (b, v) => (b, desugarExp(v)) }), body.map(desugarExp))
+      case SchemeLetStar(bindings, body) => SchemeLetStar(bindings.map({ case (b, v) => (b, desugarExp(v)) }), body.map(desugarExp))
+      case SchemeLetrec(bindings, body) => SchemeLetrec(bindings.map({ case (b, v) => (b, desugarExp(v)) }), body.map(desugarExp))
+      case SchemeSet(variable, value) => SchemeSet(variable, desugarExp(value))
+      case SchemeBegin(exps) => SchemeBegin(exps.map(desugarExp))
+      case SchemeCond(clauses) => SchemeCond(clauses.map({ case (cond, body) => (desugarExp(cond), body.map(desugarExp)) }))
+      case SchemeCase(key, clauses, default) => SchemeCase(desugarExp(key), clauses.map({ case (vs, body) => (vs, body.map(desugarExp)) }), default.map(desugarExp))
       case SchemeIdentifier(name) => SchemeIdentifier(name)
       case SchemeQuoted(quoted) => SchemeQuoted(quoted)
       case SchemeValue(value) => SchemeValue(value)
       case SchemeCas(variable, eold, enew) => SchemeCas(variable, eold, enew)
       case SchemeAcquire(variable) => SchemeAcquire(variable)
       case SchemeRelease(variable) => SchemeRelease(variable)
-      case SchemeSpawn(exp) => SchemeSpawn(unand(exp))
-      case SchemeJoin(exp) => SchemeJoin(unand(exp))
-      case SchemeDefineVariable(variable, value) => SchemeDefineVariable(variable, unand(value))
-      case SchemeDefineFunction(name, args, body) => SchemeDefineFunction(name, args, body.map(unand))
+      case SchemeSpawn(exp) => SchemeSpawn(desugarExp(exp))
+      case SchemeJoin(exp) => SchemeJoin(desugarExp(exp))
+      case SchemeDefineVariable(variable, value) => SchemeDefineVariable(variable, desugarExp(value))
+      case SchemeDefineFunction(name, args, body) => SchemeDefineFunction(name, args, body.map(desugarExp))
     }
     exp2.setPos(exp.pos)
   }
@@ -767,12 +770,12 @@ trait Scheme {
   /**
     * Replace defines in a program (a list of expressions) by a big letrec as a single expression
     */
-  def undefine(exps: List[SchemeExp]): SchemeExp = SchemeDesugarer.undefine(exps)
+  def desugar(exps: List[SchemeExp]): SchemeExp = SchemeDesugarer.undefine(exps)
 
   /**
     * Parse a string representing a Scheme program
     */
-  def parse(s: String): SchemeExp = undefine(SExpParser.parse(s).map(compile _))
+  def parse(s: String): SchemeExp = desugar(SExpParser.parse(s).map(compile _))
 }
 
 object Scheme extends Scheme {

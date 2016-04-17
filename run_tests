@@ -16,3 +16,9 @@ run -m Hybrid -f test/sq.scm -l Concrete -c
 run -m Hybrid -f test/ack.scm -l Concrete -c
 run -m Hybrid -f test/collatz.scm -l Concrete -c
 run -m Hybrid -f test/widen.scm -l Concrete -c
+run -m Hybrid -f test/rsa.scm -l Concrete -c
+run -m Hybrid -f test/sat.scm -l Concrete -c
+run -m Hybrid -f test/nqueens.scm -l Concrete -c
+run -m Hybrid -f test/church.scm -l Concrete -c
+run -m Hybrid -f test/dderiv.scm -l Concrete -c
+run -m Hybrid -f test/takl.scm -l Concrete -c

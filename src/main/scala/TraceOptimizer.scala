@@ -98,7 +98,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     optimizedTrace.filter(_.isUsed).map(_.actionState)
   }
 
-  private def constructedFulltTrace(traceFull: TraceFull, optimisedTrace : Trace) : TraceFull = {
+  private def constructedFullTrace(traceFull: TraceFull, optimisedTrace : Trace) : TraceFull = {
     hybridMachine.TraceFull(traceFull.startProgramState, traceFull.assertions, optimisedTrace)
   }
 
@@ -120,7 +120,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     }
     val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionSaveEnvTraced[Exp, Abs, Addr]],
       _.isInstanceOf[ActionRestoreEnvTraced[Exp, Abs, Addr]], isAnInterferingAction)
-    constructedFulltTrace(traceFull, optimizedTrace)
+    constructedFullTrace(traceFull, optimizedTrace)
   }
 
   /********************************************************************************************************************
@@ -138,7 +138,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     }
     val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionPushTraced[Exp, Abs, Addr]],
                                                _.isInstanceOf[ActionPopKontTraced[Exp, Abs, Addr]], isAnInterferingAction)
-    constructedFulltTrace(traceFull, optimizedTrace)
+    constructedFullTrace(traceFull, optimizedTrace)
   }
 
   /********************************************************************************************************************
@@ -302,7 +302,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       }
     }
     val optimizedTrace = loop(traceFull.trace.reverse).reverse
-    constructedFulltTrace(traceFull, optimizedTrace)
+    constructedFullTrace(traceFull, optimizedTrace)
   }
 
   /********************************************************************************************************************
@@ -351,7 +351,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
         action :: loop(rest)
     }
     val optimizedTrace = loop(traceFull.trace)
-    constructedFulltTrace(traceFull, optimizedTrace)
+    constructedFullTrace(traceFull, optimizedTrace)
   }
 
   /********************************************************************************************************************
@@ -421,7 +421,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     }
 
     val optimizedTrace = loop(traceFull.trace)
-    constructedFulltTrace(traceFull, optimizedTrace)
+    constructedFullTrace(traceFull, optimizedTrace)
   }
 
   /********************************************************************************************************************
@@ -437,7 +437,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case (ActionStartOptimizedBlock(), _) => false
       case (_, _) => true
     })
-    constructedFulltTrace(traceFull, optimizedTrace)
+    constructedFullTrace(traceFull, optimizedTrace)
   }
 
   /*********************************************************************************************************************
