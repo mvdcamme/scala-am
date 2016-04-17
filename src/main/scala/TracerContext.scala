@@ -68,9 +68,8 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Finding traces
    */
 
-  private def searchTrace(tracerContext: TracerContext, label: Label) : Option[TraceNode] = tracerContext match {
-    case TracerContext(_, _, traceNodes, _) => traceNodes.find({traceNode => traceNode.label == label})
-  }
+  private def searchTrace(tc: TracerContext, label: Label) : Option[TraceNode] =
+    tc.traceNodes.find({traceNode => traceNode.label == label})
 
   def getTrace(tracerContext: TracerContext, label: Label) : TraceNode = searchTrace(tracerContext, label) match {
     case Some(traceNode) => traceNode
@@ -152,11 +151,10 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   def getLabelCounter(tc: TracerContext, label: Label) : Integer =
     tc.labelCounters.getOrElse(label, 0)
 
-  def incLabelCounter(tc : TracerContext, label : Label) : TracerContext = tc match {
-    case TracerContext(traceInfo, labelCounters, traceNodes, trace) =>
-      val oldCounter = getLabelCounter(tc, label)
-      val newLabelCounters : Map[Label, Integer] = labelCounters.updated(label, oldCounter + 1)
-      new TracerContext(traceInfo, newLabelCounters, traceNodes, trace)
+  def incLabelCounter(tc : TracerContext, label : Label) : TracerContext = {
+    val oldCounter = getLabelCounter(tc, label)
+    val newLabelCounters : Map[Label, Integer] = tc.labelCounters.updated(label, oldCounter + 1)
+    tc.copy(labelCounters = newLabelCounters)
   }
 
 }

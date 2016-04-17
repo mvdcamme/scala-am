@@ -120,8 +120,10 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
 
     def canStartLoopEncounteredRegular(newState: PS, trace: TraceWithoutStates, label: Label): ExecutionState = {
+      Logger.log(s"Regular phase: CanStartLoop encountered with label $label", Logger.D)
       val newTc = tracerContext.incLabelCounter(tc, label)
       val labelCounter = tracerContext.getLabelCounter(newTc, label)
+      Logger.log(s"Regular phase: labelcounter equals $labelCounter", Logger.D)
       if (tracerContext.traceExists(newTc, label)) {
         if (checkTraceAssertions(newState, newTc, label)) {
           startExecutingTrace(newState, newTc, label)
@@ -142,6 +144,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
     }
 
     def canStartLoopEncounteredTracing(state: PS, trace: TraceWithoutStates, label: Label): ExecutionState = {
+      Logger.log(s"Tracing phase: CanStartLoop encountered with label $label", Logger.D)
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       val traceAppendedTc = tracerContext.appendTrace(tc, traceWithStates)
       if (tracerContext.isTracingLabel(traceAppendedTc, label)) {
