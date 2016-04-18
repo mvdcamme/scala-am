@@ -54,6 +54,7 @@ object AbstractTypeSet {
     override def unaryOp(op: UnaryOperator) = op match {
       case Ceiling  => AbstractInt
       case Log => AbstractFloat
+      case NumberToString => AbstractString
       case _ => super.unaryOp(op)
     }
     override def binaryOp(op: BinaryOperator)(that: AbstractTypeSet) = op match {
@@ -74,6 +75,7 @@ object AbstractTypeSet {
       case IsInteger => AbstractTrue
       case Ceiling | Random => AbstractInt
       case Log => AbstractFloat
+      case NumberToString => AbstractString
       case _ => super.unaryOp(op)
     }
     override def binaryOp(op: BinaryOperator)(that: AbstractTypeSet) = op match {
@@ -99,8 +101,16 @@ object AbstractTypeSet {
 
   object AbstractString extends AbstractTypeSet {
     override def toString = "String"
+    override def binaryOp(op: BinaryOperator)(that: AbstractTypeSet) = that match {
+      case AbstractString => op match {
+        case BinaryOperator.StringAppend => AbstractString
+        case _ => super.binaryOp(op)(that)
+      }
+      case _ => super.binaryOp(op)(that)
+    }
     override def unaryOp(op: UnaryOperator) = op match {
       case IsString => AbstractTrue
+      case StringLength => AbstractInt
       case _ => super.unaryOp(op)
     }
   }

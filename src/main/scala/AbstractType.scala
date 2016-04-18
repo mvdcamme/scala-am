@@ -62,6 +62,7 @@ object AbstractType {
     override def unaryOp(op: UnaryOperator) = op match {
       case Ceiling  => AbstractInt
       case Log => AbstractFloat
+      case NumberToString => AbstractString
       case _ => super.unaryOp(op)
     }
     override def binaryOp(op: BinaryOperator)(that: AbstractType) = that match {
@@ -85,6 +86,7 @@ object AbstractType {
     override def unaryOp(op: UnaryOperator) = op match {
       case Ceiling | Random => AbstractInt
       case Log => AbstractFloat
+      case NumberToString => AbstractString
       case _ => super.unaryOp(op)
     }
     override def binaryOp(op: BinaryOperator)(that: AbstractType) = that match {
@@ -99,6 +101,18 @@ object AbstractType {
   }
   object AbstractString extends AbstractType {
     override def toString = "String"
+    override def binaryOp(op: BinaryOperator)(that: AbstractType) = that match {
+      case AbstractTop => AbstractTop
+      case AbstractString => op match {
+        case BinaryOperator.StringAppend => AbstractString
+        case _ => super.binaryOp(op)(that)
+      }
+      case _ => super.binaryOp(op)(that)
+    }
+    override def unaryOp(op: UnaryOperator) = op match {
+      case StringLength => AbstractInt
+      case _ => super.unaryOp(op)
+    }
   }
   object AbstractChar extends AbstractType {
     override def toString = "Char"

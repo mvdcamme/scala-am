@@ -17,15 +17,22 @@ trait Primitive[Addr, Abs] {
 
 object UnaryOperator extends Enumeration {
   type UnaryOperator = Value
-  val IsNull, IsCons, IsChar, IsSymbol, IsString, IsInteger, IsBoolean,
-    Not,
-    Ceiling, Log, Random = Value
+  val IsNull, IsCons, IsChar, IsSymbol, IsString, IsInteger, IsBoolean, /* Checks the type of a value */
+    Not, /* Negate a value */
+    Ceiling, Log, Random, /* Unary arithmetic operations */
+    StringLength, /* Length operations */
+    NumberToString /* Conversions */
+  = Value
 }
 import UnaryOperator._
 
 object BinaryOperator extends Enumeration {
   type BinaryOperator = Value
-  val Plus, PlusF, PlusI, Minus, MinusF, MinusI, Times, Div, Modulo, Lt, NumEq, Eq = Value
+  val Plus, PlusF, PlusI, Minus, MinusF, MinusI, Times, Div, Modulo, /* Arithmetic operations */
+  Lt, /* Arithmetic comparison */
+  NumEq, Eq, /* Equality checking (number equality, physical equality) */
+  StringAppend /* string operations */
+  = Value
 }
 import BinaryOperator._
 
@@ -138,6 +145,9 @@ class Primitives[Addr : Address, Abs : AbstractValue] {
   def lt = abs.binaryOp(BinaryOperator.Lt) _
   def numEq = abs.binaryOp(BinaryOperator.NumEq) _
   def eq = abs.binaryOp(BinaryOperator.Eq) _
+  def stringAppend = abs.binaryOp(BinaryOperator.StringAppend) _
+  def stringLength = abs.unaryOp(UnaryOperator.StringLength) _
+  def numberToString = abs.unaryOp(UnaryOperator.NumberToString) _
 
   /** This is how a primitive is defined by extending Primitive */
   object Cons extends Primitive[Addr, Abs] {
@@ -293,6 +303,17 @@ class Primitives[Addr : Address, Abs : AbstractValue] {
     }
   }
 
+  object StringAppend extends VariadicOperation {
+    val name = "string-append"
+    def call(args: List[Abs]) = args match {
+      case Nil => Right(abs.inject(""))
+      case x :: rest => call(rest) match {
+        case Right(y) => Right(stringAppend(x, y))
+        case Left(err) => Left(err)
+      }
+    }
+  }
+
   /* Some primitives can be defined as just a function that we pass to one of the helper class' constructor */
 
   private def newline: Abs = {
@@ -414,8 +435,13 @@ class Primitives[Addr : Address, Abs : AbstractValue] {
     UnaryOperation("integer?", isInteger),
     UnaryOperation("number?", isInteger), // TODO: support other numbers as well
     UnaryOperation("boolean?", isBoolean),
-    BinaryOperation("eq?", eq),
-    BinaryStoreOperation("equal?", (a, b, store) => (equal(a, b, store), store)),
+    BinaryOperation("eq?", eq),StringAppend,
+    UnaryOperation("string-length", stringLength),
+    UnaryOperation("number->string", numberToString),
+    BinaryStoreOperation("equal?", (a, b, store) => {
+      val res = equal(a, b, store)
+      (res, store)
+    }),
     UnaryStoreOperation("length", (v, store) => (length(v, store), store))
   )
 

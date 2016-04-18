@@ -41,6 +41,7 @@ object AbstractConcrete {
     override def unaryOp(op: UnaryOperator) = op match {
       case Ceiling => AbstractInt(scala.math.ceil(v).toInt)
       case Log => AbstractFloat(scala.math.log(v).toFloat)
+      case NumberToString => AbstractString(v.toString)
       case _ => super.unaryOp(op)
     }
 
@@ -72,6 +73,7 @@ object AbstractConcrete {
       case Ceiling => AbstractInt(v)
       case Log => AbstractInt(scala.math.log(v).toInt)
       case Random => AbstractInt(scala.util.Random.nextInt % v)
+      case NumberToString => AbstractString(v.toString)
       case _ => super.unaryOp(op)
     }
     override def binaryOp(op: BinaryOperator)(that: AbstractConcrete) = that match {
@@ -90,6 +92,13 @@ object AbstractConcrete {
     override def unaryOp(op: UnaryOperator) = op match {
       case IsString => AbstractTrue
       case _ => super.unaryOp(op)
+    }
+    override def binaryOp(op: BinaryOperator)(that: AbstractConcrete) = that match {
+      case AbstractString(v2) => op match {
+        case StringAppend => AbstractString(v + v2)
+        case _ => super.binaryOp(op)(that)
+      }
+      case _ => super.binaryOp(op)(that)
     }
   }
   case class AbstractChar(v: Char) extends AbstractConcrete {
