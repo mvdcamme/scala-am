@@ -1,3 +1,8 @@
+(define (map f lst)
+  (if (null? lst)
+      '()
+      (cons (f (car lst)) (map f (cdr lst)))))
+
 (define (lookup key table)
   (letrec ((loop (lambda (x)
                    (if (null? x)
