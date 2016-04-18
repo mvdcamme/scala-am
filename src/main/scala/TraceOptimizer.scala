@@ -40,24 +40,20 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   def optimize(trace : TraceFull, boundVariables : List[String], someAnalysisOutput : Option[AnalysisOutput]) : TraceFull = {
     Logger.log(s"Size of unoptimized trace = ${trace.trace.length}", Logger.V)
-    if (TracerFlags.APPLY_OPTIMIZATIONS) {
-      val basicAssertedOptimizedTrace = foldOptimisations(trace, basicOptimizations)
-      Logger.log(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}", Logger.V)
-      val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations(boundVariables))
-      Logger.log(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}", Logger.V)
-      val tier3AssertedOptimizedTrace = someAnalysisOutput match {
-        case Some(analysisOutput) =>
-          applyStaticAnalysisOptimization(tier2AssertedOptimizedTrace, analysisOutput)
-        case None =>
-          tier2AssertedOptimizedTrace
-      }
-      Logger.log(s"Size of statically optimized trace = ${tier3AssertedOptimizedTrace.trace.length}", Logger.V)
-      val finalAssertedOptimizedTrace = removeFunCallBlockActions(tier3AssertedOptimizedTrace)
-      Logger.log(s"Size of final optimized trace = ${finalAssertedOptimizedTrace.trace.length}", Logger.V)
-      finalAssertedOptimizedTrace
-    } else {
-      trace
+    val basicAssertedOptimizedTrace = foldOptimisations(trace, basicOptimizations)
+    Logger.log(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}", Logger.V)
+    val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations(boundVariables))
+    Logger.log(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}", Logger.V)
+    val tier3AssertedOptimizedTrace = someAnalysisOutput match {
+      case Some(analysisOutput) =>
+        applyStaticAnalysisOptimization(tier2AssertedOptimizedTrace, analysisOutput)
+      case None =>
+        tier2AssertedOptimizedTrace
     }
+    Logger.log(s"Size of statically optimized trace = ${tier3AssertedOptimizedTrace.trace.length}", Logger.V)
+    val finalAssertedOptimizedTrace = removeFunCallBlockActions(tier3AssertedOptimizedTrace)
+    Logger.log(s"Size of final optimized trace = ${finalAssertedOptimizedTrace.trace.length}", Logger.V)
+    finalAssertedOptimizedTrace
   }
 
   /********************************************************************************************************************

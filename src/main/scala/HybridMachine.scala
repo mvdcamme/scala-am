@@ -17,7 +17,7 @@
  * contains the value reached.
  */
 
-class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time])
+class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time], val tracerFlags: TracingFlags)
     extends EvalKontMachineTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time](sem) {
 
   type HybridValue = HybridLattice.Hybrid
@@ -130,7 +130,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
         } else {
           ExecutionState(NI, newState)(newTc, tn)
         }
-      } else if (TracerFlags.DO_TRACING && labelCounter >= TracerFlags.TRACING_THRESHOLD) {
+      } else if (tracerFlags.DO_TRACING && labelCounter >= tracerFlags.TRACING_THRESHOLD) {
         Logger.log(s"Started tracing $label", Logger.I)
         val someBoundVariables = trace.find(_.isInstanceOf[ActionStepInTraced[Exp, HybridValue, HybridAddress]]).flatMap({
           case ActionStepInTraced(_, _, args, _, _, _, _, _) => Some(args)
@@ -250,7 +250,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   @scala.annotation.tailrec
   private def loop(s: ExecutionState, nrVisited: Integer, startingTime: Long, graph: Option[Graph[PS, String]]): AAMOutput[PS, String] = {
     def endEvalLoop(): AAMOutput[PS, String] = {
-      if (TracerFlags.PRINT_ACTIONS_EXECUTED) {
+      if (GlobalFlags.PRINT_ACTIONS_EXECUTED) {
         ActionLogger.printActions()
       }
       AAMOutput[PS, String](Set(s.ps), nrVisited,
@@ -293,7 +293,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   }
 
   private def findAnalysisOutput(currentProgramState : PS) : Option[AAMOutput[APS, TraceWithoutStates]] = {
-    if (TracerFlags.SWITCH_ABSTRACT) {
+    if (tracerFlags.SWITCH_ABSTRACT) {
       val analysisOutput = runStaticAnalysis(currentProgramState)
       analysisOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
       Some(analysisOutput)

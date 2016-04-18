@@ -1,24 +1,11 @@
-run -m Hybrid -f test/blur.scm -l Concrete -c
-run -m Hybrid -f test/count.scm -l Concrete -c
-run -m Hybrid -f test/cpstak.scm -l Concrete -c
-run -m Hybrid -f test/fib.scm -l Concrete -c
-run -m Hybrid -f test/eta.scm -l Concrete -c
-run -m Hybrid -f test/fact.scm -l Concrete -c
-run -m Hybrid -f test/gcipd.scm -l Concrete -c
-run -m Hybrid -f test/inc.scm -l Concrete -c
-run -m Hybrid -f test/kcfa2.scm -l Concrete -c
-run -m Hybrid -f test/kcfa3.scm -l Concrete -c
-run -m Hybrid -f test/loop2.scm -l Concrete -c
-run -m Hybrid -f test/mj09.scm -l Concrete -c
-run -m Hybrid -f test/mut-rec.scm -l Concrete -c
-run -m Hybrid -f test/rotate.scm -l Concrete -c
-run -m Hybrid -f test/sq.scm -l Concrete -c
-run -m Hybrid -f test/ack.scm -l Concrete -c
-run -m Hybrid -f test/collatz.scm -l Concrete -c
-run -m Hybrid -f test/widen.scm -l Concrete -c
-run -m Hybrid -f test/rsa.scm -l Concrete -c
-run -m Hybrid -f test/sat.scm -l Concrete -c
-run -m Hybrid -f test/nqueens.scm -l Concrete -c
-run -m Hybrid -f test/church.scm -l Concrete -c
-run -m Hybrid -f test/dderiv.scm -l Concrete -c
-run -m Hybrid -f test/takl.scm -l Concrete -c
+#!/bin/bash
+
+trap "exit" INT
+
+for threshold in {5,0,1}
+do 
+   for testFile in blur.scm count.scm cpstak.scm fib.scm eta.scm fact.scm gcipd.scm inc.scm kcfa2.scm kcfa3.scm loop2.scm mj09.scm mut-rec.scm rotate.scm sq.scm ack.scm collatz.scm widen.scm rsa.scm sat.scm nqueens.scm church.scm dderiv.scm
+   do
+      echo "run -m Hybrid -c -l Concrete -f test/$testFile --tracing --threshold $threshold --optimized" | sbt
+   done
+done

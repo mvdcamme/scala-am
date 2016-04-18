@@ -20,7 +20,7 @@ object Logger {
   val E = LogLevel.Essential
 
   def log(message: String, messageLevel: LogLevel.Value): Unit = {
-    if (messageLevel >= TracerFlags.level) {
+    if (messageLevel >= GlobalFlags.level) {
       println(message)
     }
   }
