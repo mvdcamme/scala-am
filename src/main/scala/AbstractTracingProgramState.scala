@@ -70,10 +70,10 @@ case class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteStat
 
   private def integrate(sem: SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time])
                        (a: KontAddr,
-                        interpreterReturns: Set[InterpreterReturn[Exp, HybridValue, HybridAddress]]):
+                        interpreterReturns: Set[Step[Exp, HybridValue, HybridAddress]]):
     Set[(AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time], List[Action[Exp, HybridValue, HybridAddress]])] = {
     interpreterReturns.flatMap({itpRet => itpRet match {
-      case InterpreterReturn(trace, _) =>
+      case Step(trace, _) =>
         applyTraceAbstract(sem, trace)
     }})
   }

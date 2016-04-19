@@ -57,7 +57,7 @@ trait ConcretableTracingProgramState[Exp, Time] {
 trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramState[Exp, Abs, Addr, Time] {
   type HybridValue = HybridLattice.Hybrid
 
-  def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[InterpreterReturn[Exp, Abs, Addr]]
+  def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[Step[Exp, Abs, Addr]]
   def applyAction(sem: SemanticsTraced[Exp, Abs, Addr, Time],
                   action: Action[Exp, Abs, Addr]): InstructionStep[Exp, Abs, Addr, Time]
   def restart(sem: SemanticsTraced[Exp, Abs, Addr, Time],
@@ -99,7 +99,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   /**
     * Computes the set of states that follow the current state
     */
-  def step(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]): Option[InterpreterReturn[Exp, HybridValue, HybridAddress]] = {
+  def step(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]): Option[Step[Exp, HybridValue, HybridAddress]] = {
     val result = control match {
       /* In a eval state, call the semantic's evaluation method */
       case TracingControlEval(e) => Some(sem.stepEval(e, ρ, σ, t))

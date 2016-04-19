@@ -74,23 +74,23 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
 
   val endTraceInstruction: RestartPoint[Exp, Abs, Addr] => Action[Exp, Abs, Addr] = new ActionEndTrace(_)
 
-  protected def interpreterReturn(actions: List[Action[Exp, Abs, Addr]]): InterpreterReturn[Exp, Abs, Addr] =
-    new InterpreterReturn(actions, new TracingSignalFalse)
+  protected def interpreterReturn(actions: List[Action[Exp, Abs, Addr]]): Step[Exp, Abs, Addr] =
+    new Step(actions, new TracingSignalFalse)
 
-  protected def interpreterReturnStart(action: Action[Exp, Abs, Addr], label: List[Exp]): InterpreterReturn[Exp, Abs, Addr] =
-    new InterpreterReturn(List(action), new TracingSignalStart(label))
+  protected def interpreterReturnStart(action: Action[Exp, Abs, Addr], label: List[Exp]): Step[Exp, Abs, Addr] =
+    new Step(List(action), new TracingSignalStart(label))
 
   /**
     * Defines what actions should be taken when an expression e needs to be
     * evaluated, in environment e with store σ
     */
-  def stepEval(e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn[Exp, Abs, Addr]]
+  def stepEval(e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[Step[Exp, Abs, Addr]]
 
   /**
     * Defines what actions should be taken when a value v has been reached, and
     * the topmost frame is frame
     */
-  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[InterpreterReturn[Exp, Abs, Addr]]
+  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[Step[Exp, Abs, Addr]]
 }
 
 /**

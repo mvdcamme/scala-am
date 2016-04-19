@@ -13,5 +13,5 @@ case class TracingSignalEnd[Exp : Expression, Abs : AbstractValue, Addr : Addres
 /*
  * Interpreter return
  */
-case class InterpreterReturn[Exp : Expression, Abs : AbstractValue, Addr : Address]
+case class Step[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (trace: List[Action[Exp, Abs, Addr]], tracingSignal: TracingSignal[Exp, Abs, Addr])

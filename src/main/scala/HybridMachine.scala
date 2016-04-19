@@ -184,14 +184,14 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
       case TracingSignalStart(label) => canStartLoopEncounteredTracing(state, trace, label)
     }
 
-    def handleResponseRegular(response: InterpreterReturn[Exp, HybridValue, HybridAddress]): ExecutionState = response match {
-      case InterpreterReturn(trace, TracingSignalFalse()) => continueWithProgramState(ps, trace)
-      case InterpreterReturn(trace, signal) => handleSignalRegular(ps, trace, signal)
+    def handleResponseRegular(response: Step[Exp, HybridValue, HybridAddress]): ExecutionState = response match {
+      case Step(trace, TracingSignalFalse()) => continueWithProgramState(ps, trace)
+      case Step(trace, signal) => handleSignalRegular(ps, trace, signal)
     }
 
-    def handleResponseTracing(response: InterpreterReturn[Exp, HybridValue, HybridAddress]): ExecutionState = response match {
-      case InterpreterReturn(trace, TracingSignalFalse()) => continueWithProgramStateTracing(ps, trace)
-      case InterpreterReturn(trace, signal) => handleSignalTracing(ps, trace, signal)
+    def handleResponseTracing(response: Step[Exp, HybridValue, HybridAddress]): ExecutionState = response match {
+      case Step(trace, TracingSignalFalse()) => continueWithProgramStateTracing(ps, trace)
+      case Step(trace, signal) => handleSignalTracing(ps, trace, signal)
     }
 
     def stepConcrete(): ExecutionState = {
