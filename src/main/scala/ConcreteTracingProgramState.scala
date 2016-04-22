@@ -1,21 +1,21 @@
 import scala.collection.immutable.Stack
 
-trait InstructionStep[Exp, Abs, Addr, Time] {
-  def getState: ConcreteTracingProgramState[Exp, Abs, Addr, Time] =
+trait InstructionStep[Exp, Abs, Addr, Time, +State] {
+  def getState: State =
     throw new Exception(s"Unexpected result: $this does not have a resulting state")
 }
-case class NormalInstructionStep[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
-(newState : ConcreteTracingProgramState[Exp, Abs, Addr, Time], action : Action[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time] {
-  override def getState: ConcreteTracingProgramState[Exp, Abs, Addr, Time] = newState
+case class NormalInstructionStep[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp, State <: ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
+ (newState : State, action : Action[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time, State] {
+  override def getState: State = newState
 }
-case class GuardFailed[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
-(rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time]
-case class TraceEnded[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
-(rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time]
+case class GuardFailed[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp, State]
+(rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time, State]
+case class TraceEnded[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp, State]
+(rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time, State]
 
 case class IncorrectStackSizeException() extends Exception
-case class VariableNotFoundException(variable : String) extends Exception(variable)
-case class NotAPrimitiveException(message : String) extends Exception(message)
+case class VariableNotFoundException(variable: String) extends Exception(variable)
+case class NotAPrimitiveException(message: String) extends Exception(message)
 
 trait ConcretableTracingProgramState[Exp, Time] {
 
@@ -61,7 +61,7 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
 
   def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[Step[Exp, Abs, Addr]]
   def applyAction(sem: SemanticsTraced[Exp, Abs, Addr, Time],
-                  action: Action[Exp, Abs, Addr]): InstructionStep[Exp, Abs, Addr, Time]
+                  action: Action[Exp, Abs, Addr]): InstructionStep[Exp, Abs, Addr, Time, ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
   def restart(sem: SemanticsTraced[Exp, Abs, Addr, Time],
               restartPoint: RestartPoint[Exp, Abs, Addr]): ConcreteTracingProgramState[Exp, Abs, Addr, Time]
 
@@ -228,12 +228,12 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     ProgramState(control, ρ, σ, kstore, a, t, v, StoreEnv(ρ) :: vStack)
 
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
-                  action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time] = {
+                  action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]] = {
 
     ActionLogger.logAction[Exp, HybridValue, HybridAddress](action)
 
     def handleGuard(guard: ActionGuardTraced[Exp, HybridValue, HybridAddress],
-                    guardCheckFunction: HybridValue => Boolean): InstructionStep[Exp, HybridValue, HybridAddress, Time] = {
+                    guardCheckFunction: HybridValue => Boolean): InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]] = {
       if (guardCheckFunction(v)) {
         NormalInstructionStep(this, guard)
       } else {
@@ -241,7 +241,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       }
     }
 
-    def handleClosureGuard(guard : ActionGuardSameClosure[Exp, HybridValue, HybridAddress], currentClosure : HybridValue): InstructionStep[Exp, HybridValue, HybridAddress, Time] = {
+    def handleClosureGuard(guard : ActionGuardSameClosure[Exp, HybridValue, HybridAddress], currentClosure : HybridValue): InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]] = {
       (guard.recordedClosure, currentClosure) match {
         case (HybridLattice.Left(AbstractConcrete.AbstractClosure(lam1, env1)), HybridLattice.Left(AbstractConcrete.AbstractClosure(lam2, env2))) =>
           if (lam1 == lam2) {
@@ -257,7 +257,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       }
     }
 
-    def handlePrimitiveGuard(guard : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress], currentPrimitive : HybridValue): InstructionStep[Exp, HybridValue, HybridAddress, Time] = {
+    def handlePrimitiveGuard(guard : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress], currentPrimitive : HybridValue): InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]] = {
       if (guard.recordedPrimitive == currentPrimitive) {
         NormalInstructionStep(this, guard)
       } else {
@@ -451,20 +451,18 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
   def addr = implicitly[Address[HybridAddress]]
   def time = implicitly[Timestamp[Time]]
 
-  def wrapStep(step: InstructionStep[Exp, HybridValue, HybridAddress, Time]): InstructionStep[Exp, HybridValue, HybridAddress, Time] = step match {
-    case NormalInstructionStep(state, action) => state match {
-      case state : ProgramState[Exp, Time] =>
-        NormalInstructionStep(AmbProgramState(state, failStack), action)
-    }
-    case _ => step
+  def wrapStep(step: InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]]): InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = step match {
+    case NormalInstructionStep(state, action) =>
+      NormalInstructionStep(AmbProgramState(state, failStack), action)
+    case GuardFailed(rp) => GuardFailed[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]](rp)
+    case TraceEnded(rp) => TraceEnded[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]](rp)
   }
 
-  def addFailAction(step: InstructionStep[Exp, HybridValue, HybridAddress, Time], failAction: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time] = step match {
-    case NormalInstructionStep(state, action) => state match {
-      case state : ProgramState[Exp, Time] =>
-        NormalInstructionStep(AmbProgramState(state, failAction :: failStack), action)
-    }
-    case _ => step
+  def addFailAction(step: InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]], failAction: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = step match {
+    case NormalInstructionStep(state, action) =>
+      NormalInstructionStep(AmbProgramState(state, failAction :: failStack), action)
+    case GuardFailed(rp) => GuardFailed[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]](rp)
+    case TraceEnded(rp) => TraceEnded[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]](rp)
   }
 
   def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]) = normalState.convertState(sem)
@@ -478,18 +476,13 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
     normalState.step(sem)
 
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
-                           action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time] = action match {
+                           action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = action match {
     case ActionSaveEnvTraced() =>
       addFailAction(normalState.applyAction(sem, action), ActionRestoreEnvTraced[Exp, HybridValue, HybridAddress]())
     case _ => wrapStep(normalState.applyAction(sem, action))
   }
 
-  def generateTraceInformation(action : Action[Exp, HybridValue, HybridAddress]): Option[TraceInformation[HybridValue]] = action match {
-    case ActionPrimCallTraced(_, _, _) =>
-      Some(PrimitiveAppliedInfo(normalState.v, normalState.vStack))
-    case _ =>
-      None
-  }
+  def generateTraceInformation(action : Action[Exp, HybridValue, HybridAddress]): Option[TraceInformation[HybridValue]] = normalState.generateTraceInformation(action)
 
   def concretableState = normalState
 
