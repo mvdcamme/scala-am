@@ -1,3 +1,5 @@
+import scala.collection.immutable.Stack
+
 trait InstructionStep[Exp, Abs, Addr, Time] {
   def getState: ConcreteTracingProgramState[Exp, Abs, Addr, Time] =
     throw new Exception(s"Unexpected result: $this does not have a resulting state")
@@ -78,14 +80,14 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
   */
 case class ProgramState[Exp : Expression, Time : Timestamp]
   (control: TracingControl[Exp, HybridLattice.Hybrid, HybridAddress],
-   ρ : Environment[HybridAddress],
+   ρ: Environment[HybridAddress],
    σ: Store[HybridAddress, HybridLattice.Hybrid],
    kstore: KontStore[KontAddr],
    a: KontAddr,
    t: Time,
-   v : HybridLattice.Hybrid,
-   vStack : List[Storable]) extends ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time]
-                            with ConcretableTracingProgramState[Exp, Time] {
+   v: HybridLattice.Hybrid,
+   vStack: List[Storable]) extends ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time]
+                           with ConcretableTracingProgramState[Exp, Time] {
 
   def abs = implicitly[AbstractValue[HybridValue]]
   def addr = implicitly[Address[HybridAddress]]
@@ -378,9 +380,9 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case _ => control.toString()
   }
 
-  val valueConverter : AbstractConcreteToAbstractType = new AbstractConcreteToAbstractType
+  val valueConverter: AbstractConcreteToAbstractType = new AbstractConcreteToAbstractType
 
-  def convertValue(σ : Store[HybridAddress, HybridLattice.Hybrid])(value : HybridValue) : HybridValue = value match {
+  def convertValue(σ: Store[HybridAddress, HybridLattice.Hybrid])(value: HybridValue) : HybridValue = value match {
     case HybridLattice.Left(v) => HybridLattice.Right(valueConverter.convert[Exp](v, σ))
     case HybridLattice.Right(v) => value
     case HybridLattice.Prim(p) => value
@@ -389,7 +391,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def convertEnvironment(env : Environment[HybridAddress]) : Environment[HybridAddress] =
     new Environment[HybridAddress](env.content.map { tuple => (tuple._1, HybridAddress.convertAddress(tuple._2))})
 
-  def convertControl(control : TracingControl[Exp, HybridValue, HybridAddress], σ : Store[HybridAddress, HybridLattice.Hybrid]): TracingControl[Exp, HybridValue, HybridAddress] = control match {
+  def convertControl(control : TracingControl[Exp, HybridValue, HybridAddress], σ: Store[HybridAddress, HybridLattice.Hybrid]): TracingControl[Exp, HybridValue, HybridAddress] = control match {
     case TracingControlEval(exp) => TracingControlEval(exp)
     case TracingControlKont(ka) => TracingControlKont(convertKontAddress(ka))
     case TracingControlError(string) => TracingControlError(string)
@@ -437,4 +439,64 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       concreteSubsumes(that)
     case _ => false
   }
+}
+
+case class AmbProgramState[Exp : Expression, Time : Timestamp]
+  (normalState: ProgramState[Exp, Time],
+   failStack: List[Action[Exp, HybridLattice.Hybrid, HybridAddress]])
+  extends ConcretableTracingProgramState[Exp, Time]
+  with ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time] {
+
+  def abs = implicitly[AbstractValue[HybridValue]]
+  def addr = implicitly[Address[HybridAddress]]
+  def time = implicitly[Timestamp[Time]]
+
+  def wrapStep(step: InstructionStep[Exp, HybridValue, HybridAddress, Time]): InstructionStep[Exp, HybridValue, HybridAddress, Time] = step match {
+    case NormalInstructionStep(state, action) => state match {
+      case state : ProgramState[Exp, Time] =>
+        NormalInstructionStep(AmbProgramState(state, failStack), action)
+    }
+    case _ => step
+  }
+
+  def addFailAction(step: InstructionStep[Exp, HybridValue, HybridAddress, Time], failAction: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time] = step match {
+    case NormalInstructionStep(state, action) => state match {
+      case state : ProgramState[Exp, Time] =>
+        NormalInstructionStep(AmbProgramState(state, failAction :: failStack), action)
+    }
+    case _ => step
+  }
+
+  def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]) = normalState.convertState(sem)
+
+  def runAssertions(assertions: List[Action[Exp, HybridValue, HybridAddress]]): Boolean = normalState.runAssertions(assertions)
+
+  def restart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
+              restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): AmbProgramState[Exp, Time] = this
+
+  def step(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]): Option[Step[Exp, HybridValue, HybridAddress]] =
+    normalState.step(sem)
+
+  def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
+                           action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time] = action match {
+    case ActionSaveEnvTraced() =>
+      addFailAction(normalState.applyAction(sem, action), ActionRestoreEnvTraced[Exp, HybridValue, HybridAddress]())
+    case _ => wrapStep(normalState.applyAction(sem, action))
+  }
+
+  def generateTraceInformation(action : Action[Exp, HybridValue, HybridAddress]): Option[TraceInformation[HybridValue]] = action match {
+    case ActionPrimCallTraced(_, _, _) =>
+      Some(PrimitiveAppliedInfo(normalState.v, normalState.vStack))
+    case _ =>
+      None
+  }
+
+  def concretableState = normalState
+
+  def subsumes(that: TracingProgramState[Exp, HybridValue, HybridAddress, Time]): Boolean = that match {
+    case that: AmbProgramState[Exp, Time] =>
+      concreteSubsumes(that)
+    case _ => false
+  }
+
 }

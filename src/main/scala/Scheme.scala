@@ -819,5 +819,5 @@ object Scheme extends Scheme {
 
 object AmbScheme extends Scheme {
 
-  override def compile(exp: SExp): SchemeExp = SchemeCompiler.compile(exp)
+  override def compile(exp: SExp): SchemeExp = AmbSchemeCompiler.compile(exp)
 }

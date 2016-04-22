@@ -272,22 +272,20 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case FrameLetrec(var1, (var2, exp) :: rest, body) =>
       val actions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv, ActionSetVarTraced(var1), ActionPushTraced(exp, FrameLetrec(var2, rest, body)), actionSaveEnv)
       Set(Step(actions, new TracingSignalFalse))
-    case FrameLetStar(name, bindings, body) => {
+    case FrameLetStar(name, bindings, body) =>
       val actions = List(actionRestoreEnv, ActionExtendEnvTraced[SchemeExp, Abs, Addr](name))
       bindings match {
         case Nil => Set(interpreterReturn(actions ++ evalBody(body, FrameBegin)))
         case (variable, exp) :: rest => Set(Step(actions ++ List(actionSaveEnv, ActionPushTraced(exp, FrameLetStar(variable, rest, body))), new TracingSignalFalse))
       }
-    }
     case FrameSet(name, ρ) => ρ.lookup(name) match {
       case Some(a) => Set(Step(List(ActionSetVarTraced(name), ActionReachedValueTraced(abs.inject(false), Set[Addr](), Set[Addr](a)), actionPopKont), new TracingSignalFalse)) /* writes on a */
       case None => Set(interpreterReturn(List(ActionErrorTraced(s"Unbound variable: $name"))))
     }
     case FrameWhileBody(condition, body, exps, ρ) => Set(interpreterReturn(List(evalWhileBody(condition, body, exps, ρ, σ))))
-    case FrameWhileCondition(condition, body, ρ) => {
+    case FrameWhileCondition(condition, body, ρ) =>
       (if (abs.isTrue(v)) Set[Step[SchemeExp, Abs, Addr]](interpreterReturnStart(evalWhileBody(condition, body, body, ρ, σ), body)) else Set[Step[SchemeExp, Abs, Addr]]()) ++
         (if (abs.isFalse(v)) Set[Step[SchemeExp, Abs, Addr]](interpreterReturn(List(ActionReachedValueTraced(abs.inject(false)), actionPopKont))) else Set[Step[SchemeExp, Abs, Addr]]())
-    }
   }
 
   def parse(program: String): SchemeExp = Scheme.parse(program)
@@ -317,15 +315,6 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 class SchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestamp]
   extends BaseSchemeSemanticsTraced[Abs, Addr, Time] {
 
-  /** Tries to perform atomic evaluation of an expression. Returns the result of
-    * the evaluation if it succeeded, otherwise returns None */
-  def atomicEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs]): Option[(Abs, Set[Addr])] = e match {
-    case λ: SchemeLambda => Some((abs.inject[SchemeExp, Addr]((λ, ρ)), Set[Addr]()))
-    case SchemeIdentifier(name) => ρ.lookup(name).map(a => (σ.lookup(a), Set[Addr](a)))
-    case SchemeValue(v) => evalValue(v).map(value => (value, Set[Addr]()))
-    case _ => None
-  }
-
   protected def addRead(action: Action[SchemeExp, Abs, Addr], read: Set[Addr]): Action[SchemeExp, Abs, Addr] = action match {
     case ActionReachedValueTraced(v, read2, write) => ActionReachedValueTraced(v, read ++ read2, write)
     case ActionPushTraced(e, frame, read2, write) => ActionPushTraced(e, frame, read ++ read2, write)
@@ -333,5 +322,29 @@ class SchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestam
     case ActionStepInTraced(fexp, e, args, argsv, n, frame, read2, write) => ActionStepInTraced(fexp, e, args, argsv, n, frame, read ++ read2, write)
     case ActionErrorTraced(err) => ActionErrorTraced(err)
   }
+}
+
+class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestamp]
+  extends SchemeSemanticsTraced[Abs, Addr, Time] {
+
+  case class FrameAmb(exps: List[SchemeExp]) extends SchemeFrame
+
+  val actionPopFailKont = ActionPopFailKontTraced[SchemeExp, Abs, Addr]()
+
+  override def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] = e match {
+    case SchemeAmb(Nil) =>
+      Set(interpreterReturn(List(actionPopFailKont)))
+    case SchemeAmb(exp :: rest) =>
+        Set(interpreterReturn(List(ActionPushFailTraced(exp, FrameAmb(rest)))))
+    case _ => super.stepEval(e, ρ, σ, t)
+  }
+
+  override def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time) : Set[Step[SchemeExp, Abs, Addr]] = frame match {
+    case FrameAmb(Nil) =>
+      Set(interpreterReturn(List(actionPopFailKont)))
+    case FrameAmb(exp :: rest) =>
+      Set(interpreterReturn(List(ActionPushFailTraced(exp, FrameAmb(rest)))))
+  }
+
 }
 
