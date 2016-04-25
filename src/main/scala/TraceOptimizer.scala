@@ -132,7 +132,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case _ =>
         false
     }
-    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionPushTraced[Exp, Abs, Addr]],
+    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionEvalPushTraced[Exp, Abs, Addr]],
                                                _.isInstanceOf[ActionPopKontTraced[Exp, Abs, Addr]], isAnInterferingAction)
     constructedFullTrace(traceFull, optimizedTrace)
   }

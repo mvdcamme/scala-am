@@ -289,6 +289,10 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       /* When a value needs to be evaluated, we go to an eval state */
       case ActionEvalTraced(e, _, _) =>
         NormalInstructionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore, a, t, v, vStack), action)
+      /* When a continuation needs to be pushed, push it in the continuation store */
+      case ActionEvalPushTraced(e, frame, _, _) =>
+        val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
+        NormalInstructionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, v, vStack), action)
       case ActionExtendEnvTraced(varName : String) =>
         val va = addr.variable(varName, t)
         val ρ1 = ρ.extend(varName, va)
@@ -310,10 +314,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         val (vals, _) = popStackItems(vStack, n)
         val operator = vals.last.getVal
         NormalInstructionStep(applyPrimitive(operator, n, fExp, argsExps), action)
-      /* When a continuation needs to be pushed, push it in the continuation store */
-      case ActionPushTraced(e, frame, _, _) =>
-        val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-        NormalInstructionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, v, vStack), action)
       case ActionPushValTraced() =>
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreVal(v) :: vStack), action)
       case ActionReachedValueTraced(lit, _, _) =>

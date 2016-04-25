@@ -235,6 +235,12 @@ case class ActionEndTrace[Exp : Expression, Abs : AbstractValue, Addr : Address]
 case class ActionErrorTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (reason: String) extends Action[Exp, Abs, Addr]
 /**
+  * A frame needs to be pushed on the stack, and the interpretation continues by
+  * evaluating expression e in environment ρ.
+  */
+case class ActionEvalPushTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+(e: Exp, frame: Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+/**
 * Evaluation continues with expression e in environment ρ
 */
 case class ActionEvalTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
@@ -267,13 +273,10 @@ case class ActionLookupVariablePushTraced[Exp : Expression, Abs : AbstractValue,
   (varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionPopKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionPopFailKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
-case class ActionPrimCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
-/**
-* A frame needs to be pushed on the stack, and the interpretation continues by
-* evaluating expression e in environment ρ.
-*/
-case class ActionPushTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (e: Exp, frame: Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+case class ActionPrimCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (n: Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
+case class ActionPushKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (frame: Frame) extends Action[Exp, Abs, Addr]
 case class ActionPushFailTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (e: Exp, frame: Frame) extends Action[Exp, Abs, Addr]
 case class ActionPushValTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
@@ -305,5 +308,5 @@ case class ActionSpecializePrimitive[Exp : Expression, Abs : AbstractValue, Addr
 */
 case class ActionStepInTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (fexp: Exp, e: Exp, args : List[String], argsv : List[Exp], n : Integer,
-frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+   frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionStartFunCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
