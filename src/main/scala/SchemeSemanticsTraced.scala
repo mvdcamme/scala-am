@@ -328,6 +328,7 @@ class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Times
   extends SchemeSemanticsTraced[Abs, Addr, Time] {
 
   case class FrameAmb(exps: List[SchemeExp]) extends SchemeFrame
+  case class FrameUndoAction(action: Action[SchemeExp, Abs, Addr]) extends SchemeFrame
 
   val actionPopFailKont = ActionPopFailKontTraced[SchemeExp, Abs, Addr]()
 
@@ -335,7 +336,7 @@ class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Times
     case SchemeAmb(Nil) =>
       Set(interpreterReturn(List(actionPopFailKont)))
     case SchemeAmb(exp :: rest) =>
-        Set(interpreterReturn(List(ActionPushFailTraced(exp, FrameAmb(rest)))))
+        Set(interpreterReturn(List(ActionPushFailKontTraced(FailureFrame(FrameAmb(rest))))))
     case _ => super.stepEval(e, ρ, σ, t)
   }
 
@@ -343,7 +344,7 @@ class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Times
     case FrameAmb(Nil) =>
       Set(interpreterReturn(List(actionPopFailKont)))
     case FrameAmb(exp :: rest) =>
-      Set(interpreterReturn(List(ActionPushFailTraced(exp, FrameAmb(rest)))))
+      Set(interpreterReturn(List(ActionPushFailKontTraced(FailureFrame(FrameAmb(rest))))))
   }
 
 }

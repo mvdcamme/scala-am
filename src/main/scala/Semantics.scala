@@ -272,13 +272,10 @@ case class ActionLookupVariableTraced[Exp : Expression, Abs : AbstractValue, Add
 case class ActionLookupVariablePushTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionPopKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
-case class ActionPopFailKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionPrimCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (n: Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
 case class ActionPushKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (frame: Frame) extends Action[Exp, Abs, Addr]
-case class ActionPushFailTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (e: Exp, frame: Frame) extends Action[Exp, Abs, Addr]
 case class ActionPushValTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 /**
 * A value is reached by the interpreter. As a result, a continuation will be
@@ -310,3 +307,24 @@ case class ActionStepInTraced[Exp : Expression, Abs : AbstractValue, Addr : Addr
   (fexp: Exp, e: Exp, args : List[String], argsv : List[Exp], n : Integer,
    frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
 case class ActionStartFunCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
+
+
+/*
+ * Amb-Scheme
+ */
+
+trait FailureStackElement[Exp, Abs, Addr]
+case class FailureFrame[Exp : Expression, Abs : AbstractValue, Addr : Address](frame: Frame)
+  extends FailureStackElement[Exp, Abs, Addr]
+case class UndoAction[Exp : Expression, Abs : AbstractValue, Addr : Address](action: Action[Exp, Abs, Addr])
+  extends FailureStackElement[Exp, Abs, Addr]
+
+case class ActionPopFailKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends Action[Exp, Abs, Addr]
+case class ActionPushFailKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (failureStackElement: FailureStackElement[Exp, Abs, Addr])
+  extends Action[Exp, Abs, Addr]
+case class ActionSaveSpecificEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](ρ: Environment[Addr])
+  extends Action[Exp, Abs, Addr]
+case class ActionRestoreValTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends Action[Exp, Abs, Addr]
