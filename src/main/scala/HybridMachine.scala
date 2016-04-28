@@ -17,7 +17,11 @@
  * contains the value reached.
  */
 
-class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time], val tracerFlags: TracingFlags)
+class HybridMachine[Exp : Expression, Time : Timestamp]
+  (override val sem: SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time],
+   val tracerFlags: TracingFlags,
+   injectProgramState: (Exp, Primitives[HybridAddress, HybridLattice.Hybrid], AbstractValue[HybridLattice.Hybrid], Timestamp[Time]) =>
+                       ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time])
     extends EvalKontMachineTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time](sem) {
 
   type HybridValue = HybridLattice.Hybrid
@@ -330,7 +334,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp](override val sem : Seman
   }
 
   def injectExecutionState(exp : Exp) : ExecutionState =
-    new ExecutionState(NI, new ProgramState(exp, primitives, abs, time))(tracerContext.newTracerContext, None)
+    new ExecutionState(NI, injectProgramState(exp, primitives, abs, time))(tracerContext.newTracerContext, None)
 
   /**
    * Performs the evaluation of an expression, possibly writing the output graph

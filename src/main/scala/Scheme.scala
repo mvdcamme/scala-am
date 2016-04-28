@@ -676,6 +676,7 @@ object SchemeDesugarer {
     case SchemeDefineVariable(_, _) :: _ => List(undefine(exps, List()))
     case exp :: rest => {
       val exp2 = exp match {
+        case SchemeAmb(exps) => SchemeAmb(exps.map(undefine1))
         case SchemeWhile(condition, body) => SchemeWhile(undefine1(condition), undefineBody(body))
         case SchemeLambda(args, body) => SchemeLambda(args, undefineBody(body))
         case SchemeFuncall(f, args) => SchemeFuncall(undefine1(f), args.map(undefine1))
@@ -766,6 +767,7 @@ object SchemeDesugarer {
           }
       }
 
+      case SchemeAmb(exps) => SchemeAmb(exps.map(desugarExp))
       case SchemeWhile(condition, body) => SchemeWhile(desugarExp(condition), body.map(desugarExp))
       case SchemeLambda(args, body) => SchemeLambda(args, body.map(desugarExp))
       case SchemeFuncall(f, args) => SchemeFuncall(desugarExp(f), args.map(desugarExp))
@@ -795,7 +797,7 @@ trait Scheme {
   /**
     * Compiles a s-expression into a scheme expression
     */
-  def compile(exp: SExp): SchemeExp = SchemeCompiler.compile(exp)
+  def compile(exp: SExp): SchemeExp = AmbSchemeCompiler.compile(exp)
 
   /**
     * Performs alpha-renaming to ensure that every variable has a unique name

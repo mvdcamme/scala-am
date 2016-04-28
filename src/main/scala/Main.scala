@@ -89,6 +89,7 @@ object Config {
                     dotfile: Option[String] = None,
                     anf: Boolean = false,
                     diff: Option[(Int, Int)] = None,
+                    amb: Boolean = false,
                     tracingFlags: TracingFlags = TracingFlags())
 
   val parser = new scopt.OptionParser[Config]("scala-am") {
@@ -104,6 +105,7 @@ object Config {
     opt[String]("threshold") action { (x, c) => c.copy(tracingFlags = c.tracingFlags.copy(TRACING_THRESHOLD = Integer.parseInt(x))) } text("The minimum threshold required to consider a loop hot")
     opt[Unit]("optimized") action { (_, c) => c.copy(tracingFlags = c.tracingFlags.copy(APPLY_OPTIMIZATIONS = true)) } text("Apply (dynamic) optimizations")
     opt[Unit]("switch") action { (_, c) => c.copy(tracingFlags = c.tracingFlags.copy(SWITCH_ABSTRACT = true)) } text("Switch to abstract (type) interpretation after recording a trace and use this abstract information to optimize traces.")
+    opt[Unit]("amb") action { (_, c) => c.copy(amb = true) } text("Execute ambiguous Scheme instead of normal Scheme")
   }
 }
 
@@ -170,8 +172,15 @@ object Main {
         /* ugly as fuck, but I don't find a simpler way to pass type parameters that are computed at runtime */
         val f = (config.anf, config.machine, config.lattice, config.concrete) match {
           case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) =>
-            val semantics = new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA]
-            runTraced(new HybridMachine[SchemeExp, ZeroCFA](semantics, config.tracingFlags)) _
+            if (config.amb) {
+              val semantics = new AmbSchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA]
+              runTraced(new HybridMachine[SchemeExp, ZeroCFA](semantics, config.tracingFlags, { (exp, primitives, abs, time) =>
+                val normalState = new ProgramState[SchemeExp, ZeroCFA](exp, primitives, abs, time)
+                new AmbProgramState[SchemeExp, ZeroCFA](normalState, Nil) })) _
+            } else {
+              val semantics = new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA]
+              runTraced(new HybridMachine[SchemeExp, ZeroCFA](semantics, config.tracingFlags, { (exp, primitives, abs, time) => new ProgramState[SchemeExp, ZeroCFA](exp, primitives, abs, time) })) _
+            }
 
           case (true, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[ANFExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
           case (false, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _

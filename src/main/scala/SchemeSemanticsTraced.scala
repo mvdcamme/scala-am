@@ -336,7 +336,7 @@ class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Times
     case SchemeAmb(Nil) =>
       Set(interpreterReturn(List(actionPopFailKont)))
     case SchemeAmb(exp :: rest) =>
-        Set(interpreterReturn(List(ActionPushFailKontTraced(FailureFrame(FrameAmb(rest))))))
+        Set(interpreterReturn(List(ActionPushFailKontTraced(FailureFrame(FrameAmb(rest))), ActionEvalTraced(exp))))
     case _ => super.stepEval(e, ρ, σ, t)
   }
 

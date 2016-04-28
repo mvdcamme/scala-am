@@ -47,16 +47,25 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
 
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
                   action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = action match {
-    case ActionPopFailKontTraced() => NormalInstructionStep(AmbProgramState(normalState, failStack.tail), action)
+    case ActionPopFailKontTraced() => failStack match {
+      case head :: tail =>
+        NormalInstructionStep(AmbProgramState(normalState, failStack.tail), action)
+      case Nil =>
+        addFailActions(sem, ActionErrorTraced("Failstack empty!"), Nil)
+    }
     case ActionPopKontTraced() =>
       val exp = normalState.control match {
         case TracingControlEval(e) => e
       }
-      val failAction = ActionPush[Exp, HybridValue, HybridAddress](exp,
-                                                                   normalState.kstore.lookup(normalState.a).head.frame,
-                                                                   normalState.ρ,
-                                                                   normalState.σ)
-      addFailAction(sem, action, failAction)
+      if (normalState.a == HaltKontAddress) {
+        addFailActions(sem, action, Nil)
+      } else {
+        val failAction = ActionPush[Exp, HybridValue, HybridAddress](exp,
+                                                                     normalState.kstore.lookup(normalState.a).head.frame,
+                                                                     normalState.ρ,
+                                                                     normalState.σ)
+        addFailAction(sem, action, failAction)
+      }
     case ActionPrimCallTraced(n, fExp, argsExps) =>
       val (vals, _) = normalState.vStack.splitAt(n)
       val actionsSaveVal = vals.map({ (storable: Storable) => ActionPushSpecificValTraced[Exp, HybridValue, HybridAddress](storable.getVal) })
