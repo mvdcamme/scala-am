@@ -1,11 +1,12 @@
 case class AmbProgramState[Exp : Expression, Time : Timestamp]
 (normalState: ProgramState[Exp, Time],
- failStack: List[FailureStackElement[Exp, HybridLattice.Hybrid, HybridAddress]])
+ failStack: List[Frame])
   extends ConcretableTracingProgramState[Exp, Time]
   with ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time] {
 
   def abs = implicitly[AbstractValue[HybridValue]]
   def addr = implicitly[Address[HybridAddress]]
+  def exp = implicitly[Expression[Exp]]
   def time = implicitly[Timestamp[Time]]
 
   def wrapStep(step: InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]]): InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = step match {
@@ -29,7 +30,8 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
     val step: InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]] = normalState.applyAction(sem, action)
     step match {
       case NormalInstructionStep(state, action) =>
-        NormalInstructionStep(AmbProgramState(state, failActions.map(UndoAction(_)) ++ failStack), action)
+        val failureFrames = failActions.map({ action => UndoActionFrame(action) })
+        NormalInstructionStep(AmbProgramState(state, failureFrames ++ failStack), action)
       case GuardFailed(rp) => GuardFailed[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]](rp)
       case TraceEnded(rp) => TraceEnded[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]](rp)
     }
@@ -70,18 +72,8 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
       val (vals, _) = normalState.vStack.splitAt(n)
       val actionsSaveVal = vals.map({ (storable: Storable) => ActionPushSpecificValTraced[Exp, HybridValue, HybridAddress](storable.getVal) })
       addFailActions(sem, action, actionsSaveVal)
-    case ActionPushFailKontTraced(failureStackElement) => failureStackElement match {
-      case FailureFrame(frame) =>
-        NormalInstructionStep(AmbProgramState(normalState, failureStackElement :: failStack), action)
-      case UndoAction(undoAction) =>
-        /* Should actually never happen:
-         * actions to be undone should be added by directly pushing them to the failure stack in AmbProgramState,
-         * not by including them in an ActionPushFailKontTraced
-         */
-        NormalInstructionStep(AmbProgramState(normalState, UndoAction(undoAction) :: failStack), action)
-    }
-    case ActionEvalPushTraced(e, frame, _, _) =>
-      addFailAction(sem, action, ActionPopKontTraced[Exp, HybridValue, HybridAddress]())
+    case ActionPushFailKontTraced(failureFrame) =>
+      NormalInstructionStep(AmbProgramState(normalState, failureFrame :: failStack), action)
     case ActionPushSpecificValTraced(value) =>
       val newNormalState = normalState.copy(vStack = StoreVal(value) :: normalState.vStack)
       NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
