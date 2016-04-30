@@ -49,20 +49,27 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
 
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
                   action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = action match {
+    case ActionEvalPushTraced(e, frame, _, _) =>
+      addFailAction(sem, action, ActionPopKontTraced[Exp, HybridValue, HybridAddress]())
     case ActionPopFailKontTraced() => failStack match {
       case head :: tail =>
-        NormalInstructionStep(AmbProgramState(normalState, failStack.tail), action)
+        /*
+         * Transfer frame that was allocated at the failstack to the normal continuation stack:
+         * Allocate a new address that will point to this frame and then extend the kstore with the new address
+         * and the frame.
+         */
+        val next = NormalKontAddress(exp.zeroExp, addr.variable("__kont__", normalState.t)) // Hack to get infinite number of addresses in concrete mode
+        val extendedKStore = normalState.kstore.extend(next, Kont(head, normalState.a))
+        val newNormalState = normalState.copy(control = TracingControlKont(next), kstore = extendedKStore)
+        NormalInstructionStep(AmbProgramState(newNormalState, failStack.tail), action)
       case Nil =>
         addFailActions(sem, ActionErrorTraced("Failstack empty!"), Nil)
     }
     case ActionPopKontTraced() =>
-      val exp = normalState.control match {
-        case TracingControlEval(e) => e
-      }
       if (normalState.a == HaltKontAddress) {
         addFailActions(sem, action, Nil)
       } else {
-        val failAction = ActionPush[Exp, HybridValue, HybridAddress](exp,
+        val failAction = ActionPush[Exp, HybridValue, HybridAddress](exp.zeroExp,
                                                                      normalState.kstore.lookup(normalState.a).head.frame,
                                                                      normalState.ρ,
                                                                      normalState.σ)
