@@ -20,14 +20,14 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
 
   def addFailAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
                     action: Action[Exp, HybridValue, HybridAddress],
-                    failAction: Action[Exp, HybridValue, HybridAddress]):
+                    failAction: ActionSingleTraced[Exp, HybridValue, HybridAddress]):
   InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = {
     addFailActions(sem, action, List(failAction))
   }
 
   def addFailActions(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
                      action: Action[Exp, HybridValue, HybridAddress],
-                     failActions: List[Action[Exp, HybridValue, HybridAddress]]):
+                     failActions: List[ActionSingleTraced[Exp, HybridValue, HybridAddress]]):
   InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = {
     val step: InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]] = normalState.applyAction(sem, action)
     step match {

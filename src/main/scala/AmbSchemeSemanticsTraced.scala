@@ -19,24 +19,10 @@ class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Times
       Set(interpreterReturn(List(actionPopFailKont)))
     case FrameAmb(exp :: rest) =>
       Set(interpreterReturn(List(ActionPushFailKontTraced(FrameAmb(rest)))))
-    case UndoActionFrame(action) => {
-      var actions : List[Action[SchemeExp, Abs, Addr]] = List(ActionPopFailKontTraced())
-      action match {
-        case ActionSinglePopKontTraced() =>
-          actions = action.asInstanceOf[Action[SchemeExp, Abs, Addr]] :: actions
-        case ActionSinglePushKontTraced(frame) =>
-          actions = action.asInstanceOf[Action[SchemeExp, Abs, Addr]] :: actions
-        case ActionSingleSaveValTraced(value) =>
-          actions = action.asInstanceOf[Action[SchemeExp, Abs, Addr]] :: actions
-        case ActionSingleRestoreEnvTraced() =>
-          actions = action.asInstanceOf[Action[SchemeExp, Abs, Addr]] :: actions
-        case ActionSingleRestoreValTraced() =>
-          actions = action.asInstanceOf[Action[SchemeExp, Abs, Addr]] :: actions
-        case ActionSingleSaveSpecificEnvTraced(ρ) =>
-          actions = action.asInstanceOf[Action[SchemeExp, Abs, Addr]] :: actions
-      }
+    case UndoActionFrame(action) =>
+      val actions : List[Action[SchemeExp, Abs, Addr]] = List(action.asInstanceOf[Action[SchemeExp, Abs, Addr]],
+                                                              ActionPopFailKontTraced())
       Set(interpreterReturn(actions))
-    }
     case _ => super.stepKont(v, frame, σ, t)
   }
 
