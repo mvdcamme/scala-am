@@ -9,7 +9,9 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
   def exp = implicitly[Expression[Exp]]
   def time = implicitly[Timestamp[Time]]
 
-  def wrapStep(step: InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]]): InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = step match {
+  def wrapApplyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
+                      action: Action[Exp, HybridValue, HybridAddress]):
+    InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = normalState.applyAction(sem, action) match {
     case NormalInstructionStep(state, action) =>
       NormalInstructionStep(AmbProgramState(state, failStack), action)
     case GuardFailed(rp) => GuardFailed[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]](rp)
@@ -96,7 +98,30 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
       val (vals, _) = normalState.vStack.splitAt(n)
       val actionsSaveVal = vals.map({ (storable: Storable) => ActionPushSpecificValTraced[Exp, HybridValue, HybridAddress](storable.getVal) })
       addFailActions(sem, action, actionsSaveVal)
-    case _ => wrapStep(normalState.applyAction(sem, action))
+
+    case ActionSinglePopKontTraced() =>
+      wrapApplyAction(sem, ActionPopKontTraced())
+    case ActionSinglePushKontTraced(frame) =>
+      val next = NormalKontAddress(exp.zeroExp, addr.variable("__kont__", normalState.t)) // Hack to get infinite number of addresses in concrete mode
+      val extendedKStore = normalState.kstore.extend(next, Kont(frame, normalState.a))
+      val newNormalState = normalState.copy(control = TracingControlKont(next), kstore = normalState.kstore.extend(next, Kont(frame, normalState.a)))
+      NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
+    case ActionSingleRestoreEnvTraced() =>
+      wrapApplyAction(sem, ActionRestoreEnvTraced())
+    case ActionSingleRestoreValTraced() => normalState.vStack match {
+      case head :: rest =>
+        val newNormalState = normalState.copy(v = head.getVal, vStack = rest)
+        NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
+      case Nil =>
+        throw new Exception("Value stack is empty!")
+    }
+    case ActionSingleSaveSpecificEnvTraced(ρ) =>
+      val newNormalState = normalState.copy(vStack = StoreEnv(ρ) :: normalState.vStack)
+      NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
+    case ActionSingleSaveValTraced(value) =>
+      val newNormalState = normalState.copy(vStack = StoreVal(value) :: normalState.vStack)
+      NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
+    case _ => wrapApplyAction(sem, action)
   }
 
   def generateTraceInformation(action : Action[Exp, HybridValue, HybridAddress]):
