@@ -22,18 +22,18 @@ class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Times
     case UndoActionFrame(action) => {
       var actions : List[Action[SchemeExp, Abs, Addr]] = List(ActionPopFailKontTraced())
       action match {
-        case ActionPopKontTraced() =>
-          actions = ActionSinglePopKontTraced() :: actions
-        case ActionPushKStackKontTraced(frame) =>
-          actions = ActionSinglePushKontTraced(frame) :: actions
-        case ActionPushSpecificValTraced(value) =>
-          actions = ActionSingleSaveValTraced(value.asInstanceOf[Abs]) :: actions
-        case ActionRestoreEnvTraced() =>
-          actions = ActionSingleRestoreEnvTraced() :: actions
-        case ActionRestoreValTraced() =>
-          actions = ActionSingleRestoreValTraced() :: actions
-        case ActionSaveSpecificEnvTraced(ρ) =>
-          actions = ActionSingleSaveSpecificEnvTraced(ρ.asInstanceOf[Environment[Addr]]) :: actions
+        case ActionSinglePopKontTraced() =>
+          actions = action.asInstanceOf[Action[SchemeExp, Abs, Addr]] :: actions
+        case ActionSinglePushKontTraced(frame) =>
+          actions = action.asInstanceOf[Action[SchemeExp, Abs, Addr]] :: actions
+        case ActionSingleSaveValTraced(value) =>
+          actions = action.asInstanceOf[Action[SchemeExp, Abs, Addr]] :: actions
+        case ActionSingleRestoreEnvTraced() =>
+          actions = action.asInstanceOf[Action[SchemeExp, Abs, Addr]] :: actions
+        case ActionSingleRestoreValTraced() =>
+          actions = action.asInstanceOf[Action[SchemeExp, Abs, Addr]] :: actions
+        case ActionSingleSaveSpecificEnvTraced(ρ) =>
+          actions = action.asInstanceOf[Action[SchemeExp, Abs, Addr]] :: actions
       }
       Set(interpreterReturn(actions))
     }
