@@ -19,18 +19,23 @@ class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Times
       Set(interpreterReturn(List(actionPopFailKont)))
     case FrameAmb(exp :: rest) =>
       Set(interpreterReturn(List(ActionPushFailKontTraced(FrameAmb(rest)))))
-    case UndoActionFrame(action) => action match {
-      case ActionPopKontTraced() =>
-        Set(interpreterReturn(List(ActionSinglePopKontTraced())))
-      case ActionPushKStackKontTraced(frame) =>
-        Set(interpreterReturn(List(ActionSinglePushKontTraced(frame))))
-      case ActionRestoreEnvTraced() =>
-        Set(interpreterReturn(List(ActionSingleRestoreEnvTraced())))
-      case ActionRestoreValTraced() =>
-        Set(interpreterReturn(List(ActionSingleRestoreValTraced())))
-      case ActionSaveSpecificEnvTraced(ρ) =>
-        Set(interpreterReturn(List(ActionSingleSaveSpecificEnvTraced[SchemeExp, Abs, Addr](ρ.asInstanceOf[Environment[Addr]]))))
-
+    case UndoActionFrame(action) => {
+      var actions : List[Action[SchemeExp, Abs, Addr]] = List(ActionPopFailKontTraced())
+      action match {
+        case ActionPopKontTraced() =>
+          actions = ActionSinglePopKontTraced() :: actions
+        case ActionPushKStackKontTraced(frame) =>
+          actions = ActionSinglePushKontTraced(frame) :: actions
+        case ActionPushSpecificValTraced(value) =>
+          actions = ActionSingleSaveValTraced(value.asInstanceOf[Abs]) :: actions
+        case ActionRestoreEnvTraced() =>
+          actions = ActionSingleRestoreEnvTraced() :: actions
+        case ActionRestoreValTraced() =>
+          actions = ActionSingleRestoreValTraced() :: actions
+        case ActionSaveSpecificEnvTraced(ρ) =>
+          actions = ActionSingleSaveSpecificEnvTraced(ρ.asInstanceOf[Environment[Addr]]) :: actions
+      }
+      Set(interpreterReturn(actions))
     }
     case _ => super.stepKont(v, frame, σ, t)
   }

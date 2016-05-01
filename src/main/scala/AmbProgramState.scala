@@ -71,10 +71,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
       if (normalState.a == HaltKontAddress) {
         addFailActions(sem, action, Nil)
       } else {
-        val failAction = ActionPush[Exp, HybridValue, HybridAddress](exp.zeroExp,
-                                                                     normalState.kstore.lookup(normalState.a).head.frame,
-                                                                     normalState.ρ,
-                                                                     normalState.σ)
+        val failAction = ActionPushKStackKontTraced[Exp, HybridValue, HybridAddress](normalState.kstore.lookup(normalState.a).head.frame)
         addFailAction(sem, action, failAction)
       }
     case ActionPrimCallTraced(n, fExp, argsExps) =>
