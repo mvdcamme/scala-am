@@ -33,5 +33,5 @@ case class ActionSingleSaveValTraced[Exp : Expression, Abs : AbstractValue, Addr
   (value: Abs) extends ActionSingleTraced[Exp, Abs, Addr]
 case class ActionSingleRestoreEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
   extends ActionSingleTraced[Exp, Abs, Addr]
-case class ActionSingleRestoreValTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](valueDebug: Abs)
+case class ActionSingleRestoreValTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
   extends ActionSingleTraced[Exp, Abs, Addr]

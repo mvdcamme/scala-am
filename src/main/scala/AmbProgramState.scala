@@ -85,7 +85,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
     case ActionPushFailKontTraced(failureFrame) =>
       NormalInstructionStep(AmbProgramState(normalState, failureFrame :: failStack), action)
     case ActionPushValTraced() =>
-      addFailAction(sem, action, ActionSingleRestoreValTraced[Exp, HybridValue, HybridAddress](normalState.v))
+      addFailAction(sem, action, ActionSingleRestoreValTraced[Exp, HybridValue, HybridAddress]())
     case ActionRestoreEnvTraced() =>
       addFailAction(sem, action, ActionSingleSaveSpecificEnvTraced[Exp, HybridValue, HybridAddress](normalState.vStack.head.getEnv))
     case ActionSaveEnvTraced() =>
@@ -99,11 +99,11 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
     case ActionSinglePushKontTraced(frame) =>
       val next = NormalKontAddress(exp.zeroExp, addr.variable("__kont__", normalState.t)) // Hack to get infinite number of addresses in concrete mode
       val extendedKStore = normalState.kstore.extend(next, Kont(frame, normalState.a))
-      val newNormalState = normalState.copy(control = TracingControlKont(next), kstore = extendedKStore)
+      val newNormalState = normalState.copy(kstore = extendedKStore, a = next)
       NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
     case ActionSingleRestoreEnvTraced() =>
       wrapApplyAction(sem, ActionRestoreEnvTraced())
-    case ActionSingleRestoreValTraced(debugTODO) => println(debugTODO); normalState.vStack match { //TODO remove debugfield
+    case ActionSingleRestoreValTraced() => normalState.vStack match {
       case head :: rest =>
         val newNormalState = normalState.copy(v = head.getVal, vStack = rest)
         NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
