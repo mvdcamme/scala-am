@@ -51,6 +51,10 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
 
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
                   action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = action match {
+    case ActionDefineVarsTraced(variables) =>
+      val (vals, _) = normalState.vStack.splitAt(variables.length)
+      val actionsSaveVal = vals.map({ (storable: Storable) => ActionSingleSaveValTraced[Exp, HybridValue, HybridAddress](storable.getVal) })
+      addFailActions(sem, action, actionsSaveVal)
     case ActionEvalPushTraced(e, frame, _, _) =>
       addFailAction(sem, action, ActionSinglePopKontTraced[Exp, HybridValue, HybridAddress]())
     case ActionPopFailKontTraced() => failStack match {
@@ -80,11 +84,8 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
       addFailActions(sem, action, actionsSaveVal)
     case ActionPushFailKontTraced(failureFrame) =>
       NormalInstructionStep(AmbProgramState(normalState, failureFrame :: failStack), action)
-    case ActionSingleSaveValTraced(value) =>
-      val newNormalState = normalState.copy(vStack = StoreVal(value) :: normalState.vStack)
-      NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
     case ActionPushValTraced() =>
-      addFailAction(sem, action, ActionSingleRestoreValTraced[Exp, HybridValue, HybridAddress]())
+      addFailAction(sem, action, ActionSingleRestoreValTraced[Exp, HybridValue, HybridAddress](normalState.v))
     case ActionRestoreEnvTraced() =>
       addFailAction(sem, action, ActionSingleSaveSpecificEnvTraced[Exp, HybridValue, HybridAddress](normalState.vStack.head.getEnv))
     case ActionSaveEnvTraced() =>
@@ -93,17 +94,16 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
       val (vals, _) = normalState.vStack.splitAt(n)
       val actionsSaveVal = vals.map({ (storable: Storable) => ActionSingleSaveValTraced[Exp, HybridValue, HybridAddress](storable.getVal) })
       addFailActions(sem, action, actionsSaveVal)
-
     case ActionSinglePopKontTraced() =>
       wrapApplyAction(sem, ActionPopKontTraced())
     case ActionSinglePushKontTraced(frame) =>
       val next = NormalKontAddress(exp.zeroExp, addr.variable("__kont__", normalState.t)) // Hack to get infinite number of addresses in concrete mode
       val extendedKStore = normalState.kstore.extend(next, Kont(frame, normalState.a))
-      val newNormalState = normalState.copy(control = TracingControlKont(next), kstore = normalState.kstore.extend(next, Kont(frame, normalState.a)))
+      val newNormalState = normalState.copy(control = TracingControlKont(next), kstore = extendedKStore)
       NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
     case ActionSingleRestoreEnvTraced() =>
       wrapApplyAction(sem, ActionRestoreEnvTraced())
-    case ActionSingleRestoreValTraced() => normalState.vStack match {
+    case ActionSingleRestoreValTraced(debugTODO) => println(debugTODO); normalState.vStack match { //TODO remove debugfield
       case head :: rest =>
         val newNormalState = normalState.copy(v = head.getVal, vStack = rest)
         NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
