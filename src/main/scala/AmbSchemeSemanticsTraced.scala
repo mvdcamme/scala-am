@@ -18,7 +18,7 @@ class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Times
     case FrameAmb(Nil) =>
       Set(interpreterReturn(List(actionPopFailKont)))
     case FrameAmb(exp :: rest) =>
-      Set(interpreterReturn(List(ActionPushFailKontTraced(FrameAmb(rest)))))
+      Set(interpreterReturn(List(ActionPushFailKontTraced(FrameAmb(rest)), ActionEvalTraced(exp))))
     case UndoActionFrame(action) =>
       val actions : List[Action[SchemeExp, Abs, Addr]] = List(action.asInstanceOf[Action[SchemeExp, Abs, Addr]],
                                                               ActionPopFailKontTraced())
