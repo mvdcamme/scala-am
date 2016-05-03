@@ -92,8 +92,16 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
       addFailAction(sem, action, ActionSingleRestoreEnvTraced[Exp, HybridValue, HybridAddress]())
     case ActionStepInTraced(fexp, e, args, argsv, n, frame, _, _) =>
       val (vals, _) = normalState.vStack.splitAt(n)
+      /*
+       * Applying a closure => pop values (operator + operands) from stack;
+       *                       save extended lexical environment
+       *                       push FrameFunBody continuation
+       */
       val actionsSaveVal = vals.map({ (storable: Storable) => ActionSingleSaveValTraced[Exp, HybridValue, HybridAddress](storable.getVal) })
-      addFailActions(sem, action, actionsSaveVal)
+      val failActions = ActionSinglePopKontTraced[Exp, HybridValue, HybridAddress]() ::
+                        ActionSingleRestoreEnvTraced[Exp, HybridValue, HybridAddress]() ::
+                        actionsSaveVal
+      addFailActions(sem, action, failActions)
     case ActionSinglePopKontTraced() =>
       wrapApplyAction(sem, ActionPopKontTraced())
     case ActionSinglePushKontTraced(frame) =>
