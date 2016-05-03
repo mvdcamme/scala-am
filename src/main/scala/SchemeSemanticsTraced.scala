@@ -313,6 +313,11 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
         }
     })
   }
+
+  def getClosureBody(frame: Frame): Option[List[SchemeExp]] = frame match {
+    case FrameFunBody(body, Nil) => Some(body)
+    case _ => None
+  }
 }
 
 /**

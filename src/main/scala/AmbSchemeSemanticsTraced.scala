@@ -14,14 +14,14 @@ class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Times
     case _ => super.stepEval(e, ρ, σ, t)
   }
 
-  override def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time) : Set[Step[SchemeExp, Abs, Addr]] = frame match {
+  override def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] = frame match {
     case FrameAmb(Nil) =>
       Set(interpreterReturn(List(actionPopFailKont)))
     case FrameAmb(exp :: rest) =>
       Set(interpreterReturn(List(ActionPushFailKontTraced(FrameAmb(rest)), ActionEvalTraced(exp))))
     case UndoActionFrame(action) =>
-      val actions : List[Action[SchemeExp, Abs, Addr]] = List(action.asInstanceOf[Action[SchemeExp, Abs, Addr]],
-                                                              ActionPopFailKontTraced())
+      val actions: List[Action[SchemeExp, Abs, Addr]] = List(action.asInstanceOf[Action[SchemeExp, Abs, Addr]],
+                                                             ActionPopFailKontTraced())
       Set(interpreterReturn(actions))
     case _ => super.stepKont(v, frame, σ, t)
   }

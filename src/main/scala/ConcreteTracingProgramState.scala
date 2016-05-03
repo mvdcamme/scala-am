@@ -121,14 +121,13 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def restart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
-              restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): ConcreteTracingProgramState[Exp, HybridValue, HybridAddress, Time] = restartPoint match {
+              restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): ProgramState[Exp, Time] = restartPoint match {
     case RestartFromControl(newControlExp) =>
       ProgramState(TracingControlEval(newControlExp), ρ, σ, kstore, a, t, v, vStack)
     case RestartGuardDifferentClosure(action) =>
       handleClosureRestart(sem, action)
     case RestartGuardDifferentPrimitive(action) =>
       handlePrimitiveRestart(action)
-    case RestartStop() => this
     case RestartTraceEnded() => this
     case RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps) =>
       val primAppliedState = applyPrimitive(originalPrim, n, fExp, argsExps)

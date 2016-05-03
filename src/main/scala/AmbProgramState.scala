@@ -44,10 +44,44 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
   def runAssertions(assertions: List[Action[Exp, HybridValue, HybridAddress]]): Boolean = normalState.runAssertions(assertions)
 
   def restart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
-              restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): AmbProgramState[Exp, Time] = this
+              restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): AmbProgramState[Exp, Time] = {
+    println(restartPoint);
+    restartPoint match {
+      case RestartStoppedInBacktrack() =>
+        val newNormalState = normalState.restart(sem, RestartTraceEnded())
+        AmbProgramState(newNormalState, failStack)
+      case _ =>
+        val newNormalState = normalState.restart(sem, restartPoint)
+        AmbProgramState(newNormalState, failStack)
+    }
+  }
 
-  def step(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]): Option[Step[Exp, HybridValue, HybridAddress]] =
-    normalState.step(sem)
+  def step(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]): Option[Step[Exp, HybridValue, HybridAddress]] = {
+    val someStep = normalState.step(sem)
+    someStep match {
+      case None => None /* Step did not succeed */
+      case Some(step) =>
+        type PopKontAction = ActionSinglePopKontTraced[Exp, HybridValue, HybridAddress]
+        val trace = step.trace
+        val someActionSinglePopKont = trace.find(_.isInstanceOf[PopKontAction])
+        someActionSinglePopKont match {
+          case None => someStep
+          case Some(actionSinglePopKont) =>
+            val someTopKont = normalState.kstore.lookup(normalState.a).headOption
+            someTopKont match {
+              case None => someStep
+              case Some(topKont) =>
+                val someBody = sem.getClosureBody(topKont.frame)
+                someBody match {
+                  case None => someStep
+                  case Some(body) =>
+                    val signal = TracingSignalEnd(body, RestartStoppedInBacktrack[Exp, HybridValue, HybridAddress]())
+                    Some(Step(trace, signal))
+                }
+            }
+        }
+    }
+  }
 
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
                   action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = action match {

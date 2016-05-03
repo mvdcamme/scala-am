@@ -91,6 +91,8 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
     * the topmost frame is frame
     */
   def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[Step[Exp, Abs, Addr]]
+
+  def getClosureBody(frame: Frame): Option[List[Exp]]
 }
 
 /**
@@ -231,8 +233,6 @@ case class RestartGuardDifferentClosure[Exp : Expression, Abs : AbstractValue, A
   extends RestartPoint[Exp, Abs, Addr]
 case class RestartGuardDifferentPrimitive[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (action : ActionPrimCallTraced[Exp, Abs, Addr])
-  extends RestartPoint[Exp, Abs, Addr]
-case class RestartStop[Exp : Expression, Abs : AbstractValue, Addr : Address]()
   extends RestartPoint[Exp, Abs, Addr]
 case class RestartTraceEnded[Exp, Abs, Addr]()
   extends RestartPoint[Exp, Abs, Addr]

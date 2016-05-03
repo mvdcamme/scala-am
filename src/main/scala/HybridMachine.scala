@@ -168,7 +168,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       if (tracerContext.isTracingLabel(tc, label)) {
         Logger.log(s"Stopped tracing $label; NO LOOP DETECTED", Logger.I)
         numberOfTracesRecorded += 1
-        val traceEndedInstruction = sem.endTraceInstruction(RestartTraceEnded())
+        val traceEndedInstruction = sem.endTraceInstruction(restartPoint)
         val analysisOutput = findAnalysisOutput(newState)
         val tcTRStopped = tracerContext.stopTracing(tc, false, Some(traceEndedInstruction), analysisOutput)
         ExecutionState(NI, newState)(tcTRStopped, tn)
