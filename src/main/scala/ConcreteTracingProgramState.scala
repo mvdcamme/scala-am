@@ -274,11 +274,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case ActionCreateClosureTraced(λ) =>
         val newClosure = abs.inject[Exp, HybridAddress]((λ, ρ))
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, newClosure, vStack), action)
-      case ActionDefineVarsTraced(variables) =>
-        val addresses = variables.map(v => addr.variable(v, t))
-        val (vals, newVStack) = popStackItems(vStack, variables.length)
-        val (ρ1, σ1) = vals.zip(variables.zip(addresses)).foldLeft((ρ, σ))({ case ((ρ2, σ2), (value, (currV, currA))) => (ρ2.extend(currV, currA), σ2.extend(currA, value.getVal)) })
-        NormalInstructionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, newVStack), action)
       case ActionEndClosureCallTraced() =>
         NormalInstructionStep(this, action)
       case ActionEndPrimCallTraced() =>
@@ -296,8 +291,10 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case ActionExtendEnvTraced(varName : String) =>
         val va = addr.variable(varName, t)
         val ρ1 = ρ.extend(varName, va)
-        val σ1 = σ.extend(va, v)
-        NormalInstructionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, vStack), action)
+        val value = vStack.head.getVal
+        val σ1 = σ.extend(va, value)
+        val newVStack = vStack.tail
+        NormalInstructionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, newVStack), action)
       case ActionExtendStoreTraced(addr, lit) =>
         val σ1 = σ.extend(addr, lit)
         NormalInstructionStep(ProgramState(control, ρ, σ1, kstore, a, t, lit, vStack), action)

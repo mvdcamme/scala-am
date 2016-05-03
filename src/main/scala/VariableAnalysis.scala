@@ -94,8 +94,6 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
     def handleAction(action : Action[Exp, HybridValue, HybridAddress], boundVariables : Set[String]) = action match {
       case ActionAllocVarsTraced(varNames) =>
         addVariables(varNames, boundVariables)
-      case ActionDefineVarsTraced(varNames) =>
-        addVariables(varNames, boundVariables)
       case ActionExtendEnvTraced(varName) =>
         addVariable(varName, boundVariables)
       case ActionSaveEnvTraced() =>
@@ -141,8 +139,6 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
           /* Whenever we allocate a new variable, we initially assign it to the set of dead variables,
            * unless a variable with that name already exists, to avoid confusing two variables with the same name. */
         case ActionAllocVarsTraced(varNames) =>
-          addVariables(varNames, liveVariables, deadVariables)
-        case ActionDefineVarsTraced(varNames) =>
           addVariables(varNames, liveVariables, deadVariables)
         case ActionExtendEnvTraced(variableName) =>
           addVariable(variableName, liveVariables, deadVariables)

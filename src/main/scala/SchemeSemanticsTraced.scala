@@ -262,18 +262,29 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       conditionalIf(v, List(ActionEvalTraced(cons)) , RestartFromControl(cons), List(ActionEvalTraced(alt)), RestartFromControl(alt))
     case FrameLet(name, bindings, Nil, body) => {
       val variables = name :: bindings.map(_._1)
-      Set(interpreterReturn(actionRestoreEnv :: actionPushVal :: ActionDefineVarsTraced[SchemeExp, Abs, Addr](variables) :: evalBody(body, FrameBegin)))
+      val actions = actionRestoreEnv ::
+                    actionPushVal ::
+                    variables.map({ variable => ActionExtendEnvTraced[SchemeExp, Abs, Addr](variable) }) ++
+                    evalBody(body, FrameBegin)
+      Set(interpreterReturn(actions))
     }
     case FrameLet(name, bindings, (variable, e) :: toeval, body) =>
       Set(interpreterReturn(List(actionRestoreEnv, actionPushVal, actionSaveEnv, ActionEvalPushTraced(e, FrameLet(variable, (name, v) :: bindings, toeval, body)))))
     case FrameLetrec(a, Nil, body) =>
-      val actions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv, ActionSetVarTraced[SchemeExp, Abs, Addr](a)) ++ evalBody(body, FrameBegin)
+      val actions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv,
+                                                             ActionSetVarTraced[SchemeExp, Abs, Addr](a)) ++
+                                                        evalBody(body, FrameBegin)
       Set(Step(actions, new TracingSignalFalse))
     case FrameLetrec(var1, (var2, exp) :: rest, body) =>
-      val actions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv, ActionSetVarTraced(var1), ActionEvalPushTraced(exp, FrameLetrec(var2, rest, body)), actionSaveEnv)
+      val actions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv,
+                                                             ActionSetVarTraced(var1),
+                                                             ActionEvalPushTraced(exp, FrameLetrec(var2, rest, body)),
+                                                             actionSaveEnv)
       Set(Step(actions, new TracingSignalFalse))
     case FrameLetStar(name, bindings, body) =>
-      val actions = List(actionRestoreEnv, ActionExtendEnvTraced[SchemeExp, Abs, Addr](name))
+      val actions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv,
+                                                             actionPushVal,
+                                                             ActionExtendEnvTraced[SchemeExp, Abs, Addr](name))
       bindings match {
         case Nil => Set(interpreterReturn(actions ++ evalBody(body, FrameBegin)))
         case (variable, exp) :: rest => Set(Step(actions ++ List(actionSaveEnv, ActionEvalPushTraced(exp, FrameLetStar(variable, rest, body))), new TracingSignalFalse))

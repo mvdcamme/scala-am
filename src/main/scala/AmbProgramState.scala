@@ -51,10 +51,6 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
 
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
                   action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = action match {
-    case ActionDefineVarsTraced(variables) =>
-      val (vals, _) = normalState.vStack.splitAt(variables.length)
-      val actionsSaveVal = vals.map({ (storable: Storable) => ActionSingleSaveValTraced[Exp, HybridValue, HybridAddress](storable.getVal) })
-      addFailActions(sem, action, actionsSaveVal)
     case ActionEvalPushTraced(e, frame, _, _) =>
       addFailAction(sem, action, ActionSinglePopKontTraced[Exp, HybridValue, HybridAddress]())
     case ActionPopFailKontTraced() => failStack match {

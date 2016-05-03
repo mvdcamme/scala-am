@@ -225,7 +225,6 @@ abstract class ActionGuardTraced[Exp : Expression, Abs : AbstractValue, Addr : A
 
 case class ActionAllocVarsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varNames : List[String]) extends Action[Exp, Abs, Addr]
 case class ActionCreateClosureTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](λ : Exp) extends Action[Exp, Abs, Addr]
-case class ActionDefineVarsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varNames : List[String]) extends Action[Exp, Abs, Addr]
 case class ActionEndClosureCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionEndPrimCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 case class ActionEndTrace[Exp : Expression, Abs : AbstractValue, Addr : Address](restartPoint: RestartPoint[Exp, Abs, Addr]) extends Action[Exp, Abs, Addr]

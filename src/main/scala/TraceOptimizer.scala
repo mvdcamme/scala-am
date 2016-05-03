@@ -105,7 +105,6 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   private def optimizeEnvironmentLoading(traceFull : TraceFull) : TraceFull = {
     def isAnInterferingAction(action : TraceInstruction) = action match {
       case ActionAllocVarsTraced(_) |
-           ActionDefineVarsTraced(_) |
            ActionEndTrace(_) |
            ActionExtendEnvTraced(_) =>
         true
