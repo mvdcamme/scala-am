@@ -157,23 +157,26 @@ abstract class Action[Exp : Expression, Abs : AbstractValue, Addr : Address]
   * popped with the given reached value.
   */
 case class ActionReachedValue[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(v: Abs, σ: Store[Addr, Abs],
- read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (v: Abs, σ: Store[Addr, Abs],
+   read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
 
 /**
   * A frame needs to be pushed on the stack, and the interpretation continues by
   * evaluating expression e in environment ρ
   */
 case class ActionPush[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(e: Exp, frame: Frame, ρ: Environment[Addr], σ: Store[Addr, Abs],
- read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (e: Exp, frame: Frame, ρ: Environment[Addr], σ: Store[Addr, Abs],
+   read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
 
 /**
   * Evaluation continues with expression e in environment ρ
   */
 case class ActionEval[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs],
- read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (e: Exp, ρ: Environment[Addr], σ: Store[Addr, Abs],
+   read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
 
 /**
   * Similar to ActionEval, but only used when stepping inside a function's body
@@ -182,30 +185,34 @@ case class ActionEval[Exp : Expression, Abs : AbstractValue, Addr : Address]
   * machine.
   */
 case class ActionStepIn[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(fexp: Exp, clo: (Exp, Environment[Addr]), e: Exp,
- ρ: Environment[Addr], σ: Store[Addr, Abs], argsv: List[(Exp, Abs)],
- read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (fexp: Exp, clo: (Exp, Environment[Addr]), e: Exp,
+   ρ: Environment[Addr], σ: Store[Addr, Abs], argsv: List[(Exp, Abs)],
+   read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
 
 /**
   * An error has been reached
   */
 case class ActionError[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(reason: String) extends Action[Exp, Abs, Addr]
+  (reason: String)
+  extends Action[Exp, Abs, Addr]
 
 /**
   * Spawns a new thread that evaluates expression e in environment ρ. The current
   * thread continues its execution by performing action act.
   */
 case class ActionSpawn[TID: ThreadIdentifier, Exp : Expression, Abs : AbstractValue, Addr : Address]
-(t: TID, e: Exp, ρ: Environment[Addr], act: Action[Exp, Abs, Addr],
- read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (t: TID, e: Exp, ρ: Environment[Addr], act: Action[Exp, Abs, Addr],
+   read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
 
 /**
   * Waits for the execution of a thread, with tid as its identifier.
   */
 case class ActionJoin[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(tid: Abs, σ: Store[Addr, Abs],
- read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (tid: Abs, σ: Store[Addr, Abs],
+   read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
 
 
 /*******************************************************************************************************************
@@ -214,45 +221,74 @@ case class ActionJoin[Exp : Expression, Abs : AbstractValue, Addr : Address]
 
 trait RestartPoint[Exp, Abs, Addr]
 
-case class RestartAssertion[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends RestartPoint[Exp, Abs, Addr]
-case class RestartFromControl[Exp : Expression, Abs : AbstractValue, Addr : Address](newControl: Exp) extends RestartPoint[Exp, Abs, Addr]
-case class RestartGuardDifferentClosure[Exp : Expression, Abs : AbstractValue, Addr : Address](action : ActionStepInTraced[Exp, Abs, Addr]) extends RestartPoint[Exp, Abs, Addr]
-case class RestartGuardDifferentPrimitive[Exp : Expression, Abs : AbstractValue, Addr : Address](action : ActionPrimCallTraced[Exp, Abs, Addr]) extends RestartPoint[Exp, Abs, Addr]
-case class RestartStop[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends RestartPoint[Exp, Abs, Addr]
-case class RestartTraceEnded[Exp, Abs, Addr]() extends RestartPoint[Exp, Abs, Addr]
+case class RestartAssertion[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends RestartPoint[Exp, Abs, Addr]
+case class RestartFromControl[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (newControl: Exp)
+  extends RestartPoint[Exp, Abs, Addr]
+case class RestartGuardDifferentClosure[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (action : ActionStepInTraced[Exp, Abs, Addr])
+  extends RestartPoint[Exp, Abs, Addr]
+case class RestartGuardDifferentPrimitive[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (action : ActionPrimCallTraced[Exp, Abs, Addr])
+  extends RestartPoint[Exp, Abs, Addr]
+case class RestartStop[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends RestartPoint[Exp, Abs, Addr]
+case class RestartTraceEnded[Exp, Abs, Addr]()
+  extends RestartPoint[Exp, Abs, Addr]
 
-abstract class ActionGuardTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](val rp: RestartPoint[Exp, Abs, Addr]) extends Action[Exp, Abs, Addr]
+abstract class ActionGuardTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (val rp: RestartPoint[Exp, Abs, Addr])
+  extends Action[Exp, Abs, Addr]
 
-case class ActionAllocVarsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varNames : List[String]) extends Action[Exp, Abs, Addr]
-case class ActionCreateClosureTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](λ : Exp) extends Action[Exp, Abs, Addr]
-case class ActionEndClosureCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
-case class ActionEndPrimCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
-case class ActionEndTrace[Exp : Expression, Abs : AbstractValue, Addr : Address](restartPoint: RestartPoint[Exp, Abs, Addr]) extends Action[Exp, Abs, Addr]
+case class ActionAllocVarsTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (varNames : List[String])
+  extends Action[Exp, Abs, Addr]
+case class ActionCreateClosureTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (λ : Exp)
+  extends Action[Exp, Abs, Addr]
+case class ActionEndClosureCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends Action[Exp, Abs, Addr]
+case class ActionEndPrimCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends Action[Exp, Abs, Addr]
+case class ActionEndTrace[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (restartPoint: RestartPoint[Exp, Abs, Addr])
+  extends Action[Exp, Abs, Addr]
+
 /**
 * An error has been reached
 */
 case class ActionErrorTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (reason: String) extends Action[Exp, Abs, Addr]
+  (reason: String)
+  extends Action[Exp, Abs, Addr]
 /**
   * A frame needs to be pushed on the stack, and the interpretation continues by
   * evaluating expression e in environment ρ.
   */
 case class ActionEvalPushTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-(e: Exp, frame: Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (e: Exp, frame: Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
 /**
   * Evaluation continues with expression e in environment ρ
   */
 case class ActionEvalTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (e: Exp, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-case class ActionExtendEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](varName : String) extends Action[Exp, Abs, Addr]
-case class ActionExtendStoreTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](addr: Addr, lit: Abs) extends Action[Exp, Abs, Addr]
+  (e: Exp, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
+case class ActionExtendEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (varName : String)
+  extends Action[Exp, Abs, Addr]
+case class ActionExtendStoreTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (addr: Addr, lit: Abs)
+  extends Action[Exp, Abs, Addr]
 
-case class ActionGuardFalseTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](override val rp: RestartPoint[Exp, Abs, Addr])
+case class ActionGuardFalseTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (override val rp: RestartPoint[Exp, Abs, Addr])
   extends ActionGuardTraced[Exp, Abs, Addr](rp)
 case class ActionGuardAssertFreeVariable[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (variable : String, originalValue : Abs, override val rp: RestartPoint[Exp, Abs, Addr])
   extends ActionGuardTraced[Exp, Abs, Addr](rp)
-case class ActionGuardTrueTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](override val rp: RestartPoint[Exp, Abs, Addr])
+case class ActionGuardTrueTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (override val rp: RestartPoint[Exp, Abs, Addr])
   extends ActionGuardTraced[Exp, Abs, Addr](rp)
 case class ActionGuardSameClosure[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (recordedClosure : Abs, override val rp : RestartGuardDifferentClosure[Exp, Abs, Addr])
@@ -265,38 +301,53 @@ case class ActionGuardSamePrimitive[Exp : Expression, Abs : AbstractValue, Addr 
 */
 case class ActionJoinTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (tid: Abs, σ: Store[Addr, Abs],
-read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
 case class ActionLookupVariableTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
 case class ActionLookupVariablePushTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-case class ActionPopKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
+  (varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
+case class ActionPopKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends Action[Exp, Abs, Addr]
 case class ActionPrimCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (n: Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
+  (n: Integer, fExp : Exp, argsExps : List[Exp])
+  extends Action[Exp, Abs, Addr]
 case class ActionPushKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (frame: Frame) extends Action[Exp, Abs, Addr]
-case class ActionPushValTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
+  (frame: Frame)
+  extends Action[Exp, Abs, Addr]
+case class ActionPushValTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends Action[Exp, Abs, Addr]
 /**
 * A value is reached by the interpreter. As a result, a continuation will be
 * popped with the given reached value.
 */
 case class ActionReachedValueTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (v: Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+  (v: Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
 case class ActionReachedValuePushTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (v : Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-case class ActionRestoreEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
-case class ActionRestoreSaveEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
-case class ActionSaveEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
-case class ActionSetVarTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](variable : String) extends Action[Exp, Abs, Addr]
+  (v : Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
+case class ActionRestoreEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends Action[Exp, Abs, Addr]
+case class ActionRestoreSaveEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends Action[Exp, Abs, Addr]
+case class ActionSaveEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends Action[Exp, Abs, Addr]
+case class ActionSetVarTraced[Exp : Expression, Abs : AbstractValue, Addr : Address](variable : String)
+  extends Action[Exp, Abs, Addr]
 /**
 * Spawns a new thread that evaluates expression e in environment ρ. The current
 * thread continues its execution by performing action act.
 */
 case class ActionSpawnTraced[TID : ThreadIdentifier, Exp : Expression, Abs : AbstractValue, Addr : Address]
   (t: TID, e: Exp, ρ: Environment[Addr], act: Action[Exp, Abs, Addr],
-read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
+   read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
 case class ActionSpecializePrimitive[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (expectedType : AbstractType, primitive: Abs, originalPrimitive : Abs, n : Integer, fExp : Exp, argsExps : List[Exp]) extends Action[Exp, Abs, Addr]
+  (expectedType : AbstractType, primitive: Abs, originalPrimitive : Abs, n : Integer, fExp : Exp, argsExps : List[Exp])
+  extends Action[Exp, Abs, Addr]
 /**
 * Similar to ActionEval, but only used when stepping inside a function's body
 * (clo is therefore the function stepped into). The number of arguments should
@@ -304,5 +355,7 @@ case class ActionSpecializePrimitive[Exp : Expression, Abs : AbstractValue, Addr
 */
 case class ActionStepInTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (fexp: Exp, e: Exp, args : List[String], argsv : List[Exp], n : Integer,
-   frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]()) extends Action[Exp, Abs, Addr]
-case class ActionStartFunCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
+   frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
+  extends Action[Exp, Abs, Addr]
+case class ActionStartFunCallTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends Action[Exp, Abs, Addr]
