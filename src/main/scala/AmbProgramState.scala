@@ -53,6 +53,8 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
                   action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = action match {
     case ActionEvalPushTraced(e, frame, _, _) =>
       addFailAction(sem, action, ActionSinglePopKontTraced[Exp, HybridValue, HybridAddress]())
+    case ActionExtendEnvTraced(_) =>
+      addFailAction(sem, action, ActionSingleSaveValTraced[Exp, HybridValue, HybridAddress](normalState.vStack.head.getVal))
     case ActionPopFailKontTraced() => failStack match {
       case head :: tail =>
         /*
