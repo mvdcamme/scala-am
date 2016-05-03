@@ -1,0 +1,20 @@
+(define (require pred)
+  (if (not pred)
+      (amb)))
+
+(define (prime? a)
+  (or (= a 23)
+      (= a 29)
+      (= a 31)
+      (= a 37)
+      (= a 41)
+      (= a 43)
+      (= a 47)))
+
+(define (prime-sum-pair)
+  (let ((a (amb 1 3 5 8))
+        (b (amb 21 35 110)))
+  (require (prime? (+ a b)))
+  (+ (* a 10000) b)))
+
+(prime-sum-pair)
