@@ -166,7 +166,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       try {
         val (ρ2, σ2, e) = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.getVal)), σ, t).head
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-        ProgramState(TracingControlEval[Exp, HybridValue, HybridAddress](e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, StoreEnv(ρ2) :: newVStack)
+        ProgramState(TracingControlEval[Exp, HybridValue, HybridAddress](e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, StoreEnv(ρ) :: newVStack)
       } catch {
         case e: sem.InvalidArityException =>
           ProgramState(TracingControlError(s"Arity error when calling $fexp. got ${n - 1})"), ρ, σ, kstore, a, t, v, newVStack)
