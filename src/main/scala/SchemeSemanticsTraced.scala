@@ -172,7 +172,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       }
       case None => Set(interpreterReturn(List(ActionErrorTraced(s"Unbound variable: $variable"))))
     }
-    case SchemeBegin(body) => Set(interpreterReturn(actionRestoreEnv :: evalBody(body, FrameBegin)))
+    case SchemeBegin(body) => Set(interpreterReturn(evalBody(body, FrameBegin)))
     case SchemeCase(key, clauses, default) => Set(interpreterReturn(List(ActionEvalPushTraced(key, FrameCase(clauses, default)))))
     case SchemeCas(variable, eold, enew) => Set(interpreterReturn(List(ActionEvalPushTraced(eold, FrameCasOld(variable, enew, ρ)))))
     case SchemeDefineVariable(name, exp) => Set(interpreterReturn(List(ActionEvalPushTraced(exp, FrameDefine(name, ρ)))))
@@ -225,6 +225,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   }
 
   def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time) : Set[Step[SchemeExp, Abs, Addr]] = frame match {
+    case FrameBegin(Nil) => Set(interpreterReturn(List(actionRestoreEnv, actionPopKont)))
     case FrameBegin(body) => Set(interpreterReturn(actionRestoreEnv :: evalBody(body, FrameBegin)))
     case FrameCase(clauses, default) => {
       val fromClauses = clauses.flatMap({ case (values, body) =>
