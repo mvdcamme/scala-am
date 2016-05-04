@@ -9,7 +9,8 @@
       (= a 37)
       (= a 41)
       (= a 43)
-      (= a 47)))
+      (= a 47)
+      (= a 111)))
 
 (define (prime-sum-pair)
   (let ((a (amb 1 3 5 8))
