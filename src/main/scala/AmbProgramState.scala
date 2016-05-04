@@ -44,9 +44,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
   def runAssertions(assertions: List[Action[Exp, HybridValue, HybridAddress]]): Boolean = normalState.runAssertions(assertions)
 
   def restart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
-              restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): AmbProgramState[Exp, Time] = {
-    println(restartPoint);
-    restartPoint match {
+              restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): AmbProgramState[Exp, Time] = restartPoint match {
       case RestartStoppedInBacktrack() =>
         val newNormalState = normalState.restart(sem, RestartTraceEnded())
         AmbProgramState(newNormalState, failStack)
@@ -54,7 +52,6 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
         val newNormalState = normalState.restart(sem, restartPoint)
         AmbProgramState(newNormalState, failStack)
     }
-  }
 
   def step(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]): Option[Step[Exp, HybridValue, HybridAddress]] = {
     val someStep = normalState.step(sem)
