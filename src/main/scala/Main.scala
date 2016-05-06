@@ -176,7 +176,7 @@ object Main {
               val semantics = new AmbSchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA]
               runTraced(new HybridMachine[SchemeExp, ZeroCFA](semantics, config.tracingFlags, { (exp, primitives, abs, time) =>
                 val normalState = new ProgramState[SchemeExp, ZeroCFA](exp, primitives, abs, time)
-                new AmbProgramState[SchemeExp, ZeroCFA](normalState, Nil) })) _
+                new AmbProgramState[SchemeExp, ZeroCFA](normalState) })) _
             } else {
               val semantics = new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA]
               runTraced(new HybridMachine[SchemeExp, ZeroCFA](semantics, config.tracingFlags, { (exp, primitives, abs, time) => new ProgramState[SchemeExp, ZeroCFA](exp, primitives, abs, time) })) _

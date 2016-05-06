@@ -1,3 +1,11 @@
+case class HaltFailFrame() extends Frame {
+  def subsumes(that: Frame): Boolean = that.equals(this)
+}
+
+object HaltFailKontAddress extends KontAddr {
+  override def toString = "HaltFailKontAddress"
+}
+
 case class AmbProgramState[Exp : Expression, Time : Timestamp]
 (normalState: ProgramState[Exp, Time],
  failStack: List[Frame])
@@ -8,6 +16,8 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
   def addr = implicitly[Address[HybridAddress]]
   def exp = implicitly[Expression[Exp]]
   def time = implicitly[Timestamp[Time]]
+
+  def this(normalState: ProgramState[Exp, Time]) = this(normalState, List(HaltFailFrame()))
 
   def wrapApplyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
                       action: Action[Exp, HybridValue, HybridAddress]):
@@ -88,12 +98,13 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
       addFailAction(sem, action, ActionSingleSaveValTraced[Exp, HybridValue, HybridAddress](normalState.vStack.head.getVal))
     case ActionPopFailKontTraced() => failStack match {
       case head :: tail =>
-        /*
-         * Transfer frame that was allocated at the failstack to the normal continuation stack:
+        /* Transfer frame that was allocated at the failstack to the normal continuation stack:
          * Allocate a new address that will point to this frame and then extend the kstore with the new address
-         * and the frame.
-         */
-        val next = NormalKontAddress(exp.zeroExp, addr.variable("__kont__", normalState.t)) // Hack to get infinite number of addresses in concrete mode
+         * and the frame. */
+        val next = head match {
+          case HaltFailFrame() => HaltFailKontAddress
+          case _ => NormalKontAddress(exp.zeroExp, addr.variable("__kont__", normalState.t)) // Hack to get infinite number of addresses in concrete mode
+        }
         val extendedKStore = normalState.kstore.extend(next, Kont(head, normalState.a))
         val newNormalState = normalState.copy(control = TracingControlKont(next), kstore = extendedKStore)
         NormalInstructionStep(AmbProgramState(newNormalState, failStack.tail), action)
@@ -154,6 +165,11 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
       val newNormalState = normalState.copy(vStack = StoreVal(value) :: normalState.vStack)
       NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
     case _ => wrapApplyAction(sem, action)
+  }
+
+  override def halted = normalState.control match {
+    case TracingControlKont(HaltFailKontAddress) => true
+    case _ => super.halted
   }
 
   def generateTraceInformation(action : Action[Exp, HybridValue, HybridAddress]):
