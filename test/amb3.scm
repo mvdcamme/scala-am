@@ -16,4 +16,4 @@
     (display (+ (* i 10000) (* j 100) k))
     (amb)))
 
-(a-pythagorean-triple-between 1 100)
+(a-pythagorean-triple-between 1 25)
