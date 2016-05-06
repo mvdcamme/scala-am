@@ -127,7 +127,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
     case ActionPushValTraced() =>
       addFailAction(sem, action, ActionSingleRestoreValTraced[Exp, HybridValue, HybridAddress]())
     case ActionRestoreEnvTraced() =>
-      addFailAction(sem, action, ActionSingleSaveSpecificEnvTraced[Exp, HybridValue, HybridAddress](normalState.vStack.head.getEnv))
+      addFailAction(sem, action, ActionSingleSaveSpecificEnvTraced[Exp, HybridValue, HybridAddress](normalState.vStack.head.getEnv, normalState.ρ))
     case ActionSaveEnvTraced() =>
       addFailAction(sem, action, ActionSingleRestoreEnvTraced[Exp, HybridValue, HybridAddress]())
     case ActionStepInTraced(fexp, e, args, argsv, n, frame, _, _) =>
@@ -158,8 +158,8 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
       case Nil =>
         throw new Exception("Value stack is empty!")
     }
-    case ActionSingleSaveSpecificEnvTraced(ρ) =>
-      val newNormalState = normalState.copy(vStack = StoreEnv(ρ) :: normalState.vStack)
+    case ActionSingleSaveSpecificEnvTraced(ρToSave, ρToReplace) =>
+      val newNormalState = normalState.copy(ρ = ρToReplace, vStack = StoreEnv(ρToSave) :: normalState.vStack)
       NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
     case ActionSingleSaveValTraced(value) =>
       val newNormalState = normalState.copy(vStack = StoreVal(value) :: normalState.vStack)

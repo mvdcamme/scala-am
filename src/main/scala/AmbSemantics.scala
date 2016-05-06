@@ -37,7 +37,7 @@ case class ActionSinglePushKontTraced[Exp : Expression, Abs : AbstractValue, Add
   (frame: Frame)
   extends ActionSingleTraced[Exp, Abs, Addr]
 case class ActionSingleSaveSpecificEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (ρ: Environment[Addr])
+  (ρToSave: Environment[Addr], ρToReplace: Environment[Addr])
   extends ActionSingleTraced[Exp, Abs, Addr]
 case class ActionSingleSaveValTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (value: Abs)
