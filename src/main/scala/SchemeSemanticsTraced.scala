@@ -25,7 +25,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   case class FrameCasOld(variable: String, enew: SchemeExp, ρ: Environment[Addr]) extends SchemeFrame
   case class FrameCasNew(variable: String, old: Abs, ρ: Environment[Addr]) extends SchemeFrame
   case class FrameDefine(variable: String, ρ: Environment[Addr]) extends SchemeFrame
-  case class FrameFunBody(body : List[SchemeExp], rest: List[SchemeExp]) extends SchemeFrame
+  case class FrameFunBody(body: List[SchemeExp], rest: List[SchemeExp]) extends SchemeFrame
   case class FrameFuncallOperands(f: Abs, fexp: SchemeExp, cur: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp]) extends SchemeFrame
   case class FrameFuncallOperator(fexp: SchemeExp, args: List[SchemeExp]) extends SchemeFrame
   case class FrameIf(cons: SchemeExp, alt: SchemeExp) extends SchemeFrame
@@ -33,13 +33,13 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   case class FrameLetrec(variable: String, bindings: List[(String, SchemeExp)], body: List[SchemeExp]) extends SchemeFrame
   case class FrameLetStar(variable: String, bindings: List[(String, SchemeExp)], body: List[SchemeExp]) extends SchemeFrame
   case class FrameSet(variable: String, ρ: Environment[Addr]) extends SchemeFrame
-  case class FrameWhileBody(condition : SchemeExp, body : List[SchemeExp], exps : List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrame
-  case class FrameWhileCondition(condition : SchemeExp, body : List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrame
+  case class FrameWhileBody(condition: SchemeExp, body: List[SchemeExp], exps: List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrame
+  case class FrameWhileCondition(condition: SchemeExp, body: List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrame
   object FrameHalt extends SchemeFrame {
     override def toString() = "FHalt"
   }
 
-  def convertFrame(convertAddress : Addr => Addr, convertValue : Abs => Abs)(frame : Frame) : Frame = frame match {
+  def convertFrame(convertAddress: Addr => Addr, convertValue: Abs => Abs)(frame: Frame): Frame = frame match {
     case FrameBegin(rest) => FrameBegin(rest)
     case FrameCase(clauses, default) => FrameCase(clauses, default)
     case FrameCasOld(variable, enew, ρ) => FrameCasOld(variable, enew, ρ.map(convertAddress))
@@ -60,7 +60,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   /**
     * @param frameGen A function that generates the next frame to push, given the non-evaluated expressions of the body
     */
-  protected def evalBody(body: List[SchemeExp], frameGen : List[SchemeExp] => Frame): List[Action[SchemeExp, Abs, Addr]] = body match {
+  protected def evalBody(body: List[SchemeExp], frameGen: List[SchemeExp] => Frame): List[Action[SchemeExp, Abs, Addr]] = body match {
     case Nil => List(actionPopKont)
     case exp :: rest => List(actionSaveEnv, ActionEvalPushTraced(exp, frameGen(rest)))
   }
@@ -72,7 +72,10 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   /*
    * TODO: Debugging: run tests only using if-expressions. Remove function ASAP and use function "conditional" instead!
    */
-  def conditionalIf(v: Abs, t: List[Action[SchemeExp, Abs, Addr]], tRestart : RestartPoint[SchemeExp, Abs, Addr], f: List[Action[SchemeExp, Abs, Addr]], fRestart : RestartPoint[SchemeExp, Abs, Addr]): Set[Step[SchemeExp, Abs, Addr]] =
+  def conditionalIf(v: Abs, t: List[Action[SchemeExp, Abs, Addr]],
+                    tRestart: RestartPoint[SchemeExp, Abs, Addr],
+                    f: List[Action[SchemeExp, Abs, Addr]],
+                    fRestart: RestartPoint[SchemeExp, Abs, Addr]): Set[Step[SchemeExp, Abs, Addr]] =
     (if (abs.isTrue(v)) {
       Set[Step[SchemeExp, Abs, Addr]](Step[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardTrueTraced[SchemeExp, Abs, Addr](fRestart) :: t, TracingSignalFalse()))
     } else Set[Step[SchemeExp, Abs, Addr]]()) ++
@@ -160,7 +163,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case SExpQuoted(q) => evalQuoted(SExpPair(SExpIdentifier("quote"), SExpPair(q, SExpValue(ValueNil()))), t)
   }
 
-  def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time) : Set[Step[SchemeExp, Abs, Addr]] = e match {
+  def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] = e match {
     case λ: SchemeLambda => Set(interpreterReturn(List(ActionCreateClosureTraced(λ), actionPopKont)))
     case SchemeAcquire(variable) => ρ.lookup(variable) match {
       case Some(a) => {
@@ -224,7 +227,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case exp :: rest => ActionEvalPushTraced(exp, FrameWhileBody(condition, body, rest, ρ))
   }
 
-  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time) : Set[Step[SchemeExp, Abs, Addr]] = frame match {
+  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] = frame match {
     case FrameBegin(Nil) => Set(interpreterReturn(List(actionRestoreEnv, actionPopKont)))
     case FrameBegin(body) => Set(interpreterReturn(actionRestoreEnv :: evalBody(body, FrameBegin)))
     case FrameCase(clauses, default) => {
@@ -302,7 +305,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
   def parse(program: String): SchemeExp = Scheme.parse(program)
 
-  def bindClosureArgs(clo : Abs, argsv : List[(SchemeExp, Abs)], σ : Store[Addr, Abs], t : Time) : Set[(Environment[Addr], Store[Addr, Abs], SchemeExp)] = {
+  def bindClosureArgs(clo: Abs, argsv: List[(SchemeExp, Abs)], σ: Store[Addr, Abs], t: Time): Set[(Environment[Addr], Store[Addr, Abs], SchemeExp)] = {
     abs.getClosures[SchemeExp, Addr](clo).map({
       case (SchemeLambda(args, body), ρ1) =>
         if (args.length == argsv.length) {

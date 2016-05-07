@@ -111,7 +111,7 @@ object Config {
 
 object Main {
 
-  var currentProgram : String = ""
+  var currentProgram: String = ""
 
   def printExecutionTimes[Abs : AbstractValue](result: Output[Abs]): Unit = {
     val file = new File("benchmark_times.txt")
@@ -124,7 +124,7 @@ object Main {
    *
    */
   def runBasic[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
-  (machine: BasicAbstractMachine[Exp, Abs, Addr, Time], output: Option[String], calcResult : () => Output[Abs]): Unit = {
+  (machine: BasicAbstractMachine[Exp, Abs, Addr, Time], output: Option[String], calcResult: () => Output[Abs]): Unit = {
     val abs = implicitly[AbstractValue[Abs]]
     val addr = implicitly[Address[Addr]]
     println(s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")

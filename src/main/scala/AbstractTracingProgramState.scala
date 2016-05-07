@@ -19,7 +19,7 @@ case class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteStat
   def time = implicitly[Timestamp[Time]]
 
   def applyActionAbstract(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
-                          action : Action[Exp, HybridValue, HybridAddress]): Set[AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]] = {
+                          action: Action[Exp, HybridValue, HybridAddress]): Set[AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]] = {
     try {
       action match {
         case ActionPopKontTraced() =>

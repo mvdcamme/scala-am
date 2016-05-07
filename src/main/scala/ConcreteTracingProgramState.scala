@@ -5,13 +5,13 @@ trait InstructionStep[Exp, Abs, Addr, Time, +State] {
     throw new Exception(s"Unexpected result: $this does not have a resulting state")
 }
 case class NormalInstructionStep[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp, State <: ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
- (newState : State, action : Action[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time, State] {
+ (newState: State, action: Action[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time, State] {
   override def getState: State = newState
 }
 case class GuardFailed[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp, State]
-(rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time, State]
+(rp: RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time, State]
 case class TraceEnded[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp, State]
-(rp : RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time, State]
+(rp: RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time, State]
 
 case class IncorrectStackSizeException() extends Exception
 case class VariableNotFoundException(variable: String) extends Exception(variable)
@@ -95,8 +95,8 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
 
   case class RestartSpecializedPrimCall(originalPrim: HybridValue, n: Integer, fExp: Exp, argsExps: List[Exp]) extends RestartPoint[Exp, HybridValue, HybridAddress]
 
-  def popStack[A](stack : List[A]) : (A, List[A]) = (stack.head, stack.tail)
-  def popStackItems[A](stack : List[A], n : Integer) : (List[A], List[A]) = stack.splitAt(n)
+  def popStack[A](stack: List[A]): (A, List[A]) = (stack.head, stack.tail)
+  def popStackItems[A](stack: List[A], n: Integer): (List[A], List[A]) = stack.splitAt(n)
 
   /**
     * Computes the set of states that follow the current state
@@ -158,7 +158,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def doActionStepInTraced(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
-                           action : Action[Exp, HybridValue, HybridAddress]): ProgramState[Exp, Time] = action match {
+                           action: Action[Exp, HybridValue, HybridAddress]): ProgramState[Exp, Time] = action match {
     case ActionStepInTraced(fexp, _, _, argsv, n, frame, _, _) =>
       val (vals, newVStack) = popStackItems(vStack, n)
       val clo = vals.last.getVal
@@ -173,13 +173,13 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def handleClosureRestart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
-                           action : Action[Exp, HybridValue, HybridAddress]): ProgramState[Exp, Time] =
+                           action: Action[Exp, HybridValue, HybridAddress]): ProgramState[Exp, Time] =
     doActionStepInTraced(sem, action)
 
-  def applyPrimitive(operator: HybridValue, n : Integer, fExp : Exp, argsExps : List[Exp]): ProgramState[Exp, Time] = {
+  def applyPrimitive(operator: HybridValue, n: Integer, fExp: Exp, argsExps: List[Exp]): ProgramState[Exp, Time] = {
     val (vals, newVStack) = popStackItems(vStack, n)
-    val operands : List[HybridValue] = vals.take(n - 1).map(_.getVal)
-    val primitive : Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
+    val operands: List[HybridValue] = vals.take(n - 1).map(_.getVal)
+    val primitive: Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
     val result = primitive match {
       case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), σ, t)
       case None => throw new NotAPrimitiveException(s"Operator $fExp not a primitive: $operator")
@@ -192,9 +192,9 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     }
   }
 
-  def handlePrimitiveRestart(action : Action[Exp, HybridValue, HybridAddress]): ProgramState[Exp, Time] = {
+  def handlePrimitiveRestart(action: Action[Exp, HybridValue, HybridAddress]): ProgramState[Exp, Time] = {
     action match {
-      case ActionPrimCallTraced(n : Integer, fExp, argsExps) =>
+      case ActionPrimCallTraced(n: Integer, fExp, argsExps) =>
         val (vals, newVStack) = popStackItems(vStack, n)
         val operator: HybridValue = vals.last.getVal
         val operands: List[HybridValue] = vals.take(n - 1).map(_.getVal)
@@ -240,7 +240,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       }
     }
 
-    def handleClosureGuard(guard : ActionGuardSameClosure[Exp, HybridValue, HybridAddress], currentClosure : HybridValue): InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]] = {
+    def handleClosureGuard(guard: ActionGuardSameClosure[Exp, HybridValue, HybridAddress], currentClosure: HybridValue): InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]] = {
       (guard.recordedClosure, currentClosure) match {
         case (HybridLattice.Left(AbstractConcrete.AbstractClosure(lam1, env1)), HybridLattice.Left(AbstractConcrete.AbstractClosure(lam2, env2))) =>
           if (lam1 == lam2) {
@@ -256,7 +256,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       }
     }
 
-    def handlePrimitiveGuard(guard : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress], currentPrimitive : HybridValue): InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]] = {
+    def handlePrimitiveGuard(guard: ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress], currentPrimitive: HybridValue): InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]] = {
       if (guard.recordedPrimitive == currentPrimitive) {
         NormalInstructionStep(this, guard)
       } else {
@@ -287,7 +287,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case ActionEvalPushTraced(e, frame, _, _) =>
         val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
         NormalInstructionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, v, vStack), action)
-      case ActionExtendEnvTraced(varName : String) =>
+      case ActionExtendEnvTraced(varName: String) =>
         val va = addr.variable(varName, t)
         val ρ1 = ρ.extend(varName, va)
         val value = vStack.head.getVal
@@ -306,7 +306,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case ActionPopKontTraced() =>
         val next = if (a == HaltKontAddress) { HaltKontAddress } else { kstore.lookup(a).head.next }
         NormalInstructionStep(ProgramState(TracingControlKont(a), ρ, σ, kstore, next, t, v, vStack), action)
-      case ActionPrimCallTraced(n : Integer, fExp, argsExps) =>
+      case ActionPrimCallTraced(n: Integer, fExp, argsExps) =>
         val (vals, _) = popStackItems(vStack, n)
         val operator = vals.last.getVal
         NormalInstructionStep(applyPrimitive(operator, n, fExp, argsExps), action)
@@ -378,22 +378,22 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
 
   val valueConverter: AbstractConcreteToAbstractType = new AbstractConcreteToAbstractType
 
-  def convertValue(σ: Store[HybridAddress, HybridLattice.Hybrid])(value: HybridValue) : HybridValue = value match {
+  def convertValue(σ: Store[HybridAddress, HybridLattice.Hybrid])(value: HybridValue): HybridValue = value match {
     case HybridLattice.Left(v) => HybridLattice.Right(valueConverter.convert[Exp](v, σ))
     case HybridLattice.Right(v) => value
     case HybridLattice.Prim(p) => value
   }
 
-  def convertEnvironment(env : Environment[HybridAddress]) : Environment[HybridAddress] =
+  def convertEnvironment(env: Environment[HybridAddress]): Environment[HybridAddress] =
     new Environment[HybridAddress](env.content.map { tuple => (tuple._1, HybridAddress.convertAddress(tuple._2))})
 
-  def convertControl(control : TracingControl[Exp, HybridValue, HybridAddress], σ: Store[HybridAddress, HybridLattice.Hybrid]): TracingControl[Exp, HybridValue, HybridAddress] = control match {
+  def convertControl(control: TracingControl[Exp, HybridValue, HybridAddress], σ: Store[HybridAddress, HybridLattice.Hybrid]): TracingControl[Exp, HybridValue, HybridAddress] = control match {
     case TracingControlEval(exp) => TracingControlEval(exp)
     case TracingControlKont(ka) => TracingControlKont(convertKontAddress(ka))
     case TracingControlError(string) => TracingControlError(string)
   }
 
-  def convertKontAddress(address : KontAddr) : KontAddr = address match {
+  def convertKontAddress(address: KontAddr): KontAddr = address match {
     case address : NormalKontAddress[Exp, HybridAddress] =>
       NormalKontAddress(address.exp, HybridAddress.convertAddress(address.addr))
     case HaltKontAddress => HaltKontAddress
@@ -421,7 +421,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     (this, new AbstractProgramState[Exp, Time](new ProgramState(newControl, newρ, newσ, newKStore, newA, t, newV, newVStack)))
   }
 
-  def generateTraceInformation(action : Action[Exp, HybridValue, HybridAddress]): Option[TraceInformation[HybridValue]] = action match {
+  def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress]): Option[TraceInformation[HybridValue]] = action match {
     case ActionPrimCallTraced(_, _, _) =>
       Some(PrimitiveAppliedInfo(v, vStack))
     case _ =>

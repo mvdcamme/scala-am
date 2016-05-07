@@ -2,7 +2,7 @@
   * Created by mvdcamme on 02/02/16.
   */
 class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
-    (sem : SemanticsTraced[Exp, Abs, Addr, Time], traceOptimizer : TraceOptimizer[Exp, Abs, Addr, Time], hybridMachine: HybridMachine[Exp, Time]) {
+    (sem: SemanticsTraced[Exp, Abs, Addr, Time], traceOptimizer: TraceOptimizer[Exp, Abs, Addr, Time], hybridMachine: HybridMachine[Exp, Time]) {
 
   type Label = List[Exp]
 
@@ -32,7 +32,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Start tracing
    */
 
-  def startTracingLabel(tracerContext: TracerContext, label: Label, boundVariables: List[String], startState: HybridMachine[Exp, Time]#PS) : TracerContext = tracerContext match {
+  def startTracingLabel(tracerContext: TracerContext, label: Label, boundVariables: List[String], startState: HybridMachine[Exp, Time]#PS): TracerContext = tracerContext match {
     case TracerContext(_, labelCounters, traceNodes, _) =>
       new TracerContext(Some(TraceInfo(label, boundVariables, startState)), labelCounters, traceNodes, List())
   }
@@ -41,9 +41,9 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Stop tracing
    */
 
-  def stopTracing(tracerContext: TracerContext, isLooping : Boolean,
-                  traceEndedInstruction: Option[TraceInstruction], someAnalysisOutput: Option[AnalysisOutput]) : TracerContext = {
-    var finishedTracerContext : TracerContext = tracerContext
+  def stopTracing(tracerContext: TracerContext, isLooping: Boolean,
+                  traceEndedInstruction: Option[TraceInstruction], someAnalysisOutput: Option[AnalysisOutput]): TracerContext = {
+    var finishedTracerContext: TracerContext = tracerContext
     if (! isLooping) {
       finishedTracerContext = appendTrace(tracerContext, List((traceEndedInstruction.get, None)))
     }
@@ -68,15 +68,15 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Finding traces
    */
 
-  private def searchTrace(tc: TracerContext, label: Label) : Option[TraceNode] =
+  private def searchTrace(tc: TracerContext, label: Label): Option[TraceNode] =
     tc.traceNodes.find({traceNode => traceNode.label == label})
 
-  def getTrace(tracerContext: TracerContext, label: Label) : TraceNode = searchTrace(tracerContext, label) match {
+  def getTrace(tracerContext: TracerContext, label: Label): TraceNode = searchTrace(tracerContext, label) match {
     case Some(traceNode) => traceNode
     case None => throw new Exception(s"Retrieving non-existing trace (should not happen): $label")
   }
 
-  def traceExists(tracerContext: TracerContext, label: Label) : Boolean = searchTrace(tracerContext, label) match {
+  def traceExists(tracerContext: TracerContext, label: Label): Boolean = searchTrace(tracerContext, label) match {
     case Some(traceNode) => true
     case None => false
   }
@@ -85,21 +85,21 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Recording traces
    */
 
-  def appendTrace(tracerContext: TracerContext, newPart : Trace) : TracerContext =
+  def appendTrace(tracerContext: TracerContext, newPart: Trace): TracerContext =
     new TracerContext(tracerContext.traceInfo, tracerContext.labelCounters, tracerContext.traceNodes,
                       newPart.reverse ++ tracerContext.trace)
 
-  private def clearTrace(tracerContext: TracerContext) : TracerContext = tracerContext match {
+  private def clearTrace(tracerContext: TracerContext): TracerContext = tracerContext match {
     case TracerContext(_, labelCounters, traceNodes, _) =>
       new TracerContext(None, labelCounters, traceNodes, List())
   }
 
-  def isTracing(tracerContext: TracerContext) : Boolean = tracerContext.traceInfo match {
+  def isTracing(tracerContext: TracerContext): Boolean = tracerContext.traceInfo match {
     case Some(_) => true
     case None => false
   }
 
-  def isTracingLabel(tracerContext: TracerContext, label: Label) : Boolean = tracerContext.traceInfo match {
+  def isTracingLabel(tracerContext: TracerContext, label: Label): Boolean = tracerContext.traceInfo match {
     case Some(traceInfo) => traceInfo.label == label
     case None => false
   }
@@ -108,7 +108,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Executing traces
    */
 
-  def stepTrace(traceNode: TraceNode, tracerContext: TracerContext) : (TraceInstruction, TraceNode) = {
+  def stepTrace(traceNode: TraceNode, tracerContext: TracerContext): (TraceInstruction, TraceNode) = {
     var currentTraceNode = traceNode
     def resetTrace() = {
       Logger.log("Resetting the trace", Logger.D)
@@ -131,14 +131,14 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Adding traces
    */
 
-  private def addTrace(tracerContext: TracerContext, someAnalysisOutput: Option[AnalysisOutput]) : TracerContext = tracerContext match {
+  private def addTrace(tracerContext: TracerContext, someAnalysisOutput: Option[AnalysisOutput]): TracerContext = tracerContext match {
     case TracerContext(traceInfo, labelCounters, traceNodes, trace) =>
       val traceFull = hybridMachine.TraceFull(traceInfo.get.startState, List(), trace.reverse)
-      val optimizedTraceFull : TraceFull = if (hybridMachine.tracerFlags.APPLY_OPTIMIZATIONS) { traceOptimizer.optimize(traceFull, traceInfo.get.boundVariables, someAnalysisOutput) } else { traceFull }
+      val optimizedTraceFull: TraceFull = if (hybridMachine.tracerFlags.APPLY_OPTIMIZATIONS) { traceOptimizer.optimize(traceFull, traceInfo.get.boundVariables, someAnalysisOutput) } else { traceFull }
       new TracerContext(traceInfo, labelCounters, new TraceNode(traceInfo.get.label, optimizedTraceFull) :: traceNodes, trace)
   }
 
-  private def replaceTrace(tracerContext: TracerContext, label : Label, newTrace : TraceFull) = {
+  private def replaceTrace(tracerContext: TracerContext, label: Label, newTrace: TraceFull) = {
     val newTraceNode = TraceNode(label, newTrace)
     val newTraceNodes = tracerContext.traceNodes.filter({ (traceNode) => traceNode.label != label})
     tracerContext.copy(traceNodes = newTraceNode :: newTraceNodes)
@@ -148,12 +148,12 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
    * Hotness counter
    */
 
-  def getLabelCounter(tc: TracerContext, label: Label) : Integer =
+  def getLabelCounter(tc: TracerContext, label: Label): Integer =
     tc.labelCounters.getOrElse(label, 0)
 
-  def incLabelCounter(tc : TracerContext, label : Label) : TracerContext = {
+  def incLabelCounter(tc: TracerContext, label: Label): TracerContext = {
     val oldCounter = getLabelCounter(tc, label)
-    val newLabelCounters : Map[Label, Integer] = tc.labelCounters.updated(label, oldCounter + 1)
+    val newLabelCounters: Map[Label, Integer] = tc.labelCounters.updated(label, oldCounter + 1)
     tc.copy(labelCounters = newLabelCounters)
   }
 

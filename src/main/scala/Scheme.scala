@@ -201,7 +201,7 @@ case class SchemeValue(value: Value) extends SchemeExp {
 /**
   * A while-expression with a condition-expression and the body: a list of expressions.
   */
-case class SchemeWhile(condition : SchemeExp, body : List[SchemeExp]) extends SchemeExp {
+case class SchemeWhile(condition: SchemeExp, body: List[SchemeExp]) extends SchemeExp {
   override def equals(that: Any) = that.isInstanceOf[SchemeWhile] && pos == that.asInstanceOf[SchemeWhile].pos && super.equals(that)
   override def toString() = s"(while $condition $body)"
 }

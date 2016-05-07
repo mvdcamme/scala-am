@@ -3,10 +3,10 @@
       (amb)
       'stop))
 
-(define (an-integer-between loww highh)
-  (if (> loww highh)
+(define (an-integer-between low high)
+  (if (> low high)
       (amb)
-      (amb loww (an-integer-between (+ loww 1) highh))))
+      (amb low (an-integer-between (+ low 1) high))))
 
 (define (a-pythagorean-triple-between low high)
   (let* ((i (an-integer-between low high))

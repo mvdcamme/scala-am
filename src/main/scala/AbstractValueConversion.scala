@@ -1,11 +1,11 @@
 class AbstractConcreteToAbstractType {
   
-  def convertAddress(address : HybridAddress) = address match {
+  def convertAddress(address: HybridAddress) = address match {
     case HybridAddress.Left(concreteAddress, classicalAddress) => HybridAddress.Right(classicalAddress)
     case HybridAddress.Right(classicalAddress) => HybridAddress.Right(classicalAddress)
   }
   
-  def convert[Exp : Expression](value : AbstractConcrete, store : Store[HybridAddress, HybridLattice.Hybrid]) : AbstractType = value match {
+  def convert[Exp : Expression](value: AbstractConcrete, store: Store[HybridAddress, HybridLattice.Hybrid]): AbstractType = value match {
     /*
      * Does not convert AbstractTid
      */

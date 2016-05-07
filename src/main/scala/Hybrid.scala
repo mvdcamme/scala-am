@@ -15,14 +15,14 @@ object HybridLattice {
   
   trait Hybrid
 
-  def getOperandType(operand : Hybrid) : AbstractType = operand match {
+  def getOperandType(operand: Hybrid): AbstractType = operand match {
     case HybridLattice.Left(AbstractConcrete.AbstractFloat(_)) => AbstractType.AbstractFloat
     case HybridLattice.Left(AbstractConcrete.AbstractInt(_)) => AbstractType.AbstractInt
     case _ => AbstractType.AbstractTop
   }
 
-  def checkValuesTypes(operands : List[Hybrid]) : AbstractType = {
-    operands.foldLeft(AbstractType.AbstractBottom : AbstractType)({ (operandsTypes, operand) =>
+  def checkValuesTypes(operands: List[Hybrid]): AbstractType = {
+    operands.foldLeft(AbstractType.AbstractBottom: AbstractType)({ (operandsTypes, operand) =>
       if (operandsTypes == AbstractType.AbstractBottom) {
         getOperandType(operand)
       } else if (operandsTypes == getOperandType(operand)) {
@@ -38,7 +38,7 @@ object HybridLattice {
 
   case class Left(c: AbstractConcrete) extends Hybrid
   case class Right(a: AbstractType) extends Hybrid
-  case class Prim[Addr, Abs](prim : Primitive[Addr, Abs]) extends Hybrid
+  case class Prim[Addr, Abs](prim: Primitive[Addr, Abs]) extends Hybrid
 
   implicit object HybridAbstractValue extends AbstractValue[Hybrid] {
     def name = s"(${concreteValue.name} | ${abstractType.name})"
@@ -108,12 +108,12 @@ object HybridLattice {
       case (Right(y1), Right(y2)) => Right(abstractType.or(y1, y2))
       case _ => err("or used on two different element of a hybrid lattice: $s1 and $s2")
     }
-    def car[Addr : Address](s: Hybrid) = s match {
+    def car[Addr: Address](s: Hybrid) = s match {
       case Left(x) => concreteValue.car[Addr](x)
       case Right(y) => abstractType.car[Addr](y)
       case Prim(_) => Set[Addr]()
     }
-    def cdr[Addr : Address](s: Hybrid) = s match {
+    def cdr[Addr: Address](s: Hybrid) = s match {
       case Left(x) => concreteValue.cdr[Addr](x)
       case Right(y) => abstractType.cdr[Addr](y)
       case Prim(_) => Set[Addr]()
@@ -143,7 +143,7 @@ object HybridLattice {
       case Right(y) => Right(abstractType.error(y))
     }
     
-    def injectCorrectValue[A](x : A, f : A => AbstractConcrete, g : A => AbstractType) : Hybrid = {
+    def injectCorrectValue[A](x: A, f: A => AbstractConcrete, g: A => AbstractType): Hybrid = {
       if (doConcrete) {
         return Left(f(x))
       } else {

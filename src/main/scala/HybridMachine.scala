@@ -43,7 +43,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   
   def name = "HybridMachine"
 
-  val tracerContext : TracerContext[Exp, HybridValue, HybridAddress, Time] =
+  val tracerContext: TracerContext[Exp, HybridValue, HybridAddress, Time] =
     new TracerContext[Exp, HybridValue, HybridAddress, Time](sem, new TraceOptimizer[Exp, HybridValue, HybridAddress, Time](sem, this), this)
 
   def applyTraceIntermediateResults(state: PS, trace: TraceWithoutStates): List[PS] = {
@@ -57,7 +57,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     val intermediateStates = applyTraceIntermediateResults(state, trace)
     val resultingState = intermediateStates.last
     val traceStatesZipped = trace.zip(intermediateStates.tail)
-    val traceSomeTraceInfoZipped : TraceWithInfos = traceStatesZipped.map({ (instructionState) =>
+    val traceSomeTraceInfoZipped: TraceWithInfos = traceStatesZipped.map({ (instructionState) =>
       (instructionState._1, instructionState._2.generateTraceInformation(instructionState._1)) })
     (resultingState, traceSomeTraceInfoZipped)
   }
@@ -80,22 +80,22 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   val TE = ExecutionPhase.TE
   val TR = ExecutionPhase.TR
 
-  case class ExecutionState(ep: ExecutionPhase.Value, ps: PS)(tc : tracerContext.TracerContext, tn : Option[tracerContext.TraceNode]) {
+  case class ExecutionState(ep: ExecutionPhase.Value, ps: PS)(tc: tracerContext.TracerContext, tn: Option[tracerContext.TraceNode]) {
 
-    def checkTraceAssertions(state: PS, tc : tracerContext.TracerContext, label: Label) : Boolean = {
+    def checkTraceAssertions(state: PS, tc: tracerContext.TracerContext, label: Label): Boolean = {
       val traceNode = tracerContext.getTrace(tc, label)
       val assertions = traceNode.trace.assertions
       state.runAssertions(assertions)
     }
 
-    def startExecutingTrace(state: PS, tc : tracerContext.TracerContext, label: Label): ExecutionState = {
+    def startExecutingTrace(state: PS, tc: tracerContext.TracerContext, label: Label): ExecutionState = {
       Logger.log(s"Trace with label $label already exists; EXECUTING TRACE", Logger.D)
       val traceNode = tracerContext.getTrace(tc, label)
       val assertions = traceNode.trace.assertions
       ExecutionState(TE, state)(tc, Some(traceNode))
     }
 
-    def doTraceExecutingStep() : ExecutionState = {
+    def doTraceExecutingStep(): ExecutionState = {
       val (traceHead, updatedTraceNode) = tracerContext.stepTrace(tn.get, tc)
       val instructionStep = ps.applyAction(sem, traceHead)
       instructionStep match {
@@ -112,7 +112,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       }
     }
 
-    def continueWithProgramState(state : PS, trace: TraceWithoutStates): ExecutionState = {
+    def continueWithProgramState(state: PS, trace: TraceWithoutStates): ExecutionState = {
       val updatedPs = applyTrace(state, trace)
       ExecutionState(ep, updatedPs)(tc, tn)
     }
@@ -163,7 +163,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
 
     def canEndLoopEncounteredTracing(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress]],
-                                     restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], label: Label) : ExecutionState = {
+                                     restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], label: Label): ExecutionState = {
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       if (tracerContext.isTracingLabel(tc, label)) {
         Logger.log(s"Stopped tracing $label; NO LOOP DETECTED", Logger.I)
@@ -284,19 +284,19 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     loopAbstract(newTodo, newVisited, newHalted, System.nanoTime, newGraph)
   }
 
-  private def switchToConcrete() : Unit = {
+  private def switchToConcrete(): Unit = {
     Logger.log("HybridMachine switching to concrete", Logger.E)
     HybridLattice.switchToConcrete
     HybridAddress.switchToConcrete
   }
 
-  private def runStaticAnalysis(currentProgramState : PS) : AAMOutput[APS, TraceWithoutStates] = {
+  private def runStaticAnalysis(currentProgramState: PS): AAMOutput[APS, TraceWithoutStates] = {
     val analysisOutput = switchToAbstract(currentProgramState)
     switchToConcrete()
     analysisOutput
   }
 
-  private def findAnalysisOutput(currentProgramState : PS) : Option[AAMOutput[APS, TraceWithoutStates]] = {
+  private def findAnalysisOutput(currentProgramState: PS): Option[AAMOutput[APS, TraceWithoutStates]] = {
     if (tracerFlags.SWITCH_ABSTRACT) {
       val analysisOutput = runStaticAnalysis(currentProgramState)
       analysisOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
@@ -333,7 +333,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
   }
 
-  def injectExecutionState(exp : Exp) : ExecutionState =
+  def injectExecutionState(exp: Exp): ExecutionState =
     new ExecutionState(NI, injectProgramState(exp, primitives, abs, time))(tracerContext.newTracerContext, None)
 
   /**

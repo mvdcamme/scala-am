@@ -29,7 +29,7 @@ object AbstractConcrete {
 
   case class AbstractFloat(v : Float) extends AbstractConcrete {
     override def toString = s"${v.toString}f"
-    private def handleGenericBinOp(op: BinaryOperator, that : AbstractConcrete, v1 : Float, v2 : Float) : AbstractConcrete = op match {
+    private def handleGenericBinOp(op: BinaryOperator, that: AbstractConcrete, v1: Float, v2: Float): AbstractConcrete = op match {
       case Plus => AbstractFloat(v1 + v2)
       case Minus => AbstractFloat(v1 - v2)
       case Times => AbstractFloat(v1 * v2)
@@ -58,7 +58,7 @@ object AbstractConcrete {
 
   case class AbstractInt(v: Int) extends AbstractConcrete {
     override def toString = v.toString
-    private def handleGenericBinOp(op : BinaryOperator, that : AbstractConcrete, v1 : Float, v2 : Float, f : Float => AbstractConcrete) = op match {
+    private def handleGenericBinOp(op: BinaryOperator, that: AbstractConcrete, v1: Float, v2: Float, f: Float => AbstractConcrete) = op match {
       case Plus => f(v + v2)
       case Minus => f(v - v2)
       case Times => f(v * v2)

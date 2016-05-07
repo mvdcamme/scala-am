@@ -6,9 +6,9 @@ class Store[Addr : Address, Abs : AbstractValue](content: Map[Addr, (Int, Abs)],
 
   override def toString = content.filterKeys(a => !addr.isPrimitive(a)).toString
 
-  def getContent : Map[Addr, (Int, Abs)] = content
+  def getContent: Map[Addr, (Int, Abs)] = content
 
-  def convertStore[Abs : AbstractValue] : Store[ClassicalAddress, Abs] = {
+  def convertStore[Abs : AbstractValue]: Store[ClassicalAddress, Abs] = {
     return new Store[ClassicalAddress, Abs](Map[ClassicalAddress, (Int, Abs)](), counting)
   }
 

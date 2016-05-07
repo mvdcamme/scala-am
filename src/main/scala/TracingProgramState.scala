@@ -1,8 +1,8 @@
 trait TracingProgramState[Exp, Abs, Addr, Time] {
 
-  implicit def abs : AbstractValue[Abs]
-  implicit def addr : Address[Addr]
-  implicit def time : Timestamp[Time]
+  implicit def abs: AbstractValue[Abs]
+  implicit def addr: Address[Addr]
+  implicit def time: Timestamp[Time]
 
   def halted: Boolean
 

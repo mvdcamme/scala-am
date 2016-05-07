@@ -21,7 +21,7 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
     * @param traceFull The trace of which the bound variables must be computed.
     * @return The set of bound variables in the trace.
     */
-  def analyzeBoundVariables(initialBoundVariables : Set[String], traceFull : TraceFull) : Set[String] = {
+  def analyzeBoundVariables(initialBoundVariables: Set[String], traceFull: TraceFull): Set[String] = {
 
     val initialState: ProgramState[Exp, Time] = traceFull.startProgramState match {
       case s: ProgramState[Exp, Time] => s
@@ -35,14 +35,14 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
      * The set of variables that are assigned, not defined, to inside of the trace.
      * I.e., the set of variables involved in an ActionSetVarTraced.
      */
-    var assignedVariables : Set[String] = Set()
+    var assignedVariables: Set[String] = Set()
 
     /*
      * Simulates the environment stack: saving the environment triggers a push of a new, empty, list of vars on this
      * stack, restoring the environment triggers a pop.
      *
      */
-    val framesStack : Stack[List[String]] = Stack(List())
+    val framesStack: Stack[List[String]] = Stack(List())
 
     /**
       * Adds a new bound variable, i.e., because an action is encountered that defines this variable in the environment.
@@ -51,7 +51,7 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
       * @param boundVariables The set of previously encountered bound variables
       * @return The updated set of bound variables.
       */
-    def addVariable(varName : String, boundVariables : Set[String]) : Set[String] = {
+    def addVariable(varName: String, boundVariables: Set[String]): Set[String] = {
       framesStack.top + varName
       boundVariables + varName
     }
@@ -62,12 +62,12 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
       * @param boundVariables The set of previously encountered bound variables
       * @return The updated set of bound variables.
       */
-    def addVariables(varNames : List[String], boundVariables : Set[String]) : Set[String]  = {
+    def addVariables(varNames: List[String], boundVariables: Set[String]): Set[String]  = {
       varNames.foldLeft(boundVariables)({ (boundVariables, varName) =>
           addVariable(varName, boundVariables)})
     }
 
-    def handleRestoreEnvironment(boundVariables : Set[String]) : Set[String] = {
+    def handleRestoreEnvironment(boundVariables: Set[String]): Set[String] = {
       if (framesStack.isEmpty) {
         boundVariables
       } else {
@@ -77,12 +77,12 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
       }
     }
 
-    def handleSaveEnvironment(boundVariables : Set[String]) : Set[String] = {
+    def handleSaveEnvironment(boundVariables: Set[String]): Set[String] = {
       framesStack.push(List())
       boundVariables
     }
 
-    def handleSetVar(varName : String, boundVariables : Set[String]) : Set[String] = {
+    def handleSetVar(varName: String, boundVariables: Set[String]): Set[String] = {
       if (! boundVariables.contains(varName)) {
         assignedVariables += varName
         boundVariables + varName
@@ -91,7 +91,7 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
       }
     }
 
-    def handleAction(action : Action[Exp, HybridValue, HybridAddress], boundVariables : Set[String]) = action match {
+    def handleAction(action: Action[Exp, HybridValue, HybridAddress], boundVariables: Set[String]) = action match {
       case ActionAllocVarsTraced(varNames) =>
         addVariables(varNames, boundVariables)
       case ActionExtendEnvTraced(varName) =>
@@ -114,9 +114,9 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
     }).last
   }
 
-  def analyzeDeadVariables(trace : Trace) : Set[String] = {
+  def analyzeDeadVariables(trace: Trace): Set[String] = {
 
-    def addVariable(variableName : String, liveVariables : Set[String], deadVariables : Set[String]) : (Set[String], Set[String]) = {
+    def addVariable(variableName: String, liveVariables: Set[String], deadVariables: Set[String]): (Set[String], Set[String]) = {
       if (liveVariables.contains(variableName)) {
         (liveVariables, deadVariables)
       } else {
@@ -124,12 +124,12 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
       }
     }
 
-    def addVariables(varNames : List[String], liveVariables : Set[String], deadVariables : Set[String]) = {
+    def addVariables(varNames: List[String], liveVariables: Set[String], deadVariables: Set[String]) = {
       varNames.foldLeft((liveVariables, deadVariables))({ (liveDeadVariables, variableName) =>
         addVariable(variableName, liveDeadVariables._1, liveDeadVariables._2)})
     }
 
-    val initialLiveDeadVariables : (Set[String], Set[String]) = (Set(), Set())
+    val initialLiveDeadVariables: (Set[String], Set[String]) = (Set(), Set())
     val liveDeadVariables = trace.foldLeft(initialLiveDeadVariables)({ (liveDeadVariables, action) => {
       val (liveVariables, deadVariables) = liveDeadVariables
       action._1 match {

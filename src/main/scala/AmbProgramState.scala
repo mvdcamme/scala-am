@@ -172,7 +172,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
     case _ => super.halted
   }
 
-  def generateTraceInformation(action : Action[Exp, HybridValue, HybridAddress]):
+  def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress]):
   Option[TraceInformation[HybridValue]] =
     normalState.generateTraceInformation(action)
 
