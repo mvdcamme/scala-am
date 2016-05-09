@@ -305,15 +305,15 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
   def parse(program: String): SchemeExp = Scheme.parse(program)
 
-  def bindClosureArgs(clo: Abs, argsv: List[(SchemeExp, Abs)], σ: Store[Addr, Abs], t: Time): Set[(Environment[Addr], Store[Addr, Abs], SchemeExp)] = {
+  def bindClosureArgs(clo: Abs, argsv: List[(SchemeExp, Abs)], σ: Store[Addr, Abs], t: Time): Set[Option[(Environment[Addr], Store[Addr, Abs], SchemeExp)]] = {
     abs.getClosures[SchemeExp, Addr](clo).map({
       case (SchemeLambda(args, body), ρ1) =>
         if (args.length == argsv.length) {
           val (ρ2, σ2) = bindArgs(args.zip(argsv), ρ1, σ, t)
           val formattedBody = if (body.length == 1) { body.head } else { SchemeBegin(body) }
-          (ρ2, σ2, formattedBody)
+          Some((ρ2, σ2, formattedBody))
         } else {
-          throw new InvalidArityException
+          None
         }
     })
   }

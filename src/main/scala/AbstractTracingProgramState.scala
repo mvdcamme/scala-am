@@ -37,6 +37,9 @@ case class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteStat
                                                                  concreteState.t,
                                                                  concreteState.v,
                                                                  concreteState.vStack)))
+        case ActionStepInTraced(fexp, e, args, argsv, n, frame, _, _) =>
+          val concreteStates = concreteState.doActionStepInTraced(sem, action)
+          concreteStates.map(new AbstractProgramState[Exp, Time](_))
         case _ =>
           val result = concreteState.applyAction(sem, action)
           result match {
