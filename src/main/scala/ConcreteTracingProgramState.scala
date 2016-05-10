@@ -61,14 +61,16 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
 
   def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[Step[Exp, Abs, Addr]]
   def applyAction(sem: SemanticsTraced[Exp, Abs, Addr, Time],
-                  action: Action[Exp, Abs, Addr]): InstructionStep[Exp, Abs, Addr, Time, ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
+                  action: Action[Exp, Abs, Addr]):
+    InstructionStep[Exp, Abs, Addr, Time, ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
   def restart(sem: SemanticsTraced[Exp, Abs, Addr, Time],
               restartPoint: RestartPoint[Exp, Abs, Addr]): ConcreteTracingProgramState[Exp, Abs, Addr, Time]
 
   def runAssertions(assertions: List[Action[Exp, Abs, Addr]]): Boolean
 
-  def convertState(sem: SemanticsTraced[Exp, Abs, Addr, Time]):
-  (ConcreteTracingProgramState[Exp, Abs, Addr, Time], AbstractTracingProgramState[Exp, Abs, Addr, Time])
+  def convertState(oldSem: SchemeSemanticsTraced[HybridValue, HybridAddress, Time],
+                   newSem: SchemeSemantics[HybridValue, HybridAddress, Time]):
+    (ConvertedControl[Exp, Abs, Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, Time)
 
   def generateTraceInformation(action: Action[Exp, Abs, Addr]): Option[TraceInformation[HybridValue]]
 }
@@ -417,18 +419,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case HaltKontAddress => HaltKontAddress
   }
 
-  def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]):
-  (ProgramState[Exp, Time], AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]) = {
-    val newControl = convertControl(control, σ)
+  def convertState(oldSem: SchemeSemanticsTraced[HybridValue, HybridAddress, Time],
+                   newSem: SchemeSemantics[HybridValue, HybridAddress, Time]):
+  (ConvertedControl[Exp, HybridValue, HybridAddress], Store[HybridAddress, HybridValue], KontStore[KontAddr], KontAddr, Time) = {
     val newρ = convertEnvironment(ρ)
     var newσ = Store.empty[HybridAddress, HybridLattice.Hybrid]
-    val newKStore = kstore.map(convertKontAddress, sem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
-    val newA = convertKontAddress(a)
-    val newV = convertValue(σ)(v)
-    val newVStack = vStack.map({
-      case StoreVal(v) => StoreVal(convertValue(σ)(v))
-      case StoreEnv(ρ) => StoreEnv(convertEnvironment(ρ))
-    })
     def addToNewStore(tuple: (HybridAddress, HybridValue)): Boolean = {
       val newAddress = HybridAddress.convertAddress(tuple._1)
       val newValue = convertValue(σ)(tuple._2)
@@ -436,35 +431,24 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       true
     }
     σ.forall(addToNewStore)
-    (this, new AbstractProgramState[Exp, Time](new ProgramState(newControl, newρ, newσ, newKStore, newA, t, newV, newVStack)))
+    val newA = convertKontAddress(a)
+    val newV = convertValue(σ)(v)
+    val newVStack = vStack.map({
+      case StoreVal(v) => StoreVal(convertValue(σ)(v))
+      case StoreEnv(ρ) => StoreEnv(convertEnvironment(ρ))
+    })
+    val convertedKontStore = oldSem.newConvertKStore(newSem, kstore, ρ, a, newVStack)
+    val newKStore = convertedKontStore.map(convertKontAddress, oldSem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
+    val newControl = control match {
+      case TracingControlEval(exp) =>
+        ConvertedControlEval[Exp, HybridValue, HybridAddress](exp, newρ)
+      case TracingControlKont(ka) =>
+        ConvertedControlKont[Exp, HybridValue, HybridAddress](newV)
+    }
+    (newControl, newσ, newKStore, newA, t)
   }
 
-  private def newConvertExpState(oldSem: SchemeSemanticsTraced[HybridValue, HybridAddress, Time],
-                                 newSem: SchemeSemantics[HybridValue, HybridAddress, Time],
-                                 exp: Exp):
-    (ConvertedControl[Exp, HybridValue, HybridAddress], Store[HybridAddress, HybridValue], KontStore[KontAddr], KontAddr, Time) = {
-    val control = ConvertedControlEval[Exp, HybridValue, HybridAddress](exp, ρ)
-    val convertedKontStore = oldSem.newConvertKStore(newSem, kstore, ρ, a, vStack)
-    (control, σ, convertedKontStore, a, t)
-  }
 
-  private def newConvertKontState(oldSem: SchemeSemanticsTraced[HybridValue, HybridAddress, Time],
-                                  newSem: SchemeSemantics[HybridValue, HybridAddress, Time]):
-  (ConvertedControl[Exp, HybridValue, HybridAddress], Store[HybridAddress, HybridValue], KontStore[KontAddr], KontAddr, Time) = {
-    val control = ConvertedControlKont[Exp, HybridValue, HybridAddress](v)
-    val convertedKontStore = oldSem.newConvertKStore(newSem, kstore, ρ, a, vStack)
-    (control, σ, convertedKontStore, a, t)
-  }
-
-  def newConvertState(oldSem: SchemeSemanticsTraced[HybridValue, HybridAddress, Time],
-                      newSem: SchemeSemantics[HybridValue, HybridAddress, Time],
-                      vStack: List[Storable],
-                      kontStore: KontStore[KontAddr]): (ConvertedControl[Exp, HybridValue, HybridAddress], Store[HybridAddress, HybridValue], KontStore[KontAddr], KontAddr, Time) = control match {
-    case TracingControlEval(exp) =>
-      newConvertExpState(oldSem, newSem, exp)
-    case TracingControlKont(ka) =>
-      newConvertKontState(oldSem, newSem)
-  }
 
   def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress]): Option[TraceInformation[HybridValue]] = action match {
     case ActionPrimCallT(_, _, _) =>
