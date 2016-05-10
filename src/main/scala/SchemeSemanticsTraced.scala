@@ -100,8 +100,22 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case FrameSetT(variable) => popEnvFromStack(newSem.FrameSet(variable, _), vStack)
   }
 
-  def newConvertKStore(kontStore: KontStore[KontAddr], next: KontAddr): KontStore[KontAddr] = {
-    kontStore //TODO
+  def newConvertKStore(newSem: SchemeSemantics[HybridLattice.Hybrid, HybridAddress, Time],
+                       kontStore: KontStore[KontAddr],
+                       ρ: Environment[HybridAddress],
+                       a: KontAddr,
+                       vStack: List[Storable]): KontStore[KontAddr] = {
+    def loop(newKontStore: KontStore[KontAddr], a: KontAddr, vStack: List[Storable]): KontStore[KontAddr] = a match {
+      case HaltKontAddress => newKontStore
+      case _ =>
+        val Kont(frame, next) = kontStore.lookup(a).head
+        val someNewFrame = newConvertFrame(frame, newSem, ρ, vStack)
+        val (updatedNewKontStore, updatedNewVStack) = someNewFrame.fold((newKontStore, vStack))({
+          case (convertedFrame, newVStack) => (newKontStore.extend(a, Kont(convertedFrame, next)), newVStack)
+        })
+        loop(updatedNewKontStore, next, updatedNewVStack)
+    }
+    loop(new KontStore[KontAddr](), a, vStack)
   }
 
   /**
