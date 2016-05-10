@@ -1,8 +1,8 @@
 class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestamp]
   extends SchemeSemanticsTraced[Abs, Addr, Time] {
 
-  case class FrameAmb(exps: List[SchemeExp]) extends SchemeFrame
-  case class FrameUndoAction(action: Action[SchemeExp, Abs, Addr]) extends SchemeFrame
+  case class FrameAmbT(exps: List[SchemeExp]) extends SchemeFrameT
+  case class FrameUndoAction(action: Action[SchemeExp, Abs, Addr]) extends SchemeFrameT
 
   val actionPopFailKont = ActionPopFailKontT[SchemeExp, Abs, Addr]()
 
@@ -10,15 +10,15 @@ class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Times
     case SchemeAmb(Nil) =>
       Set(interpreterReturn(List(actionPopFailKont)))
     case SchemeAmb(exp :: rest) =>
-      Set(interpreterReturn(List(ActionPushFailKontT(FrameAmb(rest)), ActionEvalT(exp))))
+      Set(interpreterReturn(List(ActionPushFailKontT(FrameAmbT(rest)), ActionEvalT(exp))))
     case _ => super.stepEval(e, ρ, σ, t)
   }
 
   override def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] = frame match {
-    case FrameAmb(Nil) =>
+    case FrameAmbT(Nil) =>
       Set(interpreterReturn(List(actionPopFailKont)))
-    case FrameAmb(exp :: rest) =>
-      Set(interpreterReturn(List(ActionPushFailKontT(FrameAmb(rest)), ActionEvalT(exp))))
+    case FrameAmbT(exp :: rest) =>
+      Set(interpreterReturn(List(ActionPushFailKontT(FrameAmbT(rest)), ActionEvalT(exp))))
     case UndoActionFrame(action) =>
       val actions: List[Action[SchemeExp, Abs, Addr]] = List(action.asInstanceOf[Action[SchemeExp, Abs, Addr]],
                                                              ActionPopFailKontT())
