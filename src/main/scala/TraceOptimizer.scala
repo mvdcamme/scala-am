@@ -60,7 +60,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                                 COMMON FUNCTIONS                                                 *
    ********************************************************************************************************************/
 
-  def isGuard(action: TraceInstruction): Boolean = action.isInstanceOf[ActionGuardTraced[Exp, Abs, Addr]]
+  def isGuard(action: TraceInstruction): Boolean = action.isInstanceOf[ActionGuardT[Exp, Abs, Addr]]
 
   private case class ActionStateMap(actionState: TraceInstructionInfo, var isUsed: Boolean)
 
@@ -104,17 +104,17 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   private def optimizeEnvironmentLoading(traceFull: TraceFull): TraceFull = {
     def isAnInterferingAction(action: TraceInstruction) = action match {
-      case ActionAllocVarsTraced(_) |
+      case ActionAllocVarsT(_) |
            ActionEndTrace(_) |
-           ActionExtendEnvTraced(_) =>
+           ActionExtendEnvT(_) =>
         true
       case _ if isGuard(action) =>
         true
       case _ =>
         false
     }
-    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionSaveEnvTraced[Exp, Abs, Addr]],
-      _.isInstanceOf[ActionRestoreEnvTraced[Exp, Abs, Addr]], isAnInterferingAction)
+    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionSaveEnvT[Exp, Abs, Addr]],
+      _.isInstanceOf[ActionRestoreEnvT[Exp, Abs, Addr]], isAnInterferingAction)
     constructedFullTrace(traceFull, optimizedTrace)
   }
 
@@ -131,8 +131,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case _ =>
         false
     }
-    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionEvalPushTraced[Exp, Abs, Addr]],
-                                               _.isInstanceOf[ActionPopKontTraced[Exp, Abs, Addr]], isAnInterferingAction)
+    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionEvalPushT[Exp, Abs, Addr]],
+                                               _.isInstanceOf[ActionPopKontT[Exp, Abs, Addr]], isAnInterferingAction)
     constructedFullTrace(traceFull, optimizedTrace)
   }
 
@@ -144,7 +144,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   case class ActionEndOptimizedBlock[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
 
   private def findNextPushVal(trace: Trace): Option[Trace] = {
-    val updatedTrace = trace.dropWhile({case (ActionPushValTraced(), _) => false
+    val updatedTrace = trace.dropWhile({case (ActionPushValT(), _) => false
                                         case _ => true})
     if (updatedTrace.isEmpty) {
       None
@@ -165,12 +165,12 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   }
 
   private def findNextEndPrimCall(trace: Trace): Option[(Trace, Trace)] = {
-    findNextAction(trace, { case ActionEndPrimCallTraced() => false
+    findNextAction(trace, { case ActionEndPrimCallT() => false
                             case _ => true})
   }
 
   private def findNextStartFunCall(trace: Trace): Option[(Trace, Trace)] = {
-    findNextAction(trace, { case ActionStartFunCallTraced() => false
+    findNextAction(trace, { case ActionStartFunCallT() => false
                             case _ => true})
   }
 
@@ -212,13 +212,13 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   }
 
   private def changesValueRegister(action: TraceInstruction): Boolean = action match {
-    case ActionCreateClosureTraced(_) => true
-    case ActionLookupVariableTraced(_, _, _) => true
-    case ActionPrimCallTraced(_, _, _) => true
-    case ActionReachedValueTraced(_, _, _) => true
+    case ActionCreateClosureT(_) => true
+    case ActionLookupVariableT(_, _, _) => true
+    case ActionPrimCallT(_, _, _) => true
+    case ActionReachedValueT(_, _, _) => true
       /* Also add ActionPushTraced to guard against the case where there is no action that changes the value register
        * in between two ActionPushTraced actions */
-    case ActionPushValTraced() => true
+    case ActionPushValT() => true
     case _ => false
   }
 
@@ -231,7 +231,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
           if (traceAtValueChangingAction.isEmpty) {
             None
           } else {
-            if (traceAtValueChangingAction.head._1.isInstanceOf[ActionReachedValueTraced[Exp, Abs, Addr]]) {
+            if (traceAtValueChangingAction.head._1.isInstanceOf[ActionReachedValueT[Exp, Abs, Addr]]) {
               Some(traceAfterPush.tail)
             } else {
               /* The value that was pushed as an operand is not a constant */
@@ -252,9 +252,9 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
        findNextStartFunCall(traceAtPrimCall.tail) match {
          case Some((traceBetweenMarks, traceAtStartCall)) =>
            val optimizedBlocks = filterAllOptimizedBlocks(traceBetweenMarks)
-           val actionStatePrimCall = traceBetweenMarks.find(_._1.isInstanceOf[ActionPrimCallTraced[Exp, Abs, Addr]])
+           val actionStatePrimCall = traceBetweenMarks.find(_._1.isInstanceOf[ActionPrimCallT[Exp, Abs, Addr]])
            actionStatePrimCall match {
-             case Some((ActionPrimCallTraced(n, _, _), Some(PrimitiveAppliedInfo(result, _)))) =>
+             case Some((ActionPrimCallT(n, _, _), Some(PrimitiveAppliedInfo(result, _)))) =>
                val x = findNextEndPrimCall(traceBetweenMarks)
                x match {
                  /* Another primitive is applied in this block */
@@ -266,12 +266,12 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
                  case _ =>
                    checkPrimitive(traceBetweenMarks, n).flatMap({ (traceAfterOperatorPush) =>
                      //val guard = (ActionGuardSamePrimitive(), None)
-                     val replacingConstantAction: TraceInstructionInfo = (ActionReachedValueTraced[Exp, HybridValue, HybridAddress](result), None)
+                     val replacingConstantAction: TraceInstructionInfo = (ActionReachedValueT[Exp, HybridValue, HybridAddress](result), None)
                      val actionEndOptimizedBlock = (ActionEndOptimizedBlock[Exp, HybridValue, HybridAddress](), None)
                      val actionStartOptimizedBlock = (ActionStartOptimizedBlock[Exp, HybridValue, HybridAddress](), None)
                      val replacingTrace = firstPart ++ (traceBefore :+ actionEndOptimizedBlock :+ replacingConstantAction) ++
                                           /* Add all parts of the inner optimized blocks, except for the constants themselves that were folded there; those are folded away in the new block */
-                                          optimizedBlocks.foldLeft(List(): Trace)({ (acc, current) => acc ++ current.filter({ (actionState) => ! actionState._1.isInstanceOf[ActionReachedValueTraced[Exp, Abs, Addr]] })}) ++
+                                          optimizedBlocks.foldLeft(List(): Trace)({ (acc, current) => acc ++ current.filter({ (actionState) => ! actionState._1.isInstanceOf[ActionReachedValueT[Exp, Abs, Addr]] })}) ++
                                           (traceAfterOperatorPush :+ actionStartOptimizedBlock) ++ traceAtStartCall.tail
                      Some(replacingTrace)
                    })
@@ -322,7 +322,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   private def optimizeTypeSpecialization(traceFull: TraceFull): TraceFull = {
     def loop(trace: Trace): Trace = trace match {
       case Nil => Nil
-      case (actionState1@(_, someInfo)) :: (actionState2@(ActionPrimCallTraced(n, fExp, argsExps), _)) :: rest => someInfo match {
+      case (actionState1@(_, someInfo)) :: (actionState2@(ActionPrimCallT(n, fExp, argsExps), _)) :: rest => someInfo match {
         case Some(PrimitiveAppliedInfo(_, vStack)) =>
           val operands = vStack.take(n - 1).map(_.getVal)
           val operator = vStack(n - 1).getVal
@@ -363,7 +363,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.startProgramState} instead")
     }
 
-    def replaceVariableLookups(action: ActionLookupVariableTraced[Exp, HybridValue, HybridAddress],
+    def replaceVariableLookups(action: ActionLookupVariableT[Exp, HybridValue, HybridAddress],
                                boundVariables: Set[String]): TraceInstructionInfo = {
       if (boundVariables.contains(action.varName)) {
         /* Variable is bound and can therefore not be replaced */
@@ -378,7 +378,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
               /* Add a guard for this free variable, if no guard for this variable exists already */
               variablesToCheck = variablesToCheck :+ (action.varName, variableValue)
             }
-            val newAction = ActionReachedValueTraced[Exp, HybridValue, HybridAddress](variableValue)
+            val newAction = ActionReachedValueT[Exp, HybridValue, HybridAddress](variableValue)
             (newAction, None)
           case None => (action, None) /* Variable could not be found in the store for some reason */
         }
@@ -386,7 +386,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     }
 
     val optimisedTrace: Trace = traceFull.trace.map({
-      case (action @ ActionLookupVariableTraced(varName, _, _), _) =>
+      case (action @ ActionLookupVariableT(varName, _, _), _) =>
         replaceVariableLookups(action, boundVariables)
       case (action, someState) => (action, someState)
     })
@@ -405,12 +405,12 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   def optimizeMergeActions(traceFull: TraceFull): TraceFull = {
     def loop(trace: Trace): Trace = trace match {
       case Nil => Nil
-      case (ActionLookupVariableTraced(varName, read, write), s1) :: (ActionPushValTraced(), s2) :: rest =>
-        (ActionLookupVariablePushTraced[Exp, HybridValue, HybridAddress](varName, read, write), s2) :: loop(rest)
-      case (ActionReachedValueTraced(lit, read, write), s1) :: (ActionPushValTraced(), s2) :: rest =>
-        (ActionReachedValuePushTraced[Exp, HybridValue, HybridAddress](lit, read, write), s2) :: loop(rest)
-      case (ActionRestoreEnvTraced(), s1) :: (ActionSaveEnvTraced(), s2) :: rest =>
-        (ActionRestoreSaveEnvTraced[Exp, HybridValue, HybridAddress](), s2) :: loop(rest)
+      case (ActionLookupVariableT(varName, read, write), s1) :: (ActionPushValT(), s2) :: rest =>
+        (ActionLookupVariablePushT[Exp, HybridValue, HybridAddress](varName, read, write), s2) :: loop(rest)
+      case (ActionReachedValueT(lit, read, write), s1) :: (ActionPushValT(), s2) :: rest =>
+        (ActionReachedValuePushT[Exp, HybridValue, HybridAddress](lit, read, write), s2) :: loop(rest)
+      case (ActionRestoreEnvT(), s1) :: (ActionSaveEnvT(), s2) :: rest =>
+        (ActionRestoreSaveEnvT[Exp, HybridValue, HybridAddress](), s2) :: loop(rest)
       case otherAction :: rest =>
         otherAction :: loop(rest)
     }
@@ -425,10 +425,10 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   def removeFunCallBlockActions(traceFull: TraceFull): TraceFull = {
     val optimizedTrace = traceFull.trace.filter({
-      case (ActionEndClosureCallTraced(), _) => false
+      case (ActionEndClosureCallT(), _) => false
       case (ActionEndOptimizedBlock(), _) => false
-      case (ActionEndPrimCallTraced(), _) => false
-      case (ActionStartFunCallTraced(), _) => false
+      case (ActionEndPrimCallT(), _) => false
+      case (ActionStartFunCallT(), _) => false
       case (ActionStartOptimizedBlock(), _) => false
       case (_, _) => true
     })
@@ -470,7 +470,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     for ((_, transitions) <- output.graph.get.edges) {
       for ((trace, _) <- transitions) {
         trace.foreach({
-          case ActionSetVarTraced(variableName) =>
+          case ActionSetVarT(variableName) =>
             if (freeVariables.contains(variableName) && ! assignedFreeVariables.contains(variableName)) {
               assignedFreeVariables = variableName :: assignedFreeVariables
             }
@@ -510,7 +510,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     for ((_, transitions) <- output.graph.get.edges) {
       for ((trace, _) <- transitions) {
         trace.foreach({
-          case ActionLookupVariableTraced(variableName, _, _) =>
+          case ActionLookupVariableT(variableName, _, _) =>
             if (deadVariables.contains(variableName)) {
               deadVariables = deadVariables - variableName
             }

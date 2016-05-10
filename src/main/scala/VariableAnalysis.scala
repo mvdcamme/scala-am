@@ -92,17 +92,17 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
     }
 
     def handleAction(action: Action[Exp, HybridValue, HybridAddress], boundVariables: Set[String]) = action match {
-      case ActionAllocVarsTraced(varNames) =>
+      case ActionAllocVarsT(varNames) =>
         addVariables(varNames, boundVariables)
-      case ActionExtendEnvTraced(varName) =>
+      case ActionExtendEnvT(varName) =>
         addVariable(varName, boundVariables)
-      case ActionSaveEnvTraced() =>
+      case ActionSaveEnvT() =>
         handleSaveEnvironment(boundVariables)
-      case ActionSetVarTraced(varName) =>
+      case ActionSetVarT(varName) =>
         handleSetVar(varName, boundVariables)
-      case ActionStepInTraced(_, _, args, _, _, _, _, _) =>
+      case ActionStepInT(_, _, args, _, _, _, _, _) =>
         addVariables(args, handleSaveEnvironment(boundVariables))
-      case ActionRestoreEnvTraced() =>
+      case ActionRestoreEnvT() =>
         handleRestoreEnvironment(boundVariables)
       case _ =>
         boundVariables
@@ -133,16 +133,16 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
     val liveDeadVariables = trace.foldLeft(initialLiveDeadVariables)({ (liveDeadVariables, action) => {
       val (liveVariables, deadVariables) = liveDeadVariables
       action._1 match {
-        case ActionLookupVariableTraced(variableName, _, _) =>
+        case ActionLookupVariableT(variableName, _, _) =>
           /* The variable is used somewhere, because it is being looked up */
           (liveVariables + variableName, deadVariables - variableName)
           /* Whenever we allocate a new variable, we initially assign it to the set of dead variables,
            * unless a variable with that name already exists, to avoid confusing two variables with the same name. */
-        case ActionAllocVarsTraced(varNames) =>
+        case ActionAllocVarsT(varNames) =>
           addVariables(varNames, liveVariables, deadVariables)
-        case ActionExtendEnvTraced(variableName) =>
+        case ActionExtendEnvT(variableName) =>
           addVariable(variableName, liveVariables, deadVariables)
-        case ActionSetVarTraced(variableName) =>
+        case ActionSetVarT(variableName) =>
           addVariable(variableName, liveVariables, deadVariables)
         case _ => liveDeadVariables
     }

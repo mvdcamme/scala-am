@@ -22,7 +22,7 @@ case class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteStat
                           action: Action[Exp, HybridValue, HybridAddress]): Set[AbstractTracingProgramState[Exp, HybridValue, HybridAddress, Time]] = {
     try {
       action match {
-        case ActionPopKontTraced() =>
+        case ActionPopKontT() =>
           val nextsSet = if (concreteState.a == HaltKontAddress) {
             Set(HaltKontAddress)
           } else {
@@ -37,7 +37,7 @@ case class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteStat
                                                                  concreteState.t,
                                                                  concreteState.v,
                                                                  concreteState.vStack)))
-        case ActionStepInTraced(fexp, e, args, argsv, n, frame, _, _) =>
+        case ActionStepInT(fexp, e, args, argsv, n, frame, _, _) =>
           val concreteStates = concreteState.doActionStepInTraced(sem, action)
           concreteStates.map(new AbstractProgramState[Exp, Time](_))
         case _ =>

@@ -9,7 +9,7 @@ case class RestartStoppedInBacktrack[Exp : Expression, Abs : AbstractValue, Addr
  * Frames
  */
 
-case class UndoActionFrame[Exp : Expression, Abs : AbstractValue, Addr : Address](action: ActionSingleTraced[Exp, Abs, Addr])
+case class UndoActionFrame[Exp : Expression, Abs : AbstractValue, Addr : Address](action: ActionSingleT[Exp, Abs, Addr])
   extends Frame {
     def subsumes(that: Frame) = that.equals(this)
   }
@@ -18,9 +18,9 @@ case class UndoActionFrame[Exp : Expression, Abs : AbstractValue, Addr : Address
  * Normal actions
  */
 
-case class ActionPopFailKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+case class ActionPopFailKontT[Exp : Expression, Abs : AbstractValue, Addr : Address]()
   extends Action[Exp, Abs, Addr]
-case class ActionPushFailKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+case class ActionPushFailKontT[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (failureFrame: Frame)
   extends Action[Exp, Abs, Addr]
 
@@ -28,21 +28,21 @@ case class ActionPushFailKontTraced[Exp : Expression, Abs : AbstractValue, Addr 
  * Single actions
  */
 
-abstract class ActionSingleTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+abstract class ActionSingleT[Exp : Expression, Abs : AbstractValue, Addr : Address]
   extends Action[Exp, Abs, Addr]
 
-case class ActionSinglePopKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
-  extends ActionSingleTraced[Exp, Abs, Addr]
-case class ActionSinglePushKontTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+case class ActionSinglePopKontT[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends ActionSingleT[Exp, Abs, Addr]
+case class ActionSinglePushKontT[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (frame: Frame)
-  extends ActionSingleTraced[Exp, Abs, Addr]
-case class ActionSingleSaveSpecificEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  extends ActionSingleT[Exp, Abs, Addr]
+case class ActionSingleSaveSpecificEnvT[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (ρToSave: Environment[Addr], ρToReplace: Environment[Addr])
-  extends ActionSingleTraced[Exp, Abs, Addr]
-case class ActionSingleSaveValTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  extends ActionSingleT[Exp, Abs, Addr]
+case class ActionSingleSaveValT[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (value: Abs)
-  extends ActionSingleTraced[Exp, Abs, Addr]
-case class ActionSingleRestoreEnvTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
-  extends ActionSingleTraced[Exp, Abs, Addr]
-case class ActionSingleRestoreValTraced[Exp : Expression, Abs : AbstractValue, Addr : Address]()
-  extends ActionSingleTraced[Exp, Abs, Addr]
+  extends ActionSingleT[Exp, Abs, Addr]
+case class ActionSingleRestoreEnvT[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends ActionSingleT[Exp, Abs, Addr]
+case class ActionSingleRestoreValT[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+  extends ActionSingleT[Exp, Abs, Addr]

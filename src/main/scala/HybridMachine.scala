@@ -136,8 +136,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
         }
       } else if (tracerFlags.DO_TRACING && labelCounter >= tracerFlags.TRACING_THRESHOLD) {
         Logger.log(s"Started tracing $label", Logger.I)
-        val someBoundVariables = trace.find(_.isInstanceOf[ActionStepInTraced[Exp, HybridValue, HybridAddress]]).flatMap({
-          case ActionStepInTraced(_, _, args, _, _, _, _, _) => Some(args)
+        val someBoundVariables = trace.find(_.isInstanceOf[ActionStepInT[Exp, HybridValue, HybridAddress]]).flatMap({
+          case ActionStepInT(_, _, args, _, _, _, _, _) => Some(args)
           case _ => None /* Should not happen */
         })
         val tcTRStarted = tracerContext.startTracingLabel(newTc, label, someBoundVariables.getOrElse(List[String]()), newState)
