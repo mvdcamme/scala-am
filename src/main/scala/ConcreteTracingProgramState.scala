@@ -439,6 +439,31 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     (this, new AbstractProgramState[Exp, Time](new ProgramState(newControl, newρ, newσ, newKStore, newA, t, newV, newVStack)))
   }
 
+  private def newConvertExpState(newSem: SchemeSemantics[HybridValue, HybridAddress, Time], exp: Exp):
+    (Either[(Exp, Environment[HybridAddress]), HybridValue], Store[HybridAddress, HybridValue], KontStore[KontAddr], KontAddr, Time) = {
+    val control = Left((exp, ρ))
+    val updatedKontStore = sem.
+  }
+
+  private def newConvertKontState(newSem: SchemeSemantics[HybridValue, HybridAddress, Time], exp: Exp):
+  (Either[(Exp, Environment[HybridAddress]), HybridValue], Store[HybridAddress, HybridValue], KontStore[KontAddr], KontAddr, Time) = {
+    val control = Left((exp, ρ))
+    val updatedKontStore = convertKontStore(StoreVal(v) :: vStack)
+  }
+
+  def newConvertState(control: Frame,
+                      newSem: SchemeSemantics[Abs, Addr, Time],
+                      ρ: Environment[Addr],
+                      v: Abs,
+                      vStack: List[Storable],
+                      kontStore: KontStore[KontAddr]): (Either[(SchemeExp, Environment[HybridAddress]), HybridValue], Store[HybridAddress, HybridValue], KontStore[KontAddr], KontAddr, Time) = control match {
+                      kontStore: KontStore[KontAddr]): (Either[(SchemeExp, Environment[HybridAddress]), HybridValue], Store[HybridAddress, HybridValue], KontStore[KontAddr], KontAddr, Time) = control match {
+    case TracingControlEval(exp) =>
+
+    case TracingControlKont(ka) =>
+
+  }
+
   def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress]): Option[TraceInformation[HybridValue]] = action match {
     case ActionPrimCallT(_, _, _) =>
       Some(PrimitiveAppliedInfo(v, vStack))

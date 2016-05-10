@@ -32,7 +32,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   case class FrameLetT(variable: String, bindings: List[(String, Abs)], toeval: List[(String, SchemeExp)], body: List[SchemeExp]) extends SchemeFrameT
   case class FrameLetrecT(variable: String, bindings: List[(String, SchemeExp)], body: List[SchemeExp]) extends SchemeFrameT
   case class FrameLetStarT(variable: String, bindings: List[(String, SchemeExp)], body: List[SchemeExp]) extends SchemeFrameT
-  case class FrameSetT(variable: String, ρ: Environment[Addr]) extends SchemeFrameT
+  case class FrameSetT(variable: String) extends SchemeFrameT
   case class FrameWhileBodyT(condition: SchemeExp, body: List[SchemeExp], exps: List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrameT
   case class FrameWhileConditionT(condition: SchemeExp, body: List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrameT
   object FrameHaltT extends SchemeFrameT {
@@ -52,9 +52,50 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case FrameLetT(variable, bindings, toeval, body) => FrameLetT(variable, bindings.map({ tuple => (tuple._1, convertValue(tuple._2))}), toeval, body)
     case FrameLetrecT(variable, bindings, body) => FrameLetrecT(variable, bindings, body)
     case FrameLetStarT(variable, bindings, body) => FrameLetStarT(variable, bindings, body)
-    case FrameSetT(variable, ρ) => FrameSetT(variable, ρ.map(convertAddress))
+    case FrameSetT(variable) => FrameSetT(variable)
     case FrameWhileBodyT(condition, body, exps, ρ) => FrameWhileBodyT(condition, body, exps, ρ.map(convertAddress))
     case FrameWhileConditionT(condition, body, ρ) => FrameWhileConditionT(condition, body, ρ.map(convertAddress))
+  }
+
+  private def popEnvFromStack(generateFrameFun: Environment[HybridAddress] => Frame, vStack: List[Storable]):
+    Option[(Frame, List[Storable])] =
+    Some((generateFrameFun(vStack.head.getEnv), vStack.tail))
+
+  def newConvertFrame(frame: Frame,
+                      newSem: SchemeSemantics[HybridLattice.Hybrid, HybridAddress, Time],
+                      ρ: Environment[HybridAddress],
+                      vStack: List[Storable]): Option[(Frame, List[Storable])] = frame match {
+    case FrameBeginT(rest) => popEnvFromStack(newSem.FrameBegin(rest, _), vStack)
+    case FrameFunBodyT(body, toeval) => None
+    case FrameFuncallOperandsT(f, fexp, cur, args, toeval) => FrameFuncallOperandsT(convertValue(f), fexp, cur, args.map({ tuple => (tuple._1, convertValue(tuple._2))}), toeval)
+    case FrameFuncallOperatorT(fexp, args) => FrameFuncallOperatorT(fexp, args)
+    case FrameIfT(cons, alt) => popEnvFromStack(newSem.FrameIf(cons, alt, _), vStack.tail)
+    case FrameLetT(variable, bindings, toeval, body) =>
+      /* When pushing a FrameLetT continuation on the continuation stack, we possibly push a value on the value stack,
+      in case we have just evaluated an expression for the let-bindings, and we always push an environment.
+      The stack should therefore have an environment at the top, followed by n values where n is the number of bindings
+      already evaluated (which equals bindings.length).
+      */
+      val topEnv = vStack.head.getEnv
+      val remainingVStack = vStack.tail
+      val n = bindings.length
+      val (bindingValues, remainingVStack2) = remainingVStack.splitAt(n)
+      val newBindings = bindings.map(_._1).zip(bindingValues.map(_.getVal))
+      Some((newSem.FrameLet(variable, newBindings, toeval, body, topEnv), remainingVStack2))
+    case FrameLetrecT(variable, bindings, body) =>
+      val addr = ρ.lookup(variable).get
+      val updatedBindings = bindings.map({ case (variable, exp) => (ρ.lookup(variable).get, exp) })
+      popEnvFromStack(newSem.FrameLetrec(addr, updatedBindings, body, _), vStack)
+    case FrameLetStarT(variable, bindings, body) =>
+      /* When evaluating a FrameLetStarT continuation, we also push the value v on the stack (similar to the case for
+       * FrameLetT, but this is immediately followed by an ActionExtendEnv which pops this value back from the stack.
+       * There are therefore never any values for the let* bindings on the value stack. */
+      popEnvFromStack(newSem.FrameLetStar(variable, bindings, body, _), vStack)
+    case FrameSetT(variable) => popEnvFromStack(newSem.FrameSet(variable, _), vStack)
+  }
+
+  def newConvertKStore(kontStore: KontStore[KontAddr], next: KontAddr): KontStore[KontAddr] = {
+    kontStore //TODO
   }
 
   /**
@@ -205,7 +246,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     }
     case SchemeLetStar(Nil, body) => Set(interpreterReturn(evalBody(body, FrameBeginT)))
     case SchemeLetStar((v, exp) :: bindings, body) => Set(interpreterReturn(List(actionSaveEnv, ActionEvalPushT(exp, FrameLetStarT(v, bindings, body)))))
-    case SchemeSet(variable, exp) => Set(interpreterReturn(List(ActionEvalPushT(exp, FrameSetT(variable, ρ)))))
+    case SchemeSet(variable, exp) => Set(interpreterReturn(List(actionSaveEnv, ActionEvalPushT(exp, FrameSetT(variable)))))
     case SchemeQuoted(quoted) =>
       val (value, actions) = evalQuoted(quoted, t)
       Set(interpreterReturn(actions :+ ActionReachedValueT[SchemeExp, Abs, Addr](value) :+ actionPopKont))
@@ -293,10 +334,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
         case Nil => Set(interpreterReturn(actions ++ evalBody(body, FrameBeginT)))
         case (variable, exp) :: rest => Set(Step(actions ++ List(actionSaveEnv, ActionEvalPushT(exp, FrameLetStarT(variable, rest, body))), new TracingSignalFalse))
       }
-    case FrameSetT(name, ρ) => ρ.lookup(name) match {
-      case Some(a) => Set(Step(List(ActionSetVarT(name), ActionReachedValueT(abs.inject(false), Set[Addr](), Set[Addr](a)), actionPopKont), new TracingSignalFalse)) /* writes on a */
-      case None => Set(interpreterReturn(List(ActionErrorT(s"Unbound variable: $name"))))
-    }
+    case FrameSetT(name) =>
+      Set(Step(List(actionRestoreEnv, ActionSetVarT(name), ActionReachedValueT(abs.inject(false), Set[Addr](), Set[Addr]()), actionPopKont), new TracingSignalFalse)) /* writes on a */
     case FrameWhileBodyT(condition, body, exps, ρ) => Set(interpreterReturn(List(evalWhileBody(condition, body, exps, ρ, σ))))
     case FrameWhileConditionT(condition, body, ρ) =>
       (if (abs.isTrue(v)) Set[Step[SchemeExp, Abs, Addr]](interpreterReturnStart(evalWhileBody(condition, body, body, ρ, σ), body)) else Set[Step[SchemeExp, Abs, Addr]]()) ++
