@@ -67,8 +67,14 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
                       vStack: List[Storable]): Option[(Frame, List[Storable])] = frame match {
     case FrameBeginT(rest) => popEnvFromStack(newSem.FrameBegin(rest, _), vStack)
     case FrameFunBodyT(body, toeval) => None
-    case FrameFuncallOperandsT(f, fexp, cur, args, toeval) => FrameFuncallOperandsT(convertValue(f), fexp, cur, args.map({ tuple => (tuple._1, convertValue(tuple._2))}), toeval)
-    case FrameFuncallOperatorT(fexp, args) => FrameFuncallOperatorT(fexp, args)
+    case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
+      val topEnv = vStack.head.getEnv
+      val remainingVStack = vStack.tail
+      val n = args.length
+      val (argsValues, remainingVStack2) = remainingVStack.splitAt(n)
+      val newArgs = args.map(_._1).zip(argsValues.map(_.getVal))
+      Some((newSem.FrameFuncallOperands(f.asInstanceOf[HybridLattice.Hybrid], fexp, cur, newArgs, toeval, topEnv), remainingVStack2))
+    case FrameFuncallOperatorT(fexp, args) => popEnvFromStack(newSem.FrameFuncallOperator(fexp, args, _), vStack.tail)
     case FrameIfT(cons, alt) => popEnvFromStack(newSem.FrameIf(cons, alt, _), vStack.tail)
     case FrameLetT(variable, bindings, toeval, body) =>
       /* When pushing a FrameLetT continuation on the continuation stack, we possibly push a value on the value stack,
