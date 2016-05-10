@@ -67,11 +67,11 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
                       vStack: List[Storable[Abs, Addr]]): Option[(Frame, List[Storable[Abs, Addr]])] = newSem match {
     case newSem : SchemeSemantics[Abs, Addr, Time] => frame match {
       case FrameBeginT(rest) => popEnvFromStack(newSem.FrameBegin(rest, _), vStack)
-      case FrameFunBodyT(body, toeval) => None
+      case FrameFunBodyT(body, toeval) => popEnvFromStack(newSem.FrameBegin(toeval, _), vStack)
       case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
         val topEnv = vStack.head.getEnv
         val remainingVStack = vStack.tail
-        val n = args.length
+        val n = args.length + 1 /* We have to add 1 because the operator has also been pushed onto the vstack */
         val (argsValues, remainingVStack2) = remainingVStack.splitAt(n)
         val newArgs = args.map(_._1).zip(argsValues.map(_.getVal))
         Some((newSem.FrameFuncallOperands(f.asInstanceOf[Abs], fexp, cur, newArgs, toeval, topEnv), remainingVStack2))

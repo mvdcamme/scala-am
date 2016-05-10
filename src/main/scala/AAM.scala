@@ -141,7 +141,8 @@ class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestam
     * @param graph is the graph in its current form
     * @return the final states as well as the computed graph
     */
-  def loop(todo: Set[State], visited: Set[State],
+  @scala.annotation.tailrec
+  final def loop(todo: Set[State], visited: Set[State],
            halted: Set[State], startingTime: Long, graph: Option[Graph[State, Unit]],
            sem: Semantics[Exp, Abs, Addr, Time]): AAMOutput =
     todo.headOption match {

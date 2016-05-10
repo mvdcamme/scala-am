@@ -51,11 +51,11 @@ object HybridAddress {
   
   var useConcrete = true
   
-  def switchToAbstract = {
+  def switchToAbstract() = {
     useConcrete = false
   }
 
-  def switchToConcrete = {
+  def switchToConcrete() = {
     useConcrete = true
   }
 
