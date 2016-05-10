@@ -372,7 +372,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         }
       case action : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress] =>
         val n = action.rp.action.n
-        handlePrimitiveGuard(action, vStack(n - 1).getVal)
+        if (vStack.length > n - 1) {
+          handlePrimitiveGuard(action, vStack(n - 1).getVal)
+        } else {
+          throw new IncorrectStackSizeException()
+        }
     }
 
   }
