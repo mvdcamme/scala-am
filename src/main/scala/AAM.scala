@@ -20,23 +20,6 @@ class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestam
   extends EvalKontMachine[Exp, Abs, Addr, Time] {
   def name = "AAM"
 
-  /**
-    * The store used for continuations is a KontStore (defined in
-    * Kontinuation.scala). It is parameterized by continuation addresses, that
-    * are element of the KontAddress typeclass.
-    */
-  trait KontAddr
-  case class NormalKontAddress(exp: Exp, addr: Addr) extends KontAddr {
-    override def toString = s"NormalKontAddress($exp)"
-  }
-  object HaltKontAddress extends KontAddr {
-    override def toString = "HaltKontAddress"
-  }
-
-  object KontAddr {
-    implicit object KontAddrKontAddress extends KontAddress[KontAddr]
-  }
-
   /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
   val primitives = new Primitives[Addr, Abs]()
 
@@ -158,10 +141,9 @@ class AAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestam
     * @param graph is the graph in its current form
     * @return the final states as well as the computed graph
     */
-  @scala.annotation.tailrec
-  private def loop(todo: Set[State], visited: Set[State],
-                   halted: Set[State], startingTime: Long, graph: Option[Graph[State, Unit]],
-                   sem: Semantics[Exp, Abs, Addr, Time]): AAMOutput =
+  def loop(todo: Set[State], visited: Set[State],
+           halted: Set[State], startingTime: Long, graph: Option[Graph[State, Unit]],
+           sem: Semantics[Exp, Abs, Addr, Time]): AAMOutput =
     todo.headOption match {
       case Some(s) =>
         if (visited.contains(s) || visited.exists(s2 => s2.subsumes(s))) {

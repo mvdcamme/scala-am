@@ -92,6 +92,12 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
   def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[Step[Exp, Abs, Addr]]
 
   def getClosureBody(frame: Frame): Option[List[Exp]]
+
+  def newConvertKStore(newSem: Semantics[Exp, Abs, Addr, Time],
+                       kontStore: KontStore[KontAddr],
+                       ρ: Environment[Addr],
+                       a: KontAddr,
+                       vStack: List[Storable[Abs, Addr]]): KontStore[KontAddr]
 }
 
 /**

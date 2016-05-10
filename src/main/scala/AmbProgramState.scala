@@ -49,7 +49,8 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
     }
   }
 
-  def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]) = normalState.convertState(sem)
+  def convertState(oldSem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
+                   newSem: Semantics[Exp, HybridValue, HybridAddress, Time]) = normalState.convertState(oldSem, newSem)
 
   def runAssertions(assertions: List[Action[Exp, HybridValue, HybridAddress]]): Boolean = normalState.runAssertions(assertions)
 
@@ -121,7 +122,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
       }
     case ActionPrimCallT(n, fExp, argsExps) =>
       val (vals, _) = normalState.vStack.splitAt(n)
-      val actionsSaveVal = vals.map({ (storable: Storable) => ActionSingleSaveValT[Exp, HybridValue, HybridAddress](storable.getVal) })
+      val actionsSaveVal = vals.map({ (storable: Storable[HybridValue, HybridAddress]) => ActionSingleSaveValT[Exp, HybridValue, HybridAddress](storable.getVal) })
       addFailActions(sem, action, actionsSaveVal)
     case ActionPushFailKontT(failureFrame) =>
       NormalInstructionStep(AmbProgramState(normalState, failureFrame :: failStack), action)
@@ -138,7 +139,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
        *                       save extended lexical environment
        *                       push FrameFunBody continuation
        */
-      val actionsSaveVal = vals.map({ (storable: Storable) => ActionSingleSaveValT[Exp, HybridValue, HybridAddress](storable.getVal) })
+      val actionsSaveVal = vals.map({ (storable: Storable[HybridValue, HybridAddress]) => ActionSingleSaveValT[Exp, HybridValue, HybridAddress](storable.getVal) })
       val failActions = ActionSinglePopKontT[Exp, HybridValue, HybridAddress]() ::
                         ActionSingleRestoreEnvT[Exp, HybridValue, HybridAddress]() ::
                         actionsSaveVal
@@ -160,10 +161,10 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
         throw new Exception("Value stack is empty!")
     }
     case ActionSingleSaveSpecificEnvT(ρToSave, ρToReplace) =>
-      val newNormalState = normalState.copy(ρ = ρToReplace, vStack = StoreEnv(ρToSave) :: normalState.vStack)
+      val newNormalState = normalState.copy(ρ = ρToReplace, vStack = StoreEnv[HybridValue, HybridAddress](ρToSave) :: normalState.vStack)
       NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
     case ActionSingleSaveValT(value) =>
-      val newNormalState = normalState.copy(vStack = StoreVal(value) :: normalState.vStack)
+      val newNormalState = normalState.copy(vStack = StoreVal[HybridValue, HybridAddress](value) :: normalState.vStack)
       NormalInstructionStep(AmbProgramState(newNormalState, failStack), action)
     case _ => wrapApplyAction(sem, action)
   }

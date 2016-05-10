@@ -29,7 +29,7 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
     }
 
     var currentEnv: Environment[HybridAddress] = initialState.ρ
-    var vStack: List[Storable] = initialState.vStack
+    var vStack: List[Storable[HybridValue, HybridAddress]] = initialState.vStack
 
     /*
      * The set of variables that are assigned, not defined, to inside of the trace.

@@ -68,8 +68,8 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
 
   def runAssertions(assertions: List[Action[Exp, Abs, Addr]]): Boolean
 
-  def convertState(oldSem: SchemeSemanticsTraced[HybridValue, HybridAddress, Time],
-                   newSem: SchemeSemantics[HybridValue, HybridAddress, Time]):
+  def convertState(oldSem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
+                   newSem: Semantics[Exp, HybridValue, HybridAddress, Time]):
     (ConvertedControl[Exp, Abs, Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, Time)
 
   def generateTraceInformation(action: Action[Exp, Abs, Addr]): Option[TraceInformation[HybridValue]]
@@ -88,7 +88,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
    a: KontAddr,
    t: Time,
    v: HybridLattice.Hybrid,
-   vStack: List[Storable]) extends ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time]
+   vStack: List[Storable[HybridLattice.Hybrid, HybridAddress]]) extends ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time]
                            with ConcretableTracingProgramState[Exp, Time] {
 
   def abs = implicitly[AbstractValue[HybridValue]]
@@ -175,17 +175,15 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case ActionStepInT(fexp, _, _, argsv, n, frame, _, _) =>
       val (vals, newVStack) = popStackItems(vStack, n)
       val clo = vals.last.getVal
-      try {
         val updatedEnvAndStores = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.getVal)), σ, t) //(ρ2, σ2, e)
         updatedEnvAndStores.map({ (tuple) => tuple match {
           case Some((ρ2, σ2, e)) =>
             val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-            ProgramState[Exp, Time](TracingControlEval[Exp, HybridValue, HybridAddress](e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, StoreEnv(ρ) :: newVStack)
+            ProgramState[Exp, Time](TracingControlEval[Exp, HybridValue, HybridAddress](e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, StoreEnv[HybridValue, HybridAddress](ρ) :: newVStack)
           case None =>
             ProgramState(TracingControlError(s"Arity error when calling $fexp. got ${n - 1})"), ρ, σ, kstore, a, t, v, newVStack)
         }
         })
-      }
   }
 
   def handleClosureRestart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
@@ -240,7 +238,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   protected def saveEnv(): ProgramState[Exp, Time] =
-    ProgramState(control, ρ, σ, kstore, a, t, v, StoreEnv(ρ) :: vStack)
+    ProgramState(control, ρ, σ, kstore, a, t, v, StoreEnv[HybridValue, HybridAddress](ρ) :: vStack)
 
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
                   action: Action[Exp, HybridValue, HybridAddress]): InstructionStep[Exp, HybridValue, HybridAddress, Time, ProgramState[Exp, Time]] = {
@@ -318,7 +316,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, vStack), action)
       case ActionLookupVariablePushT(varName, _, _) =>
         val newV = σ.lookup(ρ.lookup(varName).get)
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, StoreVal(newV) :: vStack), action)
+        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, StoreVal[HybridValue, HybridAddress](newV) :: vStack), action)
       case ActionPopKontT() =>
         val next = if (a == HaltKontAddress) { HaltKontAddress } else { kstore.lookup(a).head.next }
         NormalInstructionStep(ProgramState(TracingControlKont(a), ρ, σ, kstore, next, t, v, vStack), action)
@@ -327,11 +325,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         val operator = vals.last.getVal
         NormalInstructionStep(applyPrimitive(operator, n, fExp, argsExps), action)
       case ActionPushValT() =>
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreVal(v) :: vStack), action)
+        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreVal[HybridValue, HybridAddress](v) :: vStack), action)
       case ActionReachedValueT(lit, _, _) =>
         NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, lit, vStack), action)
       case ActionReachedValuePushT(lit, _, _) =>
-        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, lit, StoreVal(lit) :: vStack), action)
+        NormalInstructionStep(ProgramState(control, ρ, σ, kstore, a, t, lit, StoreVal[HybridValue, HybridAddress](lit) :: vStack), action)
       case ActionRestoreEnvT() =>
         NormalInstructionStep(restoreEnv(), action)
       case ActionRestoreSaveEnvT() =>
@@ -419,8 +417,8 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case HaltKontAddress => HaltKontAddress
   }
 
-  def convertState(oldSem: SchemeSemanticsTraced[HybridValue, HybridAddress, Time],
-                   newSem: SchemeSemantics[HybridValue, HybridAddress, Time]):
+  def convertState(oldSem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
+                   newSem: Semantics[Exp, HybridValue, HybridAddress, Time]):
   (ConvertedControl[Exp, HybridValue, HybridAddress], Store[HybridAddress, HybridValue], KontStore[KontAddr], KontAddr, Time) = {
     val newρ = convertEnvironment(ρ)
     var newσ = Store.empty[HybridAddress, HybridLattice.Hybrid]
@@ -434,8 +432,8 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     val newA = convertKontAddress(a)
     val newV = convertValue(σ)(v)
     val newVStack = vStack.map({
-      case StoreVal(v) => StoreVal(convertValue(σ)(v))
-      case StoreEnv(ρ) => StoreEnv(convertEnvironment(ρ))
+      case StoreVal(v) => StoreVal[HybridValue, HybridAddress](convertValue(σ)(v))
+      case StoreEnv(ρ) => StoreEnv[HybridValue, HybridAddress](convertEnvironment(ρ))
     })
     val convertedKontStore = oldSem.newConvertKStore(newSem, kstore, ρ, a, newVStack)
     val newKStore = convertedKontStore.map(convertKontAddress, oldSem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))

@@ -19,6 +19,7 @@
 
 class HybridMachine[Exp : Expression, Time : Timestamp]
   (override val sem: SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time],
+   val absSem: Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time],
    val tracerFlags: TracingFlags,
    injectProgramState: (Exp, Primitives[HybridAddress, HybridLattice.Hybrid], AbstractValue[HybridLattice.Hybrid], Timestamp[Time]) =>
                        ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time])
@@ -273,15 +274,19 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
   }
 
-  private def switchToAbstract(currentProgramState: PS): AAMOutput[APS, TraceWithoutStates] = {
+  private def switchToAbstract(currentProgramState: PS): Unit = { //AAMOutput[APS, TraceWithoutStates] = {
     Logger.log("HybridMachine switching to abstract", Logger.E)
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
-    val convertedExecutionState = currentProgramState.convertState(sem)._2
-    val newTodo = Set[APS](convertedExecutionState)
-    val newVisited, newHalted = Set[APS]()
-    val newGraph = new Graph[APS, TraceWithoutStates]()
-    loopAbstract(newTodo, newVisited, newHalted, System.nanoTime, newGraph)
+    val aam = new AAM[Exp, HybridValue, HybridAddress, Time]
+    val (control, store, kstore, a, t) = currentProgramState.convertState(sem, absSem)
+    val convertedControl = control match {
+      case ConvertedControlError(reason) => aam.ControlError(reason)
+      case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
+      case ConvertedControlKont(v) => aam.ControlKont(v)
+    }
+    val startState = aam.State(convertedControl, store, kstore, a, t)
+    aam.loop(Set(startState), Set(), Set(), System.nanoTime, None, absSem)
   }
 
   private def switchToConcrete(): Unit = {
@@ -290,7 +295,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     HybridAddress.switchToConcrete
   }
 
-  private def runStaticAnalysis(currentProgramState: PS): AAMOutput[APS, TraceWithoutStates] = {
+
+
+  private def runStaticAnalysis(currentProgramState: PS): Unit = {
     val analysisOutput = switchToAbstract(currentProgramState)
     switchToConcrete()
     analysisOutput
@@ -298,38 +305,13 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   private def findAnalysisOutput(currentProgramState: PS): Option[AAMOutput[APS, TraceWithoutStates]] = {
     if (tracerFlags.SWITCH_ABSTRACT) {
-      val analysisOutput = runStaticAnalysis(currentProgramState)
-      analysisOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
-      Some(analysisOutput)
+      runStaticAnalysis(currentProgramState)
+      None
+//      val analysisOutput = runStaticAnalysis(currentProgramState)
+//      analysisOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
+//      Some(analysisOutput)
     } else {
       None
-    }
-  }
-
-  @scala.annotation.tailrec
-  private def loopAbstract(todo: Set[APS], visited: Set[APS],
-                           halted: Set[APS], startingTime: Long, graph: Graph[APS, TraceWithoutStates]): AAMOutput[APS, TraceWithoutStates] = {
-    todo.headOption match {
-      case Some(s) =>
-        if (visited.contains(s) || visited.exists(s2 => s2.subsumes(s))) {
-          /* If we already visited the state, or if it is subsumed by another already
-           * visited state, we ignore it. The subsumption part reduces the
-           * number of visited states but leads to non-determinism due to the
-           * non-determinism of Scala's headOption (it seems so at least). */
-          loopAbstract(todo.tail, visited, halted, startingTime, graph)
-        } else if (s.halted) {
-          /* If the state is a final state, add it to the list of final states and
-           * continue exploring the graph */
-          loopAbstract(todo.tail, visited + s, halted + s, startingTime, graph)
-        } else {
-          /* Otherwise, compute the successors of this state, update the graph, and push
-           * the new successors on the todo list */
-          val succs = s.stepAbstract(sem)
-          val newGraph = graph.addEdges(succs.map(s2 => (s, s2._2, s2._1)))
-          loopAbstract(todo.tail ++ succs.map(_._1), visited + s, halted, startingTime, newGraph)
-        }
-      case None => AAMOutput[APS, TraceWithoutStates](halted, visited.size,
-        (System.nanoTime - startingTime) / Math.pow(10, 9), Some(graph))
     }
   }
 

@@ -12,8 +12,6 @@ class ConcurrentAAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   val aam = new AAM[Exp, Abs, Addr, Time]
   import aam._
 
-  type KontAddr = aam.KontAddr
-
   def printReadWrite(action: Action[Exp, Abs, Addr]): Unit = action match {
     case ActionReachedValue(_, _, read, write) => println(s"Read: $read; Write: $write")
     case ActionPush(_, _, _, _, read, write) => println(s"Read: $read; Write: $write")
