@@ -70,6 +70,7 @@ object HybridAddress {
   def convertAddress(address : HybridAddress) : HybridAddress = address match {
     case HybridAddress.PrimitiveAddress(name) => HybridAddress.PrimitiveAddress(name)
     case HybridAddress.Left(address1, address2) => HybridAddress.Right(address2)
+    case HybridAddress.Right(_) => address
     case _ => throw new Exception(s"Cannot reconvert an abstract address: $address")
   }
 
