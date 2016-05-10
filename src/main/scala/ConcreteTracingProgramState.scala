@@ -435,7 +435,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case StoreVal(v) => StoreVal[HybridValue, HybridAddress](convertValue(σ)(v))
       case StoreEnv(ρ) => StoreEnv[HybridValue, HybridAddress](convertEnvironment(ρ))
     })
-    val convertedKontStore = oldSem.newConvertKStore(newSem, kstore, ρ, a, newVStack)
+    val startKontAddress = control match {
+      case TracingControlEval(_) | TracingControlError(_) => a
+      case TracingControlKont(ka) => ka
+    }
+    val convertedKontStore = oldSem.newConvertKStore(newSem, kstore, ρ, startKontAddress, newVStack)
     val newKStore = convertedKontStore.map(convertKontAddress, newSem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
     val newControl = control match {
       case TracingControlEval(exp) =>
