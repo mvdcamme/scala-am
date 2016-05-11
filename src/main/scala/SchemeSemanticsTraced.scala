@@ -77,8 +77,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
         val (argsValues, remainingVStack2) = remainingVStack.splitAt(n)
         val newArgs = args.map(_._1).zip(argsValues.map(_.getVal))
         Some((newSem.FrameFuncallOperands(f.asInstanceOf[Abs], fexp, cur, newArgs, toeval, ρ), remainingVStack2, ρ))
-      case FrameFuncallOperatorT(fexp, args) => popEnvFromStack(newSem.FrameFuncallOperator(fexp, args, _), vStack.tail)
-      case FrameIfT(cons, alt) => popEnvFromStack(newSem.FrameIf(cons, alt, _), vStack.tail)
+      case FrameFuncallOperatorT(fexp, args) => popEnvFromStack(newSem.FrameFuncallOperator(fexp, args, _), vStack)
+      case FrameIfT(cons, alt) => popEnvFromStack(newSem.FrameIf(cons, alt, _), vStack)
       case FrameLetT(variable, bindings, toeval, body) =>
         /* When pushing a FrameLetT continuation on the continuation stack, we possibly push a value on the value stack,
         in case we have just evaluated an expression for the let-bindings, and we always push an environment.
