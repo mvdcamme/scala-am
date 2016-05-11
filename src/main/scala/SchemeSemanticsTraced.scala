@@ -57,50 +57,61 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case FrameWhileConditionT(condition, body, ρ) => FrameWhileConditionT(condition, body, ρ.map(convertAddress))
   }
 
-  private def popEnvFromStack(generateFrameFun: Environment[Addr] => Frame, vStack: List[Storable[Abs, Addr]]):
-    Option[(Frame, List[Storable[Abs, Addr]], Environment[Addr])] = {
+  private def popEnvFromVStack(generateFrameFun: Environment[Addr] => Frame, vStack: List[Storable[Abs, Addr]]):
+    (Frame, List[Storable[Abs, Addr]], Environment[Addr]) = {
     val ρ = vStack.head.getEnv
-    Some((generateFrameFun(ρ), vStack.tail, ρ))
+    val frame = generateFrameFun(ρ)
+    (frame, vStack.tail, ρ)
+  }
+
+  private def popEnvAndValuesFromVStack(generateFrameFun: (Environment[Addr], List[Abs]) => Frame,
+                                        n: Integer,
+                                        vStack: List[Storable[Abs, Addr]]): (Frame, List[Storable[Abs, Addr]], Environment[Addr]) = {
+    val ρ = vStack.head.getEnv
+    val remainingVStack = vStack.tail
+    val (values, remainingVStack2) = remainingVStack.splitAt(n)
+    val frame = generateFrameFun(ρ, values.map(_.getVal))
+    (frame, remainingVStack2, ρ)
   }
 
   def newConvertFrame(frame: Frame,
                       newSem: Semantics[SchemeExp, Abs, Addr, Time],
                       ρ: Environment[Addr],
-                      vStack: List[Storable[Abs, Addr]]): Option[(Frame, List[Storable[Abs, Addr]], Environment[Addr])] = newSem match {
+                      vStack: List[Storable[Abs, Addr]]): (Frame, List[Storable[Abs, Addr]], Environment[Addr]) = newSem match {
     case newSem : SchemeSemantics[Abs, Addr, Time] => frame match {
-      case FrameBeginT(rest) => popEnvFromStack(newSem.FrameBegin(rest, _), vStack)
-      case FrameFunBodyT(body, toeval) => popEnvFromStack(newSem.FrameBegin(toeval, _), vStack)
+      case FrameBeginT(rest) => popEnvFromVStack(newSem.FrameBegin(rest, _), vStack)
+      case FrameFunBodyT(body, toeval) => popEnvFromVStack(newSem.FrameBegin(toeval, _), vStack)
       case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
-        val ρ = vStack.head.getEnv
-        val remainingVStack = vStack.tail
         val n = args.length + 1 /* We have to add 1 because the operator has also been pushed onto the vstack */
-        val (argsValues, remainingVStack2) = remainingVStack.splitAt(n)
-        val newArgs = args.map(_._1).zip(argsValues.map(_.getVal))
-        Some((newSem.FrameFuncallOperands(f.asInstanceOf[Abs], fexp, cur, newArgs, toeval, ρ), remainingVStack2, ρ))
-      case FrameFuncallOperatorT(fexp, args) => popEnvFromStack(newSem.FrameFuncallOperator(fexp, args, _), vStack)
-      case FrameIfT(cons, alt) => popEnvFromStack(newSem.FrameIf(cons, alt, _), vStack)
+        val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
+          val newArgs = args.map(_._1).zip(values)
+          newSem.FrameFuncallOperands(f.asInstanceOf[Abs], fexp, cur, newArgs, toeval, ρ)
+      }
+        popEnvAndValuesFromVStack(generateFrameFun, n, vStack)
+      case FrameFuncallOperatorT(fexp, args) => popEnvFromVStack(newSem.FrameFuncallOperator(fexp, args, _), vStack)
+      case FrameIfT(cons, alt) => popEnvFromVStack(newSem.FrameIf(cons, alt, _), vStack)
       case FrameLetT(variable, bindings, toeval, body) =>
         /* When pushing a FrameLetT continuation on the continuation stack, we possibly push a value on the value stack,
         in case we have just evaluated an expression for the let-bindings, and we always push an environment.
         The stack should therefore have an environment at the top, followed by n values where n is the number of bindings
         already evaluated (which equals bindings.length).
         */
-        val ρ = vStack.head.getEnv
-        val remainingVStack = vStack.tail
         val n = bindings.length
-        val (bindingValues, remainingVStack2) = remainingVStack.splitAt(n)
-        val newBindings = bindings.map(_._1).zip(bindingValues.map(_.getVal))
-        Some((newSem.FrameLet(variable, newBindings, toeval, body, ρ), remainingVStack2, ρ))
+        val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
+          val newBindings = bindings.map(_._1).zip(values)
+          newSem.FrameLet(variable, newBindings, toeval, body, ρ)
+        }
+        popEnvAndValuesFromVStack(generateFrameFun, n, vStack)
       case FrameLetrecT(variable, bindings, body) =>
         val addr = ρ.lookup(variable).get
         val updatedBindings = bindings.map({ case (variable, exp) => (ρ.lookup(variable).get, exp) })
-        popEnvFromStack(newSem.FrameLetrec(addr, updatedBindings, body, _), vStack)
+        popEnvFromVStack(newSem.FrameLetrec(addr, updatedBindings, body, _), vStack)
       case FrameLetStarT(variable, bindings, body) =>
         /* When evaluating a FrameLetStarT continuation, we also push the value v on the stack (similar to the case for
          * FrameLetT, but this is immediately followed by an ActionExtendEnv which pops this value back from the stack.
          * There are therefore never any values for the let* bindings on the value stack. */
-        popEnvFromStack(newSem.FrameLetStar(variable, bindings, body, _), vStack)
-      case FrameSetT(variable) => popEnvFromStack(newSem.FrameSet(variable, _), vStack)
+        popEnvFromVStack(newSem.FrameLetStar(variable, bindings, body, _), vStack)
+      case FrameSetT(variable) => popEnvFromVStack(newSem.FrameSet(variable, _), vStack)
     }
   }
 
@@ -113,11 +124,9 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       case HaltKontAddress => newKontStore
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
-        val someNewFrame = newConvertFrame(frame, newSem, ρ, vStack)
-        val (updatedNewKontStore, updatedNewVStack, updatedNewρ) = someNewFrame.fold((newKontStore, vStack, ρ))({
-          case (convertedFrame, newVStack, updatedρ) => (newKontStore.extend(a, Kont(convertedFrame, next)), newVStack, updatedρ)
-        })
-        loop(updatedNewKontStore, next, updatedNewVStack, updatedNewρ)
+        val (convertedFrame, newVStack, newρ) = newConvertFrame(frame, newSem, ρ, vStack)
+        val extendedNewKontStore = newKontStore.extend(a, Kont(convertedFrame, next))
+        loop(extendedNewKontStore, next, newVStack, newρ)
     }
     loop(new KontStore[KontAddr](), a, vStack, ρ)
   }
