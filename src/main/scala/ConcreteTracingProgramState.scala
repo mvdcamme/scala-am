@@ -68,8 +68,7 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
 
   def runAssertions(assertions: List[Action[Exp, Abs, Addr]]): Boolean
 
-  def convertState(oldSem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
-                   newSem: Semantics[Exp, HybridValue, HybridAddress, Time]):
+  def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]):
     (ConvertedControl[Exp, Abs, Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, Time)
 
   def generateTraceInformation(action: Action[Exp, Abs, Addr]): Option[TraceInformation[HybridValue]]
@@ -417,8 +416,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case HaltKontAddress => HaltKontAddress
   }
 
-  def convertState(oldSem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
-                   newSem: Semantics[Exp, HybridValue, HybridAddress, Time]):
+  def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]):
   (ConvertedControl[Exp, HybridValue, HybridAddress], Store[HybridAddress, HybridValue], KontStore[KontAddr], KontAddr, Time) = {
     val newρ = convertEnvironment(ρ)
     var newσ = Store.empty[HybridAddress, HybridLattice.Hybrid]
@@ -439,8 +437,9 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case TracingControlEval(_) | TracingControlError(_) => a
       case TracingControlKont(ka) => ka
     }
-    val convertedKontStore = oldSem.newConvertKStore(newSem, kstore, ρ, startKontAddress, newVStack)
-    val newKStore = convertedKontStore.map(convertKontAddress, newSem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
+    val convertedKontStore = sem.newConvertKStore(kstore, ρ, startKontAddress, newVStack)
+    val absSem = sem.absSem
+    val newKStore = convertedKontStore.map(convertKontAddress, absSem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
     val newControl = control match {
       case TracingControlEval(exp) =>
         ConvertedControlEval[Exp, HybridValue, HybridAddress](exp, newρ)

@@ -1,5 +1,6 @@
 class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestamp]
-  extends SchemeSemanticsTraced[Abs, Addr, Time] {
+  (override val absSem: SchemeSemantics[Abs, Addr, Time])
+  extends SchemeSemanticsTraced[Abs, Addr, Time](absSem) {
 
   case class FrameAmbT(exps: List[SchemeExp]) extends SchemeFrameT
   case class FrameUndoAction(action: Action[SchemeExp, Abs, Addr]) extends SchemeFrameT

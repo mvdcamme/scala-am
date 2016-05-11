@@ -49,8 +49,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
     }
   }
 
-  def convertState(oldSem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
-                   newSem: Semantics[Exp, HybridValue, HybridAddress, Time]) = normalState.convertState(oldSem, newSem)
+  def convertState(oldSem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]) = normalState.convertState(oldSem)
 
   def runAssertions(assertions: List[Action[Exp, HybridValue, HybridAddress]]): Boolean = normalState.runAssertions(assertions)
 

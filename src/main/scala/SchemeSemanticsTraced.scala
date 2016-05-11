@@ -2,7 +2,8 @@
   * Basic Scheme semantics, without any optimization
   */
 abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestamp]
-  extends BaseSemanticsTraced[SchemeExp, Abs, Addr, Time] {
+  (override val absSem: SchemeSemantics[Abs, Addr, Time])
+  extends BaseSemanticsTraced[SchemeExp, Abs, Addr, Time](absSem) {
 
   /*
    * Some unparametrized actions.
@@ -75,21 +76,19 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   }
 
   def newConvertFrame(frame: Frame,
-                      newSem: Semantics[SchemeExp, Abs, Addr, Time],
                       ρ: Environment[Addr],
-                      vStack: List[Storable[Abs, Addr]]): (Frame, List[Storable[Abs, Addr]], Environment[Addr]) = newSem match {
-    case newSem : SchemeSemantics[Abs, Addr, Time] => frame match {
-      case FrameBeginT(rest) => popEnvFromVStack(newSem.FrameBegin(rest, _), vStack)
-      case FrameFunBodyT(body, toeval) => popEnvFromVStack(newSem.FrameBegin(toeval, _), vStack)
+                      vStack: List[Storable[Abs, Addr]]): (Frame, List[Storable[Abs, Addr]], Environment[Addr]) = frame match {
+      case FrameBeginT(rest) => popEnvFromVStack(absSem.FrameBegin(rest, _), vStack)
+      case FrameFunBodyT(body, toeval) => popEnvFromVStack(absSem.FrameBegin(toeval, _), vStack)
       case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
         val n = args.length + 1 /* We have to add 1 because the operator has also been pushed onto the vstack */
         val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
           val newArgs = args.map(_._1).zip(values)
-          newSem.FrameFuncallOperands(f.asInstanceOf[Abs], fexp, cur, newArgs, toeval, ρ)
+          absSem.FrameFuncallOperands(f.asInstanceOf[Abs], fexp, cur, newArgs, toeval, ρ)
       }
         popEnvAndValuesFromVStack(generateFrameFun, n, vStack)
-      case FrameFuncallOperatorT(fexp, args) => popEnvFromVStack(newSem.FrameFuncallOperator(fexp, args, _), vStack)
-      case FrameIfT(cons, alt) => popEnvFromVStack(newSem.FrameIf(cons, alt, _), vStack)
+      case FrameFuncallOperatorT(fexp, args) => popEnvFromVStack(absSem.FrameFuncallOperator(fexp, args, _), vStack)
+      case FrameIfT(cons, alt) => popEnvFromVStack(absSem.FrameIf(cons, alt, _), vStack)
       case FrameLetT(variable, bindings, toeval, body) =>
         /* When pushing a FrameLetT continuation on the continuation stack, we possibly push a value on the value stack,
         in case we have just evaluated an expression for the let-bindings, and we always push an environment.
@@ -99,24 +98,22 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
         val n = bindings.length
         val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
           val newBindings = bindings.map(_._1).zip(values)
-          newSem.FrameLet(variable, newBindings, toeval, body, ρ)
+          absSem.FrameLet(variable, newBindings, toeval, body, ρ)
         }
         popEnvAndValuesFromVStack(generateFrameFun, n, vStack)
       case FrameLetrecT(variable, bindings, body) =>
         val addr = ρ.lookup(variable).get
         val updatedBindings = bindings.map({ case (variable, exp) => (ρ.lookup(variable).get, exp) })
-        popEnvFromVStack(newSem.FrameLetrec(addr, updatedBindings, body, _), vStack)
+        popEnvFromVStack(absSem.FrameLetrec(addr, updatedBindings, body, _), vStack)
       case FrameLetStarT(variable, bindings, body) =>
         /* When evaluating a FrameLetStarT continuation, we also push the value v on the stack (similar to the case for
          * FrameLetT, but this is immediately followed by an ActionExtendEnv which pops this value back from the stack.
          * There are therefore never any values for the let* bindings on the value stack. */
-        popEnvFromVStack(newSem.FrameLetStar(variable, bindings, body, _), vStack)
-      case FrameSetT(variable) => popEnvFromVStack(newSem.FrameSet(variable, _), vStack)
+        popEnvFromVStack(absSem.FrameLetStar(variable, bindings, body, _), vStack)
+      case FrameSetT(variable) => popEnvFromVStack(absSem.FrameSet(variable, _), vStack)
     }
-  }
 
-  def newConvertKStore(newSem: Semantics[SchemeExp, Abs, Addr, Time],
-                       kontStore: KontStore[KontAddr],
+  def newConvertKStore(kontStore: KontStore[KontAddr],
                        ρ: Environment[Addr],
                        a: KontAddr,
                        vStack: List[Storable[Abs, Addr]]): KontStore[KontAddr] = {
@@ -124,7 +121,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       case HaltKontAddress => newKontStore
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
-        val (convertedFrame, newVStack, newρ) = newConvertFrame(frame, newSem, ρ, vStack)
+        val (convertedFrame, newVStack, newρ) = newConvertFrame(frame, ρ, vStack)
         val extendedNewKontStore = newKontStore.extend(a, Kont(convertedFrame, next))
         loop(extendedNewKontStore, next, newVStack, newρ)
     }
@@ -405,7 +402,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   *     the evaluation of (f), instead of evaluating +, and 1 in separate states.
   */
 class SchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestamp]
-  extends BaseSchemeSemanticsTraced[Abs, Addr, Time] {
+  (override val absSem: SchemeSemantics[Abs, Addr, Time])
+  extends BaseSchemeSemanticsTraced[Abs, Addr, Time](absSem) {
 
   protected def addRead(action: Action[SchemeExp, Abs, Addr], read: Set[Addr]): Action[SchemeExp, Abs, Addr] = action match {
     case ActionReachedValueT(v, read2, write) => ActionReachedValueT(v, read ++ read2, write)

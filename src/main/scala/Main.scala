@@ -172,16 +172,17 @@ object Main {
         /* ugly as fuck, but I don't find a simpler way to pass type parameters that are computed at runtime */
         val f = (config.anf, config.machine, config.lattice, config.concrete) match {
           case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) =>
+            val absSemantics = new SchemeSemantics[HybridLattice.Hybrid, HybridAddress, ZeroCFA]
             if (config.amb) {
-              val semantics = new AmbSchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA]
-              val absSemantics = new SchemeSemantics[HybridLattice.Hybrid, HybridAddress, ZeroCFA]
-              runTraced(new HybridMachine[SchemeExp, ZeroCFA](semantics, absSemantics, config.tracingFlags, { (exp, primitives, abs, time) =>
+              val semantics = new AmbSchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA](absSemantics)
+              runTraced(new HybridMachine[SchemeExp, ZeroCFA](semantics, config.tracingFlags, { (exp, primitives, abs, time) =>
                 val normalState = new ProgramState[SchemeExp, ZeroCFA](exp, primitives, abs, time)
-                new AmbProgramState[SchemeExp, ZeroCFA](normalState) })) _
+                new AmbProgramState[SchemeExp, ZeroCFA](normalState)
+              })) _
             } else {
-              val semantics = new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA]
-              val absSemantics = new SchemeSemantics[HybridLattice.Hybrid, HybridAddress, ZeroCFA]
-              runTraced(new HybridMachine[SchemeExp, ZeroCFA](semantics, absSemantics, config.tracingFlags, { (exp, primitives, abs, time) => new ProgramState[SchemeExp, ZeroCFA](exp, primitives, abs, time) })) _
+              val semantics = new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA](absSemantics)
+              runTraced(new HybridMachine[SchemeExp, ZeroCFA](semantics, config.tracingFlags, { (exp, primitives, abs, time) =>
+                new ProgramState[SchemeExp, ZeroCFA](exp, primitives, abs, time) })) _
             }
 
           case (true, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[ANFExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _

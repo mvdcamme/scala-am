@@ -19,7 +19,6 @@
 
 class HybridMachine[Exp : Expression, Time : Timestamp]
   (override val sem: SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time],
-   val absSem: Semantics[Exp, HybridLattice.Hybrid, HybridAddress, Time],
    val tracerFlags: TracingFlags,
    injectProgramState: (Exp, Primitives[HybridAddress, HybridLattice.Hybrid], AbstractValue[HybridLattice.Hybrid], Timestamp[Time]) =>
                        ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time])
@@ -279,14 +278,14 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
     val aam = new AAM[Exp, HybridValue, HybridAddress, Time]
-    val (control, store, kstore, a, t) = currentProgramState.convertState(sem, absSem)
+    val (control, store, kstore, a, t) = currentProgramState.convertState(sem)
     val convertedControl = control match {
       case ConvertedControlError(reason) => aam.ControlError(reason)
       case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
       case ConvertedControlKont(v) => aam.ControlKont(v)
     }
     val startState = aam.State(convertedControl, store, kstore, a, t)
-    aam.loop(Set(startState), Set(), Set(), System.nanoTime, None, absSem)
+    aam.loop(Set(startState), Set(), Set(), System.nanoTime, None, sem.absSem)
   }
 
   private def switchToConcrete(): Unit = {

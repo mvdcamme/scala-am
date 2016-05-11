@@ -93,8 +93,9 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
 
   def getClosureBody(frame: Frame): Option[List[Exp]]
 
-  def newConvertKStore(newSem: Semantics[Exp, Abs, Addr, Time],
-                       kontStore: KontStore[KontAddr],
+  def absSem: Semantics[Exp, Abs, Addr, Time]
+
+  def newConvertKStore(kontStore: KontStore[KontAddr],
                        ρ: Environment[Addr],
                        a: KontAddr,
                        vStack: List[Storable[Abs, Addr]]): KontStore[KontAddr]
@@ -127,6 +128,7 @@ abstract class BaseSemantics[Exp: Expression, Abs: AbstractValue, Addr: Address,
 }
 
 abstract class BaseSemanticsTraced[Exp: Expression, Abs: AbstractValue, Addr: Address, Time: Timestamp]
+  (override val absSem: Semantics[Exp, Abs, Addr, Time])
   extends SemanticsTraced[Exp, Abs, Addr, Time] {
   /* wtf scala */
   def abs = implicitly[AbstractValue[Abs]]
