@@ -31,8 +31,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   type TraceInstructionInfo = (TraceInstruction, Option[TraceInformation[HybridValue]])
   type TraceWithInfos = List[TraceInstructionInfo]
 
-  type Label = List[Exp]
-
   /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
   implicit val primitives = new Primitives[HybridAddress, HybridValue]()
 
@@ -82,13 +80,13 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   case class ExecutionState(ep: ExecutionPhase.Value, ps: PS)(tc: tracerContext.TracerContext, tn: Option[tracerContext.TraceNode]) {
 
-    def checkTraceAssertions(state: PS, tc: tracerContext.TracerContext, label: Label): Boolean = {
+    def checkTraceAssertions(state: PS, tc: tracerContext.TracerContext, label: Label[Exp]): Boolean = {
       val traceNode = tracerContext.getTrace(tc, label)
       val assertions = traceNode.trace.assertions
       state.runAssertions(assertions)
     }
 
-    def startExecutingTrace(state: PS, tc: tracerContext.TracerContext, label: Label): ExecutionState = {
+    def startExecutingTrace(state: PS, tc: tracerContext.TracerContext, label: Label[Exp]): ExecutionState = {
       Logger.log(s"Trace with label $label already exists; EXECUTING TRACE", Logger.D)
       val traceNode = tracerContext.getTrace(tc, label)
       val assertions = traceNode.trace.assertions
@@ -123,7 +121,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       ExecutionState(ep, newState)(traceAppendedTc, tn)
     }
 
-    def canStartLoopEncounteredRegular(newState: PS, trace: TraceWithoutStates, label: Label): ExecutionState = {
+    def canStartLoopEncounteredRegular(newState: PS, trace: TraceWithoutStates, label: Label[Exp]): ExecutionState = {
       Logger.log(s"Regular phase: CanStartLoop encountered with label $label", Logger.D)
       val newTc = tracerContext.incLabelCounter(tc, label)
       val labelCounter = tracerContext.getLabelCounter(newTc, label)
@@ -147,7 +145,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       }
     }
 
-    def canStartLoopEncounteredTracing(state: PS, trace: TraceWithoutStates, label: Label): ExecutionState = {
+    def canStartLoopEncounteredTracing(state: PS, trace: TraceWithoutStates, label: Label[Exp]): ExecutionState = {
       Logger.log(s"Tracing phase: CanStartLoop encountered with label $label", Logger.D)
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       val traceAppendedTc = tracerContext.appendTrace(tc, traceWithStates)
@@ -163,7 +161,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
 
     def canEndLoopEncounteredTracing(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress]],
-                                     restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], label: Label): ExecutionState = {
+                                     restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], label: Label[Exp]): ExecutionState = {
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       if (tracerContext.isTracingLabel(tc, label)) {
         Logger.log(s"Stopped tracing $label; NO LOOP DETECTED", Logger.I)
@@ -180,12 +178,12 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
     def handleSignalRegular(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress]], signal: TracingSignal[Exp, HybridValue, HybridAddress]): ExecutionState = signal match {
       case TracingSignalEnd(_, _) => continueWithProgramState(state, trace)
-      case TracingSignalStart(label) => canStartLoopEncounteredRegular(applyTrace(state, trace), trace, label)
+      case TracingSignalStart(label) => canStartLoopEncounteredRegular(applyTrace(state, trace), trace, NormalLabel[Exp](label))
     }
 
     def handleSignalTracing(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress]], signal: TracingSignal[Exp, HybridValue, HybridAddress]): ExecutionState = signal match {
-      case TracingSignalEnd(label, restartPoint) => canEndLoopEncounteredTracing(state, trace, restartPoint, label)
-      case TracingSignalStart(label) => canStartLoopEncounteredTracing(state, trace, label)
+      case TracingSignalEnd(label, restartPoint) => canEndLoopEncounteredTracing(state, trace, restartPoint, NormalLabel[Exp](label))
+      case TracingSignalStart(label) => canStartLoopEncounteredTracing(state, trace, NormalLabel[Exp](label))
     }
 
     def handleResponseRegular(response: Step[Exp, HybridValue, HybridAddress]): ExecutionState = response match {
