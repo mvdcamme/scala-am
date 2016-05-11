@@ -146,10 +146,10 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
                     f: List[Action[SchemeExp, Abs, Addr]],
                     fRestart: RestartPoint[SchemeExp, Abs, Addr]): Set[Step[SchemeExp, Abs, Addr]] =
     (if (abs.isTrue(v)) {
-      Set[Step[SchemeExp, Abs, Addr]](Step[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardTrueT[SchemeExp, Abs, Addr](fRestart) :: t, TracingSignalFalse()))
+      Set[Step[SchemeExp, Abs, Addr]](Step[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardTrueT[SchemeExp, Abs, Addr](fRestart, GuardIDCounter.incCounter()) :: t, TracingSignalFalse()))
     } else Set[Step[SchemeExp, Abs, Addr]]()) ++
     (if (abs.isFalse(v)) {
-      Set[Step[SchemeExp, Abs, Addr]](Step[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardFalseT[SchemeExp, Abs, Addr](tRestart) :: f, TracingSignalFalse()))
+      Set[Step[SchemeExp, Abs, Addr]](Step[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardFalseT[SchemeExp, Abs, Addr](tRestart, GuardIDCounter.incCounter()) :: f, TracingSignalFalse()))
     } else Set[Step[SchemeExp, Abs, Addr]]())
 
   /**
@@ -168,7 +168,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       case (SchemeLambda(args, body), ρ1) =>
         val stepInFrame = ActionStepInT(fexp, body.head, args, argsv.map(_._1), valsToPop, FrameFunBodyT(body, body.tail))
         Step(actions :+
-                          ActionGuardSameClosure[SchemeExp, Abs, Addr](function, RestartGuardDifferentClosure(stepInFrame)) :+
+                          ActionGuardSameClosure[SchemeExp, Abs, Addr](function, RestartGuardDifferentClosure(stepInFrame), GuardIDCounter.incCounter()) :+
                           stepInFrame :+
                           actionEndClosureCall,
                           new TracingSignalStart(body))
@@ -179,7 +179,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       case Some(prim) =>
         val primCallAction = ActionPrimCallT(valsToPop, fexp, argsv.map(_._1))
         Set(Step(actions :+
-                              ActionGuardSamePrimitive[SchemeExp, Abs, Addr](function, RestartGuardDifferentPrimitive(primCallAction)) :+
+                              ActionGuardSamePrimitive[SchemeExp, Abs, Addr](function, RestartGuardDifferentPrimitive(primCallAction), GuardIDCounter.incCounter()) :+
                               primCallAction :+
                               actionEndPrimCall :+
                               actionPopKont,

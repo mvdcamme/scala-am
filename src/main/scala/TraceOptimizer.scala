@@ -392,7 +392,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     })
 
     val assertions: TraceWithoutStates = variablesToCheck.map({ (freeVariable) =>
-      ActionGuardAssertFreeVariable[Exp, HybridValue, HybridAddress](freeVariable._1, freeVariable._2, RestartAssertion[Exp, HybridValue, HybridAddress]())
+      ActionGuardAssertFreeVariable[Exp, HybridValue, HybridAddress](freeVariable._1, freeVariable._2, RestartAssertion[Exp, HybridValue, HybridAddress](), GuardIDCounter.incCounter())
     })
 
     hybridMachine.TraceFull(traceFull.startProgramState, traceFull.assertions ++ assertions, optimisedTrace)
@@ -483,7 +483,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   private def filterUnassignedFreeVariables(assertions: TraceWithoutStates, assignedFreeVariables: List[String]): TraceWithoutStates = {
     assertions.filter({
-      case ActionGuardAssertFreeVariable(variableName, _, _) =>
+      case ActionGuardAssertFreeVariable(variableName, _, _, _) =>
         assignedFreeVariables.contains(variableName)
       case _ => true})
   }
@@ -491,7 +491,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   private def optimizeVariableFoldingAssertions(trace: TraceFull, output: AnalysisOutput): TraceFull = {
     val assertions = trace.assertions
     val freeVariables = assertions.flatMap({
-      case ActionGuardAssertFreeVariable(variableName, _, _) => List(variableName)
+      case ActionGuardAssertFreeVariable(variableName, _, _, _) => List(variableName)
       case _ => List() })
     val assignedFreeVariables = findAssignedFreeVariables(freeVariables, output)
     val optimizedAssertions = filterUnassignedFreeVariables(assertions, assignedFreeVariables)

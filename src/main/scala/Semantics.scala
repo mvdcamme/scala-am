@@ -245,7 +245,7 @@ case class RestartTraceEnded[Exp, Abs, Addr]()
   extends RestartPoint[Exp, Abs, Addr]
 
 abstract class ActionGuardT[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (val rp: RestartPoint[Exp, Abs, Addr])
+  (val rp: RestartPoint[Exp, Abs, Addr], val id: Integer)
   extends Action[Exp, Abs, Addr]
 
 case class ActionAllocVarsT[Exp : Expression, Abs : AbstractValue, Addr : Address]
@@ -289,20 +289,20 @@ case class ActionExtendStoreT[Exp : Expression, Abs : AbstractValue, Addr : Addr
   extends Action[Exp, Abs, Addr]
 
 case class ActionGuardFalseT[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (override val rp: RestartPoint[Exp, Abs, Addr])
-  extends ActionGuardT[Exp, Abs, Addr](rp)
+  (override val rp: RestartPoint[Exp, Abs, Addr], override val id: Integer)
+  extends ActionGuardT[Exp, Abs, Addr](rp, id)
 case class ActionGuardAssertFreeVariable[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (variable : String, originalValue : Abs, override val rp: RestartPoint[Exp, Abs, Addr])
-  extends ActionGuardT[Exp, Abs, Addr](rp)
+  (variable : String, originalValue : Abs, override val rp: RestartPoint[Exp, Abs, Addr], override val id: Integer)
+  extends ActionGuardT[Exp, Abs, Addr](rp, id)
 case class ActionGuardTrueT[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (override val rp: RestartPoint[Exp, Abs, Addr])
-  extends ActionGuardT[Exp, Abs, Addr](rp)
+  (override val rp: RestartPoint[Exp, Abs, Addr], override val id: Integer)
+  extends ActionGuardT[Exp, Abs, Addr](rp, id)
 case class ActionGuardSameClosure[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (recordedClosure : Abs, override val rp : RestartGuardDifferentClosure[Exp, Abs, Addr])
-  extends ActionGuardT[Exp, Abs, Addr](rp)
+  (recordedClosure : Abs, override val rp : RestartGuardDifferentClosure[Exp, Abs, Addr], override val id: Integer)
+  extends ActionGuardT[Exp, Abs, Addr](rp, id)
 case class ActionGuardSamePrimitive[Exp : Expression, Abs : AbstractValue, Addr : Address]
-  (recordedPrimitive : Abs, override val rp : RestartGuardDifferentPrimitive[Exp, Abs, Addr])
-  extends ActionGuardT[Exp, Abs, Addr](rp)
+  (recordedPrimitive : Abs, override val rp : RestartGuardDifferentPrimitive[Exp, Abs, Addr], override val id: Integer)
+  extends ActionGuardT[Exp, Abs, Addr](rp, id)
 /**
 * Waits for the execution of a thread, with tid as its identifier.
 */
