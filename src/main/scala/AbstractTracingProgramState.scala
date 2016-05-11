@@ -49,7 +49,7 @@ case class AbstractProgramState[Exp : Expression, Time : Timestamp](concreteStat
               case _ =>
                 throw new Exception(s"$this expected newState of type ProgramState[Exp, Time], received $newState instead")
             }
-            case GuardFailed(_) => Set(this) /* Guard failures (though they might happen) are not relevant here, so we ignore them */
+            case GuardFailed(_, _) => Set(this) /* Guard failures (though they might happen) are not relevant here, so we ignore them */
             case _ => throw new Exception(s"Encountered an unexpected result while performing abstract interpretation: $result")
           }
       }

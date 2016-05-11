@@ -80,17 +80,22 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   case class ExecutionState(ep: ExecutionPhase.Value, ps: PS)(tc: tracerContext.TracerContext, tn: Option[tracerContext.TraceNode]) {
 
-    def checkTraceAssertions(state: PS, tc: tracerContext.TracerContext, label: Label[Exp]): Boolean = {
-      val traceNode = tracerContext.getTrace(tc, label)
+    def checkTraceAssertions(state: PS, tc: tracerContext.TracerContext, loopID: List[Exp]): Boolean = {
+      val traceNode = tracerContext.getLoopTrace(tc, loopID)
       val assertions = traceNode.trace.assertions
       state.runAssertions(assertions)
     }
 
-    def startExecutingTrace(state: PS, tc: tracerContext.TracerContext, label: Label[Exp]): ExecutionState = {
-      Logger.log(s"Trace with label $label already exists; EXECUTING TRACE", Logger.D)
-      val traceNode = tracerContext.getTrace(tc, label)
+    def startExecutingTrace(state: PS, tc: tracerContext.TracerContext, loopID: List[Exp]): ExecutionState = {
+      Logger.log(s"Trace forloop $loopID already exists; EXECUTING TRACE", Logger.D)
+      val traceNode = tracerContext.getLoopTrace(tc, loopID)
       val assertions = traceNode.trace.assertions
       ExecutionState(TE, state)(tc, Some(traceNode))
+    }
+
+    private def handleGuardFailure(rp: RestartPoint[Exp, HybridValue, HybridAddress], guardID: Integer): ExecutionState = {
+      val psRestarted = ps.restart(sem, rp)
+      ExecutionState(NI, psRestarted)(tc, None)
     }
 
     def doTraceExecutingStep(): ExecutionState = {
@@ -99,10 +104,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       instructionStep match {
         case NormalInstructionStep(newPs, _) =>
           ExecutionState(ep, newPs)(tc, Some(updatedTraceNode))
-        case GuardFailed(rp) =>
+        case GuardFailed(rp, guardID) =>
           Logger.log(s"Guard $traceHead failed", Logger.D)
-          val psRestarted = ps.restart(sem, rp)
-          ExecutionState(NI, psRestarted)(tc, None)
+          handleGuardFailure(rp, guardID)
         case TraceEnded(rp) =>
           Logger.log("Non-looping trace finished executing", Logger.D)
           val psRestarted = ps.restart(sem, rp)
@@ -121,50 +125,50 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       ExecutionState(ep, newState)(traceAppendedTc, tn)
     }
 
-    def canStartLoopEncounteredRegular(newState: PS, trace: TraceWithoutStates, label: Label[Exp]): ExecutionState = {
-      Logger.log(s"Regular phase: CanStartLoop encountered with label $label", Logger.D)
-      val newTc = tracerContext.incLabelCounter(tc, label)
-      val labelCounter = tracerContext.getLabelCounter(newTc, label)
+    def canStartLoopEncounteredRegular(newState: PS, trace: TraceWithoutStates, loopID: List[Exp]): ExecutionState = {
+      Logger.log(s"Regular phase: CanStartLoop encountered for loop $loopID", Logger.D)
+      val newTc = tracerContext.incLabelCounter(tc, loopID)
+      val labelCounter = tracerContext.getLabelCounter(newTc, loopID)
       Logger.log(s"Regular phase: labelcounter equals $labelCounter", Logger.D)
-      if (tracerContext.traceExists(newTc, label)) {
-        if (checkTraceAssertions(newState, newTc, label)) {
-          startExecutingTrace(newState, newTc, label)
+      if (tracerContext.loopTraceExists(newTc, loopID)) {
+        if (checkTraceAssertions(newState, newTc, loopID)) {
+          startExecutingTrace(newState, newTc, loopID)
         } else {
           ExecutionState(NI, newState)(newTc, tn)
         }
       } else if (tracerFlags.DO_TRACING && labelCounter >= tracerFlags.TRACING_THRESHOLD) {
-        Logger.log(s"Started tracing $label", Logger.I)
+        Logger.log(s"Started tracing $loopID", Logger.I)
         val someBoundVariables = trace.find(_.isInstanceOf[ActionStepInT[Exp, HybridValue, HybridAddress]]).flatMap({
           case ActionStepInT(_, _, args, _, _, _, _, _) => Some(args)
           case _ => None /* Should not happen */
         })
-        val tcTRStarted = tracerContext.startTracingLabel(newTc, label, someBoundVariables.getOrElse(List[String]()), newState)
+        val tcTRStarted = tracerContext.startTracingLoop(newTc, loopID, someBoundVariables.getOrElse(List[String]()), newState)
         ExecutionState(TR, newState)(tcTRStarted, tn)
       } else {
         ExecutionState(NI, newState)(newTc, tn)
       }
     }
 
-    def canStartLoopEncounteredTracing(state: PS, trace: TraceWithoutStates, label: Label[Exp]): ExecutionState = {
-      Logger.log(s"Tracing phase: CanStartLoop encountered with label $label", Logger.D)
+    def canStartLoopEncounteredTracing(state: PS, trace: TraceWithoutStates, loopID: List[Exp]): ExecutionState = {
+      Logger.log(s"Tracing phase: CanStartLoop encountered of loop $loopID", Logger.D)
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       val traceAppendedTc = tracerContext.appendTrace(tc, traceWithStates)
-      if (tracerContext.isTracingLabel(traceAppendedTc, label)) {
-        Logger.log(s"Stopped tracing $label; LOOP DETECTED", Logger.I)
+      if (tracerContext.isTracingLoop(traceAppendedTc, loopID)) {
+        Logger.log(s"Stopped tracing $loopID; LOOP DETECTED", Logger.I)
         numberOfTracesRecorded += 1
         val analysisOutput = findAnalysisOutput(newState)
         val tcTRStopped = tracerContext.stopTracing(traceAppendedTc, true, None, analysisOutput)
-        startExecutingTrace(newState, tcTRStopped, label)
+        startExecutingTrace(newState, tcTRStopped, loopID)
       } else {
         ExecutionState(ep, newState)(traceAppendedTc, tn)
       }
     }
 
     def canEndLoopEncounteredTracing(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress]],
-                                     restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], label: Label[Exp]): ExecutionState = {
+                                     restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], loopID: List[Exp]): ExecutionState = {
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
-      if (tracerContext.isTracingLabel(tc, label)) {
-        Logger.log(s"Stopped tracing $label; NO LOOP DETECTED", Logger.I)
+      if (tracerContext.isTracingLoop(tc, loopID)) {
+        Logger.log(s"Stopped tracing $loopID; NO LOOP DETECTED", Logger.I)
         numberOfTracesRecorded += 1
         val traceEndedInstruction = sem.endTraceInstruction(restartPoint)
         val analysisOutput = findAnalysisOutput(newState)
@@ -178,12 +182,12 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
     def handleSignalRegular(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress]], signal: TracingSignal[Exp, HybridValue, HybridAddress]): ExecutionState = signal match {
       case TracingSignalEnd(_, _) => continueWithProgramState(state, trace)
-      case TracingSignalStart(label) => canStartLoopEncounteredRegular(applyTrace(state, trace), trace, NormalLabel[Exp](label))
+      case TracingSignalStart(loopID) => canStartLoopEncounteredRegular(applyTrace(state, trace), trace, loopID)
     }
 
     def handleSignalTracing(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress]], signal: TracingSignal[Exp, HybridValue, HybridAddress]): ExecutionState = signal match {
-      case TracingSignalEnd(label, restartPoint) => canEndLoopEncounteredTracing(state, trace, restartPoint, NormalLabel[Exp](label))
-      case TracingSignalStart(label) => canStartLoopEncounteredTracing(state, trace, NormalLabel[Exp](label))
+      case TracingSignalEnd(loopID, restartPoint) => canEndLoopEncounteredTracing(state, trace, restartPoint, loopID)
+      case TracingSignalStart(loopID) => canStartLoopEncounteredTracing(state, trace, loopID)
     }
 
     def handleResponseRegular(response: Step[Exp, HybridValue, HybridAddress]): ExecutionState = response match {

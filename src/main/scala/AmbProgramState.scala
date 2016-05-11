@@ -24,7 +24,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
     InstructionStep[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]] = normalState.applyAction(sem, action) match {
     case NormalInstructionStep(state, action) =>
       NormalInstructionStep(AmbProgramState(state, failStack), action)
-    case GuardFailed(rp) => GuardFailed[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]](rp)
+    case GuardFailed(rp, guardID) => GuardFailed[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]](rp, guardID)
     case TraceEnded(rp) => TraceEnded[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]](rp)
   }
 
@@ -44,7 +44,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
       case NormalInstructionStep(state, action) =>
         val failureFrames = failActions.map({ action => UndoActionFrame(action) })
         NormalInstructionStep(AmbProgramState(state, failureFrames ++ failStack), action)
-      case GuardFailed(rp) => GuardFailed[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]](rp)
+      case GuardFailed(rp, guardID) => GuardFailed[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]](rp, guardID)
       case TraceEnded(rp) => TraceEnded[Exp, HybridValue, HybridAddress, Time, AmbProgramState[Exp, Time]](rp)
     }
   }

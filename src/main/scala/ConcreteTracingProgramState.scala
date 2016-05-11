@@ -5,13 +5,16 @@ trait InstructionStep[Exp, Abs, Addr, Time, +State] {
     throw new Exception(s"Unexpected result: $this does not have a resulting state")
 }
 case class NormalInstructionStep[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp, State <: ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
- (newState: State, action: Action[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time, State] {
+  (newState: State, action: Action[Exp, Abs, Addr])
+  extends InstructionStep[Exp, Abs, Addr, Time, State] {
   override def getState: State = newState
 }
 case class GuardFailed[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp, State]
-(rp: RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time, State]
+  (rp: RestartPoint[Exp, Abs, Addr], guardID: Integer)
+  extends InstructionStep[Exp, Abs, Addr, Time, State]
 case class TraceEnded[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp, State]
-(rp: RestartPoint[Exp, Abs, Addr]) extends InstructionStep[Exp, Abs, Addr, Time, State]
+  (rp: RestartPoint[Exp, Abs, Addr])
+  extends InstructionStep[Exp, Abs, Addr, Time, State]
 
 case class IncorrectStackSizeException() extends Exception
 case class VariableNotFoundException(variable: String) extends Exception(variable)
@@ -249,7 +252,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       if (guardCheckFunction(v)) {
         NormalInstructionStep(this, guard)
       } else {
-        GuardFailed(guard.rp)
+        GuardFailed(guard.rp, guard.id)
       }
     }
 
@@ -260,7 +263,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
             NormalInstructionStep(this, guard)
           } else {
             Logger.log(s"Closure guard failed: recorded closure $lam1 does not match current closure $lam2", Logger.D)
-            GuardFailed(guard.rp)
+            GuardFailed(guard.rp, guard.id)
           }
         case (HybridLattice.Right(_), HybridLattice.Right(_)) =>
           NormalInstructionStep(this, guard)
@@ -274,7 +277,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         NormalInstructionStep(this, guard)
       } else {
         Logger.log(s"Primitive guard failed: recorded primitive ${guard.recordedPrimitive} does not match current primitive $currentPrimitive", Logger.D)
-        GuardFailed(guard.rp)
+        GuardFailed(guard.rp, guard.id)
       }
     }
 
@@ -348,7 +351,9 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         if (currentOperandsTypes == expectedType) {
           NormalInstructionStep(applyPrimitive(prim, n, fExp, argsExps), action)
         } else {
-          GuardFailed(RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps))
+          /* Generate a new guardID because no guardID has been generated for this action */
+          val guardID = GuardIDCounter.incCounter()
+          GuardFailed(RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps), guardID)
         }
       case ActionStartFunCallT() =>
         NormalInstructionStep(this, action)
