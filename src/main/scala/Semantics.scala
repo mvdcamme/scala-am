@@ -76,8 +76,8 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
   protected def interpreterReturn(actions: List[Action[Exp, Abs, Addr]]): Step[Exp, Abs, Addr] =
     new Step(actions, new TracingSignalFalse)
 
-  protected def interpreterReturnStart(action: Action[Exp, Abs, Addr], label: List[Exp]): Step[Exp, Abs, Addr] =
-    new Step(List(action), new TracingSignalStart(label))
+  protected def interpreterReturnStart(actions: List[Action[Exp, Abs, Addr]], label: List[Exp]): Step[Exp, Abs, Addr] =
+    new Step(actions, new TracingSignalStart(label))
 
   /**
     * Defines what actions should be taken when an expression e needs to be

@@ -25,7 +25,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   case class FrameCaseT(clauses: List[(List[SchemeValue], List[SchemeExp])], default: List[SchemeExp]) extends SchemeFrameT
   case class FrameCasOldT(variable: String, enew: SchemeExp, ρ: Environment[Addr]) extends SchemeFrameT
   case class FrameCasNewT(variable: String, old: Abs, ρ: Environment[Addr]) extends SchemeFrameT
-  case class FrameDefineT(variable: String, ρ: Environment[Addr]) extends SchemeFrameT
+  case class FrameDefineT(variable: String) extends SchemeFrameT
   case class FrameFunBodyT(body: List[SchemeExp], rest: List[SchemeExp]) extends SchemeFrameT
   case class FrameFuncallOperandsT(f: Abs, fexp: SchemeExp, cur: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp]) extends SchemeFrameT
   case class FrameFuncallOperatorT(fexp: SchemeExp, args: List[SchemeExp]) extends SchemeFrameT
@@ -34,8 +34,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   case class FrameLetrecT(variable: String, bindings: List[(String, SchemeExp)], body: List[SchemeExp]) extends SchemeFrameT
   case class FrameLetStarT(variable: String, bindings: List[(String, SchemeExp)], body: List[SchemeExp]) extends SchemeFrameT
   case class FrameSetT(variable: String) extends SchemeFrameT
-  case class FrameWhileBodyT(condition: SchemeExp, body: List[SchemeExp], exps: List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrameT
-  case class FrameWhileConditionT(condition: SchemeExp, body: List[SchemeExp], ρ: Environment[Addr]) extends SchemeFrameT
+  case class FrameWhileBodyT(condition: SchemeExp, body: List[SchemeExp], exps: List[SchemeExp]) extends SchemeFrameT
+  case class FrameWhileConditionT(condition: SchemeExp, body: List[SchemeExp]) extends SchemeFrameT
   object FrameHaltT extends SchemeFrameT {
     override def toString() = "FHalt"
   }
@@ -45,7 +45,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case FrameCaseT(clauses, default) => FrameCaseT(clauses, default)
     case FrameCasOldT(variable, enew, ρ) => FrameCasOldT(variable, enew, ρ.map(convertAddress))
     case FrameCasNewT(variable, old, ρ) => FrameCasNewT(variable, convertValue(old), ρ.map(convertAddress))
-    case FrameDefineT(variable, ρ) => FrameDefineT(variable, ρ.map(convertAddress))
+    case FrameDefineT(variable) => FrameDefineT(variable)
     case FrameFunBodyT(body, toeval) => FrameFunBodyT(body, toeval)
     case FrameFuncallOperandsT(f, fexp, cur, args, toeval) => FrameFuncallOperandsT(convertValue(f), fexp, cur, args.map({ tuple => (tuple._1, convertValue(tuple._2))}), toeval)
     case FrameFuncallOperatorT(fexp, args) => FrameFuncallOperatorT(fexp, args)
@@ -54,8 +54,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case FrameLetrecT(variable, bindings, body) => FrameLetrecT(variable, bindings, body)
     case FrameLetStarT(variable, bindings, body) => FrameLetStarT(variable, bindings, body)
     case FrameSetT(variable) => FrameSetT(variable)
-    case FrameWhileBodyT(condition, body, exps, ρ) => FrameWhileBodyT(condition, body, exps, ρ.map(convertAddress))
-    case FrameWhileConditionT(condition, body, ρ) => FrameWhileConditionT(condition, body, ρ.map(convertAddress))
+    case FrameWhileBodyT(condition, body, exps) => FrameWhileBodyT(condition, body, exps)
+    case FrameWhileConditionT(condition, body) => FrameWhileConditionT(condition, body)
   }
 
   private def popEnvFromVStack(generateFrameFun: Environment[Addr] => Frame, vStack: List[Storable[Abs, Addr]]):
@@ -80,6 +80,15 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
                                  vStack: List[Storable[Abs, Addr]]):
   (Frame, List[Storable[Abs, Addr]], Environment[Addr]) = frame match {
       case FrameBeginT(rest) => popEnvFromVStack(absSem.FrameBegin(rest, _), vStack)
+      case FrameCaseT(clauses, default) => popEnvFromVStack(absSem.FrameCase(clauses, default, _), vStack)
+      case FrameCasOldT(variable, enew, ρ2) =>
+        (absSem.FrameCasOld(variable, enew, ρ2), vStack, ρ)
+      case FrameCasNewT(variable, old, ρ2) =>
+        (absSem.FrameCasNew(variable, old, ρ2), vStack, ρ)
+      case FrameDefineT(variable) =>
+        /* A FrameDefineT is not handled by these semantics:
+         * neither the vStack nor the environment therefore have to be updated */
+        (absSem.FrameDefine(variable, ρ), vStack, ρ)
       case FrameFunBodyT(body, toeval) => popEnvFromVStack(absSem.FrameBegin(toeval, _), vStack)
       case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
         val n = args.length + 1 /* We have to add 1 because the operator has also been pushed onto the vstack */
@@ -92,10 +101,9 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       case FrameIfT(cons, alt) => popEnvFromVStack(absSem.FrameIf(cons, alt, _), vStack)
       case FrameLetT(variable, bindings, toeval, body) =>
         /* When pushing a FrameLetT continuation on the continuation stack, we possibly push a value on the value stack,
-        in case we have just evaluated an expression for the let-bindings, and we always push an environment.
-        The stack should therefore have an environment at the top, followed by n values where n is the number of bindings
-        already evaluated (which equals bindings.length).
-        */
+         * in case we have just evaluated an expression for the let-bindings, and we always push an environment.
+         * The stack should therefore have an environment at the top, followed by n values where n is the number of bindings
+         * already evaluated (which equals bindings.length). */
         val n = bindings.length
         val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
           val newBindings = bindings.map(_._1).zip(values)
@@ -112,6 +120,10 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
          * There are therefore never any values for the let* bindings on the value stack. */
         popEnvFromVStack(absSem.FrameLetStar(variable, bindings, body, _), vStack)
       case FrameSetT(variable) => popEnvFromVStack(absSem.FrameSet(variable, _), vStack)
+      case FrameWhileBodyT(condition, body, exps) =>
+        popEnvFromVStack(absSem.FrameWhileBody(condition, body, exps, _), vStack)
+      case FrameWhileConditionT(condition, body) =>
+        popEnvFromVStack(absSem.FrameWhileCondition(condition, body, _), vStack)
     }
 
   /**
@@ -233,9 +245,9 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       case None => Set(interpreterReturn(List(ActionErrorT(s"Unbound variable: $variable"))))
     }
     case SchemeBegin(body) => Set(interpreterReturn(evalBody(body, FrameBeginT)))
-    case SchemeCase(key, clauses, default) => Set(interpreterReturn(List(ActionEvalPushT(key, FrameCaseT(clauses, default)))))
+    case SchemeCase(key, clauses, default) => Set(interpreterReturn(List(actionSaveEnv, ActionEvalPushT(key, FrameCaseT(clauses, default)))))
     case SchemeCas(variable, eold, enew) => Set(interpreterReturn(List(ActionEvalPushT(eold, FrameCasOldT(variable, enew, ρ)))))
-    case SchemeDefineVariable(name, exp) => Set(interpreterReturn(List(ActionEvalPushT(exp, FrameDefineT(name, ρ)))))
+    case SchemeDefineVariable(name, exp) => Set(interpreterReturn(List(ActionEvalPushT(exp, FrameDefineT(name)))))
     case SchemeDefineFunction(name, args, body) => {
       /*
        * TODO switch to extended environment
@@ -275,13 +287,14 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       case Some(v) => Set(interpreterReturn(List(ActionReachedValueT(v), actionPopKont)))
       case None => Set(interpreterReturn(List(ActionErrorT(s"Unhandled value: $v"))))
     }
-    case SchemeWhile(condition, body) => Set(interpreterReturn(List(ActionEvalPushT(condition, FrameWhileConditionT(condition, body, ρ)))))
+    case SchemeWhile(condition, body) => Set(interpreterReturn(List(actionSaveEnv, ActionEvalPushT(condition, FrameWhileConditionT(condition, body)))))
   }
 
-  protected def evalWhileBody(condition: SchemeExp, body: List[SchemeExp], exps: List[SchemeExp], ρ: Environment[Addr], σ: Store[Addr, Abs]): Action[SchemeExp, Abs, Addr] = exps match {
-    case Nil => ActionEvalPushT(condition, FrameWhileConditionT(condition, body, ρ))
-    case List(exp) => ActionEvalPushT(exp, FrameWhileBodyT(condition, body, Nil, ρ))
-    case exp :: rest => ActionEvalPushT(exp, FrameWhileBodyT(condition, body, rest, ρ))
+  protected def evalWhileBody(condition: SchemeExp, body: List[SchemeExp], exps: List[SchemeExp]):
+    List[Action[SchemeExp, Abs, Addr]] = exps match {
+    case Nil => List(actionSaveEnv, ActionEvalPushT(condition, FrameWhileConditionT(condition, body)))
+    case List(exp) => List(actionSaveEnv, ActionEvalPushT(exp, FrameWhileBodyT(condition, body, Nil)))
+    case exp :: rest => List(actionSaveEnv, ActionEvalPushT(exp, FrameWhileBodyT(condition, body, rest)))
   }
 
   def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] = frame match {
@@ -296,7 +309,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
         /* TODO: precision could be improved by restricting v to v2 */
           Set[Step[SchemeExp, Abs, Addr]](interpreterReturn(List[Action[SchemeExp, Abs, Addr]](actionRestoreEnv) ++ evalBody(body, FrameBeginT)))
         else
-          Set[Step[SchemeExp, Abs, Addr]]()
+          Set[Step[SchemeExp, Abs, Addr]](interpreterReturn(List(actionRestoreEnv)))
       })
       /* TODO: precision could be improved in cases where we know that default is not
        * reachable */
@@ -313,7 +326,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
           List(ActionReachedValueT(abs.inject(false)), actionPopKont))
         case None => Set(interpreterReturn(List(ActionErrorT(s"Unbound variable: $variable"))))
       }
-    case FrameDefineT(name, ρ) => throw new Exception(s"TODO: define not handled (no global environment)")
+    case FrameDefineT(name) => throw new Exception(s"TODO: define not handled (no global environment)")
     case FrameHaltT => Set()
     case FrameFunBodyT(body, Nil) => Set(Step(List(actionRestoreEnv, actionPopKont), TracingSignalEnd(body, RestartTraceEnded())))
     case FrameFunBodyT(body, toeval) => Set(interpreterReturn(actionRestoreEnv :: evalBody(toeval, FrameFunBodyT(body, _))))
@@ -352,10 +365,10 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       }
     case FrameSetT(name) =>
       Set(Step(List(actionRestoreEnv, ActionSetVarT(name), ActionReachedValueT(abs.inject(false), Set[Addr](), Set[Addr]()), actionPopKont), new TracingSignalFalse)) /* writes on a */
-    case FrameWhileBodyT(condition, body, exps, ρ) => Set(interpreterReturn(List(evalWhileBody(condition, body, exps, ρ, σ))))
-    case FrameWhileConditionT(condition, body, ρ) =>
-      (if (abs.isTrue(v)) Set[Step[SchemeExp, Abs, Addr]](interpreterReturnStart(evalWhileBody(condition, body, body, ρ, σ), body)) else Set[Step[SchemeExp, Abs, Addr]]()) ++
-        (if (abs.isFalse(v)) Set[Step[SchemeExp, Abs, Addr]](interpreterReturn(List(ActionReachedValueT(abs.inject(false)), actionPopKont))) else Set[Step[SchemeExp, Abs, Addr]]())
+    case FrameWhileBodyT(condition, body, exps) => Set(interpreterReturn(actionRestoreEnv :: evalWhileBody(condition, body, exps)))
+    case FrameWhileConditionT(condition, body) =>
+      (if (abs.isTrue(v)) Set[Step[SchemeExp, Abs, Addr]](interpreterReturnStart(actionRestoreEnv :: evalWhileBody(condition, body, body), body)) else Set[Step[SchemeExp, Abs, Addr]]()) ++
+        (if (abs.isFalse(v)) Set[Step[SchemeExp, Abs, Addr]](interpreterReturn(List(actionRestoreEnv, ActionReachedValueT(abs.inject(false)), actionPopKont))) else Set[Step[SchemeExp, Abs, Addr]]())
   }
 
   def parse(program: String): SchemeExp = Scheme.parse(program)
