@@ -58,23 +58,25 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   }
 
   private def popEnvFromStack(generateFrameFun: Environment[Addr] => Frame, vStack: List[Storable[Abs, Addr]]):
-    Option[(Frame, List[Storable[Abs, Addr]])] =
-    Some((generateFrameFun(vStack.head.getEnv), vStack.tail))
+    Option[(Frame, List[Storable[Abs, Addr]], Environment[Addr])] = {
+    val ρ = vStack.head.getEnv
+    Some((generateFrameFun(ρ), vStack.tail, ρ))
+  }
 
   def newConvertFrame(frame: Frame,
                       newSem: Semantics[SchemeExp, Abs, Addr, Time],
                       ρ: Environment[Addr],
-                      vStack: List[Storable[Abs, Addr]]): Option[(Frame, List[Storable[Abs, Addr]])] = newSem match {
+                      vStack: List[Storable[Abs, Addr]]): Option[(Frame, List[Storable[Abs, Addr]], Environment[Addr])] = newSem match {
     case newSem : SchemeSemantics[Abs, Addr, Time] => frame match {
       case FrameBeginT(rest) => popEnvFromStack(newSem.FrameBegin(rest, _), vStack)
       case FrameFunBodyT(body, toeval) => popEnvFromStack(newSem.FrameBegin(toeval, _), vStack)
       case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
-        val topEnv = vStack.head.getEnv
+        val ρ = vStack.head.getEnv
         val remainingVStack = vStack.tail
         val n = args.length + 1 /* We have to add 1 because the operator has also been pushed onto the vstack */
         val (argsValues, remainingVStack2) = remainingVStack.splitAt(n)
         val newArgs = args.map(_._1).zip(argsValues.map(_.getVal))
-        Some((newSem.FrameFuncallOperands(f.asInstanceOf[Abs], fexp, cur, newArgs, toeval, topEnv), remainingVStack2))
+        Some((newSem.FrameFuncallOperands(f.asInstanceOf[Abs], fexp, cur, newArgs, toeval, ρ), remainingVStack2, ρ))
       case FrameFuncallOperatorT(fexp, args) => popEnvFromStack(newSem.FrameFuncallOperator(fexp, args, _), vStack.tail)
       case FrameIfT(cons, alt) => popEnvFromStack(newSem.FrameIf(cons, alt, _), vStack.tail)
       case FrameLetT(variable, bindings, toeval, body) =>
@@ -83,12 +85,12 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
         The stack should therefore have an environment at the top, followed by n values where n is the number of bindings
         already evaluated (which equals bindings.length).
         */
-        val topEnv = vStack.head.getEnv
+        val ρ = vStack.head.getEnv
         val remainingVStack = vStack.tail
         val n = bindings.length
         val (bindingValues, remainingVStack2) = remainingVStack.splitAt(n)
         val newBindings = bindings.map(_._1).zip(bindingValues.map(_.getVal))
-        Some((newSem.FrameLet(variable, newBindings, toeval, body, topEnv), remainingVStack2))
+        Some((newSem.FrameLet(variable, newBindings, toeval, body, ρ), remainingVStack2, ρ))
       case FrameLetrecT(variable, bindings, body) =>
         val addr = ρ.lookup(variable).get
         val updatedBindings = bindings.map({ case (variable, exp) => (ρ.lookup(variable).get, exp) })
@@ -107,17 +109,17 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
                        ρ: Environment[Addr],
                        a: KontAddr,
                        vStack: List[Storable[Abs, Addr]]): KontStore[KontAddr] = {
-    def loop(newKontStore: KontStore[KontAddr], a: KontAddr, vStack: List[Storable[Abs, Addr]]): KontStore[KontAddr] = a match {
+    def loop(newKontStore: KontStore[KontAddr], a: KontAddr, vStack: List[Storable[Abs, Addr]], ρ: Environment[Addr]): KontStore[KontAddr] = a match {
       case HaltKontAddress => newKontStore
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
         val someNewFrame = newConvertFrame(frame, newSem, ρ, vStack)
-        val (updatedNewKontStore, updatedNewVStack) = someNewFrame.fold((newKontStore, vStack))({
-          case (convertedFrame, newVStack) => (newKontStore.extend(a, Kont(convertedFrame, next)), newVStack)
+        val (updatedNewKontStore, updatedNewVStack, updatedNewρ) = someNewFrame.fold((newKontStore, vStack, ρ))({
+          case (convertedFrame, newVStack, updatedρ) => (newKontStore.extend(a, Kont(convertedFrame, next)), newVStack, updatedρ)
         })
-        loop(updatedNewKontStore, next, updatedNewVStack)
+        loop(updatedNewKontStore, next, updatedNewVStack, updatedNewρ)
     }
-    loop(new KontStore[KontAddr](), a, vStack)
+    loop(new KontStore[KontAddr](), a, vStack, ρ)
   }
 
   /**
