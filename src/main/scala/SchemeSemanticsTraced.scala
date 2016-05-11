@@ -75,9 +75,10 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     (frame, remainingVStack2, ρ)
   }
 
-  def newConvertFrame(frame: Frame,
-                      ρ: Environment[Addr],
-                      vStack: List[Storable[Abs, Addr]]): (Frame, List[Storable[Abs, Addr]], Environment[Addr]) = frame match {
+  def convertToAbsSemanticsFrame(frame: Frame,
+                                 ρ: Environment[Addr],
+                                 vStack: List[Storable[Abs, Addr]]):
+  (Frame, List[Storable[Abs, Addr]], Environment[Addr]) = frame match {
       case FrameBeginT(rest) => popEnvFromVStack(absSem.FrameBegin(rest, _), vStack)
       case FrameFunBodyT(body, toeval) => popEnvFromVStack(absSem.FrameBegin(toeval, _), vStack)
       case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
@@ -112,21 +113,6 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
         popEnvFromVStack(absSem.FrameLetStar(variable, bindings, body, _), vStack)
       case FrameSetT(variable) => popEnvFromVStack(absSem.FrameSet(variable, _), vStack)
     }
-
-  def newConvertKStore(kontStore: KontStore[KontAddr],
-                       ρ: Environment[Addr],
-                       a: KontAddr,
-                       vStack: List[Storable[Abs, Addr]]): KontStore[KontAddr] = {
-    def loop(newKontStore: KontStore[KontAddr], a: KontAddr, vStack: List[Storable[Abs, Addr]], ρ: Environment[Addr]): KontStore[KontAddr] = a match {
-      case HaltKontAddress => newKontStore
-      case _ =>
-        val Kont(frame, next) = kontStore.lookup(a).head
-        val (convertedFrame, newVStack, newρ) = newConvertFrame(frame, ρ, vStack)
-        val extendedNewKontStore = newKontStore.extend(a, Kont(convertedFrame, next))
-        loop(extendedNewKontStore, next, newVStack, newρ)
-    }
-    loop(new KontStore[KontAddr](), a, vStack, ρ)
-  }
 
   /**
     * @param frameGen A function that generates the next frame to push, given the non-evaluated expressions of the body

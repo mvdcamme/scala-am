@@ -95,10 +95,10 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
 
   def absSem: Semantics[Exp, Abs, Addr, Time]
 
-  def newConvertKStore(kontStore: KontStore[KontAddr],
-                       ρ: Environment[Addr],
-                       a: KontAddr,
-                       vStack: List[Storable[Abs, Addr]]): KontStore[KontAddr]
+  def convertToAbsSemanticsFrame(frame: Frame,
+                                 ρ: Environment[Addr],
+                                 vStack: List[Storable[Abs, Addr]]):
+    (Frame, List[Storable[Abs, Addr]], Environment[Addr])
 }
 
 /**
