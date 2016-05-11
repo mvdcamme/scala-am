@@ -152,7 +152,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         assertionsValid
       } else {
         assertion match {
-          case ActionGuardAssertFreeVariable(variableName, expectedValue, _) =>
+          case ActionGuardAssertFreeVariable(variableName, expectedValue, _, _) =>
             ρ.lookup(variableName) match {
               case Some(address) =>
                 val currentValue = σ.lookup(address)
