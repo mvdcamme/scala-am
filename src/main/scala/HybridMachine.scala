@@ -92,31 +92,34 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
 
     private def handleGuardFailure(rp: RestartPoint[Exp, HybridValue, HybridAddress], guardID: Integer, loopID: List[Exp]): ExecutionState = {
-      def resumeNormalInterpretation(): ExecutionState = {
-        val psRestarted = ps.restart(sem, rp)
+      def restartPs(): PS = {
+        ps.restart(sem, rp)
+      }
+      def resumeNormalInterpretation(psRestarted: PS): ExecutionState = {
         ExecutionState(NI, psRestarted)(tc, None)
       }
       if (tracerContext.guardTraceExists(tc, guardID)) {
         /* Guard trace exists: check assertions and then either execute the trace
          * or just go back to normal interpretation */
+        val psRestarted = restartPs()
         Logger.log(s"Trace for guard $guardID already exists; EXECUTING GUARD TRACE", Logger.E)
         val traceNode = tracerContext.getGuardTrace(tc, guardID)
         val assertions = traceNode.trace.assertions
-        if (ps.runAssertions(assertions)) {
+        if (psRestarted.runAssertions(assertions)) {
           /* Assertions are still valid -> execute the trace */
-          ExecutionState(TE, ps)(tc, Some(traceNode))
+          ExecutionState(TE, psRestarted)(tc, Some(traceNode))
         } else {
           /* Assertions are no longer valid -> just resume normal interpretation */
-          resumeNormalInterpretation()
+          resumeNormalInterpretation(psRestarted)
         }
       } else if (tracingFlags.DO_TRACING && tracingFlags.DO_GUARD_TRACING) {
         Logger.log(s"Started tracing guard $guardID", Logger.E)
-        val psRestarted = ps.restart(sem, rp)
+        val psRestarted = restartPs()
         val tcTRStarted = tracerContext.startTracingGuard(tc, loopID, guardID, List[String](), psRestarted)
         ExecutionState(TR, psRestarted)(tcTRStarted, tn)
       } else {
         /* Guard trace does not exist yet: start tracing it */
-        resumeNormalInterpretation()
+        resumeNormalInterpretation(restartPs())
       }
     }
 
