@@ -102,7 +102,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
         /* Guard trace exists: check assertions and then either execute the trace
          * or just go back to normal interpretation */
         val psRestarted = restartPs()
-        Logger.log(s"Trace for guard $guardID already exists; EXECUTING GUARD TRACE", Logger.E)
+        Logger.log(s"Trace for guard $guardID already exists; EXECUTING GUARD TRACE", Logger.D)
         val traceNode = tracerContext.getGuardTrace(tc, guardID)
         val assertions = traceNode.trace.assertions
         if (psRestarted.runAssertions(assertions)) {
@@ -113,7 +113,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
           resumeNormalInterpretation(psRestarted)
         }
       } else if (tracingFlags.DO_TRACING && tracingFlags.DO_GUARD_TRACING) {
-        Logger.log(s"Started tracing guard $guardID", Logger.E)
+        Logger.log(s"Started tracing guard $guardID", Logger.I)
         val psRestarted = restartPs()
         val tcTRStarted = tracerContext.startTracingGuard(tc, loopID, guardID, List[String](), psRestarted)
         ExecutionState(TR, psRestarted)(tcTRStarted, tn)
