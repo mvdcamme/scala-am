@@ -19,7 +19,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   val APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
   val APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
   val APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
-  val APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
+  val APPLY_OPTIMIZATION_VARIABLE_FOLDING = false
   val APPLY_OPTIMIZATION_MERGE_ACTIONS = true
 
   val basicOptimizations: List[(Boolean, (TraceFull => TraceFull))] =
@@ -439,7 +439,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                            STATIC ANALYSIS OPTIMIZATION                                           *
    *********************************************************************************************************************/
 
-  type AnalysisOutput = HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#APS, HybridMachine[Exp, Time]#TraceWithoutStates]
+  type AnalysisOutput = HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#PS, HybridMachine[Exp, Time]#TraceWithoutStates]
 
   val APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS = false
   val APPLY_OPTIMIZATION_DEAD_STORE_ELIMINATION = false

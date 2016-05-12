@@ -173,24 +173,23 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def doActionStepInTraced(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
-                           action: Action[Exp, HybridValue, HybridAddress]): Set[ProgramState[Exp, Time]] = action match {
+    action: Action[Exp, HybridValue, HybridAddress]): ProgramState[Exp, Time] = action match {
     case ActionStepInT(fexp, _, _, argsv, n, frame, _, _) =>
       val (vals, newVStack) = popStackItems(vStack, n)
       val clo = vals.last.getVal
-        val updatedEnvAndStores = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.getVal)), σ, t) //(ρ2, σ2, e)
-        updatedEnvAndStores.map({ (tuple) => tuple match {
-          case Some((ρ2, σ2, e)) =>
-            val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
-            ProgramState[Exp, Time](TracingControlEval[Exp, HybridValue, HybridAddress](e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, StoreEnv[HybridValue, HybridAddress](ρ) :: newVStack)
-          case None =>
-            ProgramState(TracingControlError(s"Arity error when calling $fexp. got ${n - 1})"), ρ, σ, kstore, a, t, v, newVStack)
-        }
-        })
+      val updatedEnvAndStores = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.getVal)), σ, t).head
+      updatedEnvAndStores match {
+        case Some((ρ2, σ2, e)) =>
+          val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
+          ProgramState[Exp, Time](TracingControlEval[Exp, HybridValue, HybridAddress](e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, StoreEnv[HybridValue, HybridAddress](ρ) :: newVStack)
+        case None =>
+          ProgramState(TracingControlError(s"Arity error when calling $fexp. got ${n - 1})"), ρ, σ, kstore, a, t, v, newVStack)
+      }
   }
 
   def handleClosureRestart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
                            action: Action[Exp, HybridValue, HybridAddress]): ProgramState[Exp, Time] =
-    doActionStepInTraced(sem, action).head
+    doActionStepInTraced(sem, action)
 
   def applyPrimitive(operator: HybridValue, n: Integer, fExp: Exp, argsExps: List[Exp]): ProgramState[Exp, Time] = {
     val (vals, newVStack) = popStackItems(vStack, n)
@@ -262,7 +261,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
           if (lam1 == lam2) {
             NormalInstructionStep(this, guard)
           } else {
-            Logger.log(s"Closure guard failed: recorded closure $lam1 does not match current closure $lam2", Logger.D)
+            Logger.log(s"Closure guard failed: recorded closure $lam1 does not match current closure $lam2", Logger.E)
             GuardFailed(guard.rp, guard.id)
           }
         case (HybridLattice.Right(_), HybridLattice.Right(_)) =>
@@ -359,7 +358,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         NormalInstructionStep(this, action)
       /* When a function is stepped in, we also go to an eval state */
       case ActionStepInT(fexp, e, args, argsv, n, frame, _, _) =>
-        NormalInstructionStep(doActionStepInTraced(sem, action).head, action)
+        NormalInstructionStep(doActionStepInTraced(sem, action), action)
       case action : ActionEndTrace[Exp, HybridValue, HybridAddress] =>
         TraceEnded(action.restartPoint)
       case action : ActionGuardFalseT[Exp, HybridValue, HybridAddress] =>

@@ -4,8 +4,8 @@ trap "exit" INT
 
 for threshold in {5,0,1}
 do 
-   for testFile in blur.scm count.scm cpstak.scm fib.scm eta.scm fact.scm gcipd.scm inc.scm kcfa2.scm kcfa3.scm loop2.scm mj09.scm mut-rec.scm rotate.scm sq.scm ack.scm collatz.scm widen.scm rsa.scm sat.scm nqueens.scm church.scm dderiv.scm
+   for testFile in blur.scm count.scm fib.scm eta.scm fact.scm gcipd.scm inc.scm kcfa2.scm kcfa3.scm loop2.scm mj09.scm mut-rec.scm rotate.scm sq.scm ack.scm collatz.scm widen.scm rsa.scm sat.scm nqueens.scm church.scm dderiv.scm
    do
-      echo "run -m Hybrid -c -l Concrete -f test/$testFile --tracing --threshold $threshold --optimized --switch" | sbt
+      echo "run -m Hybrid -c -l Concrete -f test/$testFile --tracing --threshold $threshold --optimized" | sbt
    done
 done

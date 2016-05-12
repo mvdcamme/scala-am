@@ -11,7 +11,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   type Trace = HybridMachine[Exp, Time]#TraceWithInfos
   type TraceFull = HybridMachine[Exp, Time]#TraceFull
 
-  type AnalysisOutput = HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#APS, HybridMachine[Exp, Time]#TraceWithoutStates]
+  type AnalysisOutput = HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#PS, HybridMachine[Exp, Time]#TraceWithoutStates]
 
   trait Label
 
@@ -100,14 +100,19 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
     case None => throw new Exception(s"Retrieving non-existing loop-trace (should not happen): $NormalLabel(loopID)")
   }
 
+  def getGuardTrace(tc: TracerContext, guardID: Integer): TraceNode = searchGuardTrace(tc, guardID) match {
+    case Some(traceNode) => traceNode
+    case None => throw new Exception(s"Retrieving non-existing guard-trace (should not happen): guardID = $guardID")
+  }
+
   def loopTraceExists(tc: TracerContext, loopID: List[Exp]): Boolean = searchLoopTrace(tc, loopID) match {
     case Some(traceNode) => true
     case None => false
   }
 
-  def guardTraceExists(tc: TracerContext, guardID: Integer): TraceNode = searchGuardTrace(tc, guardID) match {
-    case Some(traceNode) => traceNode
-    case None => throw new Exception(s"Retrieving non-existing guard-trace (should not happen): guardID = $guardID")
+  def guardTraceExists(tc: TracerContext, guardID: Integer): Boolean = searchGuardTrace(tc, guardID) match {
+    case Some(traceNode) => true
+    case None => false
   }
 
   /*
@@ -166,7 +171,7 @@ class TracerContext[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
   private def addTrace(tracerContext: TracerContext, someAnalysisOutput: Option[AnalysisOutput]): TracerContext = tracerContext match {
     case TracerContext(traceInfo, labelCounters, traceNodes, trace) =>
       val traceFull = hybridMachine.TraceFull(traceInfo.get.startState, List(), trace.reverse)
-      val optimizedTraceFull: TraceFull = if (hybridMachine.tracerFlags.APPLY_OPTIMIZATIONS) { traceOptimizer.optimize(traceFull, traceInfo.get.boundVariables, someAnalysisOutput) } else { traceFull }
+      val optimizedTraceFull: TraceFull = if (hybridMachine.tracingFlags.APPLY_OPTIMIZATIONS) { traceOptimizer.optimize(traceFull, traceInfo.get.boundVariables, someAnalysisOutput) } else { traceFull }
       new TracerContext(traceInfo, labelCounters, new TraceNode(traceInfo.get.label, optimizedTraceFull) :: traceNodes, trace)
   }
 
