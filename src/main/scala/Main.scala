@@ -93,6 +93,22 @@ object Config {
                     tracingFlags: TracingFlags = TracingFlags())
 
   val parser = new scopt.OptionParser[Config]("scala-am") {
+
+    def parseBool(boolString: String): Option[Boolean] = boolString match {
+      case "true" | "t" => Some(true)
+      case "false" | "f" => Some(false)
+      case _ => None
+    }
+
+    def readBoolStringForTraceFlag(config: Config,
+                                   boolString: String,
+                                   genTracingFlags: (Boolean) => TracingFlags): Config = {
+      val someBool = parseBool(boolString)
+      /* If no argument is passed, or if the argument could not be properly parsed,
+       * the default flag is used, i.e. we don't change config. */
+      someBool.fold(config)( bool => config.copy(tracingFlags = genTracingFlags(bool)) )
+    }
+
     head("scala-ac", "0.0")
     opt[Machine.Value]('m', "machine") action { (x, c) => c.copy(machine = x) } text("Abstract machine to use (AAM, AAC, Free, ConcurrentAAM, Hybrid)")
     opt[Lattice.Value]('l', "lattice") action { (x, c) => c.copy(lattice = x) } text("Lattice to use (Concrete, Type, TypeSet)")
@@ -101,10 +117,14 @@ object Config {
     opt[Unit]("anf") action { (_, c) => c.copy(anf = true) } text("Desugar program into ANF")
     // opt[(Int, Int)]("diff") action { (x, c) => c.copy(diff = Some(x)) } text("States to diff") /* TODO: take this into account */
     opt[String]('f', "file") action { (x, c) => c.copy(file = Some(x)) } text("File to read program from")
-    opt[Unit]("tracing") action { (_, c) => c.copy(tracingFlags = c.tracingFlags.copy(DO_TRACING = true)) } text("Record and execute traces")
+    opt[String]("tracing") action { (b, c) =>
+      readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(DO_TRACING = bool)) } text("Record and execute traces")
     opt[String]("threshold") action { (x, c) => c.copy(tracingFlags = c.tracingFlags.copy(TRACING_THRESHOLD = Integer.parseInt(x))) } text("The minimum threshold required to consider a loop hot")
-    opt[Unit]("optimized") action { (_, c) => c.copy(tracingFlags = c.tracingFlags.copy(APPLY_OPTIMIZATIONS = true)) } text("Apply (dynamic) optimizations")
-    opt[Unit]("switch") action { (_, c) => c.copy(tracingFlags = c.tracingFlags.copy(SWITCH_ABSTRACT = true)) } text("Switch to abstract (type) interpretation after recording a trace and use this abstract information to optimize traces.")
+
+    opt[String]("optimized") action { (b, c) =>
+      readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(APPLY_OPTIMIZATIONS = bool)) } text("Apply (dynamic) optimizations")
+    opt[String]("switch") action { (b, c) =>
+      readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(SWITCH_ABSTRACT = bool)) } text("Switch to abstract (type) interpretation after recording a trace and use this abstract information to optimize traces.")
     opt[Unit]("amb") action { (_, c) => c.copy(amb = true) } text("Execute ambiguous Scheme instead of normal Scheme")
   }
 }
