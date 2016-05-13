@@ -40,8 +40,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   def name = "HybridMachine"
 
-  val tracerContext: TracerContext[Exp, HybridValue, HybridAddress, Time] =
-    new TracerContext[Exp, HybridValue, HybridAddress, Time](sem, new TraceOptimizer[Exp, HybridValue, HybridAddress, Time](sem, this), this)
+  val tracerContext: Tracer[Exp, HybridValue, HybridAddress, Time] =
+    new Tracer[Exp, HybridValue, HybridAddress, Time](sem, new TraceOptimizer[Exp, HybridValue, HybridAddress, Time](sem, this), this)
 
   def applyTraceIntermediateResults(state: PS, trace: TraceWithoutStates): List[PS] = {
     trace.scanLeft(state)((currentState, action) => currentState.applyAction(sem, action) match {
@@ -77,7 +77,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   val TE = ExecutionPhase.TE
   val TR = ExecutionPhase.TR
 
-  case class ExecutionState(ep: ExecutionPhase.Value, ps: PS)(tc: tracerContext.TracerContext, tn: Option[tracerContext.TraceNode]) {
+  case class ExecutionState(ep: ExecutionPhase.Value, ps: PS)(tc: tracerContext.TracerContext, tn: Option[tracerContext.TraceNode[tracerContext.TraceFull]]) {
 
     def checkTraceAssertions(state: PS, tc: tracerContext.TracerContext, loopID: List[Exp]): Boolean = {
       val traceNode = tracerContext.getLoopTrace(tc, loopID)

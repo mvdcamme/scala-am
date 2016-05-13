@@ -201,7 +201,12 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
   protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] = toeval match {
     case Nil => evalCall(f, fexp, args.reverse, σ, t)
-    case e :: rest => Set(Step(List(actionRestoreEnv, actionPushVal, actionSaveEnv, ActionEvalPushT(e, FrameFuncallOperandsT(f, fexp, e, args, rest))), new TracingSignalFalse))
+    case e :: rest =>
+      val actions = List(actionRestoreEnv,
+                         actionPushVal,
+                         actionSaveEnv,
+                         ActionEvalPushT(e, FrameFuncallOperandsT(f, fexp, e, args, rest)))
+      Set(Step(actions, TracingSignalFalse()))
   }
   protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[SchemeExp], σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] =
     funcallArgs(f, fexp, List(), args, σ, t)
@@ -272,7 +277,6 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     }
     case SchemeLetStar(Nil, body) => Set(interpreterStep(evalBody(body, FrameBeginT)))
     case SchemeLetStar((v, exp) :: bindings, body) => Set(interpreterStep(List(actionSaveEnv, ActionEvalPushT(exp, FrameLetStarT(v, bindings, body)))))
-    case SchemeSet(variable, exp) => Set(interpreterStep(List(actionSaveEnv, ActionEvalPushT(exp, FrameSetT(variable)))))
     case SchemeQuoted(quoted) =>
       val (value, actions) = evalQuoted(quoted, t)
       Set(interpreterStep(actions :+ ActionReachedValueT[SchemeExp, Abs, Addr](value) :+ actionPopKont))
@@ -281,6 +285,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
                                                  ActionReachedValueT(abs.inject(true)), actionPopKont), new TracingSignalFalse()))
       case None => Set(interpreterStep(List(ActionErrorT(s"Unbound variable: $variable"))))
     }
+    case SchemeSet(variable, exp) => Set(interpreterStep(List(actionSaveEnv, ActionEvalPushT(exp, FrameSetT(variable)))))
     case SchemeValue(v) => evalValue(v) match {
       case Some(v) => Set(interpreterStep(List(ActionReachedValueT(v), actionPopKont)))
       case None => Set(interpreterStep(List(ActionErrorT(s"Unhandled value: $v"))))
