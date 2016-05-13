@@ -162,32 +162,30 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
      */
     val valsToPop = argsv.length + 1
 
-    val actions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv, actionPushVal)
+    val commonActions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv, actionPushVal)
 
     val fromClo: Set[Step[SchemeExp, Abs, Addr]] = abs.getClosures[SchemeExp, Addr](function).map({
       case (SchemeLambda(args, body), ρ1) =>
-        val stepInFrame = ActionStepInT(fexp, body.head, args, argsv.map(_._1), valsToPop, FrameFunBodyT(body, body.tail))
-        Step(actions :+
-                          ActionGuardSameClosure[SchemeExp, Abs, Addr](function, RestartGuardDifferentClosure(stepInFrame), GuardIDCounter.incCounter()) :+
-                          stepInFrame :+
-                          actionEndClosureCall,
-                          new TracingSignalStart(body))
+        val stepInAction = ActionStepInT(fexp, body.head, args, argsv.map(_._1), valsToPop, FrameFunBodyT(body, body.tail))
+        val rp = RestartGuardDifferentClosure(stepInAction)
+        val guard = ActionGuardSameClosure[SchemeExp, Abs, Addr](function, rp, GuardIDCounter.incCounter())
+        val allActions = commonActions :+ guard :+ stepInAction :+ actionEndClosureCall
+        Step(allActions, new TracingSignalStart(body))
       case (λ, _) => interpreterReturn(List(ActionErrorT[SchemeExp, Abs, Addr](s"Incorrect closure with lambda-expression ${λ}")))
     })
 
     val fromPrim = abs.getPrimitive(function) match {
       case Some(prim) =>
         val primCallAction = ActionPrimCallT(valsToPop, fexp, argsv.map(_._1))
-        Set(Step(actions :+
-                              ActionGuardSamePrimitive[SchemeExp, Abs, Addr](function, RestartGuardDifferentPrimitive(primCallAction), GuardIDCounter.incCounter()) :+
-                              primCallAction :+
-                              actionEndPrimCall :+
-                              actionPopKont,
-          new TracingSignalFalse[SchemeExp, Abs, Addr]()))
+        val rp = RestartGuardDifferentPrimitive(primCallAction)
+        val guard = ActionGuardSamePrimitive(function, rp, GuardIDCounter.incCounter())
+        val allActions = commonActions :+ guard :+ primCallAction :+ actionEndPrimCall :+ actionPopKont
+        Set(Step[SchemeExp, Abs, Addr](allActions, TracingSignalFalse()))
       case None => Set()
     }
     if (fromClo.isEmpty && fromPrim.isEmpty) {
-      Set(new Step(actions :+ ActionErrorT[SchemeExp, Abs, Addr](s"Called value is not a function: $function"), new TracingSignalFalse))
+      val allActions = commonActions :+ ActionErrorT[SchemeExp, Abs, Addr](s"Called value is not a function: $function")
+      Set(new Step[SchemeExp, Abs, Addr](allActions, TracingSignalFalse()))
     } else {
       fromClo ++ fromPrim
     }
