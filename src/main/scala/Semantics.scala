@@ -73,10 +73,10 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
 
   val endTraceInstruction: RestartPoint[Exp, Abs, Addr] => Action[Exp, Abs, Addr] = new ActionEndTrace(_)
 
-  protected def interpreterReturn(actions: List[Action[Exp, Abs, Addr]]): Step[Exp, Abs, Addr] =
+  protected def interpreterStep(actions: List[Action[Exp, Abs, Addr]]): Step[Exp, Abs, Addr] =
     new Step(actions, new TracingSignalFalse)
 
-  protected def interpreterReturnStart(actions: List[Action[Exp, Abs, Addr]], label: List[Exp]): Step[Exp, Abs, Addr] =
+  protected def interpreterStepStart(actions: List[Action[Exp, Abs, Addr]], label: List[Exp]): Step[Exp, Abs, Addr] =
     new Step(actions, new TracingSignalStart(label))
 
   /**
