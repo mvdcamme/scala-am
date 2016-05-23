@@ -7,7 +7,7 @@ class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Times
 
   val actionPopFailKont = ActionPopFailKontT[SchemeExp, Abs, Addr]()
 
-  override def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] = e match {
+  override def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterStep[SchemeExp, Abs, Addr]] = e match {
     case SchemeAmb(Nil) =>
       Set(interpreterStep(List(actionPopFailKont)))
     case SchemeAmb(exp :: rest) =>
@@ -15,7 +15,7 @@ class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Times
     case _ => super.stepEval(e, ρ, σ, t)
   }
 
-  override def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] = frame match {
+  override def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[InterpreterStep[SchemeExp, Abs, Addr]] = frame match {
     case FrameAmbT(Nil) =>
       Set(interpreterStep(List(actionPopFailKont)))
     case FrameAmbT(exp :: rest) =>

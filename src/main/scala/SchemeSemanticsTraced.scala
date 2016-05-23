@@ -134,9 +134,9 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case exp :: rest => List(actionSaveEnv, ActionEvalPushT(exp, frameGen(rest)))
   }
 
-  def conditional(v: Abs, t: List[Action[SchemeExp, Abs, Addr]], f: List[Action[SchemeExp, Abs, Addr]]): Set[Step[SchemeExp, Abs, Addr]] =
-    (if (abs.isTrue(v)) Set[Step[SchemeExp, Abs, Addr]](Step[SchemeExp, Abs, Addr](t, new TracingSignalFalse)) else Set[Step[SchemeExp, Abs, Addr]]()) ++
-    (if (abs.isFalse(v)) Set[Step[SchemeExp, Abs, Addr]](Step[SchemeExp, Abs, Addr](f, new TracingSignalFalse)) else Set[Step[SchemeExp, Abs, Addr]]())
+  def conditional(v: Abs, t: List[Action[SchemeExp, Abs, Addr]], f: List[Action[SchemeExp, Abs, Addr]]): Set[InterpreterStep[SchemeExp, Abs, Addr]] =
+    (if (abs.isTrue(v)) Set[InterpreterStep[SchemeExp, Abs, Addr]](InterpreterStep[SchemeExp, Abs, Addr](t, new SignalFalse)) else Set[InterpreterStep[SchemeExp, Abs, Addr]]()) ++
+    (if (abs.isFalse(v)) Set[InterpreterStep[SchemeExp, Abs, Addr]](InterpreterStep[SchemeExp, Abs, Addr](f, new SignalFalse)) else Set[InterpreterStep[SchemeExp, Abs, Addr]]())
 
   /*
    * TODO: Debugging: run tests only using if-expressions. Remove function ASAP and use function "conditional" instead!
@@ -144,18 +144,18 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
   def conditionalIf(v: Abs, t: List[Action[SchemeExp, Abs, Addr]],
                     tRestart: RestartPoint[SchemeExp, Abs, Addr],
                     f: List[Action[SchemeExp, Abs, Addr]],
-                    fRestart: RestartPoint[SchemeExp, Abs, Addr]): Set[Step[SchemeExp, Abs, Addr]] =
+                    fRestart: RestartPoint[SchemeExp, Abs, Addr]): Set[InterpreterStep[SchemeExp, Abs, Addr]] =
     (if (abs.isTrue(v)) {
-      Set[Step[SchemeExp, Abs, Addr]](Step[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardTrueT[SchemeExp, Abs, Addr](fRestart, GuardIDCounter.incCounter()) :: t, TracingSignalFalse()))
-    } else Set[Step[SchemeExp, Abs, Addr]]()) ++
+      Set[InterpreterStep[SchemeExp, Abs, Addr]](InterpreterStep[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardTrueT[SchemeExp, Abs, Addr](fRestart, GuardIDCounter.incCounter()) :: t, SignalFalse()))
+    } else Set[InterpreterStep[SchemeExp, Abs, Addr]]()) ++
     (if (abs.isFalse(v)) {
-      Set[Step[SchemeExp, Abs, Addr]](Step[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardFalseT[SchemeExp, Abs, Addr](tRestart, GuardIDCounter.incCounter()) :: f, TracingSignalFalse()))
-    } else Set[Step[SchemeExp, Abs, Addr]]())
+      Set[InterpreterStep[SchemeExp, Abs, Addr]](InterpreterStep[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardFalseT[SchemeExp, Abs, Addr](tRestart, GuardIDCounter.incCounter()) :: f, SignalFalse()))
+    } else Set[InterpreterStep[SchemeExp, Abs, Addr]]())
 
   /**
    * @param argsv are the Scheme-expressions of the operands of the call
    */
-  def evalCall(function: Abs, fexp: SchemeExp, argsv: List[(SchemeExp, Abs)], σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] = {
+  def evalCall(function: Abs, fexp: SchemeExp, argsv: List[(SchemeExp, Abs)], σ: Store[Addr, Abs], t: Time): Set[InterpreterStep[SchemeExp, Abs, Addr]] = {
 
     /*
      * The number of values to pop: the number of operands + the operator.
@@ -164,13 +164,13 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
 
     val commonActions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv, actionPushVal)
 
-    val fromClo: Set[Step[SchemeExp, Abs, Addr]] = abs.getClosures[SchemeExp, Addr](function).map({
+    val fromClo: Set[InterpreterStep[SchemeExp, Abs, Addr]] = abs.getClosures[SchemeExp, Addr](function).map({
       case (SchemeLambda(args, body), ρ1) =>
         val stepInAction = ActionStepInT(fexp, body.head, args, argsv.map(_._1), valsToPop, FrameFunBodyT(body, body.tail))
         val rp = RestartGuardDifferentClosure(stepInAction)
         val guard = ActionGuardSameClosure[SchemeExp, Abs, Addr](function, rp, GuardIDCounter.incCounter())
         val allActions = commonActions :+ guard :+ stepInAction :+ actionEndClosureCall
-        Step(allActions, new TracingSignalStart(body))
+        InterpreterStep(allActions, new SignalStartLoop(body))
       case (λ, _) => interpreterStep(List(ActionErrorT[SchemeExp, Abs, Addr](s"Incorrect closure with lambda-expression ${λ}")))
     })
 
@@ -180,12 +180,12 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
         val rp = RestartGuardDifferentPrimitive(primCallAction)
         val guard = ActionGuardSamePrimitive(function, rp, GuardIDCounter.incCounter())
         val allActions = commonActions :+ guard :+ primCallAction :+ actionEndPrimCall :+ actionPopKont
-        Set(Step[SchemeExp, Abs, Addr](allActions, TracingSignalFalse()))
+        Set(InterpreterStep[SchemeExp, Abs, Addr](allActions, SignalFalse()))
       case None => Set()
     }
     if (fromClo.isEmpty && fromPrim.isEmpty) {
       val allActions = commonActions :+ ActionErrorT[SchemeExp, Abs, Addr](s"Called value is not a function: $function")
-      Set(new Step[SchemeExp, Abs, Addr](allActions, TracingSignalFalse()))
+      Set(new InterpreterStep[SchemeExp, Abs, Addr](allActions, SignalFalse()))
     } else {
       fromClo ++ fromPrim
     }
@@ -199,16 +199,16 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case _ => None
   }
 
-  protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] = toeval match {
+  protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], σ: Store[Addr, Abs], t: Time): Set[InterpreterStep[SchemeExp, Abs, Addr]] = toeval match {
     case Nil => evalCall(f, fexp, args.reverse, σ, t)
     case e :: rest =>
       val actions = List(actionRestoreEnv,
                          actionPushVal,
                          actionSaveEnv,
                          ActionEvalPushT(e, FrameFuncallOperandsT(f, fexp, e, args, rest)))
-      Set(Step(actions, TracingSignalFalse()))
+      Set(InterpreterStep(actions, SignalFalse()))
   }
-  protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[SchemeExp], σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] =
+  protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[SchemeExp], σ: Store[Addr, Abs], t: Time): Set[InterpreterStep[SchemeExp, Abs, Addr]] =
     funcallArgs(f, fexp, List(), args, σ, t)
 
   protected def evalQuoted(exp: SExp, t: Time): (Abs, List[Action[SchemeExp, Abs, Addr]]) = exp match {
@@ -235,15 +235,15 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case SExpQuoted(q) => evalQuoted(SExpPair(SExpIdentifier("quote"), SExpPair(q, SExpValue(ValueNil()))), t)
   }
 
-  def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] = e match {
+  def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterStep[SchemeExp, Abs, Addr]] = e match {
     case λ: SchemeLambda => Set(interpreterStep(List(ActionCreateClosureT(λ), actionPopKont)))
     case SchemeAcquire(variable) => ρ.lookup(variable) match {
       case Some(a) => {
         val v = σ.lookup(a)
         /* Only performs a step if the lock is possibly unlocked (true is unlocked, false is locked) */
-        if (abs.isTrue(v)) Set(Step(List(ActionReachedValueT(abs.inject(false)), ActionSetVarT(variable),
+        if (abs.isTrue(v)) Set(InterpreterStep(List(ActionReachedValueT(abs.inject(false)), ActionSetVarT(variable),
                                                       ActionReachedValueT(abs.inject(true)), actionPopKont),
-                                                 new TracingSignalFalse())) else Set()
+                                                 new SignalFalse())) else Set()
       }
       case None => Set(interpreterStep(List(ActionErrorT(s"Unbound variable: $variable"))))
     }
@@ -281,8 +281,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       val (value, actions) = evalQuoted(quoted, t)
       Set(interpreterStep(actions :+ ActionReachedValueT[SchemeExp, Abs, Addr](value) :+ actionPopKont))
     case SchemeRelease(variable) => ρ.lookup(variable) match {
-      case Some(a) => Set(Step(List(ActionReachedValueT(abs.inject(true)), ActionSetVarT(variable),
-                                                 ActionReachedValueT(abs.inject(true)), actionPopKont), new TracingSignalFalse()))
+      case Some(a) => Set(InterpreterStep(List(ActionReachedValueT(abs.inject(true)), ActionSetVarT(variable),
+                                                 ActionReachedValueT(abs.inject(true)), actionPopKont), new SignalFalse()))
       case None => Set(interpreterStep(List(ActionErrorT(s"Unbound variable: $variable"))))
     }
     case SchemeSet(variable, exp) => Set(interpreterStep(List(actionSaveEnv, ActionEvalPushT(exp, FrameSetT(variable)))))
@@ -300,7 +300,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
     case exp :: rest => List(actionSaveEnv, ActionEvalPushT(exp, FrameWhileBodyT(condition, body, rest)))
   }
 
-  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[Step[SchemeExp, Abs, Addr]] = frame match {
+  def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[InterpreterStep[SchemeExp, Abs, Addr]] = frame match {
     case FrameBeginT(Nil) => Set(interpreterStep(List(actionRestoreEnv, actionPopKont)))
     case FrameBeginT(body) => Set(interpreterStep(actionRestoreEnv :: evalBody(body, FrameBeginT)))
     case FrameCaseT(clauses, default) => {
@@ -310,9 +310,9 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
           case Some(v2) => abs.subsumes(v, v2)
         }))
         /* TODO: precision could be improved by restricting v to v2 */
-          Set[Step[SchemeExp, Abs, Addr]](interpreterStep(List[Action[SchemeExp, Abs, Addr]](actionRestoreEnv) ++ evalBody(body, FrameBeginT)))
+          Set[InterpreterStep[SchemeExp, Abs, Addr]](interpreterStep(List[Action[SchemeExp, Abs, Addr]](actionRestoreEnv) ++ evalBody(body, FrameBeginT)))
         else
-          Set[Step[SchemeExp, Abs, Addr]](interpreterStep(List(actionRestoreEnv)))
+          Set[InterpreterStep[SchemeExp, Abs, Addr]](interpreterStep(List(actionRestoreEnv)))
       })
       /* TODO: precision could be improved in cases where we know that default is not
        * reachable */
@@ -331,7 +331,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       }
     case FrameDefineT(name) => throw new Exception(s"TODO: define not handled (no global environment)")
     case FrameHaltT => Set()
-    case FrameFunBodyT(body, Nil) => Set(Step(List(actionRestoreEnv, actionPopKont), TracingSignalEnd(body, RestartTraceEnded())))
+    case FrameFunBodyT(body, Nil) => Set(InterpreterStep(List(actionRestoreEnv, actionPopKont), SignalEndLoop(body, RestartTraceEnded())))
     case FrameFunBodyT(body, toeval) => Set(interpreterStep(actionRestoreEnv :: evalBody(toeval, FrameFunBodyT(body, _))))
     case FrameFuncallOperandsT(f, fexp, exp, args, toeval) => funcallArgs(f, fexp, (exp, v) :: args, toeval, σ, t)
     case FrameFuncallOperatorT(fexp, args) => funcallArgs(v, fexp, args, σ, t)
@@ -351,27 +351,27 @@ abstract class BaseSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Ti
       val actions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv,
                                                              ActionSetVarT[SchemeExp, Abs, Addr](a)) ++
                                                         evalBody(body, FrameBeginT)
-      Set(Step(actions, new TracingSignalFalse))
+      Set(InterpreterStep(actions, new SignalFalse))
     case FrameLetrecT(var1, (var2, exp) :: rest, body) =>
       val actions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv,
                                                              ActionSetVarT(var1),
                                                              ActionEvalPushT(exp, FrameLetrecT(var2, rest, body)),
                                                              actionSaveEnv)
-      Set(Step(actions, new TracingSignalFalse))
+      Set(InterpreterStep(actions, new SignalFalse))
     case FrameLetStarT(name, bindings, body) =>
       val actions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv,
                                                              actionPushVal,
                                                              ActionExtendEnvT[SchemeExp, Abs, Addr](name))
       bindings match {
         case Nil => Set(interpreterStep(actions ++ evalBody(body, FrameBeginT)))
-        case (variable, exp) :: rest => Set(Step(actions ++ List(actionSaveEnv, ActionEvalPushT(exp, FrameLetStarT(variable, rest, body))), new TracingSignalFalse))
+        case (variable, exp) :: rest => Set(InterpreterStep(actions ++ List(actionSaveEnv, ActionEvalPushT(exp, FrameLetStarT(variable, rest, body))), new SignalFalse))
       }
     case FrameSetT(name) =>
-      Set(Step(List(actionRestoreEnv, ActionSetVarT(name), ActionReachedValueT(abs.inject(false), Set[Addr](), Set[Addr]()), actionPopKont), new TracingSignalFalse)) /* writes on a */
+      Set(InterpreterStep(List(actionRestoreEnv, ActionSetVarT(name), ActionReachedValueT(abs.inject(false), Set[Addr](), Set[Addr]()), actionPopKont), new SignalFalse)) /* writes on a */
     case FrameWhileBodyT(condition, body, exps) => Set(interpreterStep(actionRestoreEnv :: evalWhileBody(condition, body, exps)))
     case FrameWhileConditionT(condition, body) =>
-      (if (abs.isTrue(v)) Set[Step[SchemeExp, Abs, Addr]](interpreterStepStart(actionRestoreEnv :: evalWhileBody(condition, body, body), body)) else Set[Step[SchemeExp, Abs, Addr]]()) ++
-        (if (abs.isFalse(v)) Set[Step[SchemeExp, Abs, Addr]](interpreterStep(List(actionRestoreEnv, ActionReachedValueT(abs.inject(false)), actionPopKont))) else Set[Step[SchemeExp, Abs, Addr]]())
+      (if (abs.isTrue(v)) Set[InterpreterStep[SchemeExp, Abs, Addr]](interpreterStepStart(actionRestoreEnv :: evalWhileBody(condition, body, body), body)) else Set[InterpreterStep[SchemeExp, Abs, Addr]]()) ++
+        (if (abs.isFalse(v)) Set[InterpreterStep[SchemeExp, Abs, Addr]](interpreterStep(List(actionRestoreEnv, ActionReachedValueT(abs.inject(false)), actionPopKont))) else Set[InterpreterStep[SchemeExp, Abs, Addr]]())
   }
 
   def parse(program: String): SchemeExp = Scheme.parse(program)

@@ -45,7 +45,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   def applyTraceIntermediateResults(state: PS, trace: TraceWithoutStates): List[PS] = {
     trace.scanLeft(state)((currentState, action) => currentState.applyAction(sem, action) match {
-      case NormalInstructionStep(updatedState, _) => updatedState
+      case ActionStep(updatedState, _) => updatedState
       case result => throw new Exception(s"Unexpected result while applying action $action; got result $result")
     })
   }
@@ -127,7 +127,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       val (traceHead, updatedTraceNode) = tracerContext.stepTrace(tn.get, tc)
       val instructionStep = ps.applyAction(sem, traceHead)
       instructionStep match {
-        case NormalInstructionStep(newPs, _) =>
+        case ActionStep(newPs, _) =>
           ExecutionState(ep, newPs)(tc, Some(updatedTraceNode))
         case GuardFailed(rp, guardID) =>
           Logger.log(s"Guard $traceHead failed", Logger.D)
@@ -206,23 +206,23 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
 
     def handleSignalRegular(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress]], signal: TracingSignal[Exp, HybridValue, HybridAddress]): ExecutionState = signal match {
-      case TracingSignalEnd(_, _) => continueWithProgramState(state, trace)
-      case TracingSignalStart(loopID) => canStartLoopEncounteredRegular(applyTrace(state, trace), trace, loopID)
+      case SignalEndLoop(_, _) => continueWithProgramState(state, trace)
+      case SignalStartLoop(loopID) => canStartLoopEncounteredRegular(applyTrace(state, trace), trace, loopID)
     }
 
     def handleSignalTracing(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress]], signal: TracingSignal[Exp, HybridValue, HybridAddress]): ExecutionState = signal match {
-      case TracingSignalEnd(loopID, restartPoint) => canEndLoopEncounteredTracing(state, trace, restartPoint, loopID)
-      case TracingSignalStart(loopID) => canStartLoopEncounteredTracing(state, trace, loopID)
+      case SignalEndLoop(loopID, restartPoint) => canEndLoopEncounteredTracing(state, trace, restartPoint, loopID)
+      case SignalStartLoop(loopID) => canStartLoopEncounteredTracing(state, trace, loopID)
     }
 
-    def handleResponseRegular(response: Step[Exp, HybridValue, HybridAddress]): ExecutionState = response match {
-      case Step(trace, TracingSignalFalse()) => continueWithProgramState(ps, trace)
-      case Step(trace, signal) => handleSignalRegular(ps, trace, signal)
+    def handleResponseRegular(response: InterpreterStep[Exp, HybridValue, HybridAddress]): ExecutionState = response match {
+      case InterpreterStep(trace, SignalFalse()) => continueWithProgramState(ps, trace)
+      case InterpreterStep(trace, signal) => handleSignalRegular(ps, trace, signal)
     }
 
-    def handleResponseTracing(response: Step[Exp, HybridValue, HybridAddress]): ExecutionState = response match {
-      case Step(trace, TracingSignalFalse()) => continueWithProgramStateTracing(ps, trace)
-      case Step(trace, signal) => handleSignalTracing(ps, trace, signal)
+    def handleResponseTracing(response: InterpreterStep[Exp, HybridValue, HybridAddress]): ExecutionState = response match {
+      case InterpreterStep(trace, SignalFalse()) => continueWithProgramStateTracing(ps, trace)
+      case InterpreterStep(trace, signal) => handleSignalTracing(ps, trace, signal)
     }
 
     def stepConcrete(): ExecutionState = {

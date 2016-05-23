@@ -3,15 +3,15 @@
  */
 trait TracingSignal[Exp, Abs, Addr]
 
-case class TracingSignalFalse[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+case class SignalFalse[Exp : Expression, Abs : AbstractValue, Addr : Address]()
   extends TracingSignal[Exp, Abs, Addr]
-case class TracingSignalStart[Exp : Expression, Abs : AbstractValue, Addr : Address]
+case class SignalStartLoop[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (label: List[Exp]) extends TracingSignal[Exp, Abs, Addr]
-case class TracingSignalEnd[Exp : Expression, Abs : AbstractValue, Addr : Address]
+case class SignalEndLoop[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (label: List[Exp], restartPoint: RestartPoint[Exp, Abs, Addr]) extends TracingSignal[Exp, Abs, Addr]
 
 /*
  * Interpreter return
  */
-case class Step[Exp : Expression, Abs : AbstractValue, Addr : Address]
+case class InterpreterStep[Exp : Expression, Abs : AbstractValue, Addr : Address]
   (trace: List[Action[Exp, Abs, Addr]], tracingSignal: TracingSignal[Exp, Abs, Addr])
