@@ -70,7 +70,7 @@ class Tracer[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Times
     val newTrace = getLoopTrace(traceNodeAddedTc, getLoopID(tc.curTraceNode.get.label)).trace
     if (GlobalFlags.PRINT_ENTIRE_TRACE) {
       Logger.log("------------ START TRACE ------------", Logger.E)
-      Logger.log("------------- ASSERTIONS ------------", Logger.E)
+      Logger.log("--------------- HEADER --------------", Logger.E)
       for (action <- newTrace.assertions) {
         Logger.log(action, Logger.E)
       }

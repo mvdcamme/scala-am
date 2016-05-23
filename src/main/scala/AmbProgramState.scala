@@ -51,7 +51,9 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
 
   def convertState(oldSem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]) = normalState.convertState(oldSem)
 
-  def runAssertions(assertions: List[Action[Exp, HybridValue, HybridAddress]]): Boolean = normalState.runAssertions(assertions)
+  def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
+                assertions: List[Action[Exp, HybridValue, HybridAddress]]): Option[AmbProgramState[Exp, Time]] =
+    normalState.runHeader(sem, assertions).fold(None: Option[AmbProgramState[Exp, Time]])(programState => Some(AmbProgramState(programState, failStack)))
 
   def restart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
               restartPoint: RestartPoint[Exp, HybridValue, HybridAddress]): AmbProgramState[Exp, Time] = restartPoint match {

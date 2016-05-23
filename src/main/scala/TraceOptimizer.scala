@@ -19,7 +19,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   val APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
   val APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
   val APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
-  val APPLY_OPTIMIZATION_VARIABLE_FOLDING = false
+  val APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
   val APPLY_OPTIMIZATION_MERGE_ACTIONS = true
 
   val basicOptimizations: List[(Boolean, (TraceFull => TraceFull))] =
@@ -354,9 +354,12 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    ********************************************************************************************************************/
 
   def optimizeVariableFolding(initialBoundVariables: List[String])(traceFull: TraceFull): TraceFull = {
+
+    var registerIndex: Integer = 0
+
     val boundVariables = variableAnalyzer.analyzeBoundVariables(initialBoundVariables.toSet, traceFull)
 
-    var variablesToCheck: List[(String, HybridValue)] = List()
+    var variablesConverted: List[(String, Integer)] = Nil
 
     val initialState: ProgramState[Exp, Time] = traceFull.startProgramState match {
       case s: ProgramState[Exp, Time] => s
@@ -365,23 +368,43 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
     def replaceVariableLookups(action: ActionLookupVariableT[Exp, HybridValue, HybridAddress],
                                boundVariables: Set[String]): TraceInstructionInfo = {
+
+      def generateIndex(variable: String): Option[Integer] = {
+        if (registerIndex < RegisterStore.MAX_REGISTERS) {
+          val someIndex = Some(registerIndex)
+          registerIndex += 1
+          someIndex
+        } else {
+          None
+        }
+      }
+
+      def generateAction(varName: String): Action[Exp, HybridValue, HybridAddress] = {
+        val defaultAction = ActionLookupVariableT[Exp, HybridValue, HybridAddress](varName)
+        variablesConverted.find( _._1 == action.varName) match {
+          case Some((_, index)) =>
+            /* Variable lookup was already replaced by a register lookup */
+            ActionLookupRegister[Exp, HybridValue, HybridAddress](index)
+          case None =>
+          /* Variable can be replaced but isn't entered in the list yet.
+             Generate an action to put it in some register if possible */
+          generateIndex(action.varName) match {
+            case Some(index) =>
+              variablesConverted = variablesConverted :+ (action.varName, index)
+              ActionLookupRegister[Exp, HybridValue, HybridAddress](index)
+            case None =>
+              /* Variable couldn't be placed into a register, e.g., because there are no more registers left */
+              defaultAction
+          }
+        }
+      }
+
       if (boundVariables.contains(action.varName)) {
         /* Variable is bound and can therefore not be replaced */
         (action, None)
       } else {
-        val ρ = initialState.ρ
-        val σ = initialState.σ
-        ρ.lookup(action.varName) match {
-          case Some(address) =>
-            val variableValue: HybridValue = σ.lookup(address)
-            if (! variablesToCheck.exists(_._1 == action.varName)) {
-              /* Add a guard for this free variable, if no guard for this variable exists already */
-              variablesToCheck = variablesToCheck :+ (action.varName, variableValue)
-            }
-            val newAction = ActionReachedValueT[Exp, HybridValue, HybridAddress](variableValue)
-            (newAction, None)
-          case None => (action, None) /* Variable could not be found in the store for some reason */
-        }
+        val newAction = generateAction(action.varName)
+        (newAction, None)
       }
     }
 
@@ -391,11 +414,10 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case (action, someState) => (action, someState)
     })
 
-    val assertions: TraceWithoutStates = variablesToCheck.map({ (freeVariable) =>
-      ActionGuardAssertFreeVariable[Exp, HybridValue, HybridAddress](freeVariable._1, freeVariable._2, RestartAssertion[Exp, HybridValue, HybridAddress](), GuardIDCounter.incCounter())
-    })
+    val putRegisterActions: List[Action[Exp, HybridValue, HybridAddress]] =
+      variablesConverted.map(tuple => ActionPutRegister[Exp, HybridValue, HybridAddress](tuple._1, tuple._2))
 
-    hybridMachine.TraceFull(traceFull.startProgramState, traceFull.assertions ++ assertions, optimisedTrace)
+    hybridMachine.TraceFull(traceFull.startProgramState, traceFull.assertions ++ putRegisterActions, optimisedTrace)
   }
 
   /********************************************************************************************************************

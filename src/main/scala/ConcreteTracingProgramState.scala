@@ -69,7 +69,8 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
   def restart(sem: SemanticsTraced[Exp, Abs, Addr, Time],
               restartPoint: RestartPoint[Exp, Abs, Addr]): ConcreteTracingProgramState[Exp, Abs, Addr, Time]
 
-  def runAssertions(assertions: List[Action[Exp, Abs, Addr]]): Boolean
+  def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
+                assertions: List[Action[Exp, Abs, Addr]]): Option[ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
 
   def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time]):
     (ConvertedControl[Exp, Abs, Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, Time)
@@ -149,27 +150,18 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       primAppliedState.applyAction(sem, ActionPopKontT()).getState
   }
 
-  def runAssertions(assertions: List[Action[Exp, HybridValue, HybridAddress]]): Boolean = {
-    assertions.foldLeft(true)({ (assertionsValid, assertion) =>
-      if (!assertionsValid) {
-        assertionsValid
-      } else {
-        assertion match {
-          case ActionGuardAssertFreeVariable(variableName, expectedValue, _, _) =>
-            ρ.lookup(variableName) match {
-              case Some(address) =>
-                val currentValue = σ.lookup(address)
-                if (currentValue == expectedValue) {
-                  true
-                } else {
-                  Logger.log(s"Variable $variableName with current value $currentValue does not match its expected value $expectedValue", Logger.V)
-                  false
-                }
-              case None => false
-            }
-        }
-      }
-    })
+  def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
+                assertions: List[Action[Exp, HybridValue, HybridAddress]]): Option[ProgramState[Exp, Time]] = {
+    assertions.foldLeft(Some(this): Option[ProgramState[Exp, Time]])({ (someProgramState, action) =>
+      someProgramState.fold(None: Option[ProgramState[Exp, Time]])(programState =>
+      programState.applyAction(sem, action) match {
+        case ActionStep(newState, _) => Some(newState)
+        case GuardFailed(_, _) => None
+        case TraceEnded(_) =>
+          /* Should not happen */
+          None
+      })
+      })
   }
 
   def doActionStepInTraced(sem: SemanticsTraced[Exp, HybridValue, HybridAddress, Time],
@@ -359,6 +351,13 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       /* When a function is stepped in, we also go to an eval state */
       case ActionStepInT(fexp, e, args, argsv, n, frame, _, _) =>
         ActionStep(doActionStepInTraced(sem, action), action)
+      case ActionPutRegister(varName, registerIndex) =>
+        val value = σ.lookup(ρ.lookup(varName).get)
+        RegisterStore.setRegister(registerIndex, value)
+        ActionStep(this, action)
+      case ActionLookupRegister(registerIndex) =>
+        val value = RegisterStore.getRegister(registerIndex)
+        ActionStep(this.copy(v = value), action)
       case action : ActionEndTrace[Exp, HybridValue, HybridAddress] =>
         TraceEnded(action.restartPoint)
       case action : ActionGuardFalseT[Exp, HybridValue, HybridAddress] =>
@@ -379,6 +378,20 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
           handlePrimitiveGuard(action, vStack(n - 1).getVal)
         } else {
           throw new IncorrectStackSizeException()
+        }
+      case ActionGuardAssertFreeVariable(variableName, expectedValue, rp, guardID) =>
+        ρ.lookup(variableName) match {
+          case Some(address) =>
+            val currentValue = σ.lookup(address)
+            if (currentValue == expectedValue) {
+              ActionStep(this, action)
+            } else {
+              Logger.log(s"Variable $variableName with current value $currentValue does not match its expected value $expectedValue", Logger.V)
+              GuardFailed(rp, guardID)
+            }
+          case None =>
+            /* Variable could not be found => automatic guard failure as the value is completely unknown */
+            GuardFailed(rp, guardID)
         }
     }
 

@@ -367,3 +367,10 @@ case class ActionStepInT[Exp : Expression, Abs : AbstractValue, Addr : Address]
   extends Action[Exp, Abs, Addr]
 case class ActionStartFunCallT[Exp : Expression, Abs : AbstractValue, Addr : Address]()
   extends Action[Exp, Abs, Addr]
+
+case class ActionLookupRegister[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (index: Integer)
+  extends Action[Exp, Abs, Addr]
+case class ActionPutRegister[Exp : Expression, Abs : AbstractValue, Addr : Address]
+  (variable: String, index: Integer)
+  extends Action[Exp, Abs, Addr]
