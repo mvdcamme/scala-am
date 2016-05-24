@@ -125,18 +125,33 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
 
     def doTraceExecutingStep(): ExecutionState = {
-      val (traceHead, updatedTraceNode) = tracerContext.stepTrace(tn.get, tc)
-      val instructionStep = ps.applyAction(sem, traceHead)
-      instructionStep match {
-        case ActionStep(newPs, _) =>
-          ExecutionState(ep, newPs)(tc, Some(updatedTraceNode))
-        case GuardFailed(rp, guardID) =>
-          Logger.log(s"Guard $traceHead failed", Logger.D)
-          handleGuardFailure(rp, guardID, tracerContext.getLoopID(tn.get.label))
-        case TraceEnded(rp) =>
-          Logger.log("Non-looping trace finished executing", Logger.D)
-          val psRestarted = ps.restart(sem, rp)
-          ExecutionState(NI, psRestarted)(tc, None)
+
+      val (traceHead, updatedTraceNode, mustRerunHeader) = tracerContext.stepTrace(tn.get, tc)
+
+      def executeStep(ps: PS): ExecutionState = {
+        val instructionStep = ps.applyAction(sem, traceHead)
+        instructionStep match {
+          case ActionStep(newPs, _) =>
+            ExecutionState(ep, newPs)(tc, Some(updatedTraceNode))
+          case GuardFailed(rp, guardID) =>
+            Logger.log(s"Guard $traceHead failed", Logger.D)
+            handleGuardFailure(rp, guardID, tracerContext.getLoopID(tn.get.label))
+          case TraceEnded(rp) =>
+            Logger.log("Non-looping trace finished executing", Logger.D)
+            val psRestarted = ps.restart(sem, rp)
+            ExecutionState(NI, psRestarted)(tc, None)
+        }
+      }
+
+      if (mustRerunHeader) {
+        ps.runHeader(sem, updatedTraceNode.trace.assertions) match {
+          case Some(headerRunPs) =>
+            executeStep(headerRunPs)
+          case None =>
+            ExecutionState(NI, ps)(tc, None)
+        }
+      } else {
+        executeStep(ps)
       }
     }
 

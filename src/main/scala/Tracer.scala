@@ -67,7 +67,7 @@ class Tracer[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Times
       finishedTc = appendTrace(tc, List((traceEndedInstruction.get, None)))
     }
     val traceNodeAddedTc = addTrace(finishedTc, someAnalysisOutput)
-    val newTrace = getLoopTrace(traceNodeAddedTc, getLoopID(tc.curTraceNode.get.label)).trace
+    val newTrace = getTrace(traceNodeAddedTc, tc.curTraceNode.get.label).trace
     if (GlobalFlags.PRINT_ENTIRE_TRACE) {
       Logger.log("------------ START TRACE ------------", Logger.E)
       Logger.log("--------------- HEADER --------------", Logger.E)
@@ -100,9 +100,14 @@ class Tracer[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Times
                                                   case GuardLabel(_, guardID2) => guardID == guardID2
     })
 
+  private def getTrace(tc: TracerContext, label: Label): TraceNode[TraceFull] = searchTraceWithLabelMatching(tc, _ == label) match {
+    case Some(traceNode) => traceNode
+    case None => throw new Exception(s"Retrieving non-existing trace (should not happen): $label")
+  }
+
   def getLoopTrace(tc: TracerContext, loopID: List[Exp]): TraceNode[TraceFull] = searchLoopTrace(tc, loopID) match {
     case Some(traceNode) => traceNode
-    case None => throw new Exception(s"Retrieving non-existing loop-trace (should not happen): $NormalLabel(loopID)")
+    case None => throw new Exception(s"Retrieving non-existing loop-trace (should not happen): ${NormalLabel(loopID)}")
   }
 
   def getGuardTrace(tc: TracerContext, guardID: Integer): TraceNode[TraceFull] = searchGuardTrace(tc, guardID) match {
@@ -147,7 +152,7 @@ class Tracer[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Times
    * Executing traces
    */
 
-  def stepTrace(traceNode: TraceNode[TraceFull], tc: TracerContext): (TraceInstruction, TraceNode[TraceFull]) = {
+  def stepTrace(traceNode: TraceNode[TraceFull], tc: TracerContext): (TraceInstruction, TraceNode[TraceFull], Boolean) = {
     var currentTraceNode = traceNode
     def resetTrace() = {
       Logger.log("Resetting the trace", Logger.D)
@@ -162,9 +167,11 @@ class Tracer[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Times
       resetTrace()
     }
 
+    val mustRerunHeader = traceNode.label != currentTraceNode.label
+
     val traceHead = currentTraceNode.trace.trace.head
     val updatedTraceNode = traceNode.copy(trace = traceNode.trace.copy(currentTraceNode.trace.startProgramState, currentTraceNode.trace.assertions, currentTraceNode.trace.trace.tail))
-    (traceHead._1, updatedTraceNode)
+    (traceHead._1, updatedTraceNode, mustRerunHeader)
   }
 
   /*

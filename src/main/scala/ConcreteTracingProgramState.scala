@@ -357,7 +357,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         ActionStep(this, action)
       case ActionLookupRegister(registerIndex) =>
         val value = RegisterStore.getRegister(registerIndex)
-        ActionStep(this.copy(v = value), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, t, value, vStack), action)
       case action : ActionEndTrace[Exp, HybridValue, HybridAddress] =>
         TraceEnded(action.restartPoint)
       case action : ActionGuardFalseT[Exp, HybridValue, HybridAddress] =>
