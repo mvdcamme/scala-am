@@ -24,13 +24,13 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
 
   val basicOptimizations: List[(Boolean, (TraceFull => TraceFull))] =
     List((APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)),
-         (APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)))
+         (APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
+         (APPLY_OPTIMIZATION_MERGE_ACTIONS, optimizeMergeActions(_)))
 
   def detailedOptimizations(boundVariables: List[String]): List[(Boolean, (TraceFull => TraceFull))] =
     List((APPLY_OPTIMIZATION_VARIABLE_FOLDING, optimizeVariableFolding(boundVariables)),
          (APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)),
-         (APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, optimizeTypeSpecialization(_)),
-         (APPLY_OPTIMIZATION_MERGE_ACTIONS, optimizeMergeActions(_)))
+         (APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, optimizeTypeSpecialization(_)))
 
   def foldOptimisations(traceFull: TraceFull, optimisations: List[(Boolean, (TraceFull => TraceFull))]): TraceFull = {
     optimisations.foldLeft(traceFull)({ (traceFull, pair) =>

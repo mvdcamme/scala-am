@@ -1,0 +1,16 @@
+test/count.scm: 0.950608383027
+test/fib.scm: 0.156339782906
+test/fact.scm: 0.688024829297
+test/gcipd.scm: 1.17590508227
+test/kcfa2.scm: 1.21743351966
+test/kcfa3.scm: 1.16799459478
+test/loop2.scm: 1.27846418805
+test/mj09.scm: 0.986200658981
+test/mut-rec.scm: 1.23530939159
+test/rotate.scm: 1.03511160979
+test/ack.scm: 0.442557626246
+test/collatz.scm: 1.08057861524
+test/widen.scm: 1.24246179193
+test/rsa.scm: 1.06812530543
+test/sat.scm: 1.3189860735
+test/dderiv.scm: 1.08293160104
