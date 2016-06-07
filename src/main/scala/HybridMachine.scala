@@ -46,7 +46,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   def applyTraceIntermediateResults(state: PS, trace: TraceWithoutStates): List[PS] = {
     trace.scanLeft(state)((currentState, action) => currentState.applyAction(sem, action) match {
       case ActionStep(updatedState, _) => updatedState
-      case result => throw new Exception(s"Unexpected result while applying action $action; got result $result")
+      case result => println(s"Unexpected result while applying action $action; got result $result"); currentState
+      //case result => throw new Exception(s"Unexpected result while applying action $action; got result $result")
     })
   }
 

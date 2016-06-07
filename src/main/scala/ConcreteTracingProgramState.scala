@@ -253,7 +253,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
           if (lam1 == lam2) {
             ActionStep(this, guard)
           } else {
-            Logger.log(s"Closure guard failed: recorded closure $lam1 does not match current closure $lam2", Logger.E)
+            Logger.log(s"Closure guard failed: recorded closure $lam1 does not match current closure $lam2", Logger.D)
             GuardFailed(guard.rp, guard.id)
           }
         case (HybridLattice.Right(_), HybridLattice.Right(_)) =>
@@ -307,9 +307,13 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case ActionLookupVariableT(varName, _, _) =>
         val newV = σ.lookup(ρ.lookup(varName).get)
         ActionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, vStack), action)
-      case ActionLookupVariablePushT(varName, _, _) =>
-        val newV = σ.lookup(ρ.lookup(varName).get)
-        ActionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, StoreVal[HybridValue, HybridAddress](newV) :: vStack), action)
+      case ActionLookupVariablePushT(varName, _, _) => ρ.lookup(varName) match {
+        case Some(address) =>
+          val newV = σ.lookup(address)
+          ActionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, StoreVal[HybridValue, HybridAddress](newV) :: vStack), action)
+        case None =>
+          throw new Exception(s"Could not find variable $varName in environment")
+      }
       case ActionPopKontT() =>
         val next = if (a == HaltKontAddress) { HaltKontAddress } else { kstore.lookup(a).head.next }
         ActionStep(ProgramState(TracingControlKont(a), ρ, σ, kstore, next, t, v, vStack), action)
