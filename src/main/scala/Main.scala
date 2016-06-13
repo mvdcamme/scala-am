@@ -1,23 +1,29 @@
 import scala.io.StdIn
-import Timestamps._
 import java.io._
 
 /**
+ * Before looking at this, we recommend seeing how to use this framework. A
+ * detailed example is available in LambdaCalculus.scala.
+ *
  * This is the entry point. It parses the arguments, parses the input file and
  * launch an abstract machine on the parsed expression (or launches a REPL if no
  * input file is given). The code in this file isn't very clean and I'd like to
  * improve it at some point, but my scala-fu isn't good enough to do it now. The
  * pipeline goes as follows:
  *   1. The input program is parsed. For Scheme programs, it is done by:
- *      - Parsing the file as a list of s-expressions (SExp.scala, SExpParser.scala)
- *      - Compiling these s-expressions into Scheme expressions (Scheme.scala)
- *      - Optionally, converting Scheme expressions into ANF form (ANF.scala) to
- *        have a simpler interpreter (but longer programs)
+ *      - Parsing the file as a list of s-expressions (exp/SExp.scala,
+ *        exp/SExpParser.scala)
+ *      - Compiling these s-expressions into Scheme expressions
+ *        (exp/scheme/Scheme.scala)
+ *      - Optionally, converting Scheme expressions into ANF form
+ *        (exp/anf/ANF.scala) to have a simpler interpreter (but longer
+ *        programs)
 
  *   2. To run the program, we need an abstract machine and some semantics. For
  *      now, the only semantics available are for ANF Scheme and Scheme
- *      (ANFSemantics.scala, SchemeSemantics.scala). Semantics definitions have
- *      to implement the Semantics interface (Semantics.scala).
+ *      (semantics/anf/ANFSemantics.scala,
+ *      semantics/scheme/SchemeSemantics.scala). Semantics definitions have to
+ *      implement the Semantics interface (semantics/Semantics.scala).
 
  *   3. Once the abstract machine is created and we have a semantics for the
  *      program we want to analyze, the abstract machine can perform its
@@ -31,70 +37,61 @@ import java.io._
  *      machine will then respectively evaluate the expression needed, push the
  *      continuation, or update the variable.
  *
- *      Three abstract machine implementations are available:
- *      - The classical Abstracting Abstract Machine of Might and Van Horn (AAM.scala)
- *      - Johnson's Abstracting Abstract Control (AAC.scala)
- *      - Gilrey's Pushdown Control-Flow Analysis for Free (Free.scala) Every
- *      abstract machine implementation has to implement the AbstractMachine
- *      interface (AbstractMachine.scala).
+ *      Multiple abstract machine implementations are available, including:
+ *      - The classical Abstracting Abstract Machine of Might and Van Horn (machine/AAM.scala)
+ *      - Johnson's Abstracting Abstract Control (machine/AAC.scala)
+ *      - Gilrey's Pushdown Control-Flow Analysis for Free (machine/Free.scala)
+ *      - A fast concrete interpreter (machine/ConcreteMachine.scala)
+ *      Every abstract machine implementation has to implement the AbstractMachine
+ *      interface (machine/AbstractMachine.scala).
  *
  *      The abstract machine also uses a lattice to represent values. Lattices
- *      should implement some traits that can be found in
+ *      should implement the AbstractValue trait that can be found in
  *      AbstractValue.scala. The following lattices are available:
- *      - A concrete lattice, AbstractConcrete.scala
- *      - A type lattice, representing each value by its type, AbstractType.scala
- *      - A type set lattice, representing each value by a set of its possible
- *        types (to avoid having a top element that loses all precision),
- *        AbstractTypeSet.scala
+ *      - A modular lattice (lattice/scheme/ModularLattice.scala) where every component
+ *        (numbers, strings, ...) can be specified independently of each
+ *        other. It can then automatically transform a lattice into a powerset
+ *        lattice. There are implementations for concrete values, type
+ *        representations of a value, and bounded integers.
+ *      - A product lattice, combining two lattices together as a cartesian
+ *        product. Example: one could combine the type lattice with a sign
+ *        lattice, getting abstract values such as (Int, +), (String, bottom),
+ *        ...
  *
  *  If you want to:
  *  - Support a new language: you will need:
- *    - A parser, you can look into SExpParser.scala as an inspiration. If your
+ *    - A parser, you can look into exp/SExpParser.scala as an inspiration. If your
  *      language is s-expression based, you can use this parser and compile
- *      s-expressions into your abstract grammar. To do so, look at Scheme.scala
- *    - An abstract grammar, look at SExp.scala or the SchemeExp class in Scheme.scala
- *    - A semantics, look at ANFSemantics.scala for a simple example
+ *      s-expressions into your abstract grammar. To do so, look at exp/scheme/Scheme.scala.
+ *    - An abstract grammar, look at exp/SExp.scala or the SchemeExp class in exp/scheme/Scheme.scala.
+ *    - A semantics, look at semantics/anf/ANFSemantics.scala for a simple example.
  *    - Support for your language operations at the lattice level. For this,
- *      you'll probably need to extend the lattices (AbstractValue.scala,
- *      AbstractConcrete.scala, AbstractType.scala, AbstractTypeSet.scala)
+ *      you'll probably need to extend the lattices (lattice/AbstractValue.scala,
+ *      lattice/ModularLattice.scala, ...)
  *  - Play with abstract machines, you can look into AAM.scala, AAC.scala or
  *    Free.scala (AAM is the simplest machine).
  *  - Implement some kind of analysis, you'll probably need to design a lattice
  *    that is suited for your analysis. You can use an existing lattice as an
- *    inspiration (AbstractType.scala is a good lattice to start with, even
- *    though its very imprecise, it's simple. You can then look into
- *    AbstractTypeSet.scala).
+ *    inspiration.
  */
 
 /**
  * This is where we parse the arguments given to the implementation
  */
 object Config {
+
   object Machine extends Enumeration {
-    type Machine = Value
-    val AAC, AAM, Free, ConcurrentAAM, Hybrid = Value
+    //TODO remove? type Machine = Value
+    val AAC, AAM, AAMGlobalStore, Free, ConcreteMachine, Hybrid = Value
   }
+
   implicit val machineRead: scopt.Read[Machine.Value] = scopt.Read.reads(Machine withName _)
 
   object Lattice extends Enumeration {
-    type Lattice = Value
-    val Concrete, Type, TypeSet, Test = Value
+    val Concrete, ConcreteNew, TypeSet, BoundedInt = Value
   }
+
   implicit val latticeRead: scopt.Read[Lattice.Value] = scopt.Read.reads(Lattice withName _)
-
-  case class Config(machine: Machine.Value = Machine.Free,
-                    lattice: Lattice.Value = Lattice.TypeSet,
-                    concrete: Boolean = false,
-                    file: Option[String] = None,
-                    dotfile: Option[String] = None,
-                    anf: Boolean = false,
-                    diff: Option[(Int, Int)] = None,
-                    amb: Boolean = false,
-                    optimization: Int = 6,
-                    resultsPath: String = "benchmark_times.txt",
-                    tracingFlags: TracingFlags = TracingFlags())
-
-  val parser = new scopt.OptionParser[Config]("scala-am") {
 
     def parseBool(boolString: String): Option[Boolean] = boolString match {
       case "true" | "t" => Some(true)
@@ -108,30 +105,112 @@ object Config {
       val someBool = parseBool(boolString)
       /* If no argument is passed, or if the argument could not be properly parsed,
        * the default flag is used, i.e. we don't change config. */
-      someBool.fold(config)( bool => config.copy(tracingFlags = genTracingFlags(bool)) )
+      someBool.fold(config)(bool => config.copy(tracingFlags = genTracingFlags(bool)))
     }
 
-    head("scala-ac", "0.0")
-    opt[Machine.Value]('m', "machine") action { (x, c) => c.copy(machine = x) } text("Abstract machine to use (AAM, AAC, Free, ConcurrentAAM, Hybrid)")
-    opt[Lattice.Value]('l', "lattice") action { (x, c) => c.copy(lattice = x) } text("Lattice to use (Concrete, Type, TypeSet)")
-    opt[Unit]('c', "concrete") action { (_, c) => c.copy(concrete = true) } text("Run in concrete mode")
-    opt[String]('d', "dotfile") action { (x, c) => c.copy(dotfile = Some(x)) } text("Dot file to output graph to")
-    opt[Unit]("anf") action { (_, c) => c.copy(anf = true) } text("Desugar program into ANF")
-    // opt[(Int, Int)]("diff") action { (x, c) => c.copy(diff = Some(x)) } text("States to diff") /* TODO: take this into account */
-    opt[String]('f', "file") action { (x, c) => c.copy(file = Some(x)) } text("File to read program from")
-    opt[String]('b', "benchmarks results file") action { (x, c) => c.copy(resultsPath = x) } text("File to print benchmarks results to")
-    opt[Int]('o', "Optimization") action { (x, c) => c.copy(optimization = x.intValue()) } text("Optimization")
-    opt[String]("tracing") action { (b, c) =>
-      readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(DO_TRACING = bool)) } text("Record and execute traces")
-    opt[String]("threshold") action { (x, c) => c.copy(tracingFlags = c.tracingFlags.copy(TRACING_THRESHOLD = Integer.parseInt(x))) } text("The minimum threshold required to consider a loop hot")
+    object Address extends Enumeration {
+      val Classical, ValueSensitive = Value
+    }
 
-    opt[String]("optimized") action { (b, c) =>
-      readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(APPLY_OPTIMIZATIONS = bool)) } text("Apply (dynamic) optimizations")
-    opt[String]("switch") action { (b, c) =>
-      readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(SWITCH_ABSTRACT = bool)) } text("Switch to abstract (type) interpretation after recording a trace and use this abstract information to optimize traces.")
-    opt[Unit]("amb") action { (_, c) => c.copy(amb = true) } text("Execute ambiguous Scheme instead of normal Scheme")
+    implicit val addressRead: scopt.Read[Address.Value] = scopt.Read.reads(Address withName _)
+
+    trait Time {
+      def nanoSeconds: Long
+    }
+
+    case class Hours(n: Long) extends Time {
+      def nanoSeconds = n * 60 * 60 * Math.pow(10, 9).toLong
+
+      override def toString = if (n == 1) "1 hour" else s"$n hours"
+    }
+
+    case class Minutes(n: Long) extends Time {
+      def nanoSeconds = n * 60 * Math.pow(10, 9).toLong
+
+      override def toString = if (n == 1) "1 minute" else s"$n minutes"
+    }
+
+    case class Seconds(n: Long) extends Time {
+      def nanoSeconds = n * Math.pow(10, 9).toLong
+
+      override def toString = if (n == 1) "1 second" else s"$n seconds"
+    }
+
+    case class Milliseconds(n: Long) extends Time {
+      def nanoSeconds = n * Math.pow(10, 6).toLong
+
+      override def toString = if (n == 1) "1 millisecond" else s"$n milliseconds"
+    }
+
+    case class Nanoseconds(nanoSeconds: Long) extends Time {
+      override def toString = if (nanoSeconds == 1) "1 nanosecond" else s"$nanoSeconds nanoseconds"
+    }
+
+    object TimeParser extends scala.util.parsing.combinator.RegexParsers {
+      val number = "[0-9]+".r
+
+      def hours: Parser[Time] = (number <~ "h") ^^ ((s) => Hours(s.toLong))
+
+      def minutes: Parser[Time] = (number <~ "min") ^^ ((s) => Minutes(s.toLong))
+
+      def seconds: Parser[Time] = (number <~ "s") ^^ ((s) => Seconds(s.toLong))
+
+      def milliseconds: Parser[Time] = (number <~ "ms") ^^ ((s) => Milliseconds(s.toLong))
+
+      def nanoseconds: Parser[Time] = (number <~ "ns") ^^ ((s) => Nanoseconds(s.toLong))
+
+      def time: Parser[Time] = hours | minutes | seconds | milliseconds | nanoseconds
+
+      def parse(s: String): Time = parseAll(time, s) match {
+        case Success(res, _) => res
+        case Failure(msg, _) => throw new Exception(s"cannot parse time: $msg")
+        case Error(msg, _) => throw new Exception(s"cannot parse time: $msg")
+      }
+    }
+
+    implicit val timeRead: scopt.Read[Time] = scopt.Read.reads(TimeParser.parse _)
+
+    case class Config(machine: Machine.Value = Machine.Free,
+                      lattice: Lattice.Value = Lattice.TypeSet, concrete: Boolean = false,
+                      file: Option[String] = None, dotfile: Option[String] = None,
+                      address: Address.Value = Address.Classical,
+                      inspect: Boolean = false,
+                      counting: Boolean = false,
+                      bound: Int = 100,
+                      timeout: Option[Long] = None,
+                      amb: Boolean = false,
+                      optimization: Int = 6,
+                      resultsPath: String = "benchmark_times.txt",
+                      tracingFlags: TracingFlags = TracingFlags())
+
+    val parser = new scopt.OptionParser[Config]("scala-am") {
+      head("scala-am", "0.0")
+      opt[Machine.Value]('m', "machine") action { (x, c) => c.copy(machine = x) } text ("Abstract machine to use (AAM, AAMGlobalStore, AAC, Free, ConcreteMachine, Hybrid)")
+      opt[Lattice.Value]('l', "lattice") action { (x, c) => c.copy(lattice = x) } text ("Lattice to use (Concrete, Type, TypeSet)")
+      opt[Unit]('c', "concrete") action { (_, c) => c.copy(concrete = true) } text ("Run in concrete mode")
+      opt[String]('d', "dotfile") action { (x, c) => c.copy(dotfile = Some(x)) } text ("Dot file to output graph to")
+      opt[String]('f', "file") action { (x, c) => c.copy(file = Some(x)) } text ("File to read program from")
+      opt[String]("result") action { (x, c) => c.copy(resultsPath = x) } text ("File to print benchmarks results to")
+      opt[Int]('o', "Optimization") action { (x, c) => c.copy(optimization = x.intValue()) } text ("Optimization")
+      opt[String]("tracing") action { (b, c) =>
+        readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(DO_TRACING = bool))
+      } text ("Record and execute traces")
+      opt[String]("threshold") action { (x, c) => c.copy(tracingFlags = c.tracingFlags.copy(TRACING_THRESHOLD = Integer.parseInt(x))) } text ("The minimum threshold required to consider a loop hot")
+
+      opt[String]("optimized") action { (b, c) =>
+        readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(APPLY_OPTIMIZATIONS = bool))
+      } text ("Apply (dynamic) optimizations")
+      opt[String]("switch") action { (b, c) =>
+        readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(SWITCH_ABSTRACT = bool))
+      } text ("Switch to abstract (type) interpretation after recording a trace and use this abstract information to optimize traces.")
+      opt[Unit]("amb") action { (_, c) => c.copy(amb = true) } text ("Execute ambiguous Scheme instead of normal Scheme")
+      opt[Time]('t', "timeout") action { (x, c) => c.copy(timeout = Some(x.nanoSeconds)) } text ("Timeout (none by default)")
+      opt[Unit]('i', "inspect") action { (x, c) => c.copy(inspect = true) } text ("Launch inspection REPL (disabled by default)")
+      opt[Address.Value]('a', "address") action { (x, c) => c.copy(address = x) } text ("Addresses to use (Classical, ValueSensitive)")
+      opt[Unit]("counting") action { (x, c) => c.copy(counting = true) } text ("Use abstract counting (on for concrete lattices)")
+      opt[Int]('b', "bound") action { (x, c) => c.copy(bound = x) } text ("Bound for bounded lattice (default to 100)")
+    }
   }
-}
 
 object Main {
 
@@ -144,12 +223,10 @@ object Main {
     bw.close()
   }
 
-  /**
-   *
-   */
-  def runBasic[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
-  (machine: BasicAbstractMachine[Exp, Abs, Addr, Time], output: Option[String], calcResult: () => Output[Abs], benchmarks_results_file: String): Unit = {
-    val abs = implicitly[AbstractValue[Abs]]
+  def runBasic[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
+    (machine: AbstractMachine[Exp, Abs, Addr, Time], output: Option[String], calcResult: () => Output[Abs],
+     benchmarks_results_file: String, timeout: Option[Long], inspect: Boolean): Unit = {
+    val abs = implicitly[JoinLattice[Abs]]
     val addr = implicitly[Address[Addr]]
     println(s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")
 
@@ -161,35 +238,63 @@ object Main {
     }
 
     val result = calcResult()
+
     output match {
       case Some(f) => result.toDotFile(f)
       case None => ()
     }
+    if (result.timedOut) {
+      println(s"${scala.io.AnsiColor.RED}Timeout was reached${scala.io.AnsiColor.RESET}")
+    } else if (GlobalFlags.PRINT_EXECUTION_TIME) {
+        printExecutionTimes(result, benchmarks_results_file)
+    }
     println(s"Visited ${result.numberOfStates} states in ${result.time} seconds, ${result.finalValues.size} possible results: ${result.finalValues}")
+
     if (GlobalFlags.PRINT_EXECUTION_TIME) {
       printExecutionTimes(result, benchmarks_results_file)
+    }
+
+    if (inspect) {
+      try {
+        do {
+          import scala.util.{Try,Success,Failure}
+          val input = StdIn.readLine(">>> ")
+          if (input == null) throw Done
+          if (input.size > 0) {
+            input.indexOf(".") match {
+              case -1 => println(s"Unknown inspection query: $input")
+              case n => Try(input.subSequence(0, n).toString.toInt) match {
+                case Success(state) => result.inspect(state, input.subSequence(n+1, input.size).toString)
+                case Failure(e) => println(s"Cannot parse state number (${input.subSequence(0, n)}): $e")
+              }
+            }
+          }
+        } while (true);
+      } catch {
+        case Done => ()
+      }
     }
   }
 
   /** Run a machine on a program with the given semantics. If @param output is
     * set, generate a dot graph visualizing the computed graph in the given
     * file. */
-  def run[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
+  def run[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
   (machine: AbstractMachine[Exp, Abs, Addr, Time], sem: Semantics[Exp, Abs, Addr, Time])
-  (program: String, output: Option[String], benchmarks_results_file: String): Unit = {
+  (program: String, output: Option[String], timeout: Option[Long], inspect: Boolean, benchmarks_results_file: String): Unit = {
     def calcResult() = {
       machine.eval(sem.parse(program), sem, !output.isEmpty)
     }
-    runBasic[Exp, Abs, Addr, Time](machine, output, calcResult, benchmarks_results_file)
+    runBasic[Exp, Abs, Addr, Time](machine, output, calcResult, benchmarks_results_file, timeout, inspect)
   }
 
   def runTraced[Exp : Expression,Abs : AbstractValue, Addr : Address, Time : Timestamp]
-  (machine: AbstractMachineTraced[Exp, Abs, Addr, Time])
-  (program: String, output: Option[String], benchmarks_results_file: String): Unit = {
+  (machine: AbstractMachineTraced[Exp, Abs, Addr, Time], sem: Semantics[Exp, Abs, Addr, Time])
+  (program: String, output: Option[String], timeout: Option[Long], inspect: Boolean, benchmarks_results_file: String): Unit = {
     def calcResult() = {
       machine.eval(machine.sem.parse(program), !output.isEmpty)
     }
-    runBasic[Exp, Abs, Addr, Time](machine, output, calcResult, benchmarks_results_file)
+    runBasic[Exp, Abs, Addr, Time](machine, output, calcResult, benchmarks_results_file, timeout, inspect)
   }
 
   object Done extends Exception
@@ -231,71 +336,47 @@ object Main {
 
         handleOptimization()
 
-        /* ugly as fuck, but I don't find a simpler way to pass type parameters that are computed at runtime */
-        val f = (config.anf, config.machine, config.lattice, config.concrete) match {
-          case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) =>
-            val absSemantics = new SchemeSemantics[HybridLattice.Hybrid, HybridAddress, ZeroCFA]
-            if (config.amb) {
-              val semantics = new AmbSchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA](absSemantics)
-              runTraced(new HybridMachine[SchemeExp, ZeroCFA](semantics, config.tracingFlags, { (exp, primitives, abs, time) =>
-                val normalState = new ProgramState[SchemeExp, ZeroCFA](exp, primitives, abs, time)
-                new AmbProgramState[SchemeExp, ZeroCFA](normalState)
-              })) _
-            } else {
-              val semantics = new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, ZeroCFA](absSemantics)
-              runTraced(new HybridMachine[SchemeExp, ZeroCFA](semantics, config.tracingFlags, { (exp, primitives, abs, time) =>
-                new ProgramState[SchemeExp, ZeroCFA](exp, primitives, abs, time) })) _
-            }
-
-          case (true, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[ANFExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAM, Config.Lattice.Concrete, true) => run(new AAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAM, Config.Lattice.Concrete, false) => run(new AAM[ANFExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAM, Config.Lattice.Concrete, false) => run(new AAM[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAM, Config.Lattice.Type, true) => run(new AAM[ANFExp, AbstractType, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAM, Config.Lattice.Type, true) => run(new AAM[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAM, Config.Lattice.Type, false) => run(new AAM[ANFExp, AbstractType, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAM, Config.Lattice.Type, false) => run(new AAM[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAM, Config.Lattice.TypeSet, true) => run(new AAM[ANFExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, true) => run(new AAM[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAM, Config.Lattice.TypeSet, false) => run(new AAM[ANFExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAM, Config.Lattice.TypeSet, false) => run(new AAM[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAC, Config.Lattice.Concrete, true) => run(new AAC[ANFExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAC, Config.Lattice.Concrete, true) => run(new AAC[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAC, Config.Lattice.Concrete, false) => run(new AAC[ANFExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAC, Config.Lattice.Concrete, false) => run(new AAC[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAC, Config.Lattice.Type, true) => run(new AAC[ANFExp, AbstractType, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAC, Config.Lattice.Type, true) => run(new AAC[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAC, Config.Lattice.Type, false) => run(new AAC[ANFExp, AbstractType, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAC, Config.Lattice.Type, false) => run(new AAC[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAC, Config.Lattice.TypeSet, true) => run(new AAC[ANFExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAC, Config.Lattice.TypeSet, true) => run(new AAC[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.AAC, Config.Lattice.TypeSet, false) => run(new AAC[ANFExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.AAC, Config.Lattice.TypeSet, false) => run(new AAC[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.Free, Config.Lattice.Concrete, true) => run(new Free[ANFExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.Free, Config.Lattice.Concrete, true) => run(new Free[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.Free, Config.Lattice.Concrete, false) => run(new Free[ANFExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.Free, Config.Lattice.Concrete, false) => run(new Free[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.Free, Config.Lattice.Type, true) => run(new Free[ANFExp, AbstractType, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.Free, Config.Lattice.Type, true) => run(new Free[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractType, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.Free, Config.Lattice.Type, false) => run(new Free[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractType, ClassicalAddress, ZeroCFA]) _
-          case (true, Config.Machine.Free, Config.Lattice.TypeSet, true) => run(new Free[ANFExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
-          case (false, Config.Machine.Free, Config.Lattice.TypeSet, true) => run(new Free[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA]) _
-          case (true, Config.Machine.Free, Config.Lattice.TypeSet, false) => run(new Free[ANFExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new ANFSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.Free, Config.Lattice.TypeSet, false) => run(new Free[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA], new SchemeSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA]) _
-          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.Concrete, true) => run(new ConcurrentAAM[SchemeExp, AbstractConcrete, ConcreteAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractConcrete, ConcreteAddress, ZeroCFA, ConcreteTID]) _
-          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.Concrete, false) => run(new ConcurrentAAM[SchemeExp, AbstractConcrete, ClassicalAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractConcrete, ClassicalAddress, ZeroCFA, ConcreteTID]) _
-          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.Type, true) => run(new ConcurrentAAM[SchemeExp, AbstractType, ConcreteAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractType, ConcreteAddress, ZeroCFA, ConcreteTID]) _
-          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.Type, false) => run(new ConcurrentAAM[SchemeExp, AbstractType, ClassicalAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractType, ClassicalAddress, ZeroCFA, ConcreteTID]) _
-          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.TypeSet, true) => run(new ConcurrentAAM[SchemeExp, AbstractTypeSet, ConcreteAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractTypeSet, ConcreteAddress, ZeroCFA, ConcreteTID]) _
-          case (false, Config.Machine.ConcurrentAAM, Config.Lattice.TypeSet, false) => run(new ConcurrentAAM[SchemeExp, AbstractTypeSet, ClassicalAddress, ZeroCFA, ConcreteTID], new ConcurrentSchemeSemantics[AbstractTypeSet, ClassicalAddress, ZeroCFA, ConcreteTID]) _
-          /* Example of how to use the product lattice */
-          case (false, Config.Machine.Free, Config.Lattice.Test, false) => {
-            val prod = new ProductLattice[AbstractType, AbstractTypeSet]
-            import prod._
-            run(new Free[SchemeExp, Product, ClassicalAddress, ZeroCFA], new SchemeSemantics[Product, ClassicalAddress, ZeroCFA]) _
-          }
-          case _ => throw new Exception(s"Impossible configuration: $config")
+        val lattice: SchemeLattice = config.lattice match {
+          case Config.Lattice.Concrete => new ConcreteLattice(true)
+          case Config.Lattice.TypeSet => new TypeSetLattice(config.counting)
+          case Config.Lattice.BoundedInt => new BoundedIntLattice(config.bound, config.counting)
         }
+        implicit val isSchemeLattice = lattice.isSchemeLattice
+
+        val time: TimestampWrapper = if (config.concrete) ConcreteTimestamp else ZeroCFA
+        implicit val isTimestamp = time.isTimestamp
+
+        val address: AddressWrapper = config.address match {
+          case Config.Address.Classical => ClassicalAddress
+          case Config.Address.ValueSensitive => ValueSensitiveAddress
+        }
+        implicit val isAddress = address.isAddress
+
+        val sem = new SchemeSemantics[lattice.L, address.A, time.T](new SchemePrimitives[address.A, lattice.L])
+
+        val machine = config.machine match {
+          case Config.Machine.AAM => new AAM[SchemeExp, lattice.L, address.A, time.T]
+          case Config.Machine.AAMGlobalStore => new AAMGlobalStore[SchemeExp, lattice.L, address.A, time.T]
+          case Config.Machine.ConcreteMachine => new ConcreteMachine[SchemeExp, lattice.L, address.A, time.T]
+          case Config.Machine.AAC => new AAC[SchemeExp, lattice.L, address.A, time.T]
+          case Config.Machine.Free => new Free[SchemeExp, lattice.L, address.A, time.T]
+          case Config.Machine.Hybrid => {
+            val absSemantics = new SchemeSemantics[HybridLattice.Hybrid, HybridAddress, time.T](new SchemePrimitives[HybridAddress, HybridLattice.Hybrid])
+            if (config.amb) {
+              val sem = new AmbSchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, time.T](absSemantics)
+              new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, primitives, abs, t) =>
+                val normalState = new ProgramState[SchemeExp, time.T](exp, primitives, abs, t)
+                new AmbProgramState[SchemeExp, time.T](normalState)
+              })
+            } else {
+              val sem = new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, time.T](absSemantics)
+              new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, primitives, abs, t) =>
+                new ProgramState[SchemeExp, time.T](exp, primitives, abs, t)
+              })
+            }
+          }
+        }
+
         try {
           do {
             val program = config.file match {
@@ -303,13 +384,18 @@ object Main {
               case None => StdIn.readLine(">>> ")
             }
             if (program == null) throw Done
-            f(program, config.dotfile, config.resultsPath)
-          } while (config.file.isEmpty)
+            if (program.size > 0)
+              config.machine match {
+                case Config.Machine.Hybrid => runTraced(machine, sem)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
+                case _ => run(machine, sem)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
+              }
+          } while (config.file.isEmpty);
         } catch {
           case Done => ()
         }
       }
       case None => ()
     }
+    Profiler.print
   }
 }
