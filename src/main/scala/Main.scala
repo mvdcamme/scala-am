@@ -90,6 +90,7 @@ object Config {
                     anf: Boolean = false,
                     diff: Option[(Int, Int)] = None,
                     amb: Boolean = false,
+                    optimization: Int = 6,
                     resultsPath: String = "benchmark_times.txt",
                     tracingFlags: TracingFlags = TracingFlags())
 
@@ -119,6 +120,7 @@ object Config {
     // opt[(Int, Int)]("diff") action { (x, c) => c.copy(diff = Some(x)) } text("States to diff") /* TODO: take this into account */
     opt[String]('f', "file") action { (x, c) => c.copy(file = Some(x)) } text("File to read program from")
     opt[String]('b', "benchmarks results file") action { (x, c) => c.copy(resultsPath = x) } text("File to print benchmarks results to")
+    opt[Int]('o', "Optimization") action { (x, c) => c.copy(optimization = x.intValue()) } text("Optimization")
     opt[String]("tracing") action { (b, c) =>
       readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(DO_TRACING = bool)) } text("Record and execute traces")
     opt[String]("threshold") action { (x, c) => c.copy(tracingFlags = c.tracingFlags.copy(TRACING_THRESHOLD = Integer.parseInt(x))) } text("The minimum threshold required to consider a loop hot")
@@ -150,6 +152,14 @@ object Main {
     val abs = implicitly[AbstractValue[Abs]]
     val addr = implicitly[Address[Addr]]
     println(s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")
+
+    /* JIT warm-up */
+    var i = 1
+    while (i < 2) {
+      i += 1
+      calcResult()
+    }
+
     val result = calcResult()
     output match {
       case Some(f) => result.toDotFile(f)
@@ -195,6 +205,32 @@ object Main {
     import scala.util.control.Breaks._
     Config.parser.parse(args, Config.Config()) match {
       case Some(config) => {
+
+        def handleOptimization(): Unit = config.optimization match {
+          case 0 =>
+          case 1 =>
+            GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
+          case 2 =>
+            GlobalFlags.APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
+          case 3 =>
+            GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
+          case 4 =>
+            GlobalFlags.APPLY_OPTIMIZATION_MERGE_ACTIONS = true
+          case 5 =>
+            GlobalFlags.APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
+          case 6 =>
+            GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
+          case 7 =>
+            GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
+            GlobalFlags.APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
+            GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
+            GlobalFlags.APPLY_OPTIMIZATION_MERGE_ACTIONS = true
+            GlobalFlags.APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
+            GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
+        }
+
+        handleOptimization()
+
         /* ugly as fuck, but I don't find a simpler way to pass type parameters that are computed at runtime */
         val f = (config.anf, config.machine, config.lattice, config.concrete) match {
           case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) =>
