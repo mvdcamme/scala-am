@@ -90,6 +90,8 @@ object Config {
                     anf: Boolean = false,
                     diff: Option[(Int, Int)] = None,
                     amb: Boolean = false,
+                    optimization: Int = 6,
+                    resultsPath: String = "benchmark_times.txt",
                     tracingFlags: TracingFlags = TracingFlags())
 
   val parser = new scopt.OptionParser[Config]("scala-am") {
@@ -117,6 +119,8 @@ object Config {
     opt[Unit]("anf") action { (_, c) => c.copy(anf = true) } text("Desugar program into ANF")
     // opt[(Int, Int)]("diff") action { (x, c) => c.copy(diff = Some(x)) } text("States to diff") /* TODO: take this into account */
     opt[String]('f', "file") action { (x, c) => c.copy(file = Some(x)) } text("File to read program from")
+    opt[String]('b', "benchmarks results file") action { (x, c) => c.copy(resultsPath = x) } text("File to print benchmarks results to")
+    opt[Int]('o', "Optimization") action { (x, c) => c.copy(optimization = x.intValue()) } text("Optimization")
     opt[String]("tracing") action { (b, c) =>
       readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(DO_TRACING = bool)) } text("Record and execute traces")
     opt[String]("threshold") action { (x, c) => c.copy(tracingFlags = c.tracingFlags.copy(TRACING_THRESHOLD = Integer.parseInt(x))) } text("The minimum threshold required to consider a loop hot")
@@ -133,8 +137,8 @@ object Main {
 
   var currentProgram: String = ""
 
-  def printExecutionTimes[Abs : AbstractValue](result: Output[Abs]): Unit = {
-    val file = new File("benchmark_times.txt")
+  def printExecutionTimes[Abs : AbstractValue](result: Output[Abs], benchmarks_results_file: String): Unit = {
+    val file = new File(benchmarks_results_file)
     val bw = new BufferedWriter(new FileWriter(file, true))
     bw.write(s"$currentProgram: ${result.time}\n")
     bw.close()
@@ -144,10 +148,18 @@ object Main {
    *
    */
   def runBasic[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
-  (machine: BasicAbstractMachine[Exp, Abs, Addr, Time], output: Option[String], calcResult: () => Output[Abs]): Unit = {
+  (machine: BasicAbstractMachine[Exp, Abs, Addr, Time], output: Option[String], calcResult: () => Output[Abs], benchmarks_results_file: String): Unit = {
     val abs = implicitly[AbstractValue[Abs]]
     val addr = implicitly[Address[Addr]]
     println(s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")
+
+    /* JIT warm-up */
+    var i = 1
+    while (i < 2) {
+      i += 1
+      calcResult()
+    }
+
     val result = calcResult()
     output match {
       case Some(f) => result.toDotFile(f)
@@ -155,25 +167,29 @@ object Main {
     }
     println(s"Visited ${result.numberOfStates} states in ${result.time} seconds, ${result.finalValues.size} possible results: ${result.finalValues}")
     if (GlobalFlags.PRINT_EXECUTION_TIME) {
-      printExecutionTimes(result)
+      printExecutionTimes(result, benchmarks_results_file)
     }
   }
 
   /** Run a machine on a program with the given semantics. If @param output is
     * set, generate a dot graph visualizing the computed graph in the given
     * file. */
-  def run[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](machine: AbstractMachine[Exp, Abs, Addr, Time], sem: Semantics[Exp, Abs, Addr, Time])(program: String, output: Option[String]): Unit = {
+  def run[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
+  (machine: AbstractMachine[Exp, Abs, Addr, Time], sem: Semantics[Exp, Abs, Addr, Time])
+  (program: String, output: Option[String], benchmarks_results_file: String): Unit = {
     def calcResult() = {
       machine.eval(sem.parse(program), sem, !output.isEmpty)
     }
-    runBasic[Exp, Abs, Addr, Time](machine, output, calcResult)
+    runBasic[Exp, Abs, Addr, Time](machine, output, calcResult, benchmarks_results_file)
   }
 
-  def runTraced[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp](machine: AbstractMachineTraced[Exp, Abs, Addr, Time])(program: String, output: Option[String]): Unit = {
+  def runTraced[Exp : Expression,Abs : AbstractValue, Addr : Address, Time : Timestamp]
+  (machine: AbstractMachineTraced[Exp, Abs, Addr, Time])
+  (program: String, output: Option[String], benchmarks_results_file: String): Unit = {
     def calcResult() = {
       machine.eval(machine.sem.parse(program), !output.isEmpty)
     }
-    runBasic[Exp, Abs, Addr, Time](machine, output, calcResult)
+    runBasic[Exp, Abs, Addr, Time](machine, output, calcResult, benchmarks_results_file)
   }
 
   object Done extends Exception
@@ -189,6 +205,32 @@ object Main {
     import scala.util.control.Breaks._
     Config.parser.parse(args, Config.Config()) match {
       case Some(config) => {
+
+        def handleOptimization(): Unit = config.optimization match {
+          case 0 =>
+          case 1 =>
+            GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
+          case 2 =>
+            GlobalFlags.APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
+          case 3 =>
+            GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
+          case 4 =>
+            GlobalFlags.APPLY_OPTIMIZATION_MERGE_ACTIONS = true
+          case 5 =>
+            GlobalFlags.APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
+          case 6 =>
+            GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
+          case 7 =>
+            GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
+            GlobalFlags.APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
+            GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
+            GlobalFlags.APPLY_OPTIMIZATION_MERGE_ACTIONS = true
+            GlobalFlags.APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
+            GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
+        }
+
+        handleOptimization()
+
         /* ugly as fuck, but I don't find a simpler way to pass type parameters that are computed at runtime */
         val f = (config.anf, config.machine, config.lattice, config.concrete) match {
           case (false, Config.Machine.Hybrid, Config.Lattice.Concrete, true) =>
@@ -261,7 +303,7 @@ object Main {
               case None => StdIn.readLine(">>> ")
             }
             if (program == null) throw Done
-            f(program, config.dotfile)
+            f(program, config.dotfile, config.resultsPath)
           } while (config.file.isEmpty)
         } catch {
           case Done => ()

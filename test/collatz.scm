@@ -15,4 +15,4 @@
                       (+ count 1)))))
 (define (hailstone n)
   (hailstone* n 0))
-(hailstone 5)
+(hailstone 200)

@@ -6,4 +6,4 @@
                  (letrec ((r ((blur id) #t))
                           (s ((blur id) #f)))
                    (not ((blur lp) s (- n 1))))))))
-      (lp #f 2))
+      (lp #f 100))
