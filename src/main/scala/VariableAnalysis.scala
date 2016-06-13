@@ -23,6 +23,23 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
     */
   def analyzeBoundVariables(initialBoundVariables: Set[String], traceFull: TraceFull): Set[String] = {
 
+    /*
+     * Compute, for each action in the trace, what the set of bound variables are at this position in the trace.
+     * This set is computed by starting from the inital set of bound variables, and adding a new bound variable
+     * whenever we encounter a new action that binds a variable.
+     *
+     * However, we have to take saving/restoring of the environment into account: when we save an environment,
+     * bind a variable and then restore the environment, this variable is no longer bound at the point in the
+     * trace after the restoration of the environment.
+     * Concretely, if we e.g., define a new variable and afterwards restore some previous environment, the variable
+     * is no longer part of that environment and must therefore be removed from the set of bound variables from
+     * that point in the trace onwards.
+     * We therefore simulate saving/restoring the environment via the framesStack.
+     *
+     * Lastly, if we encounter an assignment to some variable at any point in the trace, this variable becomes bound
+     * AT ALL POINTS in the trace. Note that this overapproximates the set of bound variables.
+     */
+
     val initialState: ProgramState[Exp, Time] = traceFull.startProgramState match {
       case s: ProgramState[Exp, Time] => s
       case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.startProgramState} instead")
@@ -52,6 +69,9 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
       * @return The updated set of bound variables.
       */
     def addVariable(varName: String, boundVariables: Set[String]): Set[String] = {
+      if (framesStack.isEmpty) {
+        framesStack.push(List())
+      }
       framesStack.top + varName
       boundVariables + varName
     }

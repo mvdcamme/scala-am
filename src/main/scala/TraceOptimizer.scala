@@ -313,8 +313,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   }
 
   private def optimizeTypeSpecialization(traceFull: TraceFull): TraceFull = {
-    def loop(trace: Trace): Trace = trace match {
-      case Nil => Nil
+    def loop(trace: Trace, acc: Trace): Trace = trace match {
+      case Nil => acc.reverse
       case (actionState1@(_, someInfo)) :: (actionState2@(ActionPrimCallT(n, fExp, argsExps), _)) :: rest => someInfo match {
         case Some(PrimitiveAppliedInfo(_, vStack)) =>
           val operands = vStack.take(n - 1).map(_.getVal)
@@ -330,15 +330,15 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
             }
           }
           val specializedPrimCallAction = ActionSpecializePrimitive[Exp, HybridValue, HybridAddress](operandsTypes, specializedOperator, operator, n, fExp, argsExps)
-          actionState1 :: (specializedPrimCallAction, actionState2._2) :: loop(rest)
+          loop(rest, (specializedPrimCallAction, actionState2._2) :: actionState1 :: acc)
         /* Since the state before applying the function was not recorded, we cannot know what the types of the operands were */
         case _ =>
-          actionState1 :: actionState2 :: loop(rest)
+          loop(rest, actionState2 :: actionState1 :: acc)
       }
       case action :: rest =>
-        action :: loop(rest)
+        loop(rest, action :: acc)
     }
-    val optimizedTrace = loop(traceFull.trace)
+    val optimizedTrace = loop(traceFull.trace, Nil)
     constructedFullTrace(traceFull, optimizedTrace)
   }
 
@@ -418,19 +418,21 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    ********************************************************************************************************************/
 
   def optimizeMergeActions(traceFull: TraceFull): TraceFull = {
-    def loop(trace: Trace): Trace = trace match {
-      case Nil => Nil
+
+    @tailrec
+    def loop(trace: Trace, acc: Trace): Trace = trace match {
+      case Nil => acc.reverse
       case (ActionLookupVariableT(varName, read, write), s1) :: (ActionPushValT(), s2) :: rest =>
-        (ActionLookupVariablePushT[Exp, HybridValue, HybridAddress](varName, read, write), s2) :: loop(rest)
+        loop(rest, (ActionLookupVariablePushT[Exp, HybridValue, HybridAddress](varName, read, write), s2) :: acc)
       case (ActionReachedValueT(lit, read, write), s1) :: (ActionPushValT(), s2) :: rest =>
-        (ActionReachedValuePushT[Exp, HybridValue, HybridAddress](lit, read, write), s2) :: loop(rest)
+        loop(rest, (ActionReachedValuePushT[Exp, HybridValue, HybridAddress](lit, read, write), s2) :: acc)
       case (ActionRestoreEnvT(), s1) :: (ActionSaveEnvT(), s2) :: rest =>
-        (ActionRestoreSaveEnvT[Exp, HybridValue, HybridAddress](), s2) :: loop(rest)
+        loop(rest, (ActionRestoreSaveEnvT[Exp, HybridValue, HybridAddress](), s2) :: acc)
       case otherAction :: rest =>
-        otherAction :: loop(rest)
+        loop(rest, otherAction :: acc)
     }
 
-    val optimizedTrace = loop(traceFull.trace)
+    val optimizedTrace = loop(traceFull.trace, Nil)
     constructedFullTrace(traceFull, optimizedTrace)
   }
 
