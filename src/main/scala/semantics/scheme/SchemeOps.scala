@@ -27,7 +27,11 @@ object SchemeOps {
   trait BinaryOperator
   /* Arithmetic operations */
   case object Plus extends BinaryOperator
+  case object PlusFloat extends BinaryOperator /* Plus specialized for floating-point values */
+  case object PlusInteger extends BinaryOperator /* Plus specialized for integer values */
   case object Minus extends BinaryOperator
+  case object MinusFloat extends BinaryOperator /* Minus specialized for floating-point values */
+  case object MinusInteger extends BinaryOperator /* Minus specialized for integer values */
   case object Times extends BinaryOperator
   case object Div extends BinaryOperator
   case object Modulo extends BinaryOperator

@@ -182,12 +182,28 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(implicit 
         case (Float(n1), Float(n2)) => Float(float.plus(n1, n2))
         case _ => OperatorNotApplicable("+", List(x.toString, y.toString))
       }
+      case PlusFloat => (x, y) match {
+        case (Float(n1), Float(n2)) => Float(float.plus(n1, n2))
+        case _ => throw new Exception(s"Cannot apply Float addition on non-float values: $x, $y")
+      }
+      case PlusInteger => (x, y) match {
+        case (Int(n1), Int(n2)) => Int(int.plus(n1, n2))
+        case _ => throw new Exception(s"Cannot apply Integer addition on non-integer values: $x, $y")
+      }
       case Minus => (x, y) match {
         case (Int(n1), Int(n2)) => Int(int.minus(n1, n2))
         case (Int(n1), Float(n2)) => Float(float.minus(int.toFloat(n1), n2))
         case (Float(n1), Int(n2)) => Float(float.minus(n1, int.toFloat(n2)))
         case (Float(n1), Float(n2)) => Float(float.minus(n1, n2))
         case _ => OperatorNotApplicable("-", List(x.toString, y.toString))
+      }
+      case MinusFloat => (x, y) match {
+        case (Float(n1), Float(n2)) => Float(float.minus(n1, n2))
+        case _ => throw new Exception(s"Cannot apply Float subtraction on non-float values: $x, $y")
+      }
+      case MinusInteger => (x, y) match {
+        case (Int(n1), Int(n2)) => Int(int.plus(n1, n2))
+        case _ => throw new Exception(s"Cannot apply Minus subtraction on non-integer values: $x, $y")
       }
       case Times => (x, y) match {
         case (Int(n1), Int(n2)) => Int(int.times(n1, n2))

@@ -1,3 +1,4 @@
+import scala.annotation.tailrec
 import scalaz.{Plus => _, _}
 import scalaz.Scalaz._
 
@@ -62,7 +63,11 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   def not = abs.unaryOp(SchemeOps.Not) _
   def random = abs.unaryOp(SchemeOps.Random) _
   def plus = abs.binaryOp(SchemeOps.Plus) _
+  def plusF = abs.binaryOp(SchemeOps.PlusFloat) _
+  def plusI = abs.binaryOp(SchemeOps.PlusInteger) _
   def minus = abs.binaryOp(SchemeOps.Minus) _
+  def minusF = abs.binaryOp(SchemeOps.MinusFloat) _
+  def minusI = abs.binaryOp(SchemeOps.MinusInteger) _
   def times = abs.binaryOp(SchemeOps.Times) _
   def div = abs.binaryOp(SchemeOps.Div) _
   def modulo = abs.binaryOp(SchemeOps.Modulo) _
@@ -110,19 +115,41 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
     }
   }
 
+  private def applyGenericPlusOperation(args: List[Abs], reduce: (Abs, Abs) => MayFail[Abs]): MayFail[Abs] = args match {
+    case Nil => MayFailSuccess(abs.inject(0))
+    case x :: rest => applyGenericPlusOperation(rest, reduce).bind(y => reduce(x, y))
+  }
+
   object Plus extends NoStoreOperation("+") {
-    override def call(args: List[Abs]) = args match {
-      case Nil => MayFailSuccess(abs.inject(0))
-      case x :: rest => call(rest).bind(y => plus(x, y))
-    }
+    override def call(args: List[Abs]) = applyGenericPlusOperation(args, plus)
   }
+
+  object PlusFloat extends NoStoreOperation("+f") {
+    override def call(args: List[Abs]) = applyGenericPlusOperation(args, plusF)
+  }
+
+  object PlusInteger extends NoStoreOperation("+i") {
+    override def call(args: List[Abs]) = applyGenericPlusOperation(args, plusI)
+  }
+
+  private def applyGenericMinusOperations(args: List[Abs], name: String, reduce: (Abs, Abs) => MayFail[Abs]): MayFail[Abs] = args match {
+    case Nil => MayFailError(List(VariadicArityError(name, 1, 0)))
+    case x :: Nil => minus(abs.inject(0), x)
+    case x :: rest => Plus.call(rest).bind(y => reduce(x, y))
+  }
+
   object Minus extends NoStoreOperation("-") {
-    override def call(args: List[Abs]) = args match {
-      case Nil => MayFailError(List(VariadicArityError(name, 1, 0)))
-      case x :: Nil => minus(abs.inject(0), x)
-      case x :: rest => Plus.call(rest).bind(y => minus(x, y))
-    }
+    override def call(args: List[Abs]) = applyGenericMinusOperations(args, name, minus)
   }
+
+  object MinusFloat extends NoStoreOperation("-f") {
+    override def call(args: List[Abs]) = applyGenericMinusOperations(args, name, minusF)
+  }
+
+  object MinusInteger extends NoStoreOperation("-i") {
+    override def call(args: List[Abs]) = applyGenericMinusOperations(args, name, minusI)
+  }
+
   object Times extends NoStoreOperation("*") {
     override def call(args: List[Abs]) = args match {
       case Nil => MayFailSuccess(abs.inject(1))
@@ -700,10 +727,10 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
 
   /** Bundles all the primitives together */
   def all: List[Primitive[Addr, Abs]] = List(
-    Plus, Minus, Times, Div, Quotient, LessThan, LessOrEqual, NumEq, GreaterThan, GreaterOrEqual,
-    Modulo, Random, Ceiling, Log, Zerop, Positivep, Negativep, Oddp, Evenp, Max, Min, Abs, Gcd,
-    Nullp, Pairp, Charp, Symbolp, Stringp, Integerp, Realp, Numberp, Booleanp, Vectorp, Eq,
-    NumberToString, StringAppend, StringLength, Newline, Display, Error, Not,
+    Plus, PlusFloat, PlusInteger, Minus, MinusFloat, MinusInteger, Times, Div, Quotient, LessThan,
+    LessOrEqual, NumEq, GreaterThan, GreaterOrEqual, Modulo, Random, Ceiling, Log, Zerop, Positivep,
+    Negativep, Oddp, Evenp, Max, Min, Abs, Gcd, Nullp, Pairp, Charp, Symbolp, Stringp, Integerp, Realp,
+    Numberp, Booleanp, Vectorp, Eq, NumberToString, StringAppend, StringLength, Newline, Display, Error, Not,
     Cons, Car, Cdr, Caar, Cadr, Cdar, Cddr, Caaar, Caadr, Cadar, Caddr, Cdaar, Cdadr, Cddar,
     Cdddr, Caaaar, Caaadr, Caadar, Caaddr, Cadaar, Cadadr, Caddar, Cadddr, Cdaaar, Cdaadr, Cdadar,
     Cdaddr, Cddaar, Cddadr, Cdddar, Cddddr, SetCar, SetCdr, Length, Listp,
