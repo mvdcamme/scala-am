@@ -15,6 +15,9 @@ abstract class Environment[Addr : Address] {
       case Some(a) => implicitly[Address[Addr]].subsumes(a, binding._2)
       case None => false
     })
+
+  /** Maps over all addresses in the environment */
+  def map(f: Addr => Addr): Environment[Addr]
 }
 
 /** Basic mapping from names to addresses */
@@ -26,8 +29,7 @@ case class BasicEnvironment[Addr : Address](content: Map[String, Addr]) extends 
   def lookup(name: String) = content.get(name)
   def extend(name: String, a: Addr) = this.copy(content = content + (name -> a))
   def extend(values: Iterable[(String, Addr)]) = this.copy(content = content ++ values)
-
-  def map(f : Addr => Addr) : Environment[Addr] = {
+  def map(f: Addr => Addr): Environment[Addr] = {
     val newMap : Map[String, Addr] = content.mapValues(f)
     new BasicEnvironment[Addr](newMap)
   }
@@ -47,6 +49,9 @@ case class CombinedEnvironment[Addr : Address](ro: Environment[Addr], w: Environ
   }
   def extend(name: String, a: Addr) = this.copy(w = w.extend(name, a))
   def extend(values: Iterable[(String, Addr)]) = this.copy(w = w.extend(values))
+  def map(f: Addr => Addr): Environment[Addr] = {
+    CombinedEnvironment(ro.map(f), w.map(f))
+  }
 }
 
 object Environment {
