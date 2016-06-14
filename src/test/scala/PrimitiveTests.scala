@@ -1,7 +1,6 @@
 import org.scalatest._
 import org.scalatest.prop._
 import org.scalatest.prop.TableDrivenPropertyChecks._
-import Timestamps._
 
 /** Tests that encodes Chapter 6 of R5RS (only for specified behaviour,
   * unspecified behaviour is not tested because it's... unspecified). This is
@@ -9,14 +8,15 @@ import Timestamps._
   * not tested (because they aren't given any test case in R5RS). Unsupported
   * primitives with test cases defined in R5RS are explicitely stated in
   * comments. If you're bored, you can implement some of them. */
-abstract class Tests[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Timestamp]
+abstract class Tests[Exp : Expression, Addr : Address, Time : Timestamp](val lattice: SchemeLattice)
     extends PropSpec with TableDrivenPropertyChecks with Matchers {
-  val abs = implicitly[AbstractValue[Abs]]
+  type Abs = lattice.L
+  implicit val abs = lattice.isSchemeLattice
   val sem: Semantics[Exp, Abs, Addr, Time]
   val machine: AbstractMachine[Exp, Abs, Addr, Time]
 
   def checkResult(program: String, answer: Abs) = {
-    val result = machine.eval(sem.parse(program), sem, false)
+    val result = machine.eval(sem.parse(program), sem, false, None)
     assert(result.containsFinalValue(answer))
   }
   def check(table: TableFor2[String, Abs]) =
@@ -39,7 +39,7 @@ abstract class Tests[Exp : Expression, Abs : AbstractValue, Addr : Address, Time
     ("(eq? '() '())", t),
     ("(eq? car car)", t),
     ("(let ((x '(a))) (eq? x x))", t),
-    // ("(let ((x (make-vector 0))) (eq? x x))", t), // vectors not implemented
+    ("(let ((x (make-vector 0 1))) (eq? x x))", t),
     ("(let ((p (lambda (x) x))) (eq? p p))", t)
   ))
 
@@ -49,15 +49,31 @@ abstract class Tests[Exp : Expression, Abs : AbstractValue, Addr : Address, Time
     ("(equal? '(a) '(a))", t),
     ("(equal? '(a (b) c) '(a (b) c))", t),
     ("(equal? \"abc\" \"abc\")", t),
-    ("(equal? 2 2)", t)
-    // ("(equal? (make-vector 5 'a) (make-vector 5 'a))", t), // vectors not implemented
+    ("(equal? 2 2)", t),
+    ("(equal? (make-vector 5 'a) (make-vector 5 'a))", t)
   ))
 
   /* 6.2 Numbers */
   // complex? is not implemented
-  // real? is not implemented
+  r5rs("real?", Table(
+    ("program", "answer"),
+    ("(real? 3)", t),
+    ("(real? 1.5)", t)))
   // rational? is not implemented
-  // max is not implemented
+
+  r5rs("max", Table(
+    ("program", "answer"),
+    ("(max 3 4)", abs.inject(4)),
+    ("(max 3.9 4)", abs.inject(4)), /* TODO: Does not exactly follow spec (should be 4.0) */
+    ("(max 1)", abs.inject(1)),
+    ("(max 1 2 3 4 5 4 3 2 1)", abs.inject(5))))
+
+  r5rs("min", Table(
+    ("program", "answer"),
+    ("(min 3 4)", abs.inject(3)),
+    ("(min 3 4.9)", abs.inject(3)), /* TODO: should be 3.0 */
+    ("(min 1)", abs.inject(1)),
+    ("(min 5 4 3 2 1 2 3 4 5)", abs.inject(1))))
 
   r5rs("+", Table(
     ("program", "answer"),
@@ -75,14 +91,18 @@ abstract class Tests[Exp : Expression, Abs : AbstractValue, Addr : Address, Time
     ("(- 3)", abs.inject(-3))
   ))
 
-  // division (/) is implemented BUT we don't support non-integers yet
-  // abs is not implemented
+  // division (/) is implemented BUT we don't support fractions yet
+  r5rs("abs", Table(
+    ("program", "answer"),
+    ("(abs -7)", abs.inject(7)),
+    ("(abs 7)", abs.inject(7)),
+    ("(abs 0)", abs.inject(0))))
 
   r5rs("modulo", Table(
     ("program", "answer"),
     ("(modulo 13 4)", abs.inject(1)),
-    //("(modulo -13 4)", abs.inject(3)), // modulo is Scala's modulo, which is different from Scheme's
-    //("(modulo 13 -4)", abs.inject(-3)), // modulo is Scala's modulo, which is different from Scheme's
+    ("(modulo -13 4)", abs.inject(3)),
+    ("(modulo 13 -4)", abs.inject(-3)),
     ("(modulo -13 -4)", abs.inject(-1))
   ))
 
@@ -98,7 +118,10 @@ abstract class Tests[Exp : Expression, Abs : AbstractValue, Addr : Address, Time
   // numerator not implemented yet
   // denominator not implemented yet
   // floor not implemented yet
-  // ceiling not implemented yet
+  r5rs("ceiling", Table(
+    ("program", "answer"),
+    ("(ceiling -4.3)", abs.inject(-4.toFloat)),
+    ("(ceiling 3.5)", abs.inject(4.toFloat))))
   // truncate not implemented yet
   // round not implemented yet
   // rationalize not implemented yet
@@ -124,7 +147,7 @@ abstract class Tests[Exp : Expression, Abs : AbstractValue, Addr : Address, Time
     ("(pair? (cons 'a 'b))", t),
     ("(pair? '(a b c))", t),
     ("(pair? '())", f)
-    // ("(pair? '#(a b))", t) // vectors not supported
+    // ("(pair? '#(a b))", t) // # notation not supported
   ))
 
   r5rs("cons", Table(
@@ -151,9 +174,24 @@ abstract class Tests[Exp : Expression, Abs : AbstractValue, Addr : Address, Time
     // TODO: (cdr '()) should raise an error
   ))
 
-  // list? not implemented
+  r5rs("list?", Table(
+    ("program", "answer"),
+    ("(list? '(a b c))", t),
+    ("(list? '((a b) c d))", t),
+    ("(list? '())", t),
+    ("(list? (cons 'a 'b))", f),
+    ("(list? 'a)", f),
+    ("(let ((x '(a))) (set-cdr! x x) (list? x))", f)
+  ))
+
   // list not implemented
-  // length not implemented
+  r5rs("length", Table(
+    ("program", "answer"),
+    ("(length '(a b c))", abs.inject(3)),
+    ("(length '(a (b) (c d e)))", abs.inject(3)),
+    ("(length '())", abs.inject(0))
+  ))
+
   // append not implemented
   // reverse not implemented
   // list-ref not implemented
@@ -181,7 +219,12 @@ abstract class Tests[Exp : Expression, Abs : AbstractValue, Addr : Address, Time
   // integer->char not implemented
   // char<=? not implemented
 
-  // 6.3.6: vectors are not supported
+  // 6.3.6: vector notation (#(1 2)) not supported
+  r5rs("vector", Table(
+    ("program", "answer"),
+    ("(let ((vec (vector 'a 'b 'c))) (and (equal? (vector-ref vec 0) 'a) (equal? (vector-ref vec 1) 'b) (equal? (vector-ref vec 2) 'c)))", t),
+    ("(let ((vec (vector 0 '(2 2 2 2) \"Anna\"))) (vector-set! vec 1 '(\"Sue\" \"Sue\")) (and (equal? (vector-ref vec 0) 0) (equal? (vector-ref vec 1) '(\"Sue\" \"Sue\")) (equal? (vector-ref vec 2) \"Anna\")))", t)
+  ))
 
   /* 6.4 Control features */
   // procedure not implemented
@@ -198,36 +241,47 @@ abstract class Tests[Exp : Expression, Abs : AbstractValue, Addr : Address, Time
   /* 6.6 Input and output */
 }
 
-//abstract class AAMTests[Abs : AbstractValue, Addr : Address, Time : Timestamp]
-//    extends Tests[SchemeExp, Abs, Addr, Time] {
-//  val sem = new SchemeSemanticsTraced[Abs, Addr, Time]
-//  val machine = new AAM[SchemeExp, Abs, Addr, Time](sem)
-//}
+abstract class AAMPrimitiveTests[Addr : Address, Time : Timestamp](override val lattice: SchemeLattice)
+    extends Tests[SchemeExp, Addr, Time](lattice) {
+  val sem = new SchemeSemantics[lattice.L, Addr, Time](new SchemePrimitives[Addr, lattice.L])
+  val machine = new AAM[SchemeExp, lattice.L, Addr, Time]
+}
 
-//abstract class AACTests[Abs : AbstractValue, Addr : Address, Time : Timestamp]
-//    extends Tests[SchemeExp, Abs, Addr, Time] {
-//  val sem = new SchemeSemantics[Abs, Addr, Time]
-//  val machine = new AAC[SchemeExp, Abs, Addr, Time]
-//}
-//
-//abstract class FreeTests[Abs : AbstractValue, Addr : Address, Time : Timestamp]
-//    extends Tests[SchemeExp, Abs, Addr, Time] {
-//  val sem = new SchemeSemantics[Abs, Addr, Time]
-//  val machine = new Free[SchemeExp, Abs, Addr, Time]
-//}
-//
-//abstract class ConcurrentAAMTests[Abs : AbstractValue, Addr : Address, Time : Timestamp, TID : ThreadIdentifier]
-//    extends Tests[SchemeExp, Abs, Addr, Time] {
-//  val sem = new SchemeSemantics[Abs, Addr, Time]
-//  val machine = new ConcurrentAAM[SchemeExp, Abs, Addr, Time, TID]
-//}
+abstract class AAMGlobalStorePrimitiveTests[Addr : Address, Time : Timestamp](override val lattice: SchemeLattice)
+    extends Tests[SchemeExp, Addr, Time](lattice) {
+  val sem = new SchemeSemantics[lattice.L, Addr, Time](new SchemePrimitives[Addr, lattice.L])
+  val machine = new AAMGlobalStore[SchemeExp, lattice.L, Addr, Time]
+}
+
+abstract class AACPrimitiveTests[Addr : Address, Time : Timestamp](override val lattice: SchemeLattice)
+    extends Tests[SchemeExp, Addr, Time](lattice) {
+  val sem = new SchemeSemantics[lattice.L, Addr, Time](new SchemePrimitives[Addr, lattice.L])
+  val machine = new AAC[SchemeExp, lattice.L, Addr, Time]
+}
+
+abstract class FreePrimitiveTests[Addr : Address, Time : Timestamp](override val lattice: SchemeLattice)
+    extends Tests[SchemeExp, Addr, Time](lattice) {
+  val sem = new SchemeSemantics[lattice.L, Addr, Time](new SchemePrimitives[Addr, lattice.L])
+  val machine = new Free[SchemeExp, lattice.L, Addr, Time]
+}
+
+abstract class ConcreteMachinePrimitiveTests(override val lattice: SchemeLattice)
+    extends Tests[SchemeExp, ClassicalAddress.A, ConcreteTimestamp.T](lattice) {
+  val sem = new SchemeSemantics[lattice.L, ClassicalAddress.A, ConcreteTimestamp.T](new SchemePrimitives[ClassicalAddress.A, lattice.L])
+  val machine = new ConcreteMachine[SchemeExp, lattice.L, ClassicalAddress.A, ConcreteTimestamp.T]
+}
 
 /* Since these tests are small, they can be performed in concrete mode */
-//class AAMConcreteTests extends AAMTests[AbstractConcrete, ConcreteAddress, ZeroCFA]
-//class AAMTypeSetTests extends AAMTests[AbstractTypeSet, ClassicalAddress, ZeroCFA]
-//class AACConcreteTests extends AACTests[AbstractConcrete, ConcreteAddress, ZeroCFA]
-//class AACTypeSetTests extends AACTests[AbstractTypeSet, ClassicalAddress, ZeroCFA]
-//class FreeConcreteTests extends FreeTests[AbstractConcrete, ClassicalAddress, ZeroCFA]
-//class FreeTypeSetTests extends FreeTests[AbstractTypeSet, ClassicalAddress, ZeroCFA]
-//class ConcurrentAAMConcreteTests extends ConcurrentAAMTests[AbstractConcrete, ClassicalAddress, ZeroCFA, ConcreteTID]
-//class ConcurrentAAMTypeSetTests extends ConcurrentAAMTests[AbstractTypeSet, ClassicalAddress, ZeroCFA, ContextSensitiveTID]
+class AAMConcretePrimitiveTests extends AAMPrimitiveTests[ClassicalAddress.A, ConcreteTimestamp.T](new ConcreteLattice(true))
+class AAMTypeSetPrimitiveTests extends AAMPrimitiveTests[ClassicalAddress.A, ZeroCFA.T](new TypeSetLattice(false))
+class AAMBoundedIntPrimitiveTests extends AAMPrimitiveTests[ClassicalAddress.A, ZeroCFA.T](new BoundedIntLattice(100, false))
+class AAMGlobalStoreConcretePrimitiveTests extends AAMGlobalStorePrimitiveTests[ClassicalAddress.A, ZeroCFA.T](new ConcreteLattice(true))
+class AAMGlobalStoreTypeSetPrimitiveTests extends AAMGlobalStorePrimitiveTests[ClassicalAddress.A, ZeroCFA.T](new TypeSetLattice(false))
+class AAMGlobalStoreBoundedIntPrimitiveTests extends AAMGlobalStorePrimitiveTests[ClassicalAddress.A, ZeroCFA.T](new BoundedIntLattice(100, false))
+class AACConcretePrimitiveTests extends AACPrimitiveTests[ClassicalAddress.A, ConcreteTimestamp.T](new ConcreteLattice(true))
+class AACTypeSetPrimitiveTests extends AACPrimitiveTests[ClassicalAddress.A, ZeroCFA.T](new TypeSetLattice(false))
+class AACBoundedIntPrimitiveTests extends AACPrimitiveTests[ClassicalAddress.A, ZeroCFA.T](new BoundedIntLattice(100, false))
+class FreeConcretePrimitiveTests extends FreePrimitiveTests[ClassicalAddress.A, ConcreteTimestamp.T](new ConcreteLattice(true))
+class FreeTypeSetPrimitiveTests extends FreePrimitiveTests[ClassicalAddress.A, ZeroCFA.T](new TypeSetLattice(false))
+class FreeBoundedIntPrimitiveTests extends FreePrimitiveTests[ClassicalAddress.A, ZeroCFA.T](new BoundedIntLattice(100, false))
+class ConcreteMachineConcretePrimitiveTests extends ConcreteMachinePrimitiveTests(new ConcreteLattice(true))
