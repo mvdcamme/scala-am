@@ -18,30 +18,27 @@
  */
 
 class HybridMachine[Exp : Expression, Time : Timestamp]
-  (override val sem: SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time],
+  (override val sem: SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress.A, Time],
    val tracingFlags: TracingFlags,
-   injectProgramState: (Exp, Primitives[HybridAddress, HybridLattice.Hybrid], AbstractValue[HybridLattice.Hybrid], Timestamp[Time]) =>
-                       ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress, Time])
-    extends EvalKontMachineTraced[Exp, HybridLattice.Hybrid, HybridAddress, Time](sem) {
+   injectProgramState: (Exp, JoinLattice[HybridLattice.Hybrid], Timestamp[Time]) =>
+                       ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress.A, Time])
+    extends EvalKontMachineTraced[Exp, HybridLattice.Hybrid, HybridAddress.A, Time](sem) {
 
   type HybridValue = HybridLattice.Hybrid
 
-  type TraceInstruction = Action[Exp, HybridValue, HybridAddress]
+  type TraceInstruction = Action[Exp, HybridValue, HybridAddress.A]
   type TraceWithoutStates = List[TraceInstruction]
   type TraceInstructionInfo = (TraceInstruction, Option[TraceInformation[HybridValue]])
   type TraceWithInfos = List[TraceInstructionInfo]
 
-  /** The primitives are defined in AbstractValue.scala and are available through the Primitives class */
-  implicit val primitives = new Primitives[HybridAddress, HybridValue]()
-
-  type PS = ConcreteTracingProgramState[Exp, HybridValue, HybridAddress, Time]
+  type PS = ConcreteTracingProgramState[Exp, HybridValue, HybridAddress.A, Time]
 
   case class TraceFull(startProgramState: PS, assertions: TraceWithoutStates, trace: TraceWithInfos)
 
   def name = "HybridMachine"
 
-  val tracerContext: Tracer[Exp, HybridValue, HybridAddress, Time] =
-    new Tracer[Exp, HybridValue, HybridAddress, Time](sem, new TraceOptimizer[Exp, HybridValue, HybridAddress, Time](sem, this), this)
+  val tracerContext: Tracer[Exp, HybridValue, HybridAddress.A, Time] =
+    new Tracer[Exp, HybridValue, HybridAddress.A, Time](sem, new TraceOptimizer[Exp, HybridValue, HybridAddress.A, Time](sem, this), this)
 
   def applyTraceIntermediateResults(state: PS, trace: TraceWithoutStates): List[PS] = {
     trace.scanLeft(state)((currentState, action) => currentState.applyAction(sem, action) match {
@@ -92,7 +89,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       TracerState(TE, state)(tc, Some(traceNode))
     }
 
-    private def handleGuardFailure(rp: RestartPoint[Exp, HybridValue, HybridAddress], guardID: Integer, loopID: List[Exp]): TracerState = {
+    private def handleGuardFailure(rp: RestartPoint[Exp, HybridValue, HybridAddress.A], guardID: Integer, loopID: List[Exp]): TracerState = {
       def restartPs(): PS = {
         ps.restart(sem, rp)
       }
@@ -181,7 +178,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
         }
       } else if (tracingFlags.DO_TRACING && labelCounter >= tracingFlags.TRACING_THRESHOLD) {
         Logger.log(s"Started tracing $loopID", Logger.I)
-        val someBoundVariables = trace.find(_.isInstanceOf[ActionStepInT[Exp, HybridValue, HybridAddress]]).flatMap({
+        val someBoundVariables = trace.find(_.isInstanceOf[ActionStepInT[Exp, HybridValue, HybridAddress.A]]).flatMap({
           case ActionStepInT(_, _, args, _, _, _, _, _) => Some(args)
           case _ => None /* Should not happen */
         })
@@ -212,8 +209,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       }
     }
 
-    def canEndLoopEncounteredTracing(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress]],
-                                     restartPoint: RestartPoint[Exp, HybridValue, HybridAddress], loopID: List[Exp]): TracerState = {
+    def canEndLoopEncounteredTracing(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress.A]],
+                                     restartPoint: RestartPoint[Exp, HybridValue, HybridAddress.A], loopID: List[Exp]): TracerState = {
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       if (tracerContext.isTracingLoop(tc, loopID)) {
         Logger.log(s"Stopped tracing $loopID; NO LOOP DETECTED", Logger.I)
@@ -228,22 +225,22 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       }
     }
 
-    def handleSignalRegular(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress]], signal: TracingSignal[Exp, HybridValue, HybridAddress]): TracerState = signal match {
+    def handleSignalRegular(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress.A]], signal: TracingSignal[Exp, HybridValue, HybridAddress.A]): TracerState = signal match {
       case SignalEndLoop(_, _) => continueWithProgramState(state, trace)
       case SignalStartLoop(loopID) => canStartLoopEncounteredRegular(applyTrace(state, trace), trace, loopID)
     }
 
-    def handleSignalTracing(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress]], signal: TracingSignal[Exp, HybridValue, HybridAddress]): TracerState = signal match {
+    def handleSignalTracing(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress.A]], signal: TracingSignal[Exp, HybridValue, HybridAddress.A]): TracerState = signal match {
       case SignalEndLoop(loopID, restartPoint) => canEndLoopEncounteredTracing(state, trace, restartPoint, loopID)
       case SignalStartLoop(loopID) => canStartLoopEncounteredTracing(state, trace, loopID)
     }
 
-    def handleResponseRegular(response: InterpreterStep[Exp, HybridValue, HybridAddress]): TracerState = response match {
+    def handleResponseRegular(response: InterpreterStep[Exp, HybridValue, HybridAddress.A]): TracerState = response match {
       case InterpreterStep(trace, SignalFalse()) => continueWithProgramState(ps, trace)
       case InterpreterStep(trace, signal) => handleSignalRegular(ps, trace, signal)
     }
 
-    def handleResponseTracing(response: InterpreterStep[Exp, HybridValue, HybridAddress]): TracerState = response match {
+    def handleResponseTracing(response: InterpreterStep[Exp, HybridValue, HybridAddress.A]): TracerState = response match {
       case InterpreterStep(trace, SignalFalse()) => continueWithProgramStateTracing(ps, trace)
       case InterpreterStep(trace, signal) => handleSignalTracing(ps, trace, signal)
     }
@@ -258,7 +255,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   }
 
-  case class AAMOutput[State <: TracingProgramState[Exp, HybridValue, HybridAddress, Time], Annotation](halted: Set[State], count: Int, t: Double, graph: Option[Graph[State, Annotation]])
+  case class AAMOutput[State <: TracingProgramState[Exp, HybridValue, HybridAddress.A, Time], Annotation](halted: Set[State], count: Int, t: Double, graph: Option[Graph[State, Annotation]], timedOut: Boolean)
       extends Output[HybridValue] {
 
     /**
@@ -285,8 +282,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
      * Outputs the graph in a dot file
      */
     def toDotFile(path: String) = graph match {
-      case Some(g) => g.toDotFile(path, _.toString.take(40),
-        (s) => if (halted.contains(s)) { "#FFFFDD" } else { s.graphNodeColor }, _.toString.take(20))
+      case Some(g) => g.toDotFile(path, node => List(scala.xml.Text(node.toString.take(40))),
+        (s) => if (halted.contains(s)) { Colors.Yellow } else { s.graphNodeColor}, _ => List())
       case None =>
         Logger.log("Not generating graph because no graph was computed", Logger.E)
     }
@@ -302,32 +299,35 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     * @return the final states as well as the computed graph
     */
   @scala.annotation.tailrec
-  private def loop(s: TracerState, nrVisited: Integer, startingTime: Long, graph: Option[Graph[PS, String]]): AAMOutput[PS, String] = {
-    def endEvalLoop(): AAMOutput[PS, String] = {
+  private def loop(s: TracerState, nrVisited: Integer, startingTime: Long, graph: Option[Graph[PS, String]], timeout: Option[Long]): AAMOutput[PS, String] = {
+    def endEvalLoop(timeout: Boolean): AAMOutput[PS, String] = {
       if (GlobalFlags.PRINT_ACTIONS_EXECUTED) {
         ActionLogger.printActions()
       }
       AAMOutput[PS, String](Set(s.ps), nrVisited,
-        (System.nanoTime - startingTime) / Math.pow(10, 9), graph)
+        (System.nanoTime - startingTime) / Math.pow(10, 9), graph, timeout)
     }
-    if (s.ps.halted) {
+
+    if (timeout.map(System.nanoTime - startingTime > _).getOrElse(false)) {
+      endEvalLoop(true)
+    } else if (s.ps.halted) {
       /* If the state is a final state, add it to the list of final states and
        * continue exploring the graph */
-      endEvalLoop()
+      endEvalLoop(false)
     } else {
       /* Otherwise, compute the successors of this state, update the graph, and push
        * the new successors on the todo list */
       val succ = s.stepConcrete()
       val newGraph = graph.map(_.addEdge(s.ps, "", succ.ps))
-      loop(succ, nrVisited + 1, startingTime, newGraph)
+      loop(succ, nrVisited + 1, startingTime, newGraph, timeout)
     }
   }
 
-  private def switchToAbstract(currentProgramState: PS): Unit = { //AAMOutput[APS, TraceWithoutStates] = {
+  private def switchToAbstract(currentProgramState: PS): Unit = {
     Logger.log("HybridMachine switching to abstract", Logger.E)
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
-    val aam = new AAM[Exp, HybridValue, HybridAddress, Time]
+    val aam = new AAM[Exp, HybridValue, HybridAddress.A, Time]
     val (control, store, kstore, a, t) = currentProgramState.convertState(sem)
     val convertedControl = control match {
       case ConvertedControlError(reason) => aam.ControlError(reason)
@@ -365,14 +365,14 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   }
 
   def injectExecutionState(exp: Exp): TracerState =
-    new TracerState(NI, injectProgramState(exp, primitives, abs, time))(tracerContext.newTracerContext, None)
+    new TracerState(NI, injectProgramState(exp, abs, time))(tracerContext.newTracerContext, None)
 
   /**
    * Performs the evaluation of an expression, possibly writing the output graph
    * in a file, and returns the set of final states reached
    */
-  def eval(exp: Exp, graph: Boolean): Output[HybridValue] = {
+  def eval(exp: Exp, graph: Boolean, timeout: Option[Long]): Output[HybridValue] = {
     loop(injectExecutionState(exp), 0, System.nanoTime,
-      if (graph) { Some(new Graph[PS, String]()) } else { None })
+      if (graph) { Some(new Graph[PS, String]()) } else { None }, timeout)
   }
 }

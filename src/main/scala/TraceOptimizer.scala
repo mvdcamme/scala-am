@@ -133,8 +133,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                          CONSTANT FOLDING OPTIMIZATION                                           *
    ********************************************************************************************************************/
 
-  case class ActionStartOptimizedBlock[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
-  case class ActionEndOptimizedBlock[Exp : Expression, Abs : AbstractValue, Addr : Address]() extends Action[Exp, Abs, Addr]
+  case class ActionStartOptimizedBlock[Exp : Expression, Abs : JoinLattice, Addr : Address]() extends Action[Exp, Abs, Addr]
+  case class ActionEndOptimizedBlock[Exp : Expression, Abs : JoinLattice, Addr : Address]() extends Action[Exp, Abs, Addr]
 
   private def findNextPushVal(trace: Trace): Option[Trace] = {
     val updatedTrace = trace.dropWhile({case (ActionPushValT(), _) => false
@@ -259,9 +259,9 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
                  case _ =>
                    checkPrimitive(traceBetweenMarks, n).flatMap({ (traceAfterOperatorPush) =>
                      //val guard = (ActionGuardSamePrimitive(), None)
-                     val replacingConstantAction: TraceInstructionInfo = (ActionReachedValueT[Exp, HybridValue, HybridAddress](result), None)
-                     val actionEndOptimizedBlock = (ActionEndOptimizedBlock[Exp, HybridValue, HybridAddress](), None)
-                     val actionStartOptimizedBlock = (ActionStartOptimizedBlock[Exp, HybridValue, HybridAddress](), None)
+                     val replacingConstantAction: TraceInstructionInfo = (ActionReachedValueT[Exp, HybridValue, HybridAddress.A](result), None)
+                     val actionEndOptimizedBlock = (ActionEndOptimizedBlock[Exp, HybridValue, HybridAddress.A](), None)
+                     val actionStartOptimizedBlock = (ActionStartOptimizedBlock[Exp, HybridValue, HybridAddress.A](), None)
                      val replacingTrace = firstPart ++ (traceBefore :+ actionEndOptimizedBlock :+ replacingConstantAction) ++
                                           /* Add all parts of the inner optimized blocks, except for the constants themselves that were folded there; those are folded away in the new block */
                                           optimizedBlocks.foldLeft(List(): Trace)({ (acc, current) => acc ++ current.filter({ (actionState) => ! actionState._1.isInstanceOf[ActionReachedValueT[Exp, Abs, Addr]] })}) ++
@@ -297,8 +297,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                          TYPE SPECIALIZATION OPTIMIZATION                                        *
    ********************************************************************************************************************/
 
-  private def typeSpecializePrimitive(prim: Primitive[HybridAddress, HybridValue],
-                                      operandsTypes: AbstractType): Primitive[HybridAddress, HybridValue] = prim match {
+  private def typeSpecializePrimitive(prim: Primitive[HybridAddress.A, HybridValue],
+                                      operandsTypes: JoinLattice): Primitive[HybridAddress.A, HybridValue] = prim match {
     case hybridMachine.primitives.Plus => operandsTypes match {
       case AbstractType.AbstractFloat => hybridMachine.primitives.PlusFloat
       case AbstractType.AbstractInt => hybridMachine.primitives.PlusInteger
@@ -321,15 +321,15 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
           val operator = vStack(n - 1).getVal
           val operandsTypes = HybridLattice.checkValuesTypes(operands)
           val specializedOperator = operator match {
-            case prim: HybridLattice.Prim[HybridAddress, HybridValue] => prim match {
+            case prim: HybridLattice.Prim[HybridAddress.A, HybridValue] => prim match {
               case HybridLattice.Prim(primitive) => primitive match {
-                case primitive: Primitive[HybridAddress, HybridValue] =>
+                case primitive: Primitive[HybridAddress.A, HybridValue] =>
                   val specializedPrim = typeSpecializePrimitive(primitive, operandsTypes)
                   HybridLattice.Prim(specializedPrim)
               }
             }
           }
-          val specializedPrimCallAction = ActionSpecializePrimitive[Exp, HybridValue, HybridAddress](operandsTypes, specializedOperator, operator, n, fExp, argsExps)
+          val specializedPrimCallAction = ActionSpecializePrimitive[Exp, HybridValue, HybridAddress.A](operandsTypes, specializedOperator, operator, n, fExp, argsExps)
           loop(rest, (specializedPrimCallAction, actionState2._2) :: actionState1 :: acc)
         /* Since the state before applying the function was not recorded, we cannot know what the types of the operands were */
         case _ =>
@@ -359,7 +359,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.startProgramState} instead")
     }
 
-    def replaceVariableLookups(action: ActionLookupVariableT[Exp, HybridValue, HybridAddress],
+    def replaceVariableLookups(action: ActionLookupVariableT[Exp, HybridValue, HybridAddress.A],
                                boundVariables: Set[String]): TraceInstructionInfo = {
 
       def generateIndex(variable: String): Option[Integer] = {
@@ -372,19 +372,19 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
         }
       }
 
-      def generateAction(varName: String): Action[Exp, HybridValue, HybridAddress] = {
-        val defaultAction = ActionLookupVariableT[Exp, HybridValue, HybridAddress](varName)
+      def generateAction(varName: String): Action[Exp, HybridValue, HybridAddress.A] = {
+        val defaultAction = ActionLookupVariableT[Exp, HybridValue, HybridAddress.A](varName)
         variablesConverted.find( _._1 == action.varName) match {
           case Some((_, index)) =>
             /* Variable lookup was already replaced by a register lookup */
-            ActionLookupRegister[Exp, HybridValue, HybridAddress](index)
+            ActionLookupRegister[Exp, HybridValue, HybridAddress.A](index)
           case None =>
           /* Variable can be replaced but isn't entered in the list yet.
              Generate an action to put it in some register if possible */
           generateIndex(action.varName) match {
             case Some(index) =>
               variablesConverted = variablesConverted :+ (action.varName, index)
-              ActionLookupRegister[Exp, HybridValue, HybridAddress](index)
+              ActionLookupRegister[Exp, HybridValue, HybridAddress.A](index)
             case None =>
               /* Variable couldn't be placed into a register, e.g., because there are no more registers left */
               defaultAction
@@ -407,8 +407,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case (action, someState) => (action, someState)
     })
 
-    val putRegisterActions: List[Action[Exp, HybridValue, HybridAddress]] =
-      variablesConverted.map(tuple => ActionPutRegister[Exp, HybridValue, HybridAddress](tuple._1, tuple._2))
+    val putRegisterActions: List[Action[Exp, HybridValue, HybridAddress.A]] =
+      variablesConverted.map(tuple => ActionPutRegister[Exp, HybridValue, HybridAddress.A](tuple._1, tuple._2))
 
     hybridMachine.TraceFull(traceFull.startProgramState, traceFull.assertions ++ putRegisterActions, optimisedTrace)
   }
@@ -423,11 +423,11 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     def loop(trace: Trace, acc: Trace): Trace = trace match {
       case Nil => acc.reverse
       case (ActionLookupVariableT(varName, read, write), s1) :: (ActionPushValT(), s2) :: rest =>
-        loop(rest, (ActionLookupVariablePushT[Exp, HybridValue, HybridAddress](varName, read, write), s2) :: acc)
+        loop(rest, (ActionLookupVariablePushT[Exp, HybridValue, HybridAddress.A](varName, read, write), s2) :: acc)
       case (ActionReachedValueT(lit, read, write), s1) :: (ActionPushValT(), s2) :: rest =>
-        loop(rest, (ActionReachedValuePushT[Exp, HybridValue, HybridAddress](lit, read, write), s2) :: acc)
+        loop(rest, (ActionReachedValuePushT[Exp, HybridValue, HybridAddress.A](lit, read, write), s2) :: acc)
       case (ActionRestoreEnvT(), s1) :: (ActionSaveEnvT(), s2) :: rest =>
-        loop(rest, (ActionRestoreSaveEnvT[Exp, HybridValue, HybridAddress](), s2) :: acc)
+        loop(rest, (ActionRestoreSaveEnvT[Exp, HybridValue, HybridAddress.A](), s2) :: acc)
       case otherAction :: rest =>
         loop(rest, otherAction :: acc)
     }

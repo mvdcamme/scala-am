@@ -366,7 +366,7 @@ object Main {
             val absSemantics = new SchemeSemantics[HybridLattice.Hybrid, HybridAddress.A, time.T](new SchemePrimitives[HybridAddress.A, HybridLattice.Hybrid])
             if (config.amb) {
               val sem = new AmbSchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress.A, time.T](absSemantics)
-              new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, primitives, abs, t) =>
+              new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, abs, t) =>
                 val normalState = new ProgramState[SchemeExp, time.T](exp, primitives, abs, t)
                 new AmbProgramState[SchemeExp, time.T](normalState)
               })

@@ -3,4 +3,4 @@
   */
 trait TraceInformation[Abs]
 
-case class PrimitiveAppliedInfo[Abs: AbstractValue, Addr : Address](v: Abs, vStack: List[Storable[Abs, Addr]]) extends TraceInformation[Abs]
+case class PrimitiveAppliedInfo[Abs : JoinLattice, Addr : Address](v: Abs, vStack: List[Storable[Abs, Addr]]) extends TraceInformation[Abs]
