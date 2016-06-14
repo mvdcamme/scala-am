@@ -1,6 +1,6 @@
 /**
   * The store used for continuations is a KontStore (defined in
-  * Kontinuation.scala). It is parameterized by continuation addresses, that
+  * machine/Kontinuation.scala). It is parameterized by continuation addresses, that
   * are element of the KontAddress typeclass.
   */
 trait KontAddr
