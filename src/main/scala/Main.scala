@@ -108,6 +108,8 @@ object Config {
       someBool.fold(config)(bool => config.copy(tracingFlags = genTracingFlags(bool)))
     }
 
+    head("scala-ac", "0.0")
+
     object Address extends Enumeration {
       val Classical, ValueSensitive = Value
     }
@@ -216,7 +218,7 @@ object Main {
 
   var currentProgram: String = ""
 
-  def printExecutionTimes[Abs : AbstractValue](result: Output[Abs], benchmarks_results_file: String): Unit = {
+  def printExecutionTimes[Abs : JoinLattice](result: Output[Abs], benchmarks_results_file: String): Unit = {
     val file = new File(benchmarks_results_file)
     val bw = new BufferedWriter(new FileWriter(file, true))
     bw.write(s"$currentProgram: ${result.time}\n")
@@ -288,7 +290,7 @@ object Main {
     runBasic[Exp, Abs, Addr, Time](machine, output, calcResult, benchmarks_results_file, timeout, inspect)
   }
 
-  def runTraced[Exp : Expression,Abs : AbstractValue, Addr : Address, Time : Timestamp]
+  def runTraced[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
   (machine: AbstractMachineTraced[Exp, Abs, Addr, Time], sem: Semantics[Exp, Abs, Addr, Time])
   (program: String, output: Option[String], timeout: Option[Long], inspect: Boolean, benchmarks_results_file: String): Unit = {
     def calcResult() = {
@@ -361,15 +363,15 @@ object Main {
           case Config.Machine.AAC => new AAC[SchemeExp, lattice.L, address.A, time.T]
           case Config.Machine.Free => new Free[SchemeExp, lattice.L, address.A, time.T]
           case Config.Machine.Hybrid => {
-            val absSemantics = new SchemeSemantics[HybridLattice.Hybrid, HybridAddress, time.T](new SchemePrimitives[HybridAddress, HybridLattice.Hybrid])
+            val absSemantics = new SchemeSemantics[HybridLattice.Hybrid, HybridAddress.A, time.T](new SchemePrimitives[HybridAddress.A, HybridLattice.Hybrid])
             if (config.amb) {
-              val sem = new AmbSchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, time.T](absSemantics)
+              val sem = new AmbSchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress.A, time.T](absSemantics)
               new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, primitives, abs, t) =>
                 val normalState = new ProgramState[SchemeExp, time.T](exp, primitives, abs, t)
                 new AmbProgramState[SchemeExp, time.T](normalState)
               })
             } else {
-              val sem = new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress, time.T](absSemantics)
+              val sem = new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress.A, time.T](absSemantics)
               new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, primitives, abs, t) =>
                 new ProgramState[SchemeExp, time.T](exp, primitives, abs, t)
               })
