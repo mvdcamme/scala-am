@@ -18,13 +18,13 @@
  */
 
 class HybridMachine[Exp : Expression, Time : Timestamp]
-  (override val sem: SemanticsTraced[Exp, HybridLattice.Hybrid, HybridAddress.A, Time],
+  (override val sem: SemanticsTraced[Exp, ConcreteLattice, HybridAddress.A, Time],
    val tracingFlags: TracingFlags,
-   injectProgramState: (Exp, JoinLattice[HybridLattice.Hybrid], Timestamp[Time]) =>
-                       ConcreteTracingProgramState[Exp, HybridLattice.Hybrid, HybridAddress.A, Time])
-    extends EvalKontMachineTraced[Exp, HybridLattice.Hybrid, HybridAddress.A, Time](sem) {
+   injectProgramState: (Exp, JoinLattice[ConcreteLattice], Timestamp[Time]) =>
+                       ConcreteTracingProgramState[Exp, ConcreteLattice, HybridAddress.A, Time])
+    extends EvalKontMachineTraced[Exp, ConcreteLattice, HybridAddress.A, Time](sem) {
 
-  type HybridValue = HybridLattice.Hybrid
+  type HybridValue = ConcreteLattice
 
   type TraceInstruction = Action[Exp, HybridValue, HybridAddress.A]
   type TraceWithoutStates = List[TraceInstruction]
@@ -325,9 +325,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   private def switchToAbstract(currentProgramState: PS): Unit = {
     Logger.log("HybridMachine switching to abstract", Logger.E)
-    HybridLattice.switchToAbstract
+    //HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
-    val aam = new AAM[Exp, HybridValue, HybridAddress.A, Time]
+    val aam = new AAM[Exp, TypeSetLattice, HybridAddress.A, Time]
     val (control, store, kstore, a, t) = currentProgramState.convertState(sem)
     val convertedControl = control match {
       case ConvertedControlError(reason) => aam.ControlError(reason)
@@ -340,7 +340,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   private def switchToConcrete(): Unit = {
     Logger.log("HybridMachine switching to concrete", Logger.E)
-    HybridLattice.switchToConcrete
+    //HybridLattice.switchToConcrete
     HybridAddress.switchToConcrete
   }
 

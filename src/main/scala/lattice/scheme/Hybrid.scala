@@ -1,7 +1,6 @@
-import UnaryOperator._
-import BinaryOperator._
-  
-object HybridLattice {
+/*
+
+class HybridLattice extends SchemeLattice {
   
   var doConcrete = true
   
@@ -12,8 +11,12 @@ object HybridLattice {
   def switchToConcrete = {
     doConcrete = true
   }
+
+  val concreteLattice = new ConcreteLattice(true)
+  val typeSetLattice = new TypeSetLattice(true)
   
   trait Hybrid
+  type L = lattice.LSet
 
   def getOperandType(operand: Hybrid): AbstractType = operand match {
     case HybridLattice.Left(AbstractConcrete.AbstractFloat(_)) => AbstractType.AbstractFloat
@@ -32,13 +35,12 @@ object HybridLattice {
       }
     })
   }
-  
-  val concreteValue = implicitly[AbstractValue[AbstractConcrete]]
-  val abstractType = implicitly[AbstractValue[AbstractType]]
 
-  case class Left(c: AbstractConcrete) extends Hybrid
-  case class Right(a: AbstractType) extends Hybrid
+  case class Left(c: concreteLattice.L) extends Hybrid
+  case class Right(a: typeSetLattice.L) extends Hybrid
   case class Prim[Addr, Abs](prim: Primitive[Addr, Abs]) extends Hybrid
+
+
 
   implicit object HybridAbstractValue extends AbstractValue[Hybrid] {
     def name = s"(${concreteValue.name} | ${abstractType.name})"
@@ -182,3 +184,5 @@ object HybridLattice {
     }
   }
 }
+
+*/

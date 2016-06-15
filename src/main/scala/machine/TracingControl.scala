@@ -10,7 +10,7 @@ trait TracingControl[Exp, Abs, Addr] {
   * It can either be an eval component, where an expression needs to be
   * evaluated in an environment
   */
-case class TracingControlEval[Exp : Expression, Abs : AbstractValue, Addr : Address](exp: Exp) extends TracingControl[Exp, Abs, Addr] {
+case class TracingControlEval[Exp : Expression, Abs : JoinLattice, Addr : Address](exp: Exp) extends TracingControl[Exp, Abs, Addr] {
   override def toString = s"ev($exp)"
   def subsumes(that: TracingControl[Exp, Abs, Addr]) = that match {
     case TracingControlEval(exp2) => exp.equals(exp2)
@@ -22,7 +22,7 @@ case class TracingControlEval[Exp : Expression, Abs : AbstractValue, Addr : Addr
   * Or an error component, in case an error is reached (e.g., incorrect number
   * of arguments in a function call)
   */
-case class TracingControlError[Exp : Expression, Abs : AbstractValue, Addr : Address](reason: String) extends TracingControl[Exp, Abs, Addr] {
+case class TracingControlError[Exp : Expression, Abs : JoinLattice, Addr : Address](reason: SemanticError) extends TracingControl[Exp, Abs, Addr] {
   override def toString = s"err($reason)"
   def subsumes(that: TracingControl[Exp, Abs, Addr]) = that.equals(this)
 }
@@ -31,7 +31,7 @@ case class TracingControlError[Exp : Expression, Abs : AbstractValue, Addr : Add
   * Or it can be a continuation component, where a value has been reached and a
   * continuation should be popped from the stack to continue the evaluation
   */
-case class TracingControlKont[Exp : Expression, Abs : AbstractValue, Addr : Address](ka : KontAddr) extends TracingControl[Exp, Abs, Addr] {
+case class TracingControlKont[Exp : Expression, Abs : JoinLattice, Addr : Address](ka : KontAddr) extends TracingControl[Exp, Abs, Addr] {
   override def toString = s"ko($ka)"
   override def toString(store: Store[Addr, Abs]) = s"ko($ka)"
   def subsumes(that: TracingControl[Exp, Abs, Addr]) = that match {

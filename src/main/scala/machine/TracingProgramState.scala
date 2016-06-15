@@ -1,6 +1,6 @@
 trait TracingProgramState[Exp, Abs, Addr, Time] {
 
-  implicit def abs: AbstractValue[Abs]
+  implicit def abs: JoinLattice[Abs]
   implicit def addr: Address[Addr]
   implicit def time: Timestamp[Time]
 
