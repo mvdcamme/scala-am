@@ -696,13 +696,13 @@ object SchemeDesugarer {
     */
   def desugarExp(exp: SchemeExp): SchemeExp = {
     val exp2 = exp match {
-      case SchemeAnd(exps) => exps match {
-        case Nil => SchemeValue(ValueBoolean(true))
+      case SchemeAnd(exps, pos) => exps match {
+        case Nil => SchemeValue(ValueBoolean(true), pos)
         case andExp :: Nil => desugarExp(andExp)
-        case andExp :: rest => SchemeIf(desugarExp(andExp), desugarExp(SchemeAnd(rest).setPos(exp.pos)), SchemeValue(ValueBoolean(false)))
+        case andExp :: rest => SchemeIf(desugarExp(andExp), desugarExp(SchemeAnd(rest, exp.pos)), SchemeValue(ValueBoolean(false), pos), pos)
       }
-      case SchemeOr(exps) => exps match {
-        case Nil => SchemeValue(ValueBoolean(false))
+      case SchemeOr(exps, pos) => exps match {
+        case Nil => SchemeValue(ValueBoolean(false), pos)
         case orExp :: Nil => desugarExp(orExp)
         case orExp :: rest =>
           /*
@@ -711,24 +711,24 @@ object SchemeDesugarer {
            */
           val tempVarName = s"#<genvar$id>"
           id += 1
-          val body: SchemeExp = SchemeIf(SchemeIdentifier(tempVarName), SchemeIdentifier(tempVarName), desugarExp(SchemeOr(rest).setPos(exp.pos)))
-          SchemeLet(List((tempVarName, desugarExp(orExp))), List(body))
+          val body: SchemeExp = SchemeIf(SchemeIdentifier(tempVarName, pos), SchemeIdentifier(tempVarName, pos), desugarExp(SchemeOr(rest, exp.pos)), pos)
+          SchemeLet(List((tempVarName, desugarExp(orExp))), List(body), pos)
       }
 
-      case SchemeCond(clauses) => clauses match {
-        case Nil => SchemeValue(ValueBoolean(false))
+      case SchemeCond(clauses, pos) => clauses match {
+        case Nil => SchemeValue(ValueBoolean(false), pos)
         case (cond, body) :: rest =>
-          val desugaredRest = desugarExp(SchemeCond(rest).setPos(exp.pos))
+          val desugaredRest = desugarExp(SchemeCond(rest, exp.pos))
           val desugaredBody = body match {
-            case Nil => SchemeBegin(Nil)
+            case Nil => SchemeBegin(Nil, pos)
             case head :: bodyRest =>
-              SchemeBegin(body.map(desugarExp)).setPos(head.pos)
+              SchemeBegin(body.map(desugarExp), head.pos)
           }
           desugarExp(cond) match {
-            case SchemeIdentifier("else") =>
-              SchemeIf(SchemeValue(ValueBoolean(true)).setPos(cond.pos), desugaredBody, desugaredRest)
+            case SchemeIdentifier("else", pos) =>
+              SchemeIf(SchemeValue(ValueBoolean(true), pos), desugaredBody, desugaredRest, pos)
             case other =>
-              SchemeIf(other, desugaredBody, desugaredRest)
+              SchemeIf(other, desugaredBody, desugaredRest, pos)
           }
       }
 
@@ -755,7 +755,6 @@ object SchemeDesugarer {
       case SchemeSpawn(exp, pos) => SchemeSpawn(desugarExp(exp), pos)
       case SchemeJoin(exp, pos) => SchemeJoin(desugarExp(exp), pos)
     }
-    exp2.setPos(exp.pos)
   }
 }
 

@@ -224,7 +224,7 @@ object Main {
   }
 
   def runBasic[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
-    (machine: AbstractMachine[Exp, Abs, Addr, Time], output: Option[String], calcResult: () => Output[Abs],
+    (machine: BasicAbstractMachine[Exp, Abs, Addr, Time], output: Option[String], calcResult: () => Output[Abs],
      benchmarks_results_file: String, timeout: Option[Long], inspect: Boolean): Unit = {
     val abs = implicitly[JoinLattice[Abs]]
     val addr = implicitly[Address[Addr]]

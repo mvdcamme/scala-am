@@ -45,7 +45,7 @@ trait Semantics[Exp, Abs, Addr, Time] {
   def initialStore: Iterable[(Addr, Abs)] = initialBindings.map({ case (_, a, v) => (a, v) })
 }
 
-trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Addr, Time] {
+trait SemanticsTraced[Exp, Abs, Addr, Time] {
 
   class InvalidArityException extends Exception
 
@@ -80,6 +80,11 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
     * the topmost frame is frame
     */
   def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[InterpreterStep[Exp, Abs, Addr]]
+
+  /**
+    * Defines how to parse a program
+    */
+  def parse(program: String): Exp
 
   def getClosureBody(frame: Frame): Option[List[Exp]]
 

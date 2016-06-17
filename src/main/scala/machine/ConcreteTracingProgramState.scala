@@ -59,7 +59,7 @@ trait ConcretableTracingProgramState[Exp, Time] {
 }
 
 trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramState[Exp, Abs, Addr, Time] {
-  type HybridValue = ConcreteLattice
+  type HybridValue = HybridLattice.L
 
   def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[InterpreterStep[Exp, Abs, Addr]]
   def applyAction(sem: SemanticsTraced[Exp, Abs, Addr, Time],
@@ -402,7 +402,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   /**
     * Builds the state with the initial environment and stores
     */
-  def this(exp: Exp, primitives: Primitives[HybridAddress.A, HybridLattice.Hybrid], abs: JoinLattice[HybridLattice.Hybrid], time: Timestamp[Time]) =
+  def this(exp: Exp, primitives: Primitives[HybridAddress.A, HybridLattice.type], abs: JoinLattice[HybridLattice.type], time: Timestamp[Time]) =
     this(TracingControlEval(exp), Environment.empty[HybridAddress.A]().extend(primitives.forEnv),
          Store.initial(primitives.forStore, true),
          new KontStore[KontAddr](), HaltKontAddress, time.initial, sabs.inject(false), Nil)
@@ -414,7 +414,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
 
   val valueConverter: AbstractConcreteToAbstractType = new AbstractConcreteToAbstractType
 
-  def convertValue(σ: Store[HybridAddress.A, HybridLattice.Hybrid])(value: HybridValue): HybridValue = value match {
+  def convertValue(σ: Store[HybridAddress.A, HybridLattice.type])(value: HybridValue): HybridValue = value match {
     case HybridLattice.Left(v) => HybridLattice.Right(valueConverter.convert[Exp](v, σ))
     case HybridLattice.Right(v) => value
     case HybridLattice.Prim(p) => value
@@ -423,7 +423,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def convertEnvironment(env: Environment[HybridAddress.A]): Environment[HybridAddress.A] =
     new Environment[HybridAddress.A](env.content.map { tuple => (tuple._1, HybridAddress.A.convertAddress(tuple._2))})
 
-  def convertControl(control: TracingControl[Exp, HybridValue, HybridAddress.A], σ: Store[HybridAddress.A, HybridLattice.Hybrid]): TracingControl[Exp, HybridValue, HybridAddress.A] = control match {
+  def convertControl(control: TracingControl[Exp, HybridValue, HybridAddress.A], σ: Store[HybridAddress.A, HybridLattice.type]): TracingControl[Exp, HybridValue, HybridAddress.A] = control match {
     case TracingControlEval(exp) => TracingControlEval(exp)
     case TracingControlKont(ka) => TracingControlKont(convertKontAddress(ka))
     case TracingControlError(error) => TracingControlError(error)
@@ -454,7 +454,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time]):
   (ConvertedControl[Exp, HybridValue, HybridAddress.A], Store[HybridAddress.A, HybridValue], KontStore[KontAddr], KontAddr, Time) = {
     val newρ = convertEnvironment(ρ)
-    var newσ = Store.empty[HybridAddress.A, HybridLattice.Hybrid]
+    var newσ = Store.empty[HybridAddress.A, HybridLattice.type]
     def addToNewStore(tuple: (HybridAddress.A, HybridValue)): Boolean = {
       val newAddress = HybridAddress.convertAddress(tuple._1)
       val newValue = convertValue(σ)(tuple._2)

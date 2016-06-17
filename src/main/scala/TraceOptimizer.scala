@@ -11,7 +11,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   type Trace = HybridMachine[Exp, Time]#TraceWithInfos
   type TraceFull = HybridMachine[Exp, Time]#TraceFull
 
-  type HybridValue = HybridLattice.Hybrid
+  type HybridValue = HybridLattice.type
 
   val variableAnalyzer = new VariableAnalysis(sem, hybridMachine)
 

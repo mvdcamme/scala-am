@@ -2,14 +2,14 @@
  * Restart points
  */
 
-case class RestartStoppedInBacktrack[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+case class RestartStoppedInBacktrack[Exp : Expression, Abs : JoinLattice, Addr : Address]()
   extends RestartPoint[Exp, Abs, Addr]
 
 /*
  * Frames
  */
 
-case class UndoActionFrame[Exp : Expression, Abs : AbstractValue, Addr : Address](action: ActionSingleT[Exp, Abs, Addr])
+case class UndoActionFrame[Exp : Expression, Abs : JoinLattice, Addr : Address](action: ActionSingleT[Exp, Abs, Addr])
   extends Frame {
     def subsumes(that: Frame) = that.equals(this)
   }
@@ -18,9 +18,9 @@ case class UndoActionFrame[Exp : Expression, Abs : AbstractValue, Addr : Address
  * Normal actions
  */
 
-case class ActionPopFailKontT[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+case class ActionPopFailKontT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
   extends Action[Exp, Abs, Addr]
-case class ActionPushFailKontT[Exp : Expression, Abs : AbstractValue, Addr : Address]
+case class ActionPushFailKontT[Exp : Expression, Abs : JoinLattice, Addr : Address]
   (failureFrame: Frame)
   extends Action[Exp, Abs, Addr]
 
@@ -28,21 +28,21 @@ case class ActionPushFailKontT[Exp : Expression, Abs : AbstractValue, Addr : Add
  * Single actions
  */
 
-abstract class ActionSingleT[Exp : Expression, Abs : AbstractValue, Addr : Address]
+abstract class ActionSingleT[Exp : Expression, Abs : JoinLattice, Addr : Address]
   extends Action[Exp, Abs, Addr]
 
-case class ActionSinglePopKontT[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+case class ActionSinglePopKontT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
   extends ActionSingleT[Exp, Abs, Addr]
-case class ActionSinglePushKontT[Exp : Expression, Abs : AbstractValue, Addr : Address]
+case class ActionSinglePushKontT[Exp : Expression, Abs : JoinLattice, Addr : Address]
   (frame: Frame)
   extends ActionSingleT[Exp, Abs, Addr]
-case class ActionSingleSaveSpecificEnvT[Exp : Expression, Abs : AbstractValue, Addr : Address]
+case class ActionSingleSaveSpecificEnvT[Exp : Expression, Abs : JoinLattice, Addr : Address]
   (ρToSave: Environment[Addr], ρToReplace: Environment[Addr])
   extends ActionSingleT[Exp, Abs, Addr]
-case class ActionSingleSaveValT[Exp : Expression, Abs : AbstractValue, Addr : Address]
+case class ActionSingleSaveValT[Exp : Expression, Abs : JoinLattice, Addr : Address]
   (value: Abs)
   extends ActionSingleT[Exp, Abs, Addr]
-case class ActionSingleRestoreEnvT[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+case class ActionSingleRestoreEnvT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
   extends ActionSingleT[Exp, Abs, Addr]
-case class ActionSingleRestoreValT[Exp : Expression, Abs : AbstractValue, Addr : Address]()
+case class ActionSingleRestoreValT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
   extends ActionSingleT[Exp, Abs, Addr]

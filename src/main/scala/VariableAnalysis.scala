@@ -12,7 +12,7 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
   type Trace = HybridMachine[Exp, Time]#TraceWithInfos
   type TraceFull = HybridMachine[Exp, Time]#TraceFull
 
-  type HybridValue = HybridLattice.Hybrid
+  type HybridValue = HybridLattice.type
 
   /**
     * Computes the set of bound variables in the given trace.

@@ -1,7 +1,7 @@
 /**
   * Created by mvdcamme on 21/03/16.
   */
-class Storable[Abs : AbstractValue, Addr : Address](combo: Either[Abs, Environment[Addr]]) {
+class Storable[Abs : JoinLattice, Addr : Address](combo: Either[Abs, Environment[Addr]]) {
 
   def getVal: Abs = combo match {
     case Left(value) =>
@@ -18,7 +18,7 @@ class Storable[Abs : AbstractValue, Addr : Address](combo: Either[Abs, Environme
   }
 }
 
-case class StoreVal[Abs : AbstractValue, Addr : Address](value: Abs) extends Storable[Abs, Addr](Left(value))
-case class StoreEnv[Abs : AbstractValue, Addr : Address](env: Environment[Addr]) extends Storable[Abs, Addr](Right(env))
+case class StoreVal[Abs : JoinLattice, Addr : Address](value: Abs) extends Storable[Abs, Addr](Left(value))
+case class StoreEnv[Abs : JoinLattice, Addr : Address](env: Environment[Addr]) extends Storable[Abs, Addr](Right(env))
 
 case class IncorrectStorableException(message: String) extends Exception(message)

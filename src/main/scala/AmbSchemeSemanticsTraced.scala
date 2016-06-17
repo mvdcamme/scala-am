@@ -1,4 +1,6 @@
-class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Timestamp]
+/*
+
+class AmbSchemeSemanticsTraced[Abs : JoinLattice, Addr : Address, Time : Timestamp]
   (override val absSem: SchemeSemantics[Abs, Addr, Time])
   extends SchemeSemanticsTraced[Abs, Addr, Time](absSem) {
 
@@ -28,3 +30,5 @@ class AmbSchemeSemanticsTraced[Abs : AbstractValue, Addr : Address, Time : Times
   }
 
 }
+
+*/
