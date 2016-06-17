@@ -1,3 +1,5 @@
+import lattice.scheme._
+
 class AbstractConcreteToAbstractType {
   
   def convertAddress(address: Address[HybridAddress.A]) = address match {
@@ -5,7 +7,7 @@ class AbstractConcreteToAbstractType {
     case HybridAddress.Right(classicalAddress) => HybridAddress.Right(classicalAddress)
   }
   
-  def convert[Exp : Expression](value: JoinLattice, store: Store[HybridAddress.A, HybridLattice.Hybrid]): AbstractType = value match {
+  def convert[Exp : Expression](value: ConcreteLattice, store: Store[HybridAddress.A, HybridLattice.L]): AbstractType = value match {
     /*
      * Does not convert AbstractTid
      */

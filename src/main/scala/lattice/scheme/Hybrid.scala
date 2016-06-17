@@ -1,4 +1,6 @@
-class HybridLattice extends SchemeLattice {
+import scalaz.ISet
+
+object HybridLattice extends SchemeLattice {
 
   var doConcrete = true
 
@@ -43,6 +45,100 @@ class HybridLattice extends SchemeLattice {
 
   case class Concrete(c: concreteLattice.L) extends L
   case class Abstract(a: abstractLattice.L) extends L
+
+  def convert[Exp : Expression, Addr : Address](value: L, store: Store[HybridAddress.A, L]): L = {
+
+    def convertValue(v: concreteLattice.lattice.Value): abstractLattice.lattice.Value = v match {
+      case concreteLattice.lattice.Bot =>
+        abstractLattice.lattice.Bot
+      case concreteLattice.lattice.Str(s) =>
+        abstractLattice.lattice.isSchemeLattice.inject(s.asInstanceOf[ISet[String]].toList.head)
+      case concreteLattice.lattice.Bool(b) =>
+        abstractLattice.lattice.isSchemeLattice.inject(b.asInstanceOf[ISet[Boolean]].toList.head)
+      case concreteLattice.lattice.Int(i) =>
+        abstractLattice.lattice.isSchemeLattice.inject(i.asInstanceOf[ISet[Int]].toList.head)
+      case concreteLattice.lattice.Float(f) =>
+        abstractLattice.lattice.isSchemeLattice.inject(f.asInstanceOf[ISet[Float]].toList.head)
+      case concreteLattice.lattice.Symbol(s) =>
+        abstractLattice.lattice.isSchemeLattice.injectSymbol(s.asInstanceOf[ISet[String]].toList.head)
+      case concreteLattice.lattice.Prim(prim) =>
+        abstractLattice.lattice.isSchemeLattice.inject(prim)
+      case concreteLattice.lattice.Closure(lambda, env) =>
+        abstractLattice.lattice.isSchemeLattice.inject((lambda, env))
+      case c: concreteLattice.lattice.Cons[Addr] =>
+        abstractLattice.lattice.Cons[Addr](c.car, c.cdr)
+      case concreteLattice.lattice.Nil =>
+        abstractLattice.lattice.Nil
+      case concreteLattice.lattice.Vec(size, elements, init) =>
+        val actualSize = size.asInstanceOf[ISet[Int]].toList.head
+        val abstractSize = Type.typeIsInteger.inject(actualSize)
+        var abstractElements = collection.immutable.Map[Type.T, Addr]()
+        elements.foreach({ case (i, address: Addr) => abstractElements = abstractElements + (Type.typeIsInteger.inject(i.asInstanceOf[ISet[Int]].toList.head) -> address) })
+        abstractLattice.lattice.Vec[Addr](abstractSize, abstractElements, init.asInstanceOf[Addr])
+    }
+    value match {
+    case Abstract(a) => throw new Exception(s"Cannot convert an abstract value into a concrete value: $a")
+    case Concrete(c) => c match {
+      case concreteLattice.lattice.Element(v) => v match {
+        case concreteLattice.lattice.Bot =>
+          Abstract(abstractLattice.lattice.Element(abstractLattice.lattice.Bot))
+        case concreteLattice.lattice.Str(s) =>
+          Abstract(abstractSchemeLattice.inject(s.asInstanceOf[ISet[String]].toList.head))
+        case concreteLattice.lattice.Bool(b) =>
+          Abstract(abstractSchemeLattice.inject(b.asInstanceOf[ISet[Boolean]].toList.head))
+        case concreteLattice.lattice.Int(i) =>
+          Abstract(abstractSchemeLattice.inject(i.asInstanceOf[ISet[Int]].toList.head))
+        case concreteLattice.lattice.Float(f) =>
+          Abstract(abstractSchemeLattice.inject(f.asInstanceOf[ISet[Float]].toList.head))
+        case concreteLattice.lattice.Symbol(s) =>
+          Abstract(abstractSchemeLattice.injectSymbol(s.asInstanceOf[ISet[String]].toList.head))
+        case concreteLattice.lattice.Prim(prim) =>
+          Abstract(abstractSchemeLattice.inject(prim))
+        case concreteLattice.lattice.Closure(lambda, env) =>
+          Abstract(abstractSchemeLattice.inject((lambda, env)))
+        case c: concreteLattice.lattice.Cons[Addr] =>
+          Abstract(abstractLattice.lattice.Element(abstractLattice.lattice.Cons[Addr](c.car, c.cdr)))
+        case concreteLattice.lattice.Nil =>
+          Abstract(abstractLattice.lattice.Element(abstractLattice.lattice.Nil))
+        case concreteLattice.lattice.Vec(size, elements, init) =>
+          val actualSize = size.asInstanceOf[ISet[Int]].toList.head
+          val abstractSize = Type.typeIsInteger.inject(actualSize)
+          var abstractElements = collection.immutable.Map[Type.T, Addr]()
+          elements.foreach({ case (i, address: Addr) => abstractElements = abstractElements + (Type.typeIsInteger.inject(i.asInstanceOf[ISet[Int]].toList.head) -> address) })
+          Abstract(abstractLattice.lattice.Element(abstractLattice.lattice.Vec[Addr](abstractSize, abstractElements, init.asInstanceOf[Addr])))
+        case c: concreteLattice.lattice.VectorAddress[Addr] =>
+          Abstract(abstractLattice.lattice.Element(abstractLattice.lattice.VectorAddress[Addr](c.a)))
+      }
+    }
+
+    }
+  }
+
+
+
+//    /*
+//     * Does not convert AbstractTid
+//     */
+//    case AbstractConcrete.AbstractBool(v) => AbstractType.AbstractBool
+//    case AbstractConcrete.AbstractBottom => AbstractType.AbstractBottom
+//    case AbstractConcrete.AbstractChar(v) => AbstractType.AbstractChar
+//    case AbstractConcrete.AbstractCons(car: HybridAddress.A, cdr: HybridAddress.A) => AbstractType.AbstractCons[HybridAddress.A](convertAddress(car), convertAddress(cdr))
+//    case AbstractConcrete.AbstractFloat(v) => AbstractType.AbstractFloat
+//    case AbstractConcrete.AbstractInt(v) => AbstractType.AbstractInt
+//    case AbstractConcrete.AbstractNil => AbstractType.AbstractNil
+//    case AbstractConcrete.AbstractString(v) => AbstractType.AbstractString
+//    case AbstractConcrete.AbstractSymbol(v) => AbstractType.AbstractSymbol
+//    case v: AbstractConcrete.AbstractClosure[Exp, HybridAddress.A] => v match {
+//      case AbstractConcrete.AbstractClosure(λ, ρ) => AbstractType.AbstractClosures(Set[(Exp, Environment[HybridAddress.A])]((λ, ρ.map(HybridAddress.convertAddress))))
+//    }
+//    case v: AbstractConcrete.AbstractPrimitive[HybridAddress.A, HybridLattice.Hybrid] => v match {
+//      case AbstractConcrete.AbstractPrimitive(p: Primitive[HybridAddress.A, HybridLattice.Hybrid]) => AbstractType.AbstractPrimitive(p)
+//    }
+//  }
+
+
+
+
 
   implicit val isSchemeLattice = HybridAbstractValue
 
