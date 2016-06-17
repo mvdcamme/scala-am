@@ -108,8 +108,6 @@ object Config {
       someBool.fold(config)(bool => config.copy(tracingFlags = genTracingFlags(bool)))
     }
 
-    head("scala-ac", "0.0")
-
     object Address extends Enumeration {
       val Classical, ValueSensitive = Value
     }
@@ -363,15 +361,17 @@ object Main {
           case Config.Machine.AAC => new AAC[SchemeExp, lattice.L, address.A, time.T]
           case Config.Machine.Free => new Free[SchemeExp, lattice.L, address.A, time.T]
           case Config.Machine.Hybrid => {
-            val absSemantics = new SchemeSemantics[HybridLattice.Hybrid, HybridAddress.A, time.T](new SchemePrimitives[HybridAddress.A, HybridLattice.Hybrid])
+            val absSemantics = new SchemeSemantics[ConcreteLattice, HybridAddress.A, time.T](new SchemePrimitives[HybridAddress.A, ConcreteLattice])
             if (config.amb) {
-              val sem = new AmbSchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress.A, time.T](absSemantics)
-              new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, abs, t) =>
-                val normalState = new ProgramState[SchemeExp, time.T](exp, primitives, abs, t)
-                new AmbProgramState[SchemeExp, time.T](normalState)
-              })
+              throw new Exception("TODO Ambigious interpreter currently not supported")
+//              TODO
+//              val sem = new AmbSchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress.A, time.T](absSemantics)
+//              new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, abs, t) =>
+//                val normalState = new ProgramState[SchemeExp, time.T](exp, primitives, abs, t)
+//                new AmbProgramState[SchemeExp, time.T](normalState)
+//              })
             } else {
-              val sem = new SchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress.A, time.T](absSemantics)
+              val sem = new SchemeSemanticsTraced[ConcreteLattice, HybridAddress.A, time.T](absSemantics)
               new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, primitives, abs, t) =>
                 new ProgramState[SchemeExp, time.T](exp, primitives, abs, t)
               })
