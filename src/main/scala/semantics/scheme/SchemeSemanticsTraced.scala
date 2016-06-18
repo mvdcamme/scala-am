@@ -241,7 +241,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : JoinLattice, Addr : Address, Time
     }
     case SchemeIf(cond, cons, alt, _) => Set(interpreterStep(List(actionSaveEnv, ActionEvalPushT(cond, FrameIfT(cons, alt)))))
     case SchemeLet(Nil, body, _) => Set(interpreterStep(evalBody(body, FrameBeginT)))
-    case SchemeLet((v, exp, _) :: bindings, body) => Set(interpreterStep(List(actionSaveEnv, ActionEvalPushT(exp, FrameLetT(v, List(), bindings, body)))))
+    case SchemeLet((v, exp) :: bindings, body, _) => Set(interpreterStep(List(actionSaveEnv, ActionEvalPushT(exp, FrameLetT(v, List(), bindings, body)))))
     case SchemeLetrec(Nil, body, _) => Set(interpreterStep(evalBody(body, FrameBeginT)))
     case SchemeLetrec((v, exp) :: bindings, body, _) => {
       val variables = v :: bindings.map(_._1)
@@ -250,7 +250,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : JoinLattice, Addr : Address, Time
     }
     case SchemeLetStar(Nil, body, _) => Set(interpreterStep(evalBody(body, FrameBeginT)))
     case SchemeLetStar((v, exp) :: bindings, body, _) => Set(interpreterStep(List(actionSaveEnv, ActionEvalPushT(exp, FrameLetStarT(v, bindings, body)))))
-    case SchemeQuoted(quoted) =>
+    case SchemeQuoted(quoted, _) =>
       val (value, actions) = evalQuoted(quoted, t)
       Set(interpreterStep(actions :+ ActionReachedValueT[SchemeExp, Abs, Addr](value) :+ actionPopKont))
     case SchemeSet(variable, exp, _) => Set(interpreterStep(List(actionSaveEnv, ActionEvalPushT(exp, FrameSetT(variable)))))

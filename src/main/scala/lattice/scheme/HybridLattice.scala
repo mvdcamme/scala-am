@@ -199,7 +199,7 @@ object HybridLattice extends SchemeLattice {
 
   implicit val isSchemeLattice = HybridAbstractValue
 
-  implicit object HybridAbstractValue extends IsSchemeLattice[L] {
+  object HybridAbstractValue extends IsSchemeLattice[L] {
 
     def delegateToLattice[Result](x: L, concreteFun: (ConcL) => Result,
                                   abstractFun: (AbstL) => Result): Result = x match {
@@ -232,37 +232,37 @@ object HybridLattice extends SchemeLattice {
       (x) => abstractSchemeLattice.isFalse(x))
 
     def unaryOp(op: SchemeOps.UnaryOperator)(x: L): MayFail[L] = delegateToLattice[MayFail[L]](x,
-      (x) => concreteSchemeLattice.unaryOp(op)(x).map(Concrete(_)),
-      (x) => abstractSchemeLattice.unaryOp(op)(x).map(Abstract(_)))
+      (x: ConcL) => concreteSchemeLattice.unaryOp(op)(x).map(Concrete(_)),
+      (x: AbstL) => abstractSchemeLattice.unaryOp(op)(x).map(Abstract(_)))
 
     def binaryOp(op: SchemeOps.BinaryOperator)(x: L, y: L): MayFail[L] = delegateToLattice[MayFail[L]](x, y,
-      (x, y) => concreteSchemeLattice.binaryOp(op)(x, y).map(Concrete(_)),
-      (x, y) => abstractSchemeLattice.binaryOp(op)(x, y).map(Abstract(_))) match {
+      (x: ConcL, y: ConcL) => concreteSchemeLattice.binaryOp(op)(x, y).map(Concrete(_)),
+      (x: AbstL, y: AbstL) => abstractSchemeLattice.binaryOp(op)(x, y).map(Abstract(_))) match {
       case Some(result) => result
       case None => throw new Exception(s"binary operation $op on hybrid lattice cannot mix elements from two lattices: $x and $y")
     }
 
     def and(x: L, y: => L): L = delegateToLattice[L](x, y,
-      (x, y) => Concrete(concreteSchemeLattice.and(x, y)),
-      (x, y) => Abstract(abstractSchemeLattice.and(x, y))) match {
+      (x: ConcL, y: ConcL) => Concrete(concreteSchemeLattice.and(x, y)),
+      (x: AbstL, y: AbstL) => Abstract(abstractSchemeLattice.and(x, y))) match {
       case Some(result) => result
       case None => throw new Exception(s"and used on two different element of a hybrid lattice: $x and $y")
     }
 
     def or(x: L, y: => L): L = delegateToLattice[L](x, y,
-      (x, y) => Concrete(concreteSchemeLattice.or(x, y)),
-      (x, y) => Abstract(abstractSchemeLattice.or(x, y))) match {
+      (x: ConcL, y: ConcL) => Concrete(concreteSchemeLattice.or(x, y)),
+      (x: AbstL, y: AbstL) => Abstract(abstractSchemeLattice.or(x, y))) match {
       case Some(result) => result
       case None => throw new Exception(s"or used on two different element of a hybrid lattice: $x and $y")
     }
 
     def getClosures[Exp : Expression, Addr : Address](x: L): Set[(Exp, Environment[Addr])] = delegateToLattice[Set[(Exp, Environment[Addr])]](x,
-      (x) => concreteSchemeLattice.getClosures[Exp, Addr](x),
-      (y) => abstractSchemeLattice.getClosures[Exp, Addr](y))
+      (x: ConcL) => concreteSchemeLattice.getClosures[Exp, Addr](x),
+      (y: AbstL) => abstractSchemeLattice.getClosures[Exp, Addr](y))
 
     def getPrimitives[Addr : Address, Abs : JoinLattice](x: L): Set[Primitive[Addr, Abs]] = delegateToLattice[Set[Primitive[Addr, Abs]]](x,
-      (x) => concreteSchemeLattice.getPrimitives[Addr, Abs](x),
-      (y) => abstractSchemeLattice.getPrimitives[Addr, Abs](y))
+      (x: ConcL) => concreteSchemeLattice.getPrimitives[Addr, Abs](x),
+      (y: AbstL) => abstractSchemeLattice.getPrimitives[Addr, Abs](y))
 
     def applyEither(f: () => ConcL, g: () => AbstL): L =
       if (doConcrete) {
@@ -312,47 +312,47 @@ object HybridLattice extends SchemeLattice {
     def nil: L = applyEither(() => concreteSchemeLattice.nil, () => abstractSchemeLattice.nil)
 
     def car[Addr : Address](x: L): Set[Addr] = delegateToLattice[Set[Addr]](x,
-      (x) => concreteSchemeLattice.car(x),
-      (x) => abstractSchemeLattice.car(x))
+      (x: ConcL) => concreteSchemeLattice.car(x),
+      (x: AbstL) => abstractSchemeLattice.car(x))
 
     def cdr[Addr : Address](x: L): Set[Addr] = delegateToLattice[Set[Addr]](x,
-      (x) => concreteSchemeLattice.cdr(x),
-      (x) => abstractSchemeLattice.cdr(x))
+      (x: ConcL) => concreteSchemeLattice.cdr(x),
+      (x: AbstL) => abstractSchemeLattice.cdr(x))
 
     def vectorRef[Addr : Address](vector: L, index: L): MayFail[Set[Addr]] = delegateToLattice[MayFail[Set[Addr]]](vector, index,
-      (x, y) => concreteSchemeLattice.vectorRef(x, y),
-      (x, y) => abstractSchemeLattice.vectorRef(x, y)) match {
+      (x: ConcL, y: ConcL) => concreteSchemeLattice.vectorRef(x, y),
+      (x: AbstL, y: AbstL) => abstractSchemeLattice.vectorRef(x, y)) match {
         case Some(result) => result
         case None => throw new Exception(s"vector-ref used on two different element of a hybrid lattice: $vector and $index")
     }
 
     def vectorSet[Addr : Address](vector: L, index: L, addr: Addr): MayFail[(L, Set[Addr])] = delegateToLattice[MayFail[(L, Set[Addr])]](vector, index,
-      (x, y) => concreteSchemeLattice.vectorSet(x, y, addr).map( (tuple) => (Concrete(tuple._1), tuple._2) ),
-      (x, y) => abstractSchemeLattice.vectorSet(x, y, addr).map( (tuple) => (Abstract(tuple._1), tuple._2) )) match {
+      (x: ConcL, y: ConcL) => concreteSchemeLattice.vectorSet(x, y, addr).map( (tuple) => (Concrete(tuple._1), tuple._2) ),
+      (x: AbstL, y: AbstL) => abstractSchemeLattice.vectorSet(x, y, addr).map( (tuple) => (Abstract(tuple._1), tuple._2) )) match {
         case Some(result) => result
         case None => throw new Exception(s"vector-set! used on two different element of a hybrid lattice: $vector, $index and $addr")
     }
 
     def getVectors[Addr : Address](x: L): Set[Addr] = delegateToLattice[Set[Addr]](x,
-      (x) => concreteSchemeLattice.getVectors(x),
-      (x) => abstractSchemeLattice.getVectors(x))
+      (x: ConcL) => concreteSchemeLattice.getVectors(x),
+      (x: AbstL) => abstractSchemeLattice.getVectors(x))
 
     def vector[Addr : Address](addr: Addr, size: L, init: Addr): MayFail[(L, L)] = delegateToLattice[MayFail[(L, L)]](size,
-      (x) => concreteSchemeLattice.vector(addr, x, init).map( (tuple) => (Concrete(tuple._1), Concrete(tuple._2))),
-      (x) => abstractSchemeLattice.vector(addr, x, init).map( (tuple) => (Abstract(tuple._1), Abstract(tuple._2))))
+      (x: ConcL) => concreteSchemeLattice.vector(addr, x, init).map( (tuple) => (Concrete(tuple._1), Concrete(tuple._2))),
+      (x: AbstL) => abstractSchemeLattice.vector(addr, x, init).map( (tuple) => (Abstract(tuple._1), Abstract(tuple._2))))
 
     def bottom = applyEither(() => concreteSchemeLattice.bottom, () => abstractSchemeLattice.bottom)
     def name = "Hybrid"
     def join(x: L, y: L): L = delegateToLattice[L](x, y,
-      (x, y) => Concrete(concreteSchemeLattice.join(x, y)),
-      (x, y) => Abstract(abstractSchemeLattice.join(x, y))) match {
+      (x: ConcL, y: ConcL) => Concrete(concreteSchemeLattice.join(x, y)),
+      (x: AbstL, y: AbstL) => Abstract(abstractSchemeLattice.join(x, y))) match {
         case Some(result) => result
         case None => throw new Exception(s"Cannot join elements from two different lattices: $x and $y")
     }
 
     def subsumes(x: L, y: L): Boolean = delegateToLattice[Boolean](x, y,
-      (x, y) => concreteSchemeLattice.subsumes(x, y),
-      (x, y) => abstractSchemeLattice.subsumes(x, y)) match {
+      (x: ConcL, y: ConcL) => concreteSchemeLattice.subsumes(x, y),
+      (x: AbstL, y: AbstL) => abstractSchemeLattice.subsumes(x, y)) match {
         case Some(result) => result
         case None => throw new Exception(s"Values from different lattices cannot subsume each other: $x and $y")
     }
@@ -360,8 +360,8 @@ object HybridLattice extends SchemeLattice {
     def counting = true
 
     def isPrimitiveValue(x: L): Boolean = delegateToLattice[Boolean](x,
-      (x) => concreteSchemeLattice.isPrimitiveValue(x),
-      (x) => abstractSchemeLattice.isPrimitiveValue(x))
+      (x: ConcL) => concreteSchemeLattice.isPrimitiveValue(x),
+      (x: AbstL) => abstractSchemeLattice.isPrimitiveValue(x))
   }
 
 }
