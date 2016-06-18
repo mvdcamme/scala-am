@@ -22,9 +22,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
                                    val tracingFlags: TracingFlags,
    injectProgramState: (Exp, JoinLattice[ConcreteLattice], Timestamp[Time]) =>
                        ConcreteTracingProgramState[Exp, ConcreteLattice, HybridAddress.A, Time])
-    extends EvalKontMachineTraced[Exp, ConcreteLattice, HybridAddress.A, Time](sem) {
+    extends EvalKontMachineTraced[Exp, HybridLattice.L, HybridAddress.A, Time](sem) {
 
-  type HybridValue = ConcreteLattice
+  type HybridValue = HybridLattice.L
 
   type TraceInstruction = Action[Exp, HybridValue, HybridAddress.A]
   type TraceWithoutStates = List[TraceInstruction]

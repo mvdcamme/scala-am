@@ -372,8 +372,8 @@ object Main {
 //              })
             } else {
               val sem = new SchemeSemanticsTraced[ConcreteLattice, HybridAddress.A, time.T](absSemantics)
-              new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, primitives, abs, t) =>
-                new ProgramState[SchemeExp, time.T](exp, primitives, abs, t)
+              new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, abs, t) =>
+                new ProgramState[SchemeExp, time.T](exp, abs, t)
               })
             }
           }

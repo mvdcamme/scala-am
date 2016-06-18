@@ -2,7 +2,8 @@
   * Created by mvdcamme on 02/02/16.
   */
 class Tracer[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
-    (sem: SemanticsTraced[Exp, Abs, Addr, Time], traceOptimizer: TraceOptimizer[Exp, Abs, Addr, Time], hybridMachine: HybridMachine[Exp, Time]) {
+    (sem: SemanticsTraced[Exp, Abs, Addr, Time], //traceOptimizer: TraceOptimizer[Exp, Abs, Addr, Time],
+     hybridMachine: HybridMachine[Exp, Time]) {
 
   val semantics = sem
   type InstructionReturn = semantics.InstructionReturn
@@ -181,11 +182,13 @@ class Tracer[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timesta
   private def addTrace(tc: TracerContext, someAnalysisOutput: Option[AnalysisOutput]): TracerContext = tc match {
     case TracerContext(labelCounters, traceNodes, Some(curTraceNode)) =>
       val traceFull = hybridMachine.TraceFull(curTraceNode.info.startState, List(), curTraceNode.trace.reverse)
-      val optimizedTraceFull: TraceFull = if (hybridMachine.tracingFlags.APPLY_OPTIMIZATIONS) {
-        traceOptimizer.optimize(traceFull, curTraceNode.info.boundVariables, someAnalysisOutput)
-      } else {
-        traceFull
-      }
+      //TODO
+//      val optimizedTraceFull: TraceFull = if (hybridMachine.tracingFlags.APPLY_OPTIMIZATIONS) {
+//        traceOptimizer.optimize(traceFull, curTraceNode.info.boundVariables, someAnalysisOutput)
+//      } else {
+//        traceFull
+//      }
+      val optimizedTraceFull = traceFull
       TracerContext(labelCounters, TraceNode[TraceFull](curTraceNode.label, optimizedTraceFull, curTraceNode.info) :: traceNodes, Some(curTraceNode))
   }
 

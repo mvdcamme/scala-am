@@ -38,7 +38,7 @@ trait ConcretableTracingProgramState[Exp, Time] {
     * Returns the set of final values that can be reached
     */
   def finalValues = concretableState.control match {
-    case TracingControlKont(_) => Set[ConcreteLattice](concretableState.v)
+    case TracingControlKont(_) => Set[HybridLattice.L](concretableState.v)
     case _ => Set[ConcreteLattice]()
   }
 
@@ -83,14 +83,14 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
   * continuation lives.
   */
 case class ProgramState[Exp : Expression, Time : Timestamp]
-  (control: TracingControl[Exp, ConcreteLattice, HybridAddress.A],
+  (control: TracingControl[Exp, HybridLattice.L, HybridAddress.A],
    ρ: Environment[HybridAddress.A],
-   σ: Store[HybridAddress.A, ConcreteLattice],
+   σ: Store[HybridAddress.A, HybridLattice.L],
    kstore: KontStore[KontAddr],
    a: KontAddr,
    t: Time,
-   v: ConcreteLattice,
-   vStack: List[Storable[ConcreteLattice, HybridAddress.A]]) extends ConcreteTracingProgramState[Exp, ConcreteLattice, HybridAddress.A, Time]
+   v: HybridLattice.L,
+   vStack: List[Storable[HybridLattice.L, HybridAddress.A]]) extends ConcreteTracingProgramState[Exp, ConcreteLattice, HybridAddress.A, Time]
                            with ConcretableTracingProgramState[Exp, Time] {
 
   def sabs = implicitly[IsSchemeLattice[HybridValue]]
@@ -247,14 +247,14 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
 
     def handleClosureGuard(guard: ActionGuardSameClosure[Exp, HybridValue, HybridAddress.A], currentClosure: HybridValue): ActionReturn[Exp, HybridValue, HybridAddress.A, Time, ProgramState[Exp, Time]] = {
       (guard.recordedClosure, currentClosure) match {
-        case (HybridLattice.Left(AbstractConcrete.AbstractClosure(lam1, env1)), HybridLattice.Left(AbstractConcrete.AbstractClosure(lam2, env2))) =>
+        case (HybridLattice.Concrete(AbstractConcrete.AbstractClosure(lam1, env1)), HybridLattice.Concrete(AbstractConcrete.AbstractClosure(lam2, env2))) =>
           if (lam1 == lam2) {
             ActionStep(this, guard)
           } else {
             Logger.log(s"Closure guard failed: recorded closure $lam1 does not match current closure $lam2", Logger.D)
             GuardFailed(guard.rp, guard.id)
           }
-        case (HybridLattice.Right(_), HybridLattice.Right(_)) =>
+        case (HybridLattice.Abstract(_), HybridLattice.Abstract(_)) =>
           ActionStep(this, guard)
         case _ =>
           throw new Exception(s"Mixing concrete values with abstract values: ${guard.recordedClosure} and $currentClosure")
@@ -412,77 +412,77 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case _ => control.toString()
   }
 
-  val valueConverter: AbstractConcreteToAbstractType = new AbstractConcreteToAbstractType
-
-  def convertValue(σ: Store[HybridAddress.A, HybridLattice.type])(value: HybridValue): HybridValue = value match {
-    case HybridLattice.Left(v) => HybridLattice.Right(valueConverter.convert[Exp](v, σ))
-    case HybridLattice.Right(v) => value
-    case HybridLattice.Prim(p) => value
-  }
-
-  def convertEnvironment(env: Environment[HybridAddress.A]): Environment[HybridAddress.A] =
-    new Environment[HybridAddress.A](env.content.map { tuple => (tuple._1, HybridAddress.A.convertAddress(tuple._2))})
-
-  def convertControl(control: TracingControl[Exp, HybridValue, HybridAddress.A], σ: Store[HybridAddress.A, HybridLattice.type]): TracingControl[Exp, HybridValue, HybridAddress.A] = control match {
-    case TracingControlEval(exp) => TracingControlEval(exp)
-    case TracingControlKont(ka) => TracingControlKont(convertKontAddress(ka))
-    case TracingControlError(error) => TracingControlError(error)
-  }
-
-  def convertKontAddress(address: KontAddr): KontAddr = address match {
-    case address : NormalKontAddress[Exp, HybridAddress.A] =>
-      NormalKontAddress(address.exp, HybridAddress.convertAddress(address.addr))
-    case HaltKontAddress => HaltKontAddress
-  }
-
-  def convertKStore(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
-                    kontStore: KontStore[KontAddr],
-                    ρ: Environment[HybridAddress.A],
-                    a: KontAddr,
-                    vStack: List[Storable[HybridValue, HybridAddress.A]]): KontStore[KontAddr] = {
-    def loop(newKontStore: KontStore[KontAddr], a: KontAddr, vStack: List[Storable[HybridValue, HybridAddress.A]], ρ: Environment[HybridAddress.A]): KontStore[KontAddr] = a match {
-      case HaltKontAddress => newKontStore
-      case _ =>
-        val Kont(frame, next) = kontStore.lookup(a).head
-        val (convertedFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack)
-        val extendedNewKontStore = newKontStore.extend(a, Kont(convertedFrame, next))
-        loop(extendedNewKontStore, next, newVStack, newρ)
-    }
-    loop(new KontStore[KontAddr](), a, vStack, ρ)
-  }
-
-  def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time]):
-  (ConvertedControl[Exp, HybridValue, HybridAddress.A], Store[HybridAddress.A, HybridValue], KontStore[KontAddr], KontAddr, Time) = {
-    val newρ = convertEnvironment(ρ)
-    var newσ = Store.empty[HybridAddress.A, HybridLattice.type]
-    def addToNewStore(tuple: (HybridAddress.A, HybridValue)): Boolean = {
-      val newAddress = HybridAddress.convertAddress(tuple._1)
-      val newValue = convertValue(σ)(tuple._2)
-      newσ = newσ.extend(newAddress, newValue)
-      true
-    }
-    σ.forall(addToNewStore)
-    val newA = convertKontAddress(a)
-    val newV = convertValue(σ)(v)
-    val newVStack = vStack.map({
-      case StoreVal(v) => StoreVal[HybridValue, HybridAddress.A](convertValue(σ)(v))
-      case StoreEnv(ρ) => StoreEnv[HybridValue, HybridAddress.A](convertEnvironment(ρ))
-    })
-    val startKontAddress = control match {
-      case TracingControlEval(_) | TracingControlError(_) => a
-      case TracingControlKont(ka) => ka
-    }
-    val convertedKontStore = convertKStore(sem, kstore, ρ, startKontAddress, newVStack)
-    val absSem = sem.absSem
-    val newKStore = convertedKontStore.map(convertKontAddress, absSem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
-    val newControl = control match {
-      case TracingControlEval(exp) =>
-        ConvertedControlEval[Exp, HybridValue, HybridAddress.A](exp, newρ)
-      case TracingControlKont(ka) =>
-        ConvertedControlKont[Exp, HybridValue, HybridAddress.A](newV)
-    }
-    (newControl, newσ, newKStore, newA, t)
-  }
+//  TODO
+//  val valueConverter: AbstractConcreteToAbstractType = new AbstractConcreteToAbstractType
+//
+//  def convertValue(σ: Store[HybridAddress.A, HybridLattice.type])(value: HybridValue): HybridValue = value match {
+//    case HybridLattice.Concrete(v) => HybridLattice.Abstract(valueConverter.convert[Exp](v, σ))
+//    case HybridLattice.Abstract(v) => value
+//  }
+//
+//  def convertEnvironment(env: Environment[HybridAddress.A]): Environment[HybridAddress.A] =
+//    new Environment[HybridAddress.A](env.content.map { tuple => (tuple._1, HybridAddress.A.convertAddress(tuple._2))})
+//
+//  def convertControl(control: TracingControl[Exp, HybridValue, HybridAddress.A], σ: Store[HybridAddress.A, HybridLattice.type]): TracingControl[Exp, HybridValue, HybridAddress.A] = control match {
+//    case TracingControlEval(exp) => TracingControlEval(exp)
+//    case TracingControlKont(ka) => TracingControlKont(convertKontAddress(ka))
+//    case TracingControlError(error) => TracingControlError(error)
+//  }
+//
+//  def convertKontAddress(address: KontAddr): KontAddr = address match {
+//    case address : NormalKontAddress[Exp, HybridAddress.A] =>
+//      NormalKontAddress(address.exp, HybridAddress.convertAddress(address.addr))
+//    case HaltKontAddress => HaltKontAddress
+//  }
+//
+//  def convertKStore(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
+//                    kontStore: KontStore[KontAddr],
+//                    ρ: Environment[HybridAddress.A],
+//                    a: KontAddr,
+//                    vStack: List[Storable[HybridValue, HybridAddress.A]]): KontStore[KontAddr] = {
+//    def loop(newKontStore: KontStore[KontAddr], a: KontAddr, vStack: List[Storable[HybridValue, HybridAddress.A]], ρ: Environment[HybridAddress.A]): KontStore[KontAddr] = a match {
+//      case HaltKontAddress => newKontStore
+//      case _ =>
+//        val Kont(frame, next) = kontStore.lookup(a).head
+//        val (convertedFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack)
+//        val extendedNewKontStore = newKontStore.extend(a, Kont(convertedFrame, next))
+//        loop(extendedNewKontStore, next, newVStack, newρ)
+//    }
+//    loop(new KontStore[KontAddr](), a, vStack, ρ)
+//  }
+//
+//  def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time]):
+//  (ConvertedControl[Exp, HybridValue, HybridAddress.A], Store[HybridAddress.A, HybridValue], KontStore[KontAddr], KontAddr, Time) = {
+//    val newρ = convertEnvironment(ρ)
+//    var newσ = Store.empty[HybridAddress.A, HybridLattice.type]
+//    def addToNewStore(tuple: (HybridAddress.A, HybridValue)): Boolean = {
+//      val newAddress = HybridAddress.convertAddress(tuple._1)
+//      val newValue = convertValue(σ)(tuple._2)
+//      newσ = newσ.extend(newAddress, newValue)
+//      true
+//    }
+//    σ.forall(addToNewStore)
+//    val newA = convertKontAddress(a)
+//    val newV = convertValue(σ)(v)
+//    val newVStack = vStack.map({
+//      case StoreVal(v) => StoreVal[HybridValue, HybridAddress.A](convertValue(σ)(v))
+//      case StoreEnv(ρ) => StoreEnv[HybridValue, HybridAddress.A](convertEnvironment(ρ))
+//    })
+//    val startKontAddress = control match {
+//      case TracingControlEval(_) | TracingControlError(_) => a
+//      case TracingControlKont(ka) => ka
+//    }
+//    val convertedKontStore = convertKStore(sem, kstore, ρ, startKontAddress, newVStack)
+//    val absSem = sem.absSem
+//    val newKStore = convertedKontStore.map(convertKontAddress, absSem.convertFrame(HybridAddress.convertAddress, convertValue(σ)))
+//    val newControl = control match {
+//      case TracingControlEval(exp) =>
+//        ConvertedControlEval[Exp, HybridValue, HybridAddress.A](exp, newρ)
+//      case TracingControlKont(ka) =>
+//        ConvertedControlKont[Exp, HybridValue, HybridAddress.A](newV)
+//    }
+//    (newControl, newσ, newKStore, newA, t)
+//  }
 
 
 

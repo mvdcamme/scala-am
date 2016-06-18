@@ -695,7 +695,7 @@ object SchemeDesugarer {
     *     (begin x y z))
     */
   def desugarExp(exp: SchemeExp): SchemeExp = {
-    val exp2 = exp match {
+    exp match {
       case SchemeAnd(exps, pos) => exps match {
         case Nil => SchemeValue(ValueBoolean(true), pos)
         case andExp :: Nil => desugarExp(andExp)

@@ -58,27 +58,27 @@ object HybridLattice extends SchemeLattice {
     import ConcreteSymbol._
 
     def convertValue(lat: MakeSchemeLattice[S, B, I, F, C, Sym])(v: lat.Value): abstractLattice.lattice.Value = v match {
-      case concreteLattice.lattice.Bot =>
+      case lat.Bot =>
         abstractLattice.lattice.Bot
-      case concreteLattice.lattice.Str(s) =>
+      case lat.Str(s) =>
         abstractLattice.lattice.isSchemeLattice.inject(s.asInstanceOf[ISet[String]].toList.head)
-      case concreteLattice.lattice.Bool(b) =>
+      case lat.Bool(b) =>
         abstractLattice.lattice.isSchemeLattice.inject(b.asInstanceOf[ISet[Boolean]].toList.head)
-      case concreteLattice.lattice.Int(i) =>
+      case lat.Int(i) =>
         abstractLattice.lattice.isSchemeLattice.inject(i.asInstanceOf[ISet[Int]].toList.head)
-      case concreteLattice.lattice.Float(f) =>
+      case lat.Float(f) =>
         abstractLattice.lattice.isSchemeLattice.inject(f.asInstanceOf[ISet[Float]].toList.head)
-      case concreteLattice.lattice.Symbol(s) =>
+      case lat.Symbol(s) =>
         abstractLattice.lattice.isSchemeLattice.injectSymbol(s.asInstanceOf[ISet[String]].toList.head)
-      case concreteLattice.lattice.Prim(prim) =>
+      case lat.Prim(prim) =>
         abstractLattice.lattice.isSchemeLattice.inject(prim)
-      case concreteLattice.lattice.Closure(lambda, env) =>
+      case lat.Closure(lambda, env) =>
         abstractLattice.lattice.isSchemeLattice.inject((lambda, env))
-      case c: concreteLattice.lattice.Cons[Addr] =>
+      case c: lat.Cons[Addr] =>
         abstractLattice.lattice.Cons[Addr](c.car, c.cdr)
-      case concreteLattice.lattice.Nil =>
+      case lat.Nil =>
         abstractLattice.lattice.Nil
-      case concreteLattice.lattice.Vec(size, elements, init) =>
+      case lat.Vec(size, elements, init) =>
         val actualSize = size.asInstanceOf[ISet[Int]].toList.head
         val abstractSize = Type.typeIsInteger.inject(actualSize)
         var abstractElements = collection.immutable.Map[Type.T, Addr]()

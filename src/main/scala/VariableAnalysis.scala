@@ -12,7 +12,7 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
   type Trace = HybridMachine[Exp, Time]#TraceWithInfos
   type TraceFull = HybridMachine[Exp, Time]#TraceFull
 
-  type HybridValue = HybridLattice.type
+  type HybridValue = HybridLattice.L
 
   /**
     * Computes the set of bound variables in the given trace.
@@ -45,8 +45,8 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
       case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.startProgramState} instead")
     }
 
-    var currentEnv: Environment[HybridAddress] = initialState.ρ
-    var vStack: List[Storable[HybridValue, HybridAddress]] = initialState.vStack
+    var currentEnv: Environment[HybridAddress.A] = initialState.ρ
+    var vStack: List[Storable[HybridValue, HybridAddress.A]] = initialState.vStack
 
     /*
      * The set of variables that are assigned, not defined, to inside of the trace.
@@ -111,7 +111,7 @@ class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: S
       }
     }
 
-    def handleAction(action: Action[Exp, HybridValue, HybridAddress], boundVariables: Set[String]) = action match {
+    def handleAction(action: Action[Exp, HybridValue, HybridAddress.A], boundVariables: Set[String]) = action match {
       case ActionAllocVarsT(varNames) =>
         addVariables(varNames, boundVariables)
       case ActionExtendEnvT(varName) =>
