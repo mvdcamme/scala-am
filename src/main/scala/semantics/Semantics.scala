@@ -330,7 +330,7 @@ case class ActionEndTrace[Exp : Expression, Abs : JoinLattice, Addr : Address]
   * An error has been reached
   */
 case class ActionErrorT[Exp : Expression, Abs : JoinLattice, Addr : Address]
-(reason: String)
+(error: SemanticError)
   extends Action[Exp, Abs, Addr]
 /**
   * A frame needs to be pushed on the stack, and the interpretation continues by

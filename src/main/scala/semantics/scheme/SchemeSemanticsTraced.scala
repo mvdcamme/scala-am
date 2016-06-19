@@ -162,7 +162,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
         val guard = ActionGuardSameClosure[SchemeExp, Abs, Addr](function, rp, GuardIDCounter.incCounter())
         val allActions = commonActions :+ guard :+ stepInAction :+ actionEndClosureCall
         InterpreterStep(allActions, new SignalStartLoop(body))
-      case (λ, _) => interpreterStep(List(ActionErrorT[SchemeExp, Abs, Addr](s"Incorrect closure with lambda-expression ${λ}")))
+      case (λ, _) => interpreterStep(List(ActionErrorT[SchemeExp, Abs, Addr](TypeError(λ.toString, "operator", "closure", "not a closure"))))
     })
 
     val fromPrim = sabs.getPrimitives(function).map( (prim) => {
@@ -173,7 +173,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
       InterpreterStep[SchemeExp, Abs, Addr](allActions, SignalFalse[SchemeExp, Abs, Addr]())
     })
     if (fromClo.isEmpty && fromPrim.isEmpty) {
-      val allActions = commonActions :+ ActionErrorT[SchemeExp, Abs, Addr](s"Called value is not a function: $function")
+      val allActions = commonActions :+ ActionErrorT[SchemeExp, Abs, Addr]((TypeError(function.toString, "operator", "function", "not a function")))
       Set(new InterpreterStep[SchemeExp, Abs, Addr](allActions, SignalFalse[SchemeExp, Abs, Addr]()))
     } else {
       fromClo ++ fromPrim
@@ -236,7 +236,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
     case SchemeFuncall(f, args, _) => Set(interpreterStep(List(actionStartFunCall, actionSaveEnv, ActionEvalPushT(f, FrameFuncallOperatorT(f, args)))))
     case SchemeIdentifier(name, _) => ρ.lookup(name) match {
       case Some(a) => Set(interpreterStep(List(ActionLookupVariableT(name), actionPopKont))) /* reads on a */
-      case None => Set(interpreterStep(List(ActionErrorT(s"Unbound variable: $name"))))
+      case None => Set(interpreterStep(List(ActionErrorT(UnboundVariable(name)))))
     }
     case SchemeIf(cond, cons, alt, _) => Set(interpreterStep(List(actionSaveEnv, ActionEvalPushT(cond, FrameIfT(cons, alt)))))
     case SchemeLet(Nil, body, _) => Set(interpreterStep(evalBody(body, FrameBeginT)))
@@ -255,7 +255,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
     case SchemeSet(variable, exp, _) => Set(interpreterStep(List(actionSaveEnv, ActionEvalPushT(exp, FrameSetT(variable)))))
     case SchemeValue(v, _) => evalValue(v) match {
       case Some(v) => Set(interpreterStep(List(ActionReachedValueT(v), actionPopKont)))
-      case None => Set(interpreterStep(List(ActionErrorT(s"Unhandled value: $v"))))
+      case None => Set(interpreterStep(List(ActionErrorT(NotSupported(s"Unhandled value: $v")))))
     }
   }
 

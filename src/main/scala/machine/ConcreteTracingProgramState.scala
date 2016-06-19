@@ -184,16 +184,16 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def applyPrimitive(operator: HybridValue, n: Integer, fExp: Exp, argsExps: List[Exp]): ProgramState[Exp, Time] = {
     val (vals, newVStack) = popStackItems(vStack, n)
     val operands: List[HybridValue] = vals.take(n - 1).map(_.getVal)
-    val primitive: Option[Primitive[HybridAddress.A, HybridValue]] = sabs.getPrimitives[HybridAddress.A, HybridValue](operator)
-    val result = primitive match {
+    val primitive: Set[Primitive[HybridAddress.A, HybridValue]] = sabs.getPrimitives[HybridAddress.A, HybridValue](operator)
+    val result = primitive.headOption match {
       case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), σ, t)
       case None => throw new NotAPrimitiveException(s"Operator $fExp not a primitive: $operator")
     }
-    result match {
-      case Left(error) =>
-        throw new Exception(error)
-      case Right((res, σ2)) =>
+    result.value match {
+      case Some((res, σ2, effects)) =>
         ProgramState(control, ρ, σ2, kstore, a, t, res, newVStack)
+      case None =>
+        throw new Exception(result.errors.head.toString)
     }
   }
 
@@ -203,17 +203,17 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         val (vals, newVStack) = popStackItems(vStack, n)
         val operator: HybridValue = vals.last.getVal
         val operands: List[HybridValue] = vals.take(n - 1).map(_.getVal)
-        val primitive: Option[Primitive[HybridAddress.A, HybridValue]] = sabs.getPrimitives[HybridAddress.A, HybridValue](operator)
-        val result = primitive match {
+        val primitive: Set[Primitive[HybridAddress.A, HybridValue]] = sabs.getPrimitives[HybridAddress.A, HybridValue](operator)
+        val result = primitive.headOption match {
           case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), σ, t)
           case None => throw new NotAPrimitiveException(s"Operator $fExp not a primitive: $operator")
         }
-        result match {
-          case Left(error) => throw new Exception(error)
-          case Right((v, newσ)) =>
+        result.value match {
+          case Some((v, newσ, effects)) =>
             val primAppliedState = ProgramState(control, ρ, σ, kstore, a, t, v, newVStack)
             val next = if (primAppliedState.a == HaltKontAddress) { HaltKontAddress } else { primAppliedState.kstore.lookup(primAppliedState.a).head.next }
             ProgramState(TracingControlKont(primAppliedState.a), primAppliedState.ρ, primAppliedState.σ, primAppliedState.kstore, next, primAppliedState.t, primAppliedState.v, primAppliedState.vStack)
+          case None => throw new Exception(result.errors.head.toString)
         }
     }
   }
@@ -272,7 +272,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
 
     action match {
       case ActionAllocVarsT(variables) =>
-        val addresses = variables.map(v => addr.variable(v, t))
+        val addresses = variables.map(varName => addr.variable(varName, v, t))
         val (ρ1, σ1) = variables.zip(addresses).foldLeft((ρ, σ))({ case ((ρ2, σ2), (currV, currA)) => (ρ2.extend(currV, currA), σ2.extend(currA, abs.bottom)) })
         ActionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, vStack), action)
       case ActionCreateClosureT(λ) =>
@@ -355,7 +355,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case ActionStepInT(fexp, e, args, argsv, n, frame, _, _) =>
         ActionStep(doActionStepInTraced(sem, action), action)
       case ActionPutRegister(varName, registerIndex) =>
-        val value = σ.lookup(ρ.lookup(varName).get)
+        val value = σ.lookup(ρ.lookup(varName).get).get
         RegisterStore.setRegister(registerIndex, value)
         ActionStep(this, action)
       case ActionLookupRegister(registerIndex) =>
