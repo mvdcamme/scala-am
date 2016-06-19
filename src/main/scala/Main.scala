@@ -361,7 +361,7 @@ object Main {
           case Config.Machine.AAC => new AAC[SchemeExp, lattice.L, address.A, time.T]
           case Config.Machine.Free => new Free[SchemeExp, lattice.L, address.A, time.T]
           case Config.Machine.Hybrid => {
-            val absSemantics = new SchemeSemantics[ConcreteLattice, HybridAddress.A, time.T](new SchemePrimitives[HybridAddress.A, ConcreteLattice])
+            val absSemantics = new SchemeSemantics[HybridLattice.L, HybridAddress.A, time.T](new SchemePrimitives[HybridAddress.A, HybridLattice.L])
             if (config.amb) {
               throw new Exception("TODO Ambigious interpreter currently not supported")
 //              TODO
@@ -371,9 +371,9 @@ object Main {
 //                new AmbProgramState[SchemeExp, time.T](normalState)
 //              })
             } else {
-              val sem = new SchemeSemanticsTraced[ConcreteLattice, HybridAddress.A, time.T](absSemantics)
-              new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, abs, t) =>
-                new ProgramState[SchemeExp, time.T](exp, abs, t)
+              val sem = new SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, time.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
+              new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, t) =>
+                new ProgramState[SchemeExp, time.T](sem, exp, t)
               })
             }
           }

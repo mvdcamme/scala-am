@@ -91,9 +91,9 @@ object HybridLattice extends SchemeLattice {
         case concreteLattice.lattice.Element(v) =>
           val convertedValue = convertValue(concreteLattice.lattice)(v)
           Abstract(abstractLattice.lattice.Element(convertedValue))
+        case concreteLattice.lattice.Elements(set) =>
+          Abstract(abstractLattice.lattice.Elements(set.map(convertValue(concreteLattice.lattice))))
       }
-      case concreteLattice.lattice.Elements(set) =>
-        Abstract(abstractLattice.lattice.Elements(set.map(convertValue(concreteLattice.lattice))))
     }
   }
 

@@ -90,11 +90,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
    a: KontAddr,
    t: Time,
    v: HybridLattice.L,
-   vStack: List[Storable[HybridLattice.L, HybridAddress.A]]) extends ConcreteTracingProgramState[Exp, ConcreteLattice, HybridAddress.A, Time]
+   vStack: List[Storable[HybridLattice.L, HybridAddress.A]]) extends ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, Time]
                            with ConcretableTracingProgramState[Exp, Time] {
 
   def sabs = implicitly[IsSchemeLattice[HybridValue]]
-  def abs = implicitly[JoinLattice[ConcreteLattice]]
+  def abs = implicitly[JoinLattice[HybridLattice.L]]
   def addr = implicitly[Address[HybridAddress.A]]
   def time = implicitly[Timestamp[Time]]
 
@@ -170,10 +170,10 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       val updatedEnvAndStores = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.getVal)), σ, t).head
       updatedEnvAndStores match {
         case Some((ρ2, σ2, e)) =>
-          val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
+          val next = NormalKontAddress(e, t) // Hack to get infinite number of addresses in concrete mode
           ProgramState[Exp, Time](TracingControlEval[Exp, HybridValue, HybridAddress.A](e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, StoreEnv[HybridValue, HybridAddress.A](ρ) :: newVStack)
         case None =>
-          ProgramState(TracingControlError(s"Arity error when calling $fexp. got ${n - 1})"), ρ, σ, kstore, a, t, v, newVStack)
+          ProgramState[Exp, Time](TracingControlError(ArityError(fexp.toString, 99 /* TODO */, n - 1)), ρ, σ, kstore, a, t, v, newVStack)
       }
   }
 
@@ -290,12 +290,12 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         ActionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore, a, t, v, vStack), action)
       /* When a continuation needs to be pushed, push it in the continuation store */
       case ActionEvalPushT(e, frame, _, _) =>
-        val next = NormalKontAddress(e, addr.variable("__kont__", t)) // Hack to get infinite number of addresses in concrete mode
+        val next = NormalKontAddress(e, t) // Hack to get infinite number of addresses in concrete mode
         ActionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, v, vStack), action)
       case ActionExtendEnvT(varName: String) =>
-        val va = addr.variable(varName, t)
-        val ρ1 = ρ.extend(varName, va)
         val value = vStack.head.getVal
+        val va = addr.variable(varName, value, t)
+        val ρ1 = ρ.extend(varName, va)
         val σ1 = σ.extend(va, value)
         val newVStack = vStack.tail
         ActionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, newVStack), action)
@@ -303,11 +303,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         val σ1 = σ.extend(addr, lit)
         ActionStep(ProgramState(control, ρ, σ1, kstore, a, t, lit, vStack), action)
       case ActionLookupVariableT(varName, _, _) =>
-        val newV = σ.lookup(ρ.lookup(varName).get)
+        val newV = σ.lookup(ρ.lookup(varName).get).get
         ActionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, vStack), action)
       case ActionLookupVariablePushT(varName, _, _) => ρ.lookup(varName) match {
         case Some(address) =>
-          val newV = σ.lookup(address)
+          val newV = σ.lookup(address).get
           ActionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, StoreVal[HybridValue, HybridAddress.A](newV) :: vStack), action)
         case None =>
           throw new Exception(s"Could not find variable $varName in environment")
@@ -338,16 +338,17 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
           case None =>
             throw new VariableNotFoundException(variable)
         }
-      case ActionSpecializePrimitive(expectedType, prim, originalPrim, n, fExp, argsExps) =>
-        val operands = popStackItems(vStack, n - 1)._1.map(_.getVal)
-        val currentOperandsTypes = HybridLattice.checkValuesTypes(operands)
-        if (currentOperandsTypes == expectedType) {
-          ActionStep(applyPrimitive(prim, n, fExp, argsExps), action)
-        } else {
-          /* Generate a new guardID because no guardID has been generated for this action */
-          val guardID = GuardIDCounter.incCounter()
-          GuardFailed(RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps), guardID)
-        }
+//      TODO
+//      case ActionSpecializePrimitive(expectedType, prim, originalPrim, n, fExp, argsExps) =>
+//        val operands = popStackItems(vStack, n - 1)._1.map(_.getVal)
+//        val currentOperandsTypes = HybridLattice.checkValuesTypes(operands)
+//        if (currentOperandsTypes == expectedType) {
+//          ActionStep(applyPrimitive(prim, n, fExp, argsExps), action)
+//        } else {
+//          /* Generate a new guardID because no guardID has been generated for this action */
+//          val guardID = GuardIDCounter.incCounter()
+//          GuardFailed(RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps), guardID)
+//        }
       case ActionStartFunCallT() =>
         ActionStep(this, action)
       /* When a function is stepped in, we also go to an eval state */
@@ -402,10 +403,17 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   /**
     * Builds the state with the initial environment and stores
     */
-  def this(exp: Exp, primitives: Primitives[HybridAddress.A, HybridLattice.type], abs: JoinLattice[HybridLattice.type], time: Timestamp[Time]) =
-    this(TracingControlEval(exp), Environment.empty[HybridAddress.A]().extend(primitives.forEnv),
-         Store.initial(primitives.forStore, true),
-         new KontStore[KontAddr](), HaltKontAddress, time.initial, sabs.inject(false), Nil)
+  def this(sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
+           exp: Exp,
+           time: Timestamp[Time]) =
+    this(TracingControlEval(exp),
+         Environment.initial[HybridAddress.A](sem.initialEnv),
+         Store.initial[HybridAddress.A, HybridLattice.L](sem.initialStore),
+         KontStore.empty[KontAddr],
+         HaltKontAddress,
+         time.initial(""),
+         sabs.inject(false),
+         Nil)
 
   override def toString = control match {
     case TracingControlKont(_) => s"ko($v)"

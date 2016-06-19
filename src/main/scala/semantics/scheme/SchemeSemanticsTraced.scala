@@ -1,8 +1,9 @@
 /**
   * Basic Traced Scheme semantics, without any optimization
   */
-abstract class BaseSchemeSemanticsTraced[Abs : JoinLattice, Addr : Address, Time : Timestamp]
-  (override val absSem: SchemeSemantics[Abs, Addr, Time])
+abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
+  (override val absSem: SchemeSemantics[Abs, Addr, Time],
+   primitives: Primitives[Addr, Abs])
   extends BaseSemanticsTraced[SchemeExp, Abs, Addr, Time](absSem) {
 
   def sabs = implicitly[IsSchemeLattice[Abs]]
@@ -155,7 +156,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : JoinLattice, Addr : Address, Time
     val commonActions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv, actionPushVal)
 
     val fromClo: Set[InterpreterStep[SchemeExp, Abs, Addr]] = sabs.getClosures[SchemeExp, Addr](function).map({
-      case (SchemeLambda(args, body), ρ1) =>
+      case (SchemeLambda(args, body, _), ρ1) =>
         val stepInAction = ActionStepInT(fexp, body.head, args, argsv.map(_._1), valsToPop, FrameFunBodyT(body, body.tail))
         val rp = RestartGuardDifferentClosure(stepInAction)
         val guard = ActionGuardSameClosure[SchemeExp, Abs, Addr](function, rp, GuardIDCounter.incCounter())
@@ -164,15 +165,13 @@ abstract class BaseSchemeSemanticsTraced[Abs : JoinLattice, Addr : Address, Time
       case (λ, _) => interpreterStep(List(ActionErrorT[SchemeExp, Abs, Addr](s"Incorrect closure with lambda-expression ${λ}")))
     })
 
-    val fromPrim = sabs.getPrimitives(function) match {
-      case Some(prim) =>
-        val primCallAction = ActionPrimCallT(valsToPop, fexp, argsv.map(_._1))
-        val rp = RestartGuardDifferentPrimitive(primCallAction)
-        val guard = ActionGuardSamePrimitive(function, rp, GuardIDCounter.incCounter())
-        val allActions = commonActions :+ guard :+ primCallAction :+ actionEndPrimCall :+ actionPopKont
-        Set(InterpreterStep[SchemeExp, Abs, Addr](allActions, SignalFalse[SchemeExp, Abs, Addr]()))
-      case None => Set()
-    }
+    val fromPrim = sabs.getPrimitives(function).map( (prim) => {
+      val primCallAction = ActionPrimCallT(valsToPop, fexp, argsv.map(_._1))
+      val rp = RestartGuardDifferentPrimitive(primCallAction)
+      val guard = ActionGuardSamePrimitive(function, rp, GuardIDCounter.incCounter())
+      val allActions = commonActions :+ guard :+ primCallAction :+ actionEndPrimCall :+ actionPopKont
+      InterpreterStep[SchemeExp, Abs, Addr](allActions, SignalFalse[SchemeExp, Abs, Addr]())
+    })
     if (fromClo.isEmpty && fromPrim.isEmpty) {
       val allActions = commonActions :+ ActionErrorT[SchemeExp, Abs, Addr](s"Called value is not a function: $function")
       Set(new InterpreterStep[SchemeExp, Abs, Addr](allActions, SignalFalse[SchemeExp, Abs, Addr]()))
@@ -332,6 +331,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : JoinLattice, Addr : Address, Time
 
   def parse(program: String): SchemeExp = Scheme.parse(program)
 
+  override def initialBindings = primitives.bindings
+
   def bindClosureArgs(clo: Abs, argsv: List[(SchemeExp, Abs)], σ: Store[Addr, Abs], t: Time): Set[Option[(Environment[Addr], Store[Addr, Abs], SchemeExp)]] = {
     sabs.getClosures[SchemeExp, Addr](clo).map({
       case (SchemeLambda(args, body, pos), ρ1) =>
@@ -359,9 +360,10 @@ abstract class BaseSchemeSemanticsTraced[Abs : JoinLattice, Addr : Address, Time
   *     to evaluate (+ 1 (f)), we can directly push the continuation and jump to
   *     the evaluation of (f), instead of evaluating +, and 1 in separate states.
   */
-class SchemeSemanticsTraced[Abs : JoinLattice, Addr : Address, Time : Timestamp]
-  (override val absSem: SchemeSemantics[Abs, Addr, Time])
-  extends BaseSchemeSemanticsTraced[Abs, Addr, Time](absSem) {
+class SchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
+  (override val absSem: SchemeSemantics[Abs, Addr, Time],
+   primitives: Primitives[Addr, Abs])
+  extends BaseSchemeSemanticsTraced[Abs, Addr, Time](absSem, primitives) {
 
   protected def addRead(action: Action[SchemeExp, Abs, Addr], read: Set[Addr]): Action[SchemeExp, Abs, Addr] = action match {
     case ActionReachedValueT(v, read2, write) => ActionReachedValueT(v, read ++ read2, write)

@@ -18,10 +18,10 @@
  */
 
 class HybridMachine[Exp : Expression, Time : Timestamp]
-  (override val sem: SemanticsTraced[Exp, ConcreteLattice, HybridAddress.A, Time],
+  (override val sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
                                    val tracingFlags: TracingFlags,
-   injectProgramState: (Exp, JoinLattice[ConcreteLattice], Timestamp[Time]) =>
-                       ConcreteTracingProgramState[Exp, ConcreteLattice, HybridAddress.A, Time])
+   injectProgramState: (Exp, Timestamp[Time]) =>
+                       ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, Time])
     extends EvalKontMachineTraced[Exp, HybridLattice.L, HybridAddress.A, Time](sem) {
 
   type HybridValue = HybridLattice.L
@@ -38,7 +38,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   def name = "HybridMachine"
 
   val tracerContext: Tracer[Exp, HybridValue, HybridAddress.A, Time] =
-    new Tracer[Exp, HybridValue, HybridAddress.A, Time](sem, new TraceOptimizer[Exp, HybridValue, HybridAddress.A, Time](sem, this), this)
+    new Tracer[Exp, HybridValue, HybridAddress.A, Time](sem, this) // TODO , new TraceOptimizer[Exp, HybridValue, HybridAddress.A, Time](sem, this), this)
 
   def applyTraceIntermediateResults(state: PS, trace: TraceWithoutStates): List[PS] = {
     trace.scanLeft(state)((currentState, action) => currentState.applyAction(sem, action) match {

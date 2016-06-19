@@ -4,7 +4,7 @@
   * are element of the KontAddress typeclass.
   */
 trait KontAddr
-case class NormalKontAddress[Exp, Addr](exp: Exp, addr: Addr) extends KontAddr {
+case class NormalKontAddress[Exp : Expression, Time : Timestamp](exp: Exp, time: Time) extends KontAddr {
   override def toString = s"NormalKontAddress($exp)"
 }
 object HaltKontAddress extends KontAddr {
