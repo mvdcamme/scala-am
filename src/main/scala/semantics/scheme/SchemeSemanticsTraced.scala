@@ -3,8 +3,8 @@
   */
 abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
   (override val absSem: SchemeSemantics[Abs, Addr, Time],
-   primitives: Primitives[Addr, Abs])
-  extends BaseSemanticsTraced[SchemeExp, Abs, Addr, Time](absSem) {
+   override val primitives: SchemePrimitives[Addr, Abs])
+  extends BaseSemanticsTraced[SchemeExp, Abs, Addr, Time](absSem, primitives) {
 
   def sabs = implicitly[IsSchemeLattice[Abs]]
 

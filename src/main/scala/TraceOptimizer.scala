@@ -3,7 +3,8 @@ import scala.annotation.tailrec
 /**
   * Created by mvdcamme on 24/02/16.
   */
-class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: SemanticsTraced[Exp, Abs, Addr, Time], val hybridMachine: HybridMachine[Exp, Time]) {
+class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp]
+  (val sem: SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, Time], val hybridMachine: HybridMachine[Exp, Time]) {
 
   type TraceInstructionInfo = HybridMachine[Exp, Time]#TraceInstructionInfo
   type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
@@ -12,6 +13,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
   type TraceFull = HybridMachine[Exp, Time]#TraceFull
 
   type HybridValue = HybridLattice.L
+
+  val sabs = implicitly[IsSchemeLattice[HybridValue]]
 
   val variableAnalyzer = new VariableAnalysis(sem, hybridMachine)
 
@@ -297,16 +300,18 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    *                                          TYPE SPECIALIZATION OPTIMIZATION                                        *
    ********************************************************************************************************************/
 
+  val isTracableLattice = implicitly[TracableLattice[HybridValue]]
+
   private def typeSpecializePrimitive(prim: Primitive[HybridAddress.A, HybridValue],
                                       operandsTypes: SimpleTypes.Value): Primitive[HybridAddress.A, HybridValue] = prim match {
-    case hybridMachine.primitives.Plus => operandsTypes match {
-      case SimpleTypes.Float => hybridMachine.primitives.PlusFloat
-      case SimpleTypes.Integer => hybridMachine.primitives.PlusInteger
+    case sem.primitives.Plus => operandsTypes match {
+      case SimpleTypes.Float => sem.primitives.PlusFloat
+      case SimpleTypes.Integer => sem.primitives.PlusInteger
       case _ => prim
     }
-    case hybridMachine.primitives.Minus => operandsTypes match {
-      case SimpleTypes.Float => hybridMachine.primitives.MinusFloat
-      case SimpleTypes.Integer => hybridMachine.primitives.MinusInteger
+    case sem.primitives.Minus => operandsTypes match {
+      case SimpleTypes.Float => sem.primitives.MinusFloat
+      case SimpleTypes.Integer => sem.primitives.MinusInteger
       case _ => prim
     }
     case _ => prim
@@ -319,20 +324,23 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
         case Some(PrimitiveAppliedInfo(_, vStack)) =>
           val nrOfArgs = n - 1
           val operands = vStack.take(nrOfArgs).map(_.getVal)
-          val operator = vStack(nrOfArgs).getVal
-          val operandsTypes = HybridLattice.getValuesTypes(operands)
-          val someSpecializedOperator = operator match {
-            case HybridLattice.Concrete(c) => c match {
-              case HybridLattice.Prim(primitive) => primitive match {
-                case primitive: Primitive[HybridAddress.A, HybridValue] =>
+          val supposedOperator = vStack(nrOfArgs).getVal
+          val operandsTypes = HybridLattice.LatticeConverter.getValuesTypes(operands)
+          val somePrimitive = sabs.getPrimitives[HybridAddress.A, HybridValue](supposedOperator).headOption
+          somePrimitive match {
+            case None => throw new Exception(s"Operation being type-specialized is not a primitive: $supposedOperator")
+            case primitive => primitive match {
+                case None =>
+                  /* Primitive application could not be type-specialized, so we do not replace this part of the trace. */
+                  loop(rest, actionState2 :: actionState1 :: acc)
+                case Some(primitive) =>
                   val specializedPrim = typeSpecializePrimitive(primitive, operandsTypes)
-                  HybridLattice.Prim(specializedPrim)
+                  val restartPoint = RestartSpecializedPrimitive(primitive, n, fExp, argsExps)
+                  val specializedPrimGuard = ActionGuardSpecializedPrimitive[Exp, HybridValue, HybridAddress.A](operandsTypes, nrOfArgs, restartPoint, GuardIDCounter.incCounter())
+                  val specializedPrimCallAction = ActionSpecializePrimitive[Exp, HybridValue, HybridAddress.A](operandsTypes, specializedPrim, n, fExp, argsExps)
+                  loop(rest, (specializedPrimCallAction, actionState2._2) :: (specializedPrimGuard, None) :: actionState1 :: acc)
               }
-            }
           }
-          val specializedPrimGuard = ActionGuardSpecializedPrimitive[Exp, HybridValue, HybridAddress.A](operandsTypes, nrOfArgs)
-          val specializedPrimCallAction = ActionSpecializePrimitive[Exp, HybridValue, HybridAddress.A](operandsTypes, specializedOperator, operator, n, fExp, argsExps)
-          loop(rest, (specializedPrimCallAction, actionState2._2) :: actionState1 :: acc)
         /* Since the state before applying the function was not recorded, we cannot know what the types of the operands were */
         case _ =>
           loop(rest, actionState2 :: actionState1 :: acc)

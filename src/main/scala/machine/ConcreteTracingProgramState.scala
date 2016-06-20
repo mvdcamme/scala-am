@@ -99,8 +99,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def addr = implicitly[Address[HybridAddress.A]]
   def time = implicitly[Timestamp[Time]]
 
-  case class RestartSpecializedPrimCall(originalPrim: HybridValue, n: Integer, fExp: Exp, argsExps: List[Exp]) extends RestartPoint[Exp, HybridValue, HybridAddress.A]
-
   def popStack[A](stack: List[A]): (A, List[A]) = stack match {
     case head :: tail =>
       (head, tail)
@@ -144,7 +142,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case RestartGuardDifferentPrimitive(action) =>
       handlePrimitiveRestart(action)
     case RestartTraceEnded() => this
-    case RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps) =>
+    case RestartSpecializedPrimitive(originalPrim, n, fExp, argsExps) =>
       val primAppliedState = applyPrimitive(originalPrim, n, fExp, argsExps)
       primAppliedState.applyAction(sem, ActionPopKontT()).getState
   }
@@ -182,14 +180,10 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
                            action: Action[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp, Time] =
     doActionStepInTraced(sem, action)
 
-  def applyPrimitive(operator: HybridValue, n: Integer, fExp: Exp, argsExps: List[Exp]): ProgramState[Exp, Time] = {
+  def applyPrimitive(primitive: Primitive[HybridAddress.A, HybridValue], n: Integer, fExp: Exp, argsExps: List[Exp]): ProgramState[Exp, Time] = {
     val (vals, newVStack) = popStackItems(vStack, n)
     val operands: List[HybridValue] = vals.take(n - 1).map(_.getVal)
-    val primitive: Set[Primitive[HybridAddress.A, HybridValue]] = sabs.getPrimitives[HybridAddress.A, HybridValue](operator)
-    val result = primitive.headOption match {
-      case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), σ, t)
-      case None => throw new NotAPrimitiveException(s"Operator $fExp not a primitive: $operator")
-    }
+    val result = primitive.call(fExp, argsExps.zip(operands.reverse), σ, t)
     result.value match {
       case Some((res, σ2, effects)) =>
         ProgramState(control, ρ, σ2, kstore, a, t, res, newVStack)
@@ -320,7 +314,9 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case ActionPrimCallT(n: Integer, fExp, argsExps) =>
         val (vals, _) = popStackItems(vStack, n)
         val operator = vals.last.getVal
-        ActionStep(applyPrimitive(operator, n, fExp, argsExps), action)
+        val primitivesSet = sabs.getPrimitives[HybridAddress.A, HybridValue](operator)
+        assert(primitivesSet.size == 1) //TODO
+        ActionStep(applyPrimitive(primitivesSet.head, n, fExp, argsExps), action)
       case ActionPushValT() =>
         ActionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreVal[HybridValue, HybridAddress.A](v) :: vStack), action)
       case ActionReachedValueT(lit, _, _) =>
@@ -340,17 +336,16 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
           case None =>
             throw new VariableNotFoundException(variable)
         }
-//      TODO
-//      case ActionSpecializePrimitive(expectedType, prim, originalPrim, n, fExp, argsExps) =>
-//        val operands = popStackItems(vStack, n - 1)._1.map(_.getVal)
-//        val currentOperandsTypes = HybridLattice.checkValuesTypes(operands)
-//        if (currentOperandsTypes == expectedType) {
-//          ActionStep(applyPrimitive(prim, n, fExp, argsExps), action)
-//        } else {
-//          /* Generate a new guardID because no guardID has been generated for this action */
-//          val guardID = GuardIDCounter.incCounter()
-//          GuardFailed(RestartSpecializedPrimCall(originalPrim, n, fExp, argsExps), guardID)
-//        }
+      case ActionGuardSpecializedPrimitive(expectedType, n, rp, guardID) =>
+        val operands = popStackItems(vStack, n - 1)._1.map(_.getVal)
+        val currentOperandsTypes = HybridLattice.LatticeConverter.getValuesTypes(operands)
+        if (currentOperandsTypes == expectedType) {
+          ActionStep(this, action)
+        } else {
+          GuardFailed(rp, guardID)
+        }
+      case ActionSpecializePrimitive(expectedType, prim, n, fExp, argsExps) =>
+        ActionStep(applyPrimitive(prim, n, fExp, argsExps), action)
       case ActionStartFunCallT() =>
         ActionStep(this, action)
       /* When a function is stepped in, we also go to an eval state */

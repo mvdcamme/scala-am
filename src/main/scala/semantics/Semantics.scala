@@ -51,6 +51,8 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] {
   implicit def exp: Expression[Exp]
   implicit def time: Timestamp[Time]
 
+  def primitives: Primitives[Addr, Abs]
+
   class InvalidArityException extends Exception
 
   def bindClosureArgs(clo: Abs, argsv: List[(Exp, Abs)], σ: Store[Addr, Abs], t: Time): Set[Option[(Environment[Addr], Store[Addr, Abs], Exp)]]
@@ -270,7 +272,7 @@ abstract class BaseSemantics[Exp : Expression, Abs : JoinLattice, Addr : Address
 }
 
 abstract class BaseSemanticsTraced[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
-(override val absSem: Semantics[Exp, Abs, Addr, Time])
+(override val absSem: Semantics[Exp, Abs, Addr, Time], val primitives: Primitives[Addr, Abs])
   extends SemanticsTraced[Exp, Abs, Addr, Time] {
   /* wtf scala */
   def abs = implicitly[JoinLattice[Abs]]
@@ -310,7 +312,7 @@ case class RestartGuardDifferentPrimitive[Exp : Expression, Abs : JoinLattice, A
 (action : ActionPrimCallT[Exp, Abs, Addr])
   extends RestartPoint[Exp, Abs, Addr]
 case class RestartSpecializedPrimitive[Exp : Expression, Abs : JoinLattice, Addr : Address]
-(originalPrimitive: Abs, n: Int, fExp: Exp, argsExps: List[Exp])
+(originalPrimitive: Primitive[Addr, Abs], n: Int, fExp: Exp, argsExps: List[Exp])
   extends RestartPoint[Exp, Abs, Addr]
 case class RestartTraceEnded[Exp, Abs, Addr]()
   extends RestartPoint[Exp, Abs, Addr]
@@ -429,7 +431,7 @@ case class ActionSpawnT[TID : ThreadIdentifier, Exp : Expression, Abs : JoinLatt
  read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
   extends Action[Exp, Abs, Addr]
 case class ActionSpecializePrimitive[Exp : Expression, Abs : JoinLattice, Addr : Address]
-(expectedType : SimpleTypes.Value, primitive: Abs, originalPrimitive: Abs, n: Integer, fExp: Exp, argsExps: List[Exp])
+(expectedType : SimpleTypes.Value, primitive: Primitive[Addr, Abs], n: Integer, fExp: Exp, argsExps: List[Exp])
   extends Action[Exp, Abs, Addr]
 /**
   * Similar to ActionEval, but only used when stepping inside a function's body

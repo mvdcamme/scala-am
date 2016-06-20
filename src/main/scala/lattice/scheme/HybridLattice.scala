@@ -121,7 +121,7 @@ object HybridLattice extends SchemeLattice {
     def asPrimitive[Addr: Address](supposedPrimitive: L): Option[Primitive[Addr, L]] = supposedPrimitive match {
       case Abstract(_) => None
       case Concrete(c) => c match {
-        case concreteLattice.lattice.Element(concreteLattice.lattice.Prim(prim) => prim match {
+        case concreteLattice.lattice.Element(concreteLattice.lattice.Prim(prim)) => prim match {
           case prim: Primitive[Addr, L] => Some(prim)
           case _ => None
         }
