@@ -309,6 +309,9 @@ case class RestartGuardDifferentClosure[Exp : Expression, Abs : JoinLattice, Add
 case class RestartGuardDifferentPrimitive[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (action : ActionPrimCallT[Exp, Abs, Addr])
   extends RestartPoint[Exp, Abs, Addr]
+case class RestartSpecializedPrimitive[Exp : Expression, Abs : JoinLattice, Addr : Address]
+(originalPrimitive: Abs, n: Int, fExp: Exp, argsExps: List[Exp])
+  extends RestartPoint[Exp, Abs, Addr]
 case class RestartTraceEnded[Exp, Abs, Addr]()
   extends RestartPoint[Exp, Abs, Addr]
 
@@ -371,6 +374,10 @@ case class ActionGuardSameClosure[Exp : Expression, Abs : JoinLattice, Addr : Ad
 case class ActionGuardSamePrimitive[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (recordedPrimitive : Abs, override val rp : RestartGuardDifferentPrimitive[Exp, Abs, Addr], override val id: Integer)
   extends ActionGuardT[Exp, Abs, Addr](rp, id)
+case class ActionGuardSpecializedPrimitive[Exp : Expression, Abs : JoinLattice, Addr : Address]
+(expectedType: SimpleTypes.Value, numberOfOperands: Int,
+ override val rp: RestartSpecializedPrimitive[Exp, Abs, Addr], override val id: Integer)
+  extends ActionGuardT[Exp, Abs, Addr](rp, id)
 /**
   * Waits for the execution of a thread, with tid as its identifier.
   */
@@ -421,10 +428,9 @@ case class ActionSpawnT[TID : ThreadIdentifier, Exp : Expression, Abs : JoinLatt
 (t: TID, e: Exp, ρ: Environment[Addr], act: Action[Exp, Abs, Addr],
  read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
   extends Action[Exp, Abs, Addr]
-//TODO
-//case class ActionSpecializePrimitive[Exp : Expression, Abs : JoinLattice, Addr : Address]
-//(expectedType : AbstractType, primitive: Abs, originalPrimitive : Abs, n : Integer, fExp : Exp, argsExps : List[Exp])
-//  extends Action[Exp, Abs, Addr]
+case class ActionSpecializePrimitive[Exp : Expression, Abs : JoinLattice, Addr : Address]
+(expectedType : SimpleTypes.Value, primitive: Abs, originalPrimitive: Abs, n: Integer, fExp: Exp, argsExps: List[Exp])
+  extends Action[Exp, Abs, Addr]
 /**
   * Similar to ActionEval, but only used when stepping inside a function's body
   * (clo is therefore the function stepped into). The number of arguments should
