@@ -230,12 +230,13 @@ object Main {
     val addr = implicitly[Address[Addr]]
     println(s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")
 
-    /* JIT warm-up */
-    var i = 1
-    while (i < 2) {
-      i += 1
-      calcResult()
-    }
+//    /* JIT warm-up */
+//    TODO
+//    var i = 1
+//    while (i < 2) {
+//      i += 1
+//      calcResult()
+//    }
 
     val result = calcResult()
 
