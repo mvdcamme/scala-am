@@ -5,7 +5,7 @@ import scala.collection.mutable.Stack
 /**
   * Created by mvdcamme on 08/03/16.
   */
-class VariableAnalysis[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: SemanticsTraced[Exp, Abs, Addr, Time], val hybridMachine : HybridMachine[Exp, Time]) {
+class VariableAnalysis[Exp : Expression, Addr : Address, Time : Timestamp](val sem: SemanticsTraced[Exp, HybridLattice.L, Addr, Time], val hybridMachine : HybridMachine[Exp, Time]) {
 
   type TraceInstructionStates = HybridMachine[Exp, Time]#TraceInstructionInfo
   type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction

@@ -2,7 +2,7 @@
   * Created by mvdcamme on 02/02/16.
   */
 class Tracer[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
-    (sem: SemanticsTraced[Exp, Abs, Addr, Time], traceOptimizer: TraceOptimizer[Exp, Abs, Addr, Time],
+    (sem: SemanticsTraced[Exp, Abs, Addr, Time], traceOptimizer: TraceOptimizer[Exp, Addr, Time],
      hybridMachine: HybridMachine[Exp, Time]) {
 
   val semantics = sem

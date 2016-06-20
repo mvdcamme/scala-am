@@ -362,7 +362,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
   */
 class SchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
   (override val absSem: SchemeSemantics[Abs, Addr, Time],
-   primitives: Primitives[Addr, Abs])
+   primitives: SchemePrimitives[Addr, Abs])
   extends BaseSchemeSemanticsTraced[Abs, Addr, Time](absSem, primitives) {
 
   protected def addRead(action: Action[SchemeExp, Abs, Addr], read: Set[Addr]): Action[SchemeExp, Abs, Addr] = action match {

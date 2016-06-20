@@ -3,7 +3,7 @@ import scala.annotation.tailrec
 /**
   * Created by mvdcamme on 24/02/16.
   */
-class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp]
+class TraceOptimizer[Exp : Expression, Addr : Address, Time : Timestamp]
   (val sem: SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, Time], val hybridMachine: HybridMachine[Exp, Time]) {
 
   type TraceInstructionInfo = HybridMachine[Exp, Time]#TraceInstructionInfo
@@ -16,7 +16,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp]
 
   val sabs = implicitly[IsSchemeLattice[HybridValue]]
 
-  val variableAnalyzer = new VariableAnalysis(sem, hybridMachine)
+  val variableAnalyzer = new VariableAnalysis[SchemeExp, HybridAddress.A, Time](sem, hybridMachine)
 
   val basicOptimizations: List[(Boolean, (TraceFull => TraceFull))] =
     List((GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)),
@@ -56,7 +56,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp]
    *                                                 COMMON FUNCTIONS                                                 *
    ********************************************************************************************************************/
 
-  def isGuard(action: TraceInstruction): Boolean = action.isInstanceOf[ActionGuardT[Exp, Abs, Addr]]
+  def isGuard(action: TraceInstruction): Boolean = action.isInstanceOf[ActionGuardT[Exp, HybridValue, Addr]]
 
   private case class ActionStateMap(actionState: TraceInstructionInfo, var isUsed: Boolean)
 
@@ -109,8 +109,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp]
       case _ =>
         false
     }
-    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionSaveEnvT[Exp, Abs, Addr]],
-      _.isInstanceOf[ActionRestoreEnvT[Exp, Abs, Addr]], isAnInterferingAction)
+    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionSaveEnvT[Exp, HybridValue, Addr]],
+      _.isInstanceOf[ActionRestoreEnvT[Exp, HybridValue, Addr]], isAnInterferingAction)
     constructedFullTrace(traceFull, optimizedTrace)
   }
 
@@ -127,8 +127,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp]
       case _ =>
         false
     }
-    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionEvalPushT[Exp, Abs, Addr]],
-                                               _.isInstanceOf[ActionPopKontT[Exp, Abs, Addr]], isAnInterferingAction)
+    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionEvalPushT[Exp, HybridValue, Addr]],
+                                               _.isInstanceOf[ActionPopKontT[Exp, HybridValue, Addr]], isAnInterferingAction)
     constructedFullTrace(traceFull, optimizedTrace)
   }
 
@@ -227,7 +227,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp]
           if (traceAtValueChangingAction.isEmpty) {
             None
           } else {
-            if (traceAtValueChangingAction.head._1.isInstanceOf[ActionReachedValueT[Exp, Abs, Addr]]) {
+            if (traceAtValueChangingAction.head._1.isInstanceOf[ActionReachedValueT[Exp, HybridValue, Addr]]) {
               Some(traceAfterPush.tail)
             } else {
               /* The value that was pushed as an operand is not a constant */
@@ -248,7 +248,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp]
        findNextStartFunCall(traceAtPrimCall.tail) match {
          case Some((traceBetweenMarks, traceAtStartCall)) =>
            val optimizedBlocks = filterAllOptimizedBlocks(traceBetweenMarks)
-           val actionStatePrimCall = traceBetweenMarks.find(_._1.isInstanceOf[ActionPrimCallT[Exp, Abs, Addr]])
+           val actionStatePrimCall = traceBetweenMarks.find(_._1.isInstanceOf[ActionPrimCallT[Exp, HybridValue, Addr]])
            actionStatePrimCall match {
              case Some((ActionPrimCallT(n, _, _), Some(PrimitiveAppliedInfo(result, _)))) =>
                val x = findNextEndPrimCall(traceBetweenMarks)
@@ -267,7 +267,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp]
                      val actionStartOptimizedBlock = (ActionStartOptimizedBlock[Exp, HybridValue, HybridAddress.A](), None)
                      val replacingTrace = firstPart ++ (traceBefore :+ actionEndOptimizedBlock :+ replacingConstantAction) ++
                                           /* Add all parts of the inner optimized blocks, except for the constants themselves that were folded there; those are folded away in the new block */
-                                          optimizedBlocks.foldLeft(List(): Trace)({ (acc, current) => acc ++ current.filter({ (actionState) => ! actionState._1.isInstanceOf[ActionReachedValueT[Exp, Abs, Addr]] })}) ++
+                                          optimizedBlocks.foldLeft(List(): Trace)({ (acc, current) => acc ++ current.filter({ (actionState) => ! actionState._1.isInstanceOf[ActionReachedValueT[Exp, HybridValue, Addr]] })}) ++
                                           (traceAfterOperatorPush :+ actionStartOptimizedBlock) ++ traceAtStartCall.tail
                      Some(replacingTrace)
                    })
