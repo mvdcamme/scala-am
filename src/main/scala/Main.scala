@@ -289,7 +289,7 @@ object Main {
   }
 
   def runTraced[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
-  (machine: AbstractMachineTraced[Exp, Abs, Addr, Time], sem: Semantics[Exp, Abs, Addr, Time])
+  (machine: AbstractMachineTraced[Exp, Abs, Addr, Time])
   (program: String, output: Option[String], timeout: Option[Long], inspect: Boolean, benchmarks_results_file: String): Unit = {
     def calcResult() = {
       machine.eval(machine.sem.parse(program), !output.isEmpty)
@@ -354,12 +354,19 @@ object Main {
 
         val sem = new SchemeSemantics[lattice.L, address.A, time.T](new SchemePrimitives[address.A, lattice.L])
 
-        val machine = config.machine match {
-          case Config.Machine.AAM => new AAM[SchemeExp, lattice.L, address.A, time.T]
-          case Config.Machine.AAMGlobalStore => new AAMGlobalStore[SchemeExp, lattice.L, address.A, time.T]
-          case Config.Machine.ConcreteMachine => new ConcreteMachine[SchemeExp, lattice.L, address.A, time.T]
-          case Config.Machine.AAC => new AAC[SchemeExp, lattice.L, address.A, time.T]
-          case Config.Machine.Free => new Free[SchemeExp, lattice.L, address.A, time.T]
+        /*
+         * Takes a non-tracing abstract machine as input and creates a function that, given a program string, runs
+         * the abstract machine on that string.
+         */
+        def genNonTracingMachineStartFun(machine: AbstractMachine[SchemeExp, lattice.L, address.A, time.T]): (String) => Unit =
+          (program: String) => run(machine, sem)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
+
+        val startMachineFun: (String) => Unit = config.machine match {
+          case Config.Machine.AAM => genNonTracingMachineStartFun(new AAM[SchemeExp, lattice.L, address.A, time.T])
+          case Config.Machine.AAMGlobalStore => genNonTracingMachineStartFun(new AAMGlobalStore[SchemeExp, lattice.L, address.A, time.T])
+          case Config.Machine.ConcreteMachine => genNonTracingMachineStartFun(new ConcreteMachine[SchemeExp, lattice.L, address.A, time.T])
+          case Config.Machine.AAC => genNonTracingMachineStartFun(new AAC[SchemeExp, lattice.L, address.A, time.T])
+          case Config.Machine.Free => genNonTracingMachineStartFun(new Free[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Hybrid => {
             val absSemantics = new SchemeSemantics[HybridLattice.L, HybridAddress.A, time.T](new SchemePrimitives[HybridAddress.A, HybridLattice.L])
             if (config.amb) {
@@ -372,9 +379,11 @@ object Main {
 //              })
             } else {
               val sem = new SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, time.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
-              new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, t) =>
-                new ProgramState[SchemeExp, time.T](sem, exp, t)
+              val sabs = implicitly[IsSchemeLattice[HybridLattice.L]]
+              val machine = new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, t) =>
+                      new ProgramState[SchemeExp, time.T](sem, sabs, exp, t)
               })
+              (program: String) => runTraced(machine)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
             }
           }
         }
@@ -386,11 +395,11 @@ object Main {
               case None => StdIn.readLine(">>> ")
             }
             if (program == null) throw Done
-            if (program.size > 0)
-              config.machine match {
-                case Config.Machine.Hybrid => runTraced(machine, sem)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
-                case _ => run(machine, sem)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
-              }
+            if (program.size > 0) startMachineFun(program)
+//              config.machine match {
+//                case Config.Machine.Hybrid => runTraced(machine, sem)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
+//                case _ => run(machine, sem)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
+//              }
           } while (config.file.isEmpty);
         } catch {
           case Done => ()

@@ -91,7 +91,7 @@ trait AbstractMachineTraced[Exp, Abs, Addr, Time] extends BasicAbstractMachine[E
     * implementing the Output trait, containing information about the
     * evaluation.
     */
-  def eval(exp: Exp, graph: Boolean): Output[Abs]
+  def eval(exp: Exp, graph: Boolean = false, timeout: Option[Long] = None): Output[Abs]
 }
 
 /**

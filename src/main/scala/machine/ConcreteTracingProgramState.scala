@@ -39,7 +39,7 @@ trait ConcretableTracingProgramState[Exp, Time] {
     */
   def finalValues = concretableState.control match {
     case TracingControlKont(_) => Set[HybridLattice.L](concretableState.v)
-    case _ => Set[ConcreteLattice]()
+    case _ => Set[HybridLattice.L]()
   }
 
   def graphNodeColor = concretableState.control match {
@@ -71,8 +71,9 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
   def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
                 assertions: List[Action[Exp, Abs, Addr]]): Option[ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
 
-  def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time]):
-    (ConvertedControl[Exp, Abs, Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, Time)
+//  TODO
+//  def convertState(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time]):
+//    (ConvertedControl[Exp, Abs, Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, Time)
 
   def generateTraceInformation(action: Action[Exp, Abs, Addr]): Option[TraceInformation[HybridValue]]
 }
@@ -247,7 +248,8 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
 
     def handleClosureGuard(guard: ActionGuardSameClosure[Exp, HybridValue, HybridAddress.A], currentClosure: HybridValue): ActionReturn[Exp, HybridValue, HybridAddress.A, Time, ProgramState[Exp, Time]] = {
       (guard.recordedClosure, currentClosure) match {
-        case (HybridLattice.Concrete(AbstractConcrete.AbstractClosure(lam1, env1)), HybridLattice.Concrete(AbstractConcrete.AbstractClosure(lam2, env2))) =>
+        case (HybridLattice.Concrete(HybridLattice.concreteLattice.lattice.Element(HybridLattice.concreteLattice.lattice.Closure(lam1, env1))),
+              HybridLattice.Concrete(HybridLattice.concreteLattice.lattice.Element(HybridLattice.concreteLattice.lattice.Closure(lam2, env2)))) =>
           if (lam1 == lam2) {
             ActionStep(this, guard)
           } else {
@@ -385,7 +387,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case ActionGuardAssertFreeVariable(variableName, expectedValue, rp, guardID) =>
         ρ.lookup(variableName) match {
           case Some(address) =>
-            val currentValue = σ.lookup(address)
+            val currentValue = σ.lookup(address).get
             if (currentValue == expectedValue) {
               ActionStep(this, action)
             } else {
@@ -404,6 +406,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     * Builds the state with the initial environment and stores
     */
   def this(sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
+           sabs: IsSchemeLattice[HybridLattice.L],
            exp: Exp,
            time: Timestamp[Time]) =
     this(TracingControlEval(exp),

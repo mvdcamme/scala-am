@@ -46,6 +46,10 @@ trait Semantics[Exp, Abs, Addr, Time] {
 }
 
 trait SemanticsTraced[Exp, Abs, Addr, Time] {
+  implicit def abs: JoinLattice[Abs]
+  implicit def addr: Address[Addr]
+  implicit def exp: Expression[Exp]
+  implicit def time: Timestamp[Time]
 
   class InvalidArityException extends Exception
 
