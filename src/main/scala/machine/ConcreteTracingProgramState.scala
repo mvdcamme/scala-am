@@ -30,7 +30,7 @@ trait ConcretableTracingProgramState[Exp, Time] {
     */
   def halted: Boolean = concretableState.control match {
     case TracingControlEval(_) => false
-    case TracingControlKont(HaltKontAddress) => true
+    case TracingControlKont(a) => a == HaltKontAddress
     case TracingControlError(_) => true
   }
 

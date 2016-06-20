@@ -11,3 +11,4 @@ target
 results
 benchmark results
 *.log
+benchmark_times.txt

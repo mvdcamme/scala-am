@@ -2,13 +2,7 @@
 
 trap "exit" INT
 
-for((o=0;o<8;o++))
+for testFile in count.scm fib.scm fact.scm gcipd.scm kcfa2.scm kcfa3.scm loop2.scm mj09.scm mut-rec.scm rotate.scm ack.scm collatz.scm widen.scm rsa.scm sat.scm dderiv.scm
 do
-	for i in {1..30}
-	do
-		for testFile in count.scm fib.scm fact.scm gcipd.scm kcfa2.scm kcfa3.scm loop2.scm mj09.scm mut-rec.scm rotate.scm ack.scm collatz.scm widen.scm rsa.scm sat.scm dderiv.scm
-		do
-			echo "run -m Hybrid -c -l Concrete -f test/$testFile --tracing t --threshold 10 --optimized t --switch f -o $o --result \"benchmark results/tracing_$o.txt\" " | sbt
-		done
-	done
+	echo "run -m Hybrid -c -l Concrete -f test/$testFile --tracing t --threshold 5" | sbt
 done
