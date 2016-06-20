@@ -211,6 +211,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
     def canEndLoopEncounteredTracing(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress.A]],
                                      restartPoint: RestartPoint[Exp, HybridValue, HybridAddress.A], loopID: List[Exp]): TracerState = {
+      Logger.log(s"Regular phase: CanEndLoop encountered for loop $loopID", Logger.D)
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       if (tracerContext.isTracingLoop(tc, loopID)) {
         Logger.log(s"Stopped tracing $loopID; NO LOOP DETECTED", Logger.I)
@@ -226,7 +227,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
 
     def handleSignalRegular(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress.A]], signal: TracingSignal[Exp, HybridValue, HybridAddress.A]): TracerState = signal match {
-      case SignalEndLoop(_, _) => continueWithProgramState(state, trace)
+      case SignalEndLoop(loopID, _) =>
+        Logger.log(s"Regular phase: CanEndLoop encountered for loop $loopID", Logger.D)
+        continueWithProgramState(state, trace)
       case SignalStartLoop(loopID) => canStartLoopEncounteredRegular(applyTrace(state, trace), trace, loopID)
     }
 
