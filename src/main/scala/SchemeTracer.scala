@@ -4,27 +4,15 @@
 class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
     (sem: SemanticsTraced[SchemeExp, Abs, Addr, Time],
      tracingFlags: TracingFlags,
-     traceOptimizer: SchemeTraceOptimizer[Addr, Time]) {
+     traceOptimizer: SchemeTraceOptimizer[Addr, Time]) extends Tracer[SchemeExp, Time] {
 
   val semantics = sem
   type InstructionReturn = semantics.InstructionReturn
-  type TraceInstruction = HybridMachine[SchemeExp, Time]#TraceInstruction
-  type Trace = HybridMachine[SchemeExp, Time]#TraceWithInfos
-
-  type AnalysisOutput = HybridMachine[SchemeExp, Time]#AAMOutput[HybridMachine[SchemeExp, Time]#PS, HybridMachine[SchemeExp, Time]#TraceWithoutStates]
-
-  trait Label
-
-  case class NormalLabel(loopID: List[SchemeExp]) extends Label
-  case class GuardLabel(loopID: List[SchemeExp], guardID: Integer) extends Label
 
   def getLoopID(label: Label): List[SchemeExp] = label match {
     case NormalLabel(loopID) => loopID
     case GuardLabel(loopID, _) => loopID
   }
-
-  case class TraceInfo(boundVariables: List[String], startState: HybridMachine[SchemeExp, Time]#PS)
-  case class TraceNode[Trace](label: Label, trace: Trace, info: TraceInfo)
 
   case class TracerContext(labelCounters: Map[List[SchemeExp], Integer], /* Stores the number of times each label has been encountered. */
                            traceNodes: List[TraceNode[TraceFull[SchemeExp, Time]]], /* Stores all trace-nodes, i.e. the previously-recorded traces. */
