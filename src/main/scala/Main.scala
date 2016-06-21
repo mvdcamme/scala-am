@@ -179,7 +179,6 @@ object Config {
                       bound: Int = 100,
                       timeout: Option[Long] = None,
                       amb: Boolean = false,
-                      optimization: Int = 6,
                       resultsPath: String = "benchmark_times.txt",
                       tracingFlags: TracingFlags = TracingFlags())
 
@@ -191,15 +190,21 @@ object Config {
       opt[String]('d', "dotfile") action { (x, c) => c.copy(dotfile = Some(x)) } text ("Dot file to output graph to")
       opt[String]('f', "file") action { (x, c) => c.copy(file = Some(x)) } text ("File to read program from")
       opt[String]("result") action { (x, c) => c.copy(resultsPath = x) } text ("File to print benchmarks results to")
-      opt[Int]('o', "Optimization") action { (x, c) => c.copy(optimization = x.intValue()) } text ("Optimization")
+      opt[String]('o', "Optimization") action { (x, c) => {
+        val optimization: ShouldApplyOptimization = x match {
+          case "A" | "a" | "All" | "all"  =>
+            ApplyAllOptimizations
+          case "N" | "n" | "None" | "none" =>
+            ApplyNoOptimizations
+          case _ =>
+            ApplySpecificOptimization(x.toInt)
+      }
+        c.copy(tracingFlags = c.tracingFlags.copy(OPTIMIZATION = optimization)) } } text ("Apply (dynamic) optimizations")
       opt[String]("tracing") action { (b, c) =>
         readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(DO_TRACING = bool))
       } text ("Record and execute traces")
       opt[String]("threshold") action { (x, c) => c.copy(tracingFlags = c.tracingFlags.copy(TRACING_THRESHOLD = Integer.parseInt(x))) } text ("The minimum threshold required to consider a loop hot")
 
-      opt[String]("optimized") action { (b, c) =>
-        readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(APPLY_OPTIMIZATIONS = bool))
-      } text ("Apply (dynamic) optimizations")
       opt[String]("switch") action { (b, c) =>
         readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(SWITCH_ABSTRACT = bool))
       } text ("Switch to abstract (type) interpretation after recording a trace and use this abstract information to optimize traces.")
@@ -312,27 +317,29 @@ object Main {
     Config.parser.parse(args, Config.Config()) match {
       case Some(config) => {
 
-        def handleOptimization(): Unit = config.optimization match {
-          case 0 =>
-          case 1 =>
-            GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
-          case 2 =>
-            GlobalFlags.APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
-          case 3 =>
-            GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
-          case 4 =>
-            GlobalFlags.APPLY_OPTIMIZATION_MERGE_ACTIONS = true
-          case 5 =>
-            GlobalFlags.APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
-          case 6 =>
-            GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
-          case 7 =>
+        def handleOptimization(): Unit = config.tracingFlags.OPTIMIZATION match {
+          case ApplyNoOptimizations =>
+          case ApplyAllOptimizations =>
             GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
             GlobalFlags.APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
             GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
             GlobalFlags.APPLY_OPTIMIZATION_MERGE_ACTIONS = true
             GlobalFlags.APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
             GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
+          case ApplySpecificOptimization(o) => o match {
+            case 1 =>
+              GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
+            case 2 =>
+              GlobalFlags.APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS = true
+            case 3 =>
+              GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
+            case 4 =>
+              GlobalFlags.APPLY_OPTIMIZATION_MERGE_ACTIONS = true
+            case 5 =>
+              GlobalFlags.APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
+            case 6 =>
+              GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
+          }
         }
 
         handleOptimization()

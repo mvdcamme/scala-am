@@ -1,5 +1,11 @@
 case class TracingFlags(DO_TRACING: Boolean = true,
                         TRACING_THRESHOLD: Integer = 5,
-                        APPLY_OPTIMIZATIONS: Boolean = true,
+                        OPTIMIZATION: ShouldApplyOptimization = ApplyAllOptimizations,
                         SWITCH_ABSTRACT: Boolean = false,
                         DO_GUARD_TRACING: Boolean = true)
+
+sealed trait ShouldApplyOptimization
+
+case class ApplySpecificOptimization(nr: Int) extends ShouldApplyOptimization
+case object ApplyNoOptimizations extends ShouldApplyOptimization
+case object ApplyAllOptimizations extends ShouldApplyOptimization
