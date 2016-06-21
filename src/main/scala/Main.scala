@@ -379,12 +379,13 @@ object Main {
 //                new AmbProgramState[SchemeExp, time.T](normalState)
 //              })
             } else {
-              val sem = new SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, time.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
-              val sabs = implicitly[IsSchemeLattice[HybridLattice.L]]
-              val machine = new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, t) =>
-                      new ProgramState[SchemeExp, time.T](sem, sabs, exp, t)
-              })
-              (program: String) => runTraced(machine)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
+                val sem = new SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, time.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
+                val sabs = implicitly[IsSchemeLattice[HybridLattice.L]]
+                val tracerContext: SchemeTracer[HybridLattice.L, HybridAddress.A, time.T] = new SchemeTracer[HybridLattice.L, HybridAddress.A, time.T](sem, config.tracingFlags, new SchemeTraceOptimizer[HybridAddress.A, time.T](sem))
+                val machine = new HybridMachine[SchemeExp, time.T](sem, tracerContext, config.tracingFlags, { (exp, t) =>
+                        new ProgramState[SchemeExp, time.T](sem, sabs, exp, t)
+                })
+                (program: String) => runTraced(machine)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
             }
           }
         }

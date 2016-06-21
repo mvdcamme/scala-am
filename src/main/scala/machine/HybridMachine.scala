@@ -19,7 +19,8 @@
 
 class HybridMachine[Exp : Expression, Time : Timestamp]
   (override val sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
-                                   val tracingFlags: TracingFlags,
+   tracerContext: SchemeTracer[HybridLattice.L, HybridAddress.A, Time],
+   tracingFlags: TracingFlags,
    injectProgramState: (Exp, Timestamp[Time]) =>
                        ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, Time])
     extends EvalKontMachineTraced[Exp, HybridLattice.L, HybridAddress.A, Time](sem) {
@@ -33,18 +34,14 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   type PS = ConcreteTracingProgramState[Exp, HybridValue, HybridAddress.A, Time]
 
-  case class TraceFull(startProgramState: PS, assertions: TraceWithoutStates, trace: TraceWithInfos)
-
   def name = "HybridMachine"
 
-  val tracerContext: Tracer[Exp, HybridValue, HybridAddress.A, Time] =
-    new Tracer[Exp, HybridValue, HybridAddress.A, Time](sem, new TraceOptimizer[Exp, HybridAddress.A, Time](sem, this), this)
+
 
   def applyTraceIntermediateResults(state: PS, trace: TraceWithoutStates): List[PS] = {
     trace.scanLeft(state)((currentState, action) => currentState.applyAction(sem, action) match {
       case ActionStep(updatedState, _) => updatedState
       case result => println(s"Unexpected result while applying action $action; got result $result"); currentState
-      //case result => throw new Exception(s"Unexpected result while applying action $action; got result $result")
     })
   }
 

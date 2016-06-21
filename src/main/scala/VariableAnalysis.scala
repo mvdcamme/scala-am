@@ -5,12 +5,12 @@ import scala.collection.mutable.Stack
 /**
   * Created by mvdcamme on 08/03/16.
   */
-class VariableAnalysis[Exp : Expression, Addr : Address, Time : Timestamp](val sem: SemanticsTraced[Exp, HybridLattice.L, Addr, Time], val hybridMachine : HybridMachine[Exp, Time]) {
+class VariableAnalysis[Exp : Expression, Addr : Address, Time : Timestamp]
+  (val sem: SemanticsTraced[Exp, HybridLattice.L, Addr, Time]) {
 
   type TraceInstructionStates = HybridMachine[Exp, Time]#TraceInstructionInfo
   type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
   type Trace = HybridMachine[Exp, Time]#TraceWithInfos
-  type TraceFull = HybridMachine[Exp, Time]#TraceFull
 
   type HybridValue = HybridLattice.L
 
@@ -21,7 +21,7 @@ class VariableAnalysis[Exp : Expression, Addr : Address, Time : Timestamp](val s
     * @param traceFull The trace of which the bound variables must be computed.
     * @return The set of bound variables in the trace.
     */
-  def analyzeBoundVariables(initialBoundVariables: Set[String], traceFull: TraceFull): Set[String] = {
+  def analyzeBoundVariables(initialBoundVariables: Set[String], traceFull: TraceFull[Exp, Time]): Set[String] = {
 
     /*
      * Compute, for each action in the trace, what the set of bound variables are at this position in the trace.
