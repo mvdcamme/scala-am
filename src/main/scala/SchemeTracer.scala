@@ -14,10 +14,11 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
     case GuardLabel(loopID, _) => loopID
   }
 
+  type TracerContext = SchemeTracerContext
+
   case class SchemeTracerContext(labelCounters: Map[List[SchemeExp], Integer], /* Stores the number of times each label has been encountered. */
                                  traceNodes: List[TraceNode[TraceFull[SchemeExp, Time]]], /* Stores all trace-nodes, i.e. the previously-recorded traces. */
                                  curTraceNode: Option[TraceNode[Trace]]) /* Stores the trace that is currently being recorded. */
-    extends TracerContext
 
   /*
    * Generating tracer context
@@ -58,8 +59,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
 
   def stopTracing(tc: TracerContext, isLooping: Boolean,
                   traceEndedInstruction: Option[TraceInstruction],
-                  someAnalysisOutput: Option[AnalysisOutput]): SchemeTracerContext = tc match {
-    case tc: SchemeTracerContext =>
+                  someAnalysisOutput: Option[AnalysisOutput]): SchemeTracerContext = {
       var finishedTc: SchemeTracerContext = tc
       if (! isLooping) {
         finishedTc = appendTrace(tc, List((traceEndedInstruction.get, None)))
@@ -88,95 +88,65 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
   /* TODO refactor this */
 
   private def searchTraceWithLabelMatching(tc: TracerContext,
-                                           labelPred: Label => Boolean): Option[TraceNode[TraceFull[SchemeExp, Time]]] = tc match {
-    case tc: SchemeTracerContext =>
-      tc.traceNodes.find({traceNode => labelPred(traceNode.label)})
-  }
+                                           labelPred: Label => Boolean): Option[TraceNode[TraceFull[SchemeExp, Time]]] =
+    tc.traceNodes.find({traceNode => labelPred(traceNode.label)})
 
   private def searchLoopTrace(tc: TracerContext,
-                              loopID: List[SchemeExp]): Option[TraceNode[TraceFull[SchemeExp, Time]]] = tc match {
-    case tc: SchemeTracerContext =>
-      searchTraceWithLabelMatching(tc, NormalLabel(loopID) == _)
-  }
+                              loopID: List[SchemeExp]): Option[TraceNode[TraceFull[SchemeExp, Time]]] =
+    searchTraceWithLabelMatching(tc, NormalLabel(loopID) == _)
 
-  private def searchGuardTrace(tc: TracerContext, guardID: Integer): Option[TraceNode[TraceFull[SchemeExp, Time]]] = tc match {
-    case tc: SchemeTracerContext =>
+  private def searchGuardTrace(tc: TracerContext, guardID: Integer): Option[TraceNode[TraceFull[SchemeExp, Time]]] =
       searchTraceWithLabelMatching(tc, { case NormalLabel(_) => false
                                          case GuardLabel(_, guardID2) => guardID == guardID2 })
+
+  private def getTrace(tc: TracerContext, label: Label): TraceNode[TraceFull[SchemeExp, Time]] = searchTraceWithLabelMatching(tc, _ == label) match {
+    case Some(traceNode) => traceNode
+    case None => throw new Exception(s"Retrieving non-existing trace (should not happen): $label")
   }
 
-  private def getTrace(tc: TracerContext, label: Label): TraceNode[TraceFull[SchemeExp, Time]] = tc match {
-    case tc: SchemeTracerContext =>
-      searchTraceWithLabelMatching(tc, _ == label) match {
-        case Some(traceNode) => traceNode
-        case None => throw new Exception(s"Retrieving non-existing trace (should not happen): $label")
-      }
+  def getLoopTrace(tc: TracerContext, loopID: List[SchemeExp]): TraceNode[TraceFull[SchemeExp, Time]] = searchLoopTrace(tc, loopID) match {
+    case Some(traceNode) => traceNode
+    case None => throw new Exception(s"Retrieving non-existing loop-trace (should not happen): ${NormalLabel(loopID)}")
   }
 
-  def getLoopTrace(tc: TracerContext, loopID: List[SchemeExp]): TraceNode[TraceFull[SchemeExp, Time]] = tc match {
-    case tc: SchemeTracerContext =>
-      searchLoopTrace(tc, loopID) match {
-        case Some(traceNode) => traceNode
-        case None => throw new Exception(s"Retrieving non-existing loop-trace (should not happen): ${NormalLabel(loopID)}")
-      }
+  def getGuardTrace(tc: TracerContext, guardID: Integer): TraceNode[TraceFull[SchemeExp, Time]] = searchGuardTrace(tc, guardID) match {
+    case Some(traceNode) => traceNode
+    case None => throw new Exception(s"Retrieving non-existing guard-trace (should not happen): guardID = $guardID")
   }
 
-  def getGuardTrace(tc: TracerContext, guardID: Integer): TraceNode[TraceFull[SchemeExp, Time]] = tc match {
-    case tc: SchemeTracerContext =>
-      searchGuardTrace(tc, guardID) match {
-        case Some(traceNode) => traceNode
-        case None => throw new Exception(s"Retrieving non-existing guard-trace (should not happen): guardID = $guardID")
-      }
+  def loopTraceExists(tc: TracerContext, loopID: List[SchemeExp]): Boolean = searchLoopTrace(tc, loopID) match {
+    case Some(traceNode) => true
+    case None => false
   }
 
-  def loopTraceExists(tc: TracerContext, loopID: List[SchemeExp]): Boolean = tc match {
-    case tc: SchemeTracerContext =>
-      searchLoopTrace(tc, loopID) match {
-        case Some(traceNode) => true
-        case None => false
-      }
-  }
-
-  def guardTraceExists(tc: TracerContext, guardID: Integer): Boolean = tc match {
-    case tc: SchemeTracerContext =>
-      searchGuardTrace(tc, guardID) match {
-        case Some(traceNode) => true
-        case None => false
-      }
+  def guardTraceExists(tc: TracerContext, guardID: Integer): Boolean = searchGuardTrace(tc, guardID) match {
+    case Some(traceNode) => true
+    case None => false
   }
 
   /*
    * Recording traces
    */
 
-  def appendTrace(tc: TracerContext, newPart: Trace): SchemeTracerContext = tc match {
-    case tc: SchemeTracerContext =>
-      val newCurTraceNode = tc.curTraceNode.get.copy(trace = newPart.reverse ++ tc.curTraceNode.get.trace)
-      tc.copy(curTraceNode = Some(newCurTraceNode))
+  def appendTrace(tc: TracerContext, newPart: Trace): SchemeTracerContext = {
+    val newCurTraceNode = tc.curTraceNode.get.copy(trace = newPart.reverse ++ tc.curTraceNode.get.trace)
+    tc.copy(curTraceNode = Some(newCurTraceNode))
   }
 
-  private def clearTrace(tc: TracerContext): SchemeTracerContext = tc match {
-    case tc: SchemeTracerContext =>
+  private def clearTrace(tc: TracerContext): SchemeTracerContext =
       tc.copy(curTraceNode = None)
-  }
 
-  def isTracing(tc: TracerContext): Boolean = tc match {
-    case tc: SchemeTracerContext =>
-      tc.curTraceNode match {
-        case Some(_) => true
-        case None => false
-      }
+  def isTracing(tc: TracerContext): Boolean = tc.curTraceNode match {
+    case Some(_) => true
+    case None => false
   }
 
 
-  def isTracingLoop(tc: TracerContext, loopID: List[SchemeExp]): Boolean = tc match {
-    case tc: SchemeTracerContext =>
-      tc.curTraceNode match {
-        case Some(traceNode) =>
-          val loopID2 = getLoopID(traceNode.label)
-          loopID == loopID2
-        case None => false
-      }
+  def isTracingLoop(tc: TracerContext, loopID: List[SchemeExp]): Boolean = tc.curTraceNode match {
+    case Some(traceNode) =>
+      val loopID2 = getLoopID(traceNode.label)
+      loopID == loopID2
+    case None => false
   }
 
 
@@ -184,27 +154,26 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
    * Executing traces
    */
 
-  def stepTrace(traceNode: TraceNode[TraceFull[SchemeExp, Time]], tc: TracerContext): (TraceInstruction, TraceNode[TraceFull[SchemeExp, Time]], Boolean) = tc match {
-    case tc: SchemeTracerContext =>
-      var currentTraceNode = traceNode
-      def resetTrace() = {
-        Logger.log("Resetting the trace", Logger.D)
-        val loopID = getLoopID(traceNode.label)
-        currentTraceNode = getLoopTrace(tc, loopID)
-      }
+  def stepTrace(traceNode: TraceNode[TraceFull[SchemeExp, Time]], tc: TracerContext): (TraceInstruction, TraceNode[TraceFull[SchemeExp, Time]], Boolean) = {
+    var currentTraceNode = traceNode
+    def resetTrace() = {
+      Logger.log("Resetting the trace", Logger.D)
+      val loopID = getLoopID(traceNode.label)
+      currentTraceNode = getLoopTrace(tc, loopID)
+    }
 
-      /*
-       * Make sure the trace isn't empty
-       */
-      if (traceNode.trace.trace.isEmpty) {
-        resetTrace()
-      }
+    /*
+     * Make sure the trace isn't empty
+     */
+    if (traceNode.trace.trace.isEmpty) {
+      resetTrace()
+    }
 
-      val mustRerunHeader = traceNode.label != currentTraceNode.label
+    val mustRerunHeader = traceNode.label != currentTraceNode.label
 
-      val traceHead = currentTraceNode.trace.trace.head
-      val updatedTraceNode = traceNode.copy(trace = traceNode.trace.copy(currentTraceNode.trace.startProgramState, currentTraceNode.trace.assertions, currentTraceNode.trace.trace.tail))
-      (traceHead._1, updatedTraceNode, mustRerunHeader)
+    val traceHead = currentTraceNode.trace.trace.head
+    val updatedTraceNode = traceNode.copy(trace = traceNode.trace.copy(currentTraceNode.trace.startProgramState, currentTraceNode.trace.assertions, currentTraceNode.trace.trace.tail))
+    (traceHead._1, updatedTraceNode, mustRerunHeader)
   }
 
   /*
@@ -226,16 +195,13 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
    * Hotness counter
    */
 
-  def getLabelCounter(tc: TracerContext, loopID: List[SchemeExp]): Integer = tc match {
-    case tc: SchemeTracerContext =>
-      tc.labelCounters.getOrElse(loopID, 0)
-  }
+  def getLabelCounter(tc: TracerContext, loopID: List[SchemeExp]): Integer =
+    tc.labelCounters.getOrElse(loopID, 0)
 
-  def incLabelCounter(tc: TracerContext, loopID: List[SchemeExp]): SchemeTracerContext = tc match {
-    case tc: SchemeTracerContext =>
-      val oldCounter = getLabelCounter(tc, loopID)
-      val newLabelCounters: Map[List[SchemeExp], Integer] = tc.labelCounters.updated(loopID, oldCounter + 1)
-      tc.copy(labelCounters = newLabelCounters)
+  def incLabelCounter(tc: TracerContext, loopID: List[SchemeExp]): SchemeTracerContext = {
+    val oldCounter = getLabelCounter(tc, loopID)
+    val newLabelCounters: Map[List[SchemeExp], Integer] = tc.labelCounters.updated(loopID, oldCounter + 1)
+    tc.copy(labelCounters = newLabelCounters)
   }
 
 }

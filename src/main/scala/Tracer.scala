@@ -1,7 +1,7 @@
 trait Tracer[Exp, Time] {
 
   /* An opaque type storing bookkeeping information for the actual, concrete tracer */
-  trait TracerContext
+  type TracerContext
 
   type TraceInstruction = Action[Exp, HybridLattice.L, HybridAddress.A]
   type TraceWithoutStates = List[TraceInstruction]
