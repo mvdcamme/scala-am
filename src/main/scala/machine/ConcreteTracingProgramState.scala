@@ -168,11 +168,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       val clo = vals.last.getVal
       val updatedEnvAndStores = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.getVal)), σ, t).head
       updatedEnvAndStores match {
-        case Some((ρ2, σ2, e)) =>
+        case Right((ρ2, σ2, e)) =>
           val next = NormalKontAddress(e, t) // Hack to get infinite number of addresses in concrete mode
           ProgramState[Exp, Time](TracingControlEval[Exp, HybridValue, HybridAddress.A](e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, StoreEnv[HybridValue, HybridAddress.A](ρ) :: newVStack)
-        case None =>
-          ProgramState[Exp, Time](TracingControlError(ArityError(fexp.toString, 99 /* TODO */, n - 1)), ρ, σ, kstore, a, t, v, newVStack)
+        case Left(expectedNrOfArgs) =>
+          ProgramState[Exp, Time](TracingControlError(ArityError(fexp.toString, expectedNrOfArgs, n - 1)), ρ, σ, kstore, a, t, v, newVStack)
       }
   }
 

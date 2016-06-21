@@ -55,7 +55,7 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] {
 
   class InvalidArityException extends Exception
 
-  def bindClosureArgs(clo: Abs, argsv: List[(Exp, Abs)], σ: Store[Addr, Abs], t: Time): Set[Option[(Environment[Addr], Store[Addr, Abs], Exp)]]
+  def bindClosureArgs(clo: Abs, argsv: List[(Exp, Abs)], σ: Store[Addr, Abs], t: Time): Set[Either[Int, (Environment[Addr], Store[Addr, Abs], Exp)]]
 
   /*
    * Instruction return

@@ -203,7 +203,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
     def canEndLoopEncounteredTracing(state: PS, trace: List[Action[Exp, HybridValue, HybridAddress.A]],
                                      restartPoint: RestartPoint[Exp, HybridValue, HybridAddress.A], loopID: List[Exp]): TracerState = {
-      Logger.log(s"Regular phase: CanEndLoop encountered for loop $loopID", Logger.D)
+      Logger.log(s"Tracing phase: CanEndLoop encountered for loop $loopID", Logger.D)
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
       if (tracer.isTracingLoop(tc, loopID)) {
         Logger.log(s"Stopped tracing $loopID; NO LOOP DETECTED", Logger.I)
