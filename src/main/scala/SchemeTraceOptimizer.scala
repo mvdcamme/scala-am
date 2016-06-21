@@ -6,10 +6,12 @@ import scala.annotation.tailrec
 class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
   (val sem: SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, Time]) {
 
-  type TraceInstructionInfo = HybridMachine[SchemeExp, Time]#TraceInstructionInfo
-  type TraceInstruction = HybridMachine[SchemeExp, Time]#TraceInstruction
-  type TraceWithoutStates = HybridMachine[SchemeExp, Time]#TraceWithoutStates
-  type Trace = HybridMachine[SchemeExp, Time]#TraceWithInfos
+  type TraceInstructionInfo = Tracer[SchemeExp, Time]#TraceInstructionInfo
+  type TraceInstruction = Tracer[SchemeExp, Time]#TraceInstruction
+  type TraceWithoutStates = Tracer[SchemeExp, Time]#TraceWithoutStates
+  type Trace = Tracer[SchemeExp, Time]#TraceWithInfos
+
+  type AnalysisOutput = Tracer[SchemeExp, Time]#AnalysisOutput
 
   type HybridValue = HybridLattice.L
 
@@ -464,8 +466,6 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
   /*********************************************************************************************************************
    *                                            STATIC ANALYSIS OPTIMIZATION                                           *
    *********************************************************************************************************************/
-
-  type AnalysisOutput = HybridMachine[SchemeExp, Time]#AAMOutput[HybridMachine[SchemeExp, Time]#PS, HybridMachine[SchemeExp, Time]#TraceWithoutStates]
 
   val APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS = false
   val APPLY_OPTIMIZATION_DEAD_STORE_ELIMINATION = false

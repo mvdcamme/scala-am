@@ -381,7 +381,8 @@ object Main {
             } else {
                 val sem = new SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, time.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
                 val sabs = implicitly[IsSchemeLattice[HybridLattice.L]]
-                val tracerContext: SchemeTracer[HybridLattice.L, HybridAddress.A, time.T] = new SchemeTracer[HybridLattice.L, HybridAddress.A, time.T](sem, config.tracingFlags, new SchemeTraceOptimizer[HybridAddress.A, time.T](sem))
+                val optimizer = new SchemeTraceOptimizer[HybridAddress.A, time.T](sem)
+                val tracerContext = new SchemeTracer[HybridLattice.L, HybridAddress.A, time.T](sem, config.tracingFlags, optimizer)
                 val machine = new HybridMachine[SchemeExp, time.T](sem, tracerContext, config.tracingFlags, { (exp, t) =>
                         new ProgramState[SchemeExp, time.T](sem, sabs, exp, t)
                 })

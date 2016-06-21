@@ -19,7 +19,7 @@
 
 class HybridMachine[Exp : Expression, Time : Timestamp]
   (override val sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
-   tracer: Tracer[Exp, Time],
+   val tracer: Tracer[Exp, Time],
    tracingFlags: TracingFlags,
    injectProgramState: (Exp, Timestamp[Time]) =>
                        ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, Time])

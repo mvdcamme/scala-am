@@ -8,9 +8,9 @@ import scala.collection.mutable.Stack
 class VariableAnalysis[Exp : Expression, Addr : Address, Time : Timestamp]
   (val sem: SemanticsTraced[Exp, HybridLattice.L, Addr, Time]) {
 
-  type TraceInstructionStates = HybridMachine[Exp, Time]#TraceInstructionInfo
-  type TraceInstruction = HybridMachine[Exp, Time]#TraceInstruction
-  type Trace = HybridMachine[Exp, Time]#TraceWithInfos
+  type TraceInstructionStates = Tracer[Exp, Time]#TraceInstructionInfo
+  type TraceInstruction = Tracer[Exp, Time]#TraceInstruction
+  type Trace = Tracer[Exp, Time]#TraceWithInfos
 
   type HybridValue = HybridLattice.L
 
