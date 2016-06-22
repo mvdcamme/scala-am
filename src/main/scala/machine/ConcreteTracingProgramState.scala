@@ -478,7 +478,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     }
     val convertedKontStore = convertKStore(aam, sem, kstore, ρ, startKontAddress, newVStack)
     val absSem = sem.absSem
-    val newKStore = convertedKontStore.map(absSem.convertFrame(convertValue(σ)))
+    val newKStore = convertedKontStore //TODO not needed? convertedKontStore.map(absSem.convertFrame(convertValue(σ)))
     val newControl = control match {
       case TracingControlEval(exp) =>
         ConvertedControlEval[Exp, HybridValue, HybridAddress.A](exp, newρ)
