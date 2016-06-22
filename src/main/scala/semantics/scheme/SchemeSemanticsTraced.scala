@@ -157,7 +157,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
 
     val fromClo: Set[InterpreterStep[SchemeExp, Abs, Addr]] = sabs.getClosures[SchemeExp, Addr](function).map({
       case (SchemeLambda(args, body, _), ρ1) =>
-        val stepInAction = ActionStepInT(fexp, body.head, args, argsv.map(_._1), valsToPop, FrameFunBodyT(body, body.tail))
+        val stepInAction = ActionStepInT(fexp, body.head, args, argsv.map(_._1), valsToPop, FrameFunBodyT(body, Nil))
         val rp = RestartGuardDifferentClosure(stepInAction)
         val guard = ActionGuardSameClosure[SchemeExp, Abs, Addr](function, rp, GuardIDCounter.incCounter())
         val allActions = commonActions :+ guard :+ stepInAction :+ actionEndClosureCall
@@ -173,7 +173,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
       InterpreterStep[SchemeExp, Abs, Addr](allActions, SignalFalse[SchemeExp, Abs, Addr]())
     })
     if (fromClo.isEmpty && fromPrim.isEmpty) {
-      val allActions = commonActions :+ ActionErrorT[SchemeExp, Abs, Addr]((TypeError(function.toString, "operator", "function", "not a function")))
+      val allActions = commonActions :+ ActionErrorT[SchemeExp, Abs, Addr](TypeError(function.toString, "operator", "function", "not a function"))
       Set(new InterpreterStep[SchemeExp, Abs, Addr](allActions, SignalFalse[SchemeExp, Abs, Addr]()))
     } else {
       fromClo ++ fromPrim
@@ -338,7 +338,11 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
       case (SchemeLambda(args, body, pos), ρ1) =>
         if (args.length == argsv.length) {
           val (ρ2, σ2) = bindArgs(args.zip(argsv), ρ1, σ, t)
-          val formattedBody = if (body.length == 1) { body.head } else { SchemeBegin(body, pos) }
+          val formattedBody = if (body.length == 1) {
+            body.head
+          } else {
+            SchemeBegin(body, pos)
+          }
           Right((ρ2, σ2, formattedBody))
         } else {
           Left(args.length)

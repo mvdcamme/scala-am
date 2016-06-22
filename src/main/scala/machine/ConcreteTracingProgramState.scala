@@ -163,16 +163,19 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
 
   def doActionStepInTraced(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
     action: Action[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp, Time] = action match {
-    case ActionStepInT(fexp, _, _, argsv, n, frame, _, _) =>
-      val (vals, newVStack) = popStackItems(vStack, n)
+    case ActionStepInT(fexp, bodyHead, _, argsv, n, frame, _, _) =>
+      val (vals, poppedVStack) = popStackItems(vStack, n)
       val clo = vals.last.getVal
       val updatedEnvAndStores = sem.bindClosureArgs(clo, argsv.zip(vals.init.reverse.map(_.getVal)), σ, t).head
       updatedEnvAndStores match {
         case Right((ρ2, σ2, e)) =>
           val next = NormalKontAddress(e, t) // Hack to get infinite number of addresses in concrete mode
-          ProgramState[Exp, Time](TracingControlEval[Exp, HybridValue, HybridAddress.A](e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, StoreEnv[HybridValue, HybridAddress.A](ρ) :: newVStack)
+          val newVStack = //StoreEnv[HybridValue, HybridAddress.A](ρ2) ::
+                          StoreEnv[HybridValue, HybridAddress.A](ρ) ::
+                          poppedVStack
+          ProgramState[Exp, Time](TracingControlEval[Exp, HybridValue, HybridAddress.A](e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, newVStack)
         case Left(expectedNrOfArgs) =>
-          ProgramState[Exp, Time](TracingControlError(ArityError(fexp.toString, expectedNrOfArgs, n - 1)), ρ, σ, kstore, a, t, v, newVStack)
+          ProgramState[Exp, Time](TracingControlError(ArityError(fexp.toString, expectedNrOfArgs, n - 1)), ρ, σ, kstore, a, t, v, poppedVStack)
       }
   }
 
