@@ -147,41 +147,46 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
     }
   }
 
+  @scala.annotation.tailrec
+  def loop(todo: Set[State], visited: Set[State], halted: Set[State], sem: Semantics[Exp, Abs, Addr, Time],
+           startingTime: Long, timeout: Option[Long], graph: Option[Graph[State, Unit]]): AAMOutput = {
+    if (timeout.map(System.nanoTime - startingTime > _).getOrElse(false)) {
+      AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9), graph, true)
+    } else {
+      todo.headOption match {
+        case Some(s) =>
+          if (visited.contains(s) || visited.exists(s2 => s2.subsumes(s))) {
+            /* If we already visited the state, or if it is subsumed by another already
+             * visited state, we ignore it. The subsumption part reduces the
+             * number of visited states but leads to non-determinism due to the
+             * non-determinism of Scala's headOption (it seems so at least). */
+            loop(todo.tail, visited, halted, sem, startingTime, timeout, graph)
+          } else if (s.halted) {
+            /* If the state is a final state, add it to the list of final states and
+             * continue exploring the graph */
+            loop(todo.tail, visited + s, halted + s, sem, startingTime, timeout, graph)
+          } else {
+            /* Otherwise, compute the successors of this state, update the graph, and push
+             * the new successors on the todo list */
+            val succs = s.step(sem)
+            val newGraph = graph.map(_.addEdges(succs.map(s2 => (s, (), s2))))
+            loop(todo.tail ++ succs, visited + s, halted, sem, startingTime, timeout, newGraph)
+          }
+        case None => AAMOutput(halted, visited.size,
+          (System.nanoTime - startingTime) / Math.pow(10, 9), graph, false)
+      }
+    }
+  }
+
   /**
    * Performs the evaluation of an expression, possibly writing the output graph
    * in a file, and returns the set of final states reached
    */
   def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Option[Long]): Output[Abs] = {
     val startingTime = System.nanoTime
-    def loop(todo: Set[State], visited: Set[State], halted: Set[State], graph: Option[Graph[State, Unit]]): AAMOutput = {
-      if (timeout.map(System.nanoTime - startingTime > _).getOrElse(false)) {
-        AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9), graph, true)
-      } else {
-        todo.headOption match {
-          case Some(s) =>
-            if (visited.contains(s) || visited.exists(s2 => s2.subsumes(s))) {
-              /* If we already visited the state, or if it is subsumed by another already
-               * visited state, we ignore it. The subsumption part reduces the
-               * number of visited states but leads to non-determinism due to the
-               * non-determinism of Scala's headOption (it seems so at least). */
-              loop(todo.tail, visited, halted, graph)
-            } else if (s.halted) {
-              /* If the state is a final state, add it to the list of final states and
-               * continue exploring the graph */
-              loop(todo.tail, visited + s, halted + s, graph)
-            } else {
-              /* Otherwise, compute the successors of this state, update the graph, and push
-               * the new successors on the todo list */
-              val succs = s.step(sem)
-              val newGraph = graph.map(_.addEdges(succs.map(s2 => (s, (), s2))))
-              loop(todo.tail ++ succs, visited + s, halted, newGraph)
-            }
-          case None => AAMOutput(halted, visited.size,
-            (System.nanoTime - startingTime) / Math.pow(10, 9), graph, false)
-        }
-      }
-    }
-    loop(Set(State.inject(exp, sem.initialEnv, sem.initialStore)), Set(), Set(), if (graph) { Some(new Graph[State, Unit]()) } else { None })
+    loop(Set(State.inject(exp, sem.initialEnv, sem.initialStore)), Set(), Set(), sem,
+        startingTime, timeout,
+      if (graph) { Some(new Graph[State, Unit]()) } else { None })
   }
 
   override def analyze[L](exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], analysis: Analysis[L, Exp, Abs, Addr, Time], timeout: Option[Long]) = {

@@ -18,11 +18,32 @@ import scalaz._
  * language. A more complex definition resides in SchemeSemantics.scala.
  */
 
-trait Semantics[Exp, Abs, Addr, Time] {
+trait BasicSemantics[Exp, Abs, Addr, Time] {
   implicit def abs: JoinLattice[Abs]
   implicit def addr: Address[Addr]
   implicit def exp: Expression[Exp]
   implicit def time: Timestamp[Time]
+
+  def bindArgs(l: List[(String, (Exp, Abs))], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): (Environment[Addr], Store[Addr, Abs])
+
+  /**
+    * Defines how to convert continuation frames: all addresses and values included either directly or
+    * indirectly, i.e., through the environment, should be converted via the given conversion functions
+    * for addresses and values
+    * @param convertAddress The conversion function for addresses
+    * @param convertValue The conversion function for values
+    * @param frame The frame whose values and addresses should be converted
+    * @return The converted frame
+    */
+  def convertFrame(convertValue: Abs => Abs)(frame: Frame): Frame
+
+  /**
+    * Defines how to parse a program
+    */
+  def parse(program: String): Exp
+}
+
+trait Semantics[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Addr, Time]{
   /**
    * Defines what actions should be taken when an expression e needs to be
    * evaluated, in environment env with store store
@@ -34,22 +55,13 @@ trait Semantics[Exp, Abs, Addr, Time] {
    */
   def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time): Set[Action[Exp, Abs, Addr]]
 
-  /**
-   * Defines how to parse a program
-   */
-  def parse(program: String): Exp
-
   /** Defines the elements in the initial environment/store */
   def initialBindings: Iterable[(String, Addr, Abs)] = List()
   def initialEnv: Iterable[(String, Addr)] = initialBindings.map({ case (name, a, _) => (name, a) })
   def initialStore: Iterable[(Addr, Abs)] = initialBindings.map({ case (_, a, v) => (a, v) })
 }
 
-trait SemanticsTraced[Exp, Abs, Addr, Time] {
-  implicit def abs: JoinLattice[Abs]
-  implicit def addr: Address[Addr]
-  implicit def exp: Expression[Exp]
-  implicit def time: Timestamp[Time]
+trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Addr, Time] {
 
   def primitives: Primitives[Addr, Abs]
 
@@ -86,11 +98,6 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] {
     * the topmost frame is frame
     */
   def stepKont(v: Abs, frame: Frame, σ: Store[Addr, Abs], t: Time): Set[InterpreterStep[Exp, Abs, Addr]]
-
-  /**
-    * Defines how to parse a program
-    */
-  def parse(program: String): Exp
 
   /** Defines the elements in the initial environment/store */
   def initialBindings: Iterable[(String, Addr, Abs)] = List()
@@ -292,6 +299,8 @@ abstract class BaseSemanticsTraced[Exp: Expression, Abs: JoinLattice, Addr: Addr
       val a = addr.variable(name, value, t)
       (env.extend(name, a), store.extend(a, value))
     }})
+
+  def convertFrame(convertValue: Abs => Abs)(frame: Frame): Frame
 }
 
 /*******************************************************************************************************************

@@ -289,7 +289,7 @@ object Main {
   (machine: AbstractMachine[Exp, Abs, Addr, Time], sem: Semantics[Exp, Abs, Addr, Time])
   (program: String, output: Option[String], timeout: Option[Long], inspect: Boolean, benchmarks_results_file: String): Unit = {
     def calcResult() = {
-      machine.eval(sem.parse(program), sem, !output.isEmpty)
+      machine.eval(sem.parse(program), sem, output.isDefined, timeout)
     }
     runBasic[Exp, Abs, Addr, Time](machine, output, calcResult, benchmarks_results_file, timeout, inspect)
   }
@@ -298,7 +298,7 @@ object Main {
   (machine: AbstractMachineTraced[Exp, Abs, Addr, Time])
   (program: String, output: Option[String], timeout: Option[Long], inspect: Boolean, benchmarks_results_file: String): Unit = {
     def calcResult() = {
-      machine.eval(machine.sem.parse(program), !output.isEmpty)
+      machine.eval(machine.sem.parse(program), output.isDefined, timeout)
     }
     runBasic[Exp, Abs, Addr, Time](machine, output, calcResult, benchmarks_results_file, timeout, inspect)
   }

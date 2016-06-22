@@ -324,21 +324,24 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
   }
 
-//  TODO
-//  private def switchToAbstract(currentProgramState: PS): Unit = {
-//    Logger.log("HybridMachine switching to abstract", Logger.E)
-//    //HybridLattice.switchToAbstract
-//    HybridAddress.switchToAbstract
-//    val aam = new AAM[Exp, TypeSetLattice, HybridAddress.A, Time]
-//    val (control, store, kstore, a, t) = currentProgramState.convertState(sem)
-//    val convertedControl = control match {
-//      case ConvertedControlError(reason) => aam.ControlError(reason)
-//      case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
-//      case ConvertedControlKont(v) => aam.ControlKont(v)
-//    }
-//    val startState = aam.State(convertedControl, store, kstore, a, t)
-//    aam.loop(Set(startState), Set(), Set(), System.nanoTime, None, sem.absSem)
-//  }
+
+
+  private def switchToAbstract(currentProgramState: PS): Unit = {
+    Logger.log("HybridMachine switching to abstract", Logger.E)
+    HybridLattice.switchToAbstract
+    HybridAddress.switchToAbstract
+    val aam = new AAM[Exp, HybridLattice.L, HybridAddress.A, Time]
+    val (control, store, kstore, a, t) = currentProgramState.convertState(aam)(sem)
+    val convertedControl = control match {
+      case ConvertedControlError(reason) => aam.ControlError(reason)
+      case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
+      case ConvertedControlKont(v) => aam.ControlKont(v)
+    }
+    val startState = aam.State(convertedControl, store, kstore, a, t)
+    // TODO timeout
+    // TODO return output
+    aam.loop(Set(startState), Set(), Set(), sem.absSem, System.nanoTime, None, None)
+  }
 
   private def switchToConcrete(): Unit = {
     Logger.log("HybridMachine switching to concrete", Logger.E)
@@ -347,19 +350,18 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   }
 
 
-//  TODO
-//  private def runStaticAnalysis(currentProgramState: PS): Unit = {
-//    val analysisOutput = switchToAbstract(currentProgramState)
-//    switchToConcrete()
-//    analysisOutput
-//  }
+  private def runStaticAnalysis(currentProgramState: PS): Unit = {
+    val analysisOutput = switchToAbstract(currentProgramState)
+    switchToConcrete()
+    analysisOutput
+  }
 
   private def findAnalysisOutput(currentProgramState: PS): Option[AAMOutput[PS, tracer.TraceWithoutStates]] = {
     if (tracingFlags.SWITCH_ABSTRACT) {
-//      TODO
-//      val analysisOutput = runStaticAnalysis(currentProgramState)
-//      analysisOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
-//      Some(analysisOutput)
+      val analysisOutput = runStaticAnalysis(currentProgramState)
+      //TODO
+      //analysisOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
+      //Some(analysisOutput)
       None
     } else {
       None
