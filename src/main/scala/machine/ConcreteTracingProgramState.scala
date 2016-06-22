@@ -290,7 +290,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       /* When a continuation needs to be pushed, push it in the continuation store */
       case ActionEvalPushT(e, frame, _, _) =>
         val next = NormalKontAddress(e, t) // Hack to get infinite number of addresses in concrete mode
-        ActionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, t, v, vStack), action)
+        ActionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, time.tick(t, e), v, vStack), action)
       case ActionExtendEnvT(varName: String) =>
         val value = vStack.head.getVal
         val va = addr.variable(varName, value, t)
@@ -312,7 +312,10 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
           throw new Exception(s"Could not find variable $varName in environment")
       }
       case ActionPopKontT() =>
-        val next = if (a == HaltKontAddress) { HaltKontAddress } else { kstore.lookup(a).head.next }
+        val next = if (a == HaltKontAddress) { HaltKontAddress } else {
+          val kset = kstore.lookup(a)
+          assert(kset.size == 1)
+          kset.head.next}
         ActionStep(ProgramState(TracingControlKont(a), ρ, σ, kstore, next, t, v, vStack), action)
       case ActionPrimCallT(n: Integer, fExp, argsExps) =>
         val (vals, _) = popStackItems(vStack, n)
