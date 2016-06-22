@@ -1,4 +1,21 @@
 /**
+  * The store used for continuations is a KontStore (defined in
+  * Kontinuation.scala). It is parameterized by continuation addresses, that
+  * are element of the KontAddress typeclass.
+  */
+//trait KontAddr[Exp, Time]
+//case class NormalKontAddress[Exp, Time](exp: Exp, time: Time) extends KontAddr[Exp, Time] {
+//  override def toString = s"NormalKontAddress($exp)"
+//}
+//case class HaltKontAddress[Exp, Time]() extends KontAddr[Exp, Time] {
+//  override def toString = "HaltKontAddress"
+//}
+//
+//object KontAddr {
+//  implicit object KontAddrKontAddress extends KontAddress[KontAddr]
+//}
+
+/**
  * Implementation of a CESK machine following the AAM approach (Van Horn, David,
  * and Matthew Might. "Abstracting abstract machines." ACM Sigplan
  * Notices. Vol. 45. No. 9. ACM, 2010).
@@ -19,23 +36,6 @@
 class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
     extends EvalKontMachine[Exp, Abs, Addr, Time] {
   def name = "AAM"
-
-  /**
-   * The store used for continuations is a KontStore (defined in
-   * Kontinuation.scala). It is parameterized by continuation addresses, that
-   * are element of the KontAddress typeclass.
-   */
-  trait KontAddr
-  case class NormalKontAddress(exp: Exp, time: Time) extends KontAddr {
-    override def toString = s"NormalKontAddress($exp)"
-  }
-  case object HaltKontAddress extends KontAddr {
-    override def toString = "HaltKontAddress"
-  }
-
-  object KontAddr {
-    implicit object KontAddrKontAddress extends KontAddress[KontAddr]
-  }
 
   /**
    * A machine state is made of a control component, a value store, a
@@ -63,7 +63,7 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
         case ActionReachedValue(v, store, _) => Set(State(ControlKont(v), store, kstore, a, time.tick(t)))
         /* When a continuation needs to be pushed, push it in the continuation store */
         case ActionPush(frame, e, env, store, _) => {
-          val next = NormalKontAddress(e, t)
+          val next = NormalKontAddress[Exp, Time](e, t)
           Set(State(ControlEval(e, env), store, kstore.extend(next, Kont(frame, a)), next, time.tick(t)))
         }
         /* When a value needs to be evaluated, we go to an eval state */
@@ -148,7 +148,7 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
   }
 
   @scala.annotation.tailrec
-  def loop(todo: Set[State], visited: Set[State], halted: Set[State], sem: Semantics[Exp, Abs, Addr, Time],
+  final def loop(todo: Set[State], visited: Set[State], halted: Set[State], sem: Semantics[Exp, Abs, Addr, Time],
            startingTime: Long, timeout: Option[Long], graph: Option[Graph[State, Unit]]): AAMOutput = {
     if (timeout.map(System.nanoTime - startingTime > _).getOrElse(false)) {
       AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9), graph, true)
@@ -185,8 +185,7 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
   def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Option[Long]): Output[Abs] = {
     val startingTime = System.nanoTime
     loop(Set(State.inject(exp, sem.initialEnv, sem.initialStore)), Set(), Set(), sem,
-        startingTime, timeout,
-      if (graph) { Some(new Graph[State, Unit]()) } else { None })
+         startingTime, timeout, if (graph) { Some(new Graph[State, Unit]()) } else { None })
   }
 
   override def analyze[L](exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], analysis: Analysis[L, Exp, Abs, Addr, Time], timeout: Option[Long]) = {

@@ -271,7 +271,7 @@ abstract class BaseSemantics[Exp : Expression, Abs : JoinLattice, Addr : Address
    *   - the expression evaluated to get the argument's value
    *   - the value of the argument
    */
-  protected def bindArgs(l: List[(String, (Exp, Abs))], env: Environment[Addr], store: Store[Addr, Abs], t: Time): (Environment[Addr], Store[Addr, Abs]) =
+  def bindArgs(l: List[(String, (Exp, Abs))], env: Environment[Addr], store: Store[Addr, Abs], t: Time): (Environment[Addr], Store[Addr, Abs]) =
     l.foldLeft((env, store))({ case ((env, store), (name, (exp, value))) => {
       val a = addr.variable(name, value, t)
       (env.extend(name, a), store.extend(a, value))
@@ -294,7 +294,7 @@ abstract class BaseSemanticsTraced[Exp: Expression, Abs: JoinLattice, Addr: Addr
     *   - the expression evaluated to get the argument's value
     *   - the value of the argument
     */
-  protected def bindArgs(l: List[(String, (Exp, Abs))], env: Environment[Addr], store: Store[Addr, Abs], t: Time): (Environment[Addr], Store[Addr, Abs]) =
+  def bindArgs(l: List[(String, (Exp, Abs))], env: Environment[Addr], store: Store[Addr, Abs], t: Time): (Environment[Addr], Store[Addr, Abs]) =
     l.foldLeft((env, store))({ case ((env, store), (name, (exp, value))) => {
       val a = addr.variable(name, value, t)
       (env.extend(name, a), store.extend(a, value))

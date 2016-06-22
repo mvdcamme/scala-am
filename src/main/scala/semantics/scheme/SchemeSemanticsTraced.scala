@@ -41,7 +41,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
     override def toString() = "FHalt"
   }
 
-  def convertFrame(convertAddress: Addr => Addr, convertValue: Abs => Abs)(frame: Frame): Frame = frame match {
+  def convertFrame(convertValue: Abs => Abs)(frame: Frame): Frame = frame match {
     case FrameBeginT(rest) => FrameBeginT(rest)
     case FrameCaseT(clauses, default) => FrameCaseT(clauses, default)
     case FrameDefineT(variable) => FrameDefineT(variable)
