@@ -345,7 +345,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   private def switchToConcrete(): Unit = {
     Logger.log("HybridMachine switching to concrete", Logger.E)
-    //HybridLattice.switchToConcrete
+    HybridLattice.switchToConcrete
     HybridAddress.switchToConcrete
   }
 

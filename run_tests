@@ -2,7 +2,7 @@
 
 trap "exit" INT
 
-for testFile in count.scm fib.scm fact.scm gcipd.scm kcfa2.scm kcfa3.scm loop2.scm mj09.scm mut-rec.scm rotate.scm ack.scm collatz.scm widen.scm rsa.scm sat.scm dderiv.scm
+for testFile in blur.scm count.scm fib.scm eta.scm fact.scm gcipd.scm inc.scm kcfa2.scm kcfa3.scm mj09.scm mut-rec.scm rotate.scm sq.scm ack.scm collatz.scm widen.scm loop2.scm rsa.scm sat.scm dderiv.scm
 do
-	echo "run -m Hybrid -c -l Concrete -f test/$testFile --tracing t --threshold 5" | sbt
+	echo "run -m Hybrid -c -l Concrete -f test/$testFile --tracing t -o all --threshold 5 --switch t" | sbt
 done
