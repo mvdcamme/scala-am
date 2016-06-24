@@ -170,7 +170,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       updatedEnvAndStores match {
         case Right((ρ2, σ2, e)) =>
           val next = NormalKontAddress(e, t) // Hack to get infinite number of addresses in concrete mode
-          val newVStack = //StoreEnv[HybridValue, HybridAddress.A](ρ2) ::
+          val newVStack = //machine.StoreEnv[HybridValue, HybridAddress.A](ρ2) ::
                           StoreEnv[HybridValue, HybridAddress.A](ρ) ::
                           poppedVStack
           ProgramState[Exp, Time](TracingControlEval[Exp, HybridValue, HybridAddress.A](e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, newVStack)

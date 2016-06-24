@@ -18,7 +18,7 @@ class Storable[Abs : JoinLattice, Addr : Address](combo: Either[Abs, Environment
   }
 }
 
-case class StoreVal[Abs : JoinLattice, Addr : Address](value: Abs) extends Storable[Abs, Addr](Left(value))
-case class StoreEnv[Abs : JoinLattice, Addr : Address](env: Environment[Addr]) extends Storable[Abs, Addr](Right(env))
-
 case class IncorrectStorableException(message: String) extends Exception(message)
+
+case class StoreEnv[Abs : JoinLattice, Addr : Address](env: Environment[Addr]) extends Storable[Abs, Addr](Right(env))
+case class StoreVal[Abs : JoinLattice, Addr : Address](value: Abs) extends Storable[Abs, Addr](Left(value))
