@@ -8,7 +8,7 @@ trait Tracer[Exp, Time] {
   type TraceInstructionInfo = (TraceInstruction, Option[TraceInformation[HybridLattice.L]])
   type TraceWithInfos = List[TraceInstructionInfo]
 
-  type AnalysisOutput = HybridMachine[Exp, Time]#AAMOutput[HybridMachine[Exp, Time]#PS, TraceWithoutStates]
+  type AnalysisOutput = HybridMachine[Exp, Time]#HybridOutput[HybridMachine[Exp, Time]#PS, TraceWithoutStates]
 
   type Trace = TraceWithInfos
 

@@ -256,7 +256,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   }
 
-  case class AAMOutput[State <: TracingProgramState[Exp, HybridValue, HybridAddress.A, Time], Annotation](halted: Set[State], count: Int, t: Double, graph: Option[Graph[State, Annotation]], timedOut: Boolean)
+  case class HybridOutput[State <: TracingProgramState[Exp, HybridValue, HybridAddress.A, Time], Annotation]
+    (halted: Set[State], count: Int, t: Double, graph: Option[Graph[State, Annotation]], timedOut: Boolean)
       extends Output[HybridValue] {
 
     /**
@@ -300,12 +301,12 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     * @return the final states as well as the computed graph
     */
   @scala.annotation.tailrec
-  private def loop(s: TracerState, nrVisited: Integer, startingTime: Long, graph: Option[Graph[PS, String]], timeout: Option[Long]): AAMOutput[PS, String] = {
-    def endEvalLoop(timeout: Boolean): AAMOutput[PS, String] = {
+  private def loop(s: TracerState, nrVisited: Integer, startingTime: Long, graph: Option[Graph[PS, String]], timeout: Option[Long]): HybridOutput[PS, String] = {
+    def endEvalLoop(timeout: Boolean): HybridOutput[PS, String] = {
       if (GlobalFlags.PRINT_ACTIONS_EXECUTED) {
         ActionLogger.printActions()
       }
-      AAMOutput[PS, String](Set(s.ps), nrVisited,
+      HybridOutput[PS, String](Set(s.ps), nrVisited,
         (System.nanoTime - startingTime) / Math.pow(10, 9), graph, timeout)
     }
 
@@ -356,7 +357,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     analysisOutput
   }
 
-  private def findAnalysisOutput(currentProgramState: PS): Option[AAMOutput[PS, tracer.TraceWithoutStates]] = {
+  private def findAnalysisOutput(currentProgramState: PS): Option[HybridOutput[PS, tracer.TraceWithoutStates]] = {
     if (tracingFlags.SWITCH_ABSTRACT) {
       val analysisOutput = runStaticAnalysis(currentProgramState)
       //TODO
