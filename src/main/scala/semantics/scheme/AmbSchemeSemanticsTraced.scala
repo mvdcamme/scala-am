@@ -1,8 +1,6 @@
-/*
-
-class AmbSchemeSemanticsTraced[Abs : JoinLattice, Addr : Address, Time : Timestamp]
-  (override val absSem: SchemeSemantics[Abs, Addr, Time])
-  extends SchemeSemanticsTraced[Abs, Addr, Time](absSem) {
+class AmbSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
+  (override val absSem: SchemeSemantics[Abs, Addr, Time], primitives: SchemePrimitives[Addr, Abs])
+  extends SchemeSemanticsTraced[Abs, Addr, Time](absSem, primitives) {
 
   case class FrameAmbT(exps: List[SchemeExp]) extends SchemeFrameT
   case class FrameUndoAction(action: Action[SchemeExp, Abs, Addr]) extends SchemeFrameT
@@ -10,9 +8,9 @@ class AmbSchemeSemanticsTraced[Abs : JoinLattice, Addr : Address, Time : Timesta
   val actionPopFailKont = ActionPopFailKontT[SchemeExp, Abs, Addr]()
 
   override def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterStep[SchemeExp, Abs, Addr]] = e match {
-    case SchemeAmb(Nil) =>
+    case SchemeAmb(Nil, _) =>
       Set(interpreterStep(List(actionPopFailKont)))
-    case SchemeAmb(exp :: rest) =>
+    case SchemeAmb(exp :: rest, _) =>
       Set(interpreterStep(List(ActionPushFailKontT(FrameAmbT(rest)), ActionEvalT(exp))))
     case _ => super.stepEval(e, ρ, σ, t)
   }
@@ -30,5 +28,3 @@ class AmbSchemeSemanticsTraced[Abs : JoinLattice, Addr : Address, Time : Timesta
   }
 
 }
-
-*/

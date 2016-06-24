@@ -7,7 +7,8 @@ trait KontAddr
 case class NormalKontAddress[Exp : Expression, Time : Timestamp](exp: Exp, time: Time) extends KontAddr {
   override def toString = s"NormalKontAddress($exp)"
 }
-object HaltKontAddress extends KontAddr {
+case class NoExpKontAddress[Time: Timestamp](time: Time) extends KontAddr
+case object HaltKontAddress extends KontAddr {
   override def toString = "HaltKontAddress"
 }
 

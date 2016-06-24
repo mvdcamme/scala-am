@@ -232,9 +232,11 @@ trait SchemeCompiler {
   /**
     * Reserved keywords
     */
-  val reserved: List[String] = List("lambda", "if", "let", "let*", "letrec", "cond", "case", "set!", "begin", "define", "cas", "acquire", "release", "cas-vector")
+  val reserved: List[String] = List("amb", "lambda", "if", "let", "let*", "letrec", "cond", "case", "set!", "begin", "define", "cas", "acquire", "release", "cas-vector")
 
   def compile(exp: SExp): SchemeExp = exp match {
+    case SExpPair(SExpIdentifier("amb", pos), body, _) =>
+      SchemeAmb(compileBody(body), exp.pos)
     case SExpPair(SExpIdentifier("quote", _), SExpPair(quoted, SExpValue(ValueNil, _), _), _) =>
       compile(SExpQuoted(quoted, exp.pos))
     case SExpPair(SExpIdentifier("quote", _), _, _) =>

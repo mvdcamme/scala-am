@@ -377,19 +377,20 @@ object Main {
           case Config.Machine.Free => genNonTracingMachineStartFun(new Free[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Hybrid => {
             val absSemantics = new SchemeSemantics[HybridLattice.L, HybridAddress.A, time.T](new SchemePrimitives[HybridAddress.A, HybridLattice.L])
+            val sabs = implicitly[IsSchemeLattice[HybridLattice.L]]
             if (config.amb) {
-              throw new Exception("TODO Ambigious interpreter currently not supported")
-//              TODO
-//              val sem = new AmbSchemeSemanticsTraced[HybridLattice.Hybrid, HybridAddress.A, time.T](absSemantics)
-//              new HybridMachine[SchemeExp, time.T](sem, config.tracingFlags, { (exp, abs, t) =>
-//                val normalState = new ProgramState[SchemeExp, time.T](exp, primitives, abs, t)
-//                new AmbProgramState[SchemeExp, time.T](normalState)
-//              })
+              val sem = new AmbSchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, time.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
+              val optimizer = new SchemeTraceOptimizer[HybridAddress.A, time.T](sem)
+              val tracerContext = new SchemeTracer[HybridLattice.L, HybridAddress.A, time.T](sem, config.tracingFlags, optimizer)
+              val machine = new HybridMachine[SchemeExp, time.T](sem, tracerContext, config.tracingFlags, { (exp, t) =>
+                val normalState = new ProgramState[SchemeExp, time.T](sem, sabs, exp, t)
+                new AmbProgramState[SchemeExp, time.T](normalState)
+              })
+              (program: String) => runTraced(machine)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
             } else {
                 val sem = new SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, time.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
-                val sabs = implicitly[IsSchemeLattice[HybridLattice.L]]
-                val optimizer = new SchemeTraceOptimizer[HybridAddress.A, time.T](sem)
-                val tracerContext = new SchemeTracer[HybridLattice.L, HybridAddress.A, time.T](sem, config.tracingFlags, optimizer)
+              val optimizer = new SchemeTraceOptimizer[HybridAddress.A, time.T](sem)
+              val tracerContext = new SchemeTracer[HybridLattice.L, HybridAddress.A, time.T](sem, config.tracingFlags, optimizer)
                 val machine = new HybridMachine[SchemeExp, time.T](sem, tracerContext, config.tracingFlags, { (exp, t) =>
                         new ProgramState[SchemeExp, time.T](sem, sabs, exp, t)
                 })
