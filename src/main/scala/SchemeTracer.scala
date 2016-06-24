@@ -4,7 +4,7 @@
 class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
     (sem: SemanticsTraced[SchemeExp, Abs, Addr, Time],
      tracingFlags: TracingFlags,
-     traceOptimizer: SchemeTraceOptimizer[Addr, Time]) extends Tracer[SchemeExp, Time] {
+     someTraceOptimizer: Option[SchemeTraceOptimizer[Addr, Time]]) extends Tracer[SchemeExp, Time] {
 
   val semantics = sem
   type InstructionReturn = semantics.InstructionReturn
@@ -183,8 +183,11 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
   private def addTrace(tc: TracerContext, someAnalysisOutput: Option[AnalysisOutput]): SchemeTracerContext = tc match {
     case SchemeTracerContext(labelCounters, traceNodes, Some(curTraceNode)) =>
       val traceFull = TraceFull[SchemeExp, Time](curTraceNode.info.startState, List(), curTraceNode.trace.reverse)
-      val optimizedTraceFull: TraceFull[SchemeExp, Time] =
-        traceOptimizer.optimize(traceFull, curTraceNode.info.boundVariables, someAnalysisOutput)
+      val optimizedTraceFull: TraceFull[SchemeExp, Time] = someTraceOptimizer match {
+        case Some(traceOptimizer) =>
+          traceOptimizer.optimize(traceFull, curTraceNode.info.boundVariables, someAnalysisOutput)
+        case None => traceFull
+      }
       SchemeTracerContext(labelCounters,
                           TraceNode[TraceFull[SchemeExp, Time]](curTraceNode.label, optimizedTraceFull, curTraceNode.info) :: traceNodes,
                           Some(curTraceNode))
