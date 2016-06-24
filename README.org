@@ -7,6 +7,9 @@ Control-Flow Analyses).
 
 To see how the framework can be used to build static analyses or define language
 semantics, look at src/main/scala/LambdaCalculus.scala.
+
+One of these machines (the Hybrid machine) has been extended with a trace-based Just-In-Time compiler.
+
 * Architecture
 To find out about the architecture of the implementation, look at the comments
 on the top of Main.scala (src/main/scala/Main.scala). They will bring you to
@@ -29,13 +32,19 @@ run -f test/fact.scm -m AAM -d fact.dot # Output the state graph in fact.dot
 run # Launches a REPL that performs interpretation of the input
 #+END_SRC
 
-* Benchmarks
-To run benchmarks, do the following:
+To run the trace-based JIT compiler, choose the Hybrid machine, along with the Concrete lattice (-l Concrete) running concrete interpretation (-c). Some extra execution parameters then become available:
 
-#+BEGIN_SRC
-run-main Benchmarks
+#+BEGIN_SRC sh
+run -f test/fact.scm -l Concrete -c -m Hybrid --tracing t --threshold 5 -o all # Run the Hybrid machine on fact.scm, while explicitly enabling tracing, using a hot loop threshold of 5 iterations, and applying all optimisations on the recorded traces.
+# These three settings (enabling tracing, using a loop threshold of iterations, and applying all optimisations) correspond with the default parameters.
+run -f test/fact.scm -l Concrete -c -m Hybrid --tracing f # Disable tracing
+run -f test/fact.scm -l Concrete -c -m Hybrid -o none # Do not apply any optimisations on the traces
+run -f test/fact.scm -l Concrete -c -m Hybrid -o 1 # Apply only one specific optimisation (optimisations nr. 1) on the traces.
+# Currently, the following optimisations are supported:
+# 1 -> constant folding
+# 2 -> type specialisation
+# 3 -> variable folding
+# 4 -> merging actions
+# 5 -> remove redundant saves/restores of the environment
+# 6 -> remove redundant pushes/pops of continuation frames
 #+END_SRC
-
-You can give a timeout parameter (=-t=, no timeout by default), and a number of
-workers (=-w=, 1 by default), as well as many other options that you can play
-with. They are explained when the =-h= option is given.
