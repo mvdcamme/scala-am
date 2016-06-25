@@ -3,7 +3,8 @@ class AmbSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Tim
   extends SchemeSemanticsTraced[Abs, Addr, Time](absSem, primitives) {
 
   case class FrameAmbT(exps: List[SchemeExp]) extends SchemeFrameT
-  case class FrameUndoAction(action: Action[SchemeExp, Abs, Addr]) extends SchemeFrameT
+
+  //TODO override convertFrame
 
   val actionPopFailKont = ActionPopFailKontT[SchemeExp, Abs, Addr]()
 

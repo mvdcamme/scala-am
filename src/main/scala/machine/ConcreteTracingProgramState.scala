@@ -425,7 +425,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def convertValue(σ: Store[HybridAddress.A, HybridLattice.L])(value: HybridValue): HybridValue =
-    HybridLattice.convert[Exp, HybridAddress.A](v, σ)
+    HybridLattice.convert[Exp, HybridAddress.A](value, σ)
 
   def convertEnvironment(env: Environment[HybridAddress.A]): Environment[HybridAddress.A] =
     env.map { (address) => HybridAddress.convertAddress(address) }
@@ -441,6 +441,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
                     sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
                     kontStore: KontStore[KontAddr],
                     ρ: Environment[HybridAddress.A],
+                    σ: Store[HybridAddress.A, HybridValue],
                     a: KontAddr,
                     vStack: List[Storable[HybridValue, HybridAddress.A]]): KontStore[KontAddr] = {
     def loop(newKontStore: KontStore[KontAddr],
@@ -450,7 +451,8 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case HaltKontAddress => newKontStore
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
-        val (convertedFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack)
+        val (newSemFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack)
+        val convertedFrame = sem.absSem.convertFrame(convertValue(σ), newSemFrame)
         val extendedNewKontStore = newKontStore.extend(a, Kont(convertedFrame, next))
         loop(extendedNewKontStore, next, newVStack, newρ)
     }
@@ -479,7 +481,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case TracingControlEval(_) | TracingControlError(_) => a
       case TracingControlKont(ka) => ka
     }
-    val convertedKontStore = convertKStore(aam, sem, kstore, ρ, startKontAddress, newVStack)
+    val convertedKontStore = convertKStore(aam, sem, kstore, ρ, newσ, startKontAddress, newVStack)
     val absSem = sem.absSem
     val newKStore = convertedKontStore //TODO not needed? convertedKontStore.map(absSem.convertFrame(convertValue(σ)))
     val newControl = control match {

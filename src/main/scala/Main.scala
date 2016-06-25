@@ -88,7 +88,7 @@ object Config {
   implicit val machineRead: scopt.Read[Machine.Value] = scopt.Read.reads(Machine withName _)
 
   object Lattice extends Enumeration {
-    val Concrete, ConcreteNew, TypeSet, BoundedInt = Value
+    val Concrete, ConcreteNew, TypeSet, BoundedInt, Constant = Value
   }
 
   implicit val latticeRead: scopt.Read[Lattice.Value] = scopt.Read.reads(Lattice withName _)
@@ -348,6 +348,7 @@ object Main {
           case Config.Lattice.Concrete => new ConcreteLattice(true)
           case Config.Lattice.TypeSet => new TypeSetLattice(config.counting)
           case Config.Lattice.BoundedInt => new BoundedIntLattice(config.bound, config.counting)
+          case Config.Lattice.Constant => new ConstantPropagationLattice(config.counting)
         }
         implicit val isSchemeLattice = lattice.isSchemeLattice
 

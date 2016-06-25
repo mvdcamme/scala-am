@@ -25,6 +25,17 @@ class BaseSchemeSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestam
   case class FrameOr(rest: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
   case class FrameDefine(variable: String, env: Environment[Addr]) extends SchemeFrame
 
+  def convertFrame(convertValue: Abs => Abs, frame: Frame): Frame = frame match {
+    case FrameFuncallOperands(f, fexp, cur, args, toeval, env) =>
+      val convertedF = convertValue(f)
+      val convertedArgs = args.map( { case (exp, value) => (exp, convertValue(value)) } )
+      FrameFuncallOperands(convertedF, fexp, cur, convertedArgs, toeval, env)
+    case FrameLet(variable, bindings, toeval, body, env) =>
+      val convertedBindings = bindings.map({ case (variable, value) => (variable, convertValue(value)) })
+      FrameLet(variable, convertedBindings, toeval, body, env)
+    case _ => frame
+  }
+
   protected def evalBody(body: List[SchemeExp], env: Environment[Addr], store: Store[Addr, Abs]): Action[SchemeExp, Abs, Addr] = body match {
     case Nil => ActionReachedValue(sabs.inject(false), store)
     case List(exp) => ActionEval(exp, env, store)

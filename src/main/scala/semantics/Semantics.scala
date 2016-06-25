@@ -30,12 +30,11 @@ trait BasicSemantics[Exp, Abs, Addr, Time] {
     * Defines how to convert continuation frames: all addresses and values included either directly or
     * indirectly, i.e., through the environment, should be converted via the given conversion functions
     * for addresses and values
-    * //@param convertValue The conversion function for values
-    * //@param frame The frame whose values and addresses should be converted
-    * //@return The converted frame
+    * @param convertValue The conversion function for values
+    * @param frame The frame whose values and addresses should be converted
+    * @return The converted frame
     */
-  // TODO not needed?
-  //def convertFrame(convertValue: Abs => Abs)(frame: Frame): Frame
+  def convertFrame(convertValue: Abs => Abs, frame: Frame): Frame
 
   /**
     * Defines how to parse a program
@@ -299,9 +298,6 @@ abstract class BaseSemanticsTraced[Exp: Expression, Abs: JoinLattice, Addr: Addr
       val a = addr.variable(name, value, t)
       (env.extend(name, a), store.extend(a, value))
     }})
-
-  // TODO not needed?
-  //def convertFrame(convertValue: Abs => Abs)(frame: Frame): Frame
 }
 
 /*******************************************************************************************************************

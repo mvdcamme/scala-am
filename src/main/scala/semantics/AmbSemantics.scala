@@ -9,7 +9,8 @@ case class RestartStoppedInBacktrack[Exp : Expression, Abs : JoinLattice, Addr :
  * Frames
  */
 
-case class UndoActionFrame[Exp : Expression, Abs : JoinLattice, Addr : Address](action: ActionSingleT[Exp, Abs, Addr])
+case class UndoActionFrame[Exp : Expression, Abs : JoinLattice, Addr : Address]
+  (action: ActionSingleT[Exp, Abs, Addr])
   extends Frame {
     def subsumes(that: Frame) = that.equals(this)
   }

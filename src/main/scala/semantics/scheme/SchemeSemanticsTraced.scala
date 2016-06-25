@@ -41,20 +41,15 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
     override def toString() = "FHalt"
   }
 
-  def convertFrame(convertValue: Abs => Abs)(frame: Frame): Frame = frame match {
-    case FrameBeginT(rest) => FrameBeginT(rest)
-    case FrameCaseT(clauses, default) => FrameCaseT(clauses, default)
-    case FrameDefineT(variable) => FrameDefineT(variable)
-    case FrameFunBodyT(body, toeval) => FrameFunBodyT(body, toeval)
-    case FrameFuncallOperandsT(f, fexp, cur, args, toeval) => FrameFuncallOperandsT(convertValue(f), fexp, cur, args.map({ tuple => (tuple._1, convertValue(tuple._2))}), toeval)
-    case FrameFuncallOperatorT(fexp, args) => FrameFuncallOperatorT(fexp, args)
-    case FrameIfT(cons, alt) => FrameIfT(cons, alt)
-    case FrameLetT(variable, bindings, toeval, body) => FrameLetT(variable, bindings.map({ tuple => (tuple._1, convertValue(tuple._2))}), toeval, body)
-    case FrameLetrecT(variable, bindings, body) => FrameLetrecT(variable, bindings, body)
-    case FrameLetStarT(variable, bindings, body) => FrameLetStarT(variable, bindings, body)
-    case FrameSetT(variable) => FrameSetT(variable)
-    case FrameWhileBodyT(condition, body, exps) => FrameWhileBodyT(condition, body, exps)
-    case FrameWhileConditionT(condition, body) => FrameWhileConditionT(condition, body)
+  def convertFrame(convertValue: Abs => Abs, frame: Frame): Frame = frame match {
+    case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
+      val convertedF = convertValue(f)
+      val convertedArgs = args.map({ case (exp, value) => (exp, convertValue(value))})
+      FrameFuncallOperandsT(convertedF, fexp, cur, convertedArgs, toeval)
+    case FrameLetT(variable, bindings, toeval, body) =>
+      val convertedBindings = bindings.map({ case (variable, value) => (variable, convertValue(value))})
+      FrameLetT(variable, convertedBindings, toeval, body)
+    case _ => frame
   }
 
   private def popEnvFromVStack(generateFrameFun: Environment[Addr] => Frame, vStack: List[Storable[Abs, Addr]]):
