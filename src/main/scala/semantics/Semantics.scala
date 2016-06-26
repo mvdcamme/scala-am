@@ -110,7 +110,7 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
   def convertToAbsSemanticsFrame(frame: Frame,
                                  ρ: Environment[Addr],
                                  vStack: List[Storable[Abs, Addr]]):
-  (Frame, List[Storable[Abs, Addr]], Environment[Addr])
+  (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr])
 }
 
 /**

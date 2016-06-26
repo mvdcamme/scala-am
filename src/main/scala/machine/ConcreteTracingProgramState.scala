@@ -451,9 +451,14 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case HaltKontAddress => newKontStore
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
-        val (newSemFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack)
-        val convertedFrame = sem.absSem.convertFrame(convertValue(σ), newSemFrame)
-        val extendedNewKontStore = newKontStore.extend(a, Kont(convertedFrame, next))
+        val (someNewSemFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack)
+        val extendedNewKontStore = someNewSemFrame match {
+          case Some(newSemFrame) =>
+            //val convertedFrame = sem.absSem.convertFrame(convertValue(σ), newSemFrame)
+            val convertedFrame = newSemFrame
+            newKontStore.extend(a, Kont(convertedFrame, next))
+          case None => newKontStore
+        }
         loop(extendedNewKontStore, next, newVStack, newρ)
     }
     loop(KontStore.empty, a, vStack, ρ)

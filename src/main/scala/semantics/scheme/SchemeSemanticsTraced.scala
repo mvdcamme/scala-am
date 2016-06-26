@@ -52,34 +52,43 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
     case _ => frame
   }
 
-  private def popEnvFromVStack(generateFrameFun: Environment[Addr] => Frame, vStack: List[Storable[Abs, Addr]]):
-    (Frame, List[Storable[Abs, Addr]], Environment[Addr]) = {
+  private def popEnvFromVStack(generateFrameFun: Environment[Addr] => Frame,
+                               vStack: List[Storable[Abs, Addr]]):
+  (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = {
     val ρ = vStack.head.getEnv
     val frame = generateFrameFun(ρ)
-    (frame, vStack.tail, ρ)
+    (Some(frame), vStack.tail, ρ)
   }
 
   private def popEnvAndValuesFromVStack(generateFrameFun: (Environment[Addr], List[Abs]) => Frame,
                                         n: Integer,
-                                        vStack: List[Storable[Abs, Addr]]): (Frame, List[Storable[Abs, Addr]], Environment[Addr]) = {
+                                        vStack: List[Storable[Abs, Addr]]): (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = {
     val ρ = vStack.head.getEnv
     val remainingVStack = vStack.tail
     val (values, remainingVStack2) = remainingVStack.splitAt(n)
     val frame = generateFrameFun(ρ, values.map(_.getVal))
-    (frame, remainingVStack2, ρ)
+    (Some(frame), remainingVStack2, ρ)
   }
 
   def convertToAbsSemanticsFrame(frame: Frame,
                                  ρ: Environment[Addr],
                                  vStack: List[Storable[Abs, Addr]]):
-  (Frame, List[Storable[Abs, Addr]], Environment[Addr]) = frame match {
+  (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = frame match {
       case FrameBeginT(rest) => popEnvFromVStack(absSem.FrameBegin(rest, _), vStack)
       case FrameCaseT(clauses, default) => popEnvFromVStack(absSem.FrameCase(clauses, default, _), vStack)
       case FrameDefineT(variable) =>
         /* A FrameDefineT is not handled by these semantics:
          * neither the vStack nor the environment therefore have to be updated */
-        (absSem.FrameDefine(variable, ρ), vStack, ρ)
-      case FrameFunBodyT(body, toeval) => popEnvFromVStack(absSem.FrameBegin(toeval, _), vStack)
+        (Some(absSem.FrameDefine(variable, ρ)), vStack, ρ)
+      case FrameFunBodyT(body, toeval) =>
+        if (toeval.isEmpty) {
+          /* AAM does not allocate a new FrameBegin if the function's body consists of only one expression,
+           * so no new frame should be allocated now either. But we still have to remove the environment
+           * from the value stack. */
+          popEnvFromVStack(absSem.FrameBegin(toeval, _), vStack).copy(_1 = None)
+        } else {
+          popEnvFromVStack(absSem.FrameBegin(toeval, _), vStack)
+        }
       case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
         val n = args.length + 1 /* We have to add 1 because the operator has also been pushed onto the vstack */
         val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
