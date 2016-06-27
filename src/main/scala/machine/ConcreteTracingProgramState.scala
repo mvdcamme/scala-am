@@ -443,23 +443,24 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
                     ρ: Environment[HybridAddress.A],
                     σ: Store[HybridAddress.A, HybridValue],
                     a: KontAddr,
-                    vStack: List[Storable[HybridValue, HybridAddress.A]]): KontStore[KontAddr] = {
+                    vStack: List[Storable[HybridValue, HybridAddress.A]]): (KontAddr, KontStore[KontAddr]) = {
     def loop(newKontStore: KontStore[KontAddr],
              a: KontAddr,
              vStack: List[Storable[HybridValue, HybridAddress.A]],
-             ρ: Environment[HybridAddress.A]): KontStore[KontAddr] = a match {
-      case HaltKontAddress => newKontStore
+             ρ: Environment[HybridAddress.A]): (KontAddr, KontStore[KontAddr]) = a match {
+      case HaltKontAddress => (HaltKontAddress, newKontStore)
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
         val (someNewSemFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack)
-        val extendedNewKontStore = someNewSemFrame match {
+        val (actualNext, extendedKontStore) = loop(newKontStore, next, newVStack, newρ)
+        someNewSemFrame match {
           case Some(newSemFrame) =>
             //val convertedFrame = sem.absSem.convertFrame(convertValue(σ), newSemFrame)
             val convertedFrame = newSemFrame
-            newKontStore.extend(a, Kont(convertedFrame, next))
-          case None => newKontStore
+            (a, extendedKontStore.extend(a, Kont(convertedFrame, actualNext)))
+          case None =>
+            (actualNext, extendedKontStore)
         }
-        loop(extendedNewKontStore, next, newVStack, newρ)
     }
     loop(KontStore.empty, a, vStack, ρ)
   }
@@ -476,7 +477,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       true
     }
     σ.forall(addToNewStore)
-    val newA: KontAddr = a
+    //val newA: KontAddr = a
     val newV = convertValue(σ)(v)
     val newVStack = vStack.map({
       case StoreVal(v) => StoreVal[HybridValue, HybridAddress.A](convertValue(σ)(v))
@@ -486,7 +487,8 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case TracingControlEval(_) | TracingControlError(_) => a
       case TracingControlKont(ka) => ka
     }
-    val convertedKontStore = convertKStore(aam, sem, kstore, ρ, newσ, startKontAddress, newVStack)
+    val (newA, convertedKontStore) = convertKStore(aam, sem, kstore, ρ, newσ, startKontAddress, newVStack)
+    val convertedA = convertKontAddress(aam)(newA)
     val absSem = sem.absSem
     val newKStore = convertedKontStore //TODO not needed? convertedKontStore.map(absSem.convertFrame(convertValue(σ)))
     val newControl = control match {
@@ -495,7 +497,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case TracingControlKont(ka) =>
         ConvertedControlKont[Exp, HybridValue, HybridAddress.A](newV)
     }
-    (newControl, newσ, newKStore, newA, t)
+    (newControl, newσ, newKStore, convertedA, t)
   }
 
   def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress.A]): Option[TraceInformation[HybridValue]] = action match {
