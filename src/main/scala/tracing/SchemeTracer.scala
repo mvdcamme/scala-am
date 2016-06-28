@@ -59,7 +59,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
 
   def stopTracing(tc: TracerContext, isLooping: Boolean,
                   traceEndedInstruction: Option[TraceInstruction],
-                  someAnalysisOutput: Option[AnalysisOutput]): SchemeTracerContext = {
+                  someAnalysisOutput: StaticAnalysisResult): SchemeTracerContext = {
       var finishedTc: SchemeTracerContext = tc
       if (! isLooping) {
         finishedTc = appendTrace(tc, List((traceEndedInstruction.get, None)))
@@ -172,7 +172,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
     val mustRerunHeader = traceNode.label != currentTraceNode.label
 
     val traceHead = currentTraceNode.trace.trace.head
-    val updatedTraceNode = traceNode.copy(trace = traceNode.trace.copy(currentTraceNode.trace.startProgramState, currentTraceNode.trace.assertions, currentTraceNode.trace.trace.tail))
+    val updatedTraceNode = traceNode.copy(trace = traceNode.trace.copy(trace = currentTraceNode.trace.trace.tail))
     (traceHead._1, updatedTraceNode, mustRerunHeader)
   }
 
@@ -180,12 +180,12 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
    * Adding traces
    */
 
-  private def addTrace(tc: TracerContext, someAnalysisOutput: Option[AnalysisOutput]): SchemeTracerContext = tc match {
+  private def addTrace(tc: TracerContext, someAnalysisOutput: StaticAnalysisResult): SchemeTracerContext = tc match {
     case SchemeTracerContext(labelCounters, traceNodes, Some(curTraceNode)) =>
-      val traceFull = TraceFull[SchemeExp, Time](curTraceNode.info.startState, List(), curTraceNode.trace.reverse)
+      val traceFull = TraceFull[SchemeExp, Time](TraceInfo[SchemeExp, Time](curTraceNode.info.boundVariables, curTraceNode.info.startState), List(), curTraceNode.trace.reverse)
       val optimizedTraceFull: TraceFull[SchemeExp, Time] = someTraceOptimizer match {
         case Some(traceOptimizer) =>
-          traceOptimizer.optimize(traceFull, curTraceNode.info.boundVariables, someAnalysisOutput)
+          traceOptimizer.optimize(traceFull, someAnalysisOutput)
         case None => traceFull
       }
       SchemeTracerContext(labelCounters,

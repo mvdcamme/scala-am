@@ -1,3 +1,5 @@
+case class TraceInfo[Exp : Expression, Time : Timestamp](boundVariables: List[String], startState: HybridMachine[Exp, Time]#PS)
+
 trait Tracer[Exp, Time] {
 
   /* An opaque type storing bookkeeping information for the actual, concrete tracer */
@@ -8,8 +10,6 @@ trait Tracer[Exp, Time] {
   type TraceInstructionInfo = (TraceInstruction, Option[TraceInformation[HybridLattice.L]])
   type TraceWithInfos = List[TraceInstructionInfo]
 
-  type AnalysisOutput = HybridMachine[Exp, Time]#HybridOutput[HybridMachine[Exp, Time]#PS, TraceWithoutStates]
-
   type Trace = TraceWithInfos
 
   trait Label
@@ -17,8 +17,7 @@ trait Tracer[Exp, Time] {
   case class NormalLabel(loopID: List[Exp]) extends Label
   case class GuardLabel(loopID: List[Exp], guardID: Integer) extends Label
 
-  case class TraceInfo(boundVariables: List[String], startState: HybridMachine[Exp, Time]#PS)
-  case class TraceNode[Trace](label: Label, trace: Trace, info: TraceInfo)
+  case class TraceNode[Trace](label: Label, trace: Trace, info: TraceInfo[Exp, Time])
 
 
   def getLoopID(label: Label): List[Exp]
@@ -49,7 +48,7 @@ trait Tracer[Exp, Time] {
    */
 
   def stopTracing(tc: TracerContext, isLooping: Boolean,
-                  traceEndedInstruction: Option[TraceInstruction], someAnalysisOutput: Option[AnalysisOutput]): TracerContext
+                  traceEndedInstruction: Option[TraceInstruction], someAnalysisOutput: StaticAnalysisResult): TracerContext
 
   /*
    * Finding traces
@@ -89,6 +88,6 @@ trait Tracer[Exp, Time] {
 }
 
 case class TraceFull[Exp : Expression, Time : Timestamp]
-(startProgramState: ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, Time],
- assertions: List[Action[Exp, HybridLattice.L, HybridAddress.A]],
- trace: List[(Action[Exp, HybridLattice.L, HybridAddress.A], Option[TraceInformation[HybridLattice.L]])])
+  (info: TraceInfo[Exp, Time],
+   assertions: List[Action[Exp, HybridLattice.L, HybridAddress.A]],
+   trace: List[(Action[Exp, HybridLattice.L, HybridAddress.A], Option[TraceInformation[HybridLattice.L]])])

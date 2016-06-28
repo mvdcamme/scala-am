@@ -31,8 +31,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   def name = "HybridMachine"
 
-
-
   def applyTraceIntermediateResults(state: PS, trace: tracer.TraceWithoutStates): List[PS] = {
     trace.scanLeft(state)((currentState, action) => currentState.applyAction(sem, action) match {
       case ActionStep(updatedState, _) => updatedState
@@ -325,9 +323,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
   }
 
-
-
-  private def switchToAbstract(currentProgramState: PS): Unit = {
+  private def switchToAbstract(currentProgramState: PS): Option[Set[HybridAddress.A]] = {
     Logger.log("HybridMachine switching to abstract", Logger.E)
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
@@ -342,8 +338,10 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     // TODO timeout
     // TODO return output
     val analysisOutput = ConstantVariableAnalysis.analyze[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T](aam, sem.absSem)(startState, env)
+    val usefulAnalysis = analysisOutput.map(_._2)
     //val analysisOutput = aam.loop(Set(startState), Set(), Set(), sem.absSem, System.nanoTime, None, None)
-    println(analysisOutput.get._2)
+    println(usefulAnalysis)
+    usefulAnalysis
   }
 
   private def switchToConcrete(): Unit = {
@@ -353,21 +351,23 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   }
 
 
-  private def runStaticAnalysis(currentProgramState: PS): Unit = {
+  private def runStaticAnalysis(currentProgramState: PS): StaticAnalysisResult = {
     val analysisOutput = switchToAbstract(currentProgramState)
     switchToConcrete()
-    analysisOutput
+    analysisOutput match {
+      case None => NoStaticisAnalysisResult
+      case Some(addresses) => NonConstantAddresses(addresses)
+    }
   }
 
-  private def findAnalysisOutput(currentProgramState: PS): Option[HybridOutput[PS, tracer.TraceWithoutStates]] = {
+  private def findAnalysisOutput(currentProgramState: PS): StaticAnalysisResult = {
     if (tracingFlags.SWITCH_ABSTRACT) {
-      val analysisOutput = runStaticAnalysis(currentProgramState)
+      runStaticAnalysis(currentProgramState)
       //TODO
       //analysisOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
       //Some(analysisOutput)
-      None
     } else {
-      None
+      NoStaticisAnalysisResult
     }
   }
 

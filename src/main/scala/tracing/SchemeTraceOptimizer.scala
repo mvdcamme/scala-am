@@ -11,8 +11,6 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
   type TraceWithoutStates = Tracer[SchemeExp, Time]#TraceWithoutStates
   type Trace = Tracer[SchemeExp, Time]#TraceWithInfos
 
-  type AnalysisOutput = Tracer[SchemeExp, Time]#AnalysisOutput
-
   type HybridValue = HybridLattice.L
 
   val sabs = implicitly[IsSchemeLattice[HybridValue]]
@@ -35,16 +33,16 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
       if (pair._1) { function(traceFull) } else { traceFull }})
   }
 
-  def optimize(trace: TraceFull[SchemeExp, Time], boundVariables: List[String], someAnalysisOutput: Option[AnalysisOutput]): TraceFull[SchemeExp, Time] = {
+  def optimize(trace: TraceFull[SchemeExp, Time], someAnalysisOutput: StaticAnalysisResult): TraceFull[SchemeExp, Time] = {
     Logger.log(s"Size of unoptimized trace = ${trace.trace.length}", Logger.V)
     val basicAssertedOptimizedTrace = foldOptimisations(trace, basicOptimizations)
     Logger.log(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}", Logger.V)
-    val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations(boundVariables))
+    val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations(trace.info.boundVariables))
     Logger.log(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}", Logger.V)
     val tier3AssertedOptimizedTrace = someAnalysisOutput match {
-      case Some(analysisOutput) =>
-        applyStaticAnalysisOptimization(tier2AssertedOptimizedTrace, analysisOutput)
-      case None =>
+      case NonConstantAddresses(addresses) =>
+        applyStaticAnalysisOptimization(tier2AssertedOptimizedTrace, addresses)
+      case NoStaticisAnalysisResult =>
         tier2AssertedOptimizedTrace
     }
     Logger.log(s"Size of statically optimized trace = ${tier3AssertedOptimizedTrace.trace.length}", Logger.V)
@@ -91,9 +89,8 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     optimizedTrace.filter(_.isUsed).map(_.actionState)
   }
 
-  private def constructedFullTrace(traceFull: TraceFull[SchemeExp, Time], optimisedTrace: Trace): TraceFull[SchemeExp, Time] = {
-    TraceFull(traceFull.startProgramState, traceFull.assertions, optimisedTrace)
-  }
+  private def constructedFullTrace(traceFull: TraceFull[SchemeExp, Time], optimisedTrace: Trace): TraceFull[SchemeExp, Time] =
+    traceFull.copy(trace = optimisedTrace)
 
   /********************************************************************************************************************
    *                                         ENVIRONMENT LOADING OPTIMIZATION                                         *
@@ -365,9 +362,9 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 
     var variablesConverted: List[(String, Integer)] = Nil
 
-    val initialState: ProgramState[SchemeExp, Time] = traceFull.startProgramState match {
+    val initialState: ProgramState[SchemeExp, Time] = traceFull.info.startState match {
       case s: ProgramState[SchemeExp, Time] => s
-      case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.startProgramState} instead")
+      case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.info.startState} instead")
     }
 
     def replaceVariableLookups(action: ActionLookupVariableT[SchemeExp, HybridValue, HybridAddress.A],
@@ -421,7 +418,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     val putRegisterActions: List[Action[SchemeExp, HybridValue, HybridAddress.A]] =
       variablesConverted.map(tuple => ActionPutRegister[SchemeExp, HybridValue, HybridAddress.A](tuple._1, tuple._2))
 
-    TraceFull(traceFull.startProgramState, traceFull.assertions ++ putRegisterActions, optimisedTrace)
+    TraceFull(traceFull.info, traceFull.assertions ++ putRegisterActions, optimisedTrace)
   }
 
   /********************************************************************************************************************
@@ -467,21 +464,22 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
    *                                            STATIC ANALYSIS OPTIMIZATION                                           *
    *********************************************************************************************************************/
 
-  val APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS = false
-  val APPLY_OPTIMIZATION_DEAD_STORE_ELIMINATION = false
+//  val APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS = false
+//  val APPLY_OPTIMIZATION_DEAD_STORE_ELIMINATION = false
+//
+//  val staticAnalysisOptimisations: List[(Boolean, (TraceFull[SchemeExp, Time], AnalysisOutput) => TraceFull[SchemeExp, Time])] =
+//    List((APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS, optimizeVariableFoldingAssertions(_, _)))
+//
+//  def foldStaticOptimisations(traceFull: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A],
+//                              optimisations: List[(Boolean, (TraceFull[SchemeExp, Time], AnalysisOutput) => TraceFull[SchemeExp, Time])]): TraceFull[SchemeExp, Time] = {
+//    optimisations.foldLeft(traceFull)({ (traceFull, pair) =>
+//      val function: (TraceFull[SchemeExp, Time], AnalysisOutput) => TraceFull[SchemeExp, Time] = pair._2
+//      if (pair._1) { function(traceFull, output) } else { traceFull }})
+//  }
 
-  val staticAnalysisOptimisations: List[(Boolean, (TraceFull[SchemeExp, Time], AnalysisOutput) => TraceFull[SchemeExp, Time])] =
-    List((APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS, optimizeVariableFoldingAssertions(_, _)),
-         (APPLY_OPTIMIZATION_DEAD_STORE_ELIMINATION, optimizeDeadStoreElimination(_, _)))
-
-  def foldStaticOptimisations(traceFull: TraceFull[SchemeExp, Time], output: AnalysisOutput, optimisations: List[(Boolean, (TraceFull[SchemeExp, Time], AnalysisOutput) => TraceFull[SchemeExp, Time])]): TraceFull[SchemeExp, Time] = {
-    optimisations.foldLeft(traceFull)({ (traceFull, pair) =>
-      val function: (TraceFull[SchemeExp, Time], AnalysisOutput) => TraceFull[SchemeExp, Time] = pair._2
-      if (pair._1) { function(traceFull, output) } else { traceFull }})
-  }
-
-  def applyStaticAnalysisOptimization(trace: TraceFull[SchemeExp, Time], output: AnalysisOutput): TraceFull[SchemeExp, Time] = {
-    foldStaticOptimisations(trace, output, staticAnalysisOptimisations)
+  def applyStaticAnalysisOptimization(trace: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
+    //optimizeVariableFoldingAssertions(trace, addresses)
+    trace
   }
 
   /*********************************************************************************************************************
@@ -491,61 +489,62 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
   /*
    * Takes a list of variables and
    */
-  private def findAssignedFreeVariables(freeVariables: List[String], output: AnalysisOutput): List[String] = {
-    var assignedFreeVariables = List[String]()
-    for ((_, transitions) <- output.graph.get.edges) {
-      for ((trace, _) <- transitions) {
-        trace.foreach({
-          case ActionSetVarT(variableName) =>
-            if (freeVariables.contains(variableName) && ! assignedFreeVariables.contains(variableName)) {
-              assignedFreeVariables = variableName :: assignedFreeVariables
-            }
-          case _ =>
-        })
-      }
-    }
-    assignedFreeVariables
-  }
-
-  private def filterUnassignedFreeVariables(assertions: TraceWithoutStates, assignedFreeVariables: List[String]): TraceWithoutStates = {
-    assertions.filter({
-      case ActionGuardAssertFreeVariable(variableName, _, _, _) =>
-        assignedFreeVariables.contains(variableName)
-      case _ => true})
-  }
-
-  private def optimizeVariableFoldingAssertions(trace: TraceFull[SchemeExp, Time], output: AnalysisOutput): TraceFull[SchemeExp, Time] = {
-    val assertions = trace.assertions
-    val freeVariables = assertions.flatMap({
-      case ActionGuardAssertFreeVariable(variableName, _, _, _) => List(variableName)
-      case _ => List() })
-    val assignedFreeVariables = findAssignedFreeVariables(freeVariables, output)
-    val optimizedAssertions = filterUnassignedFreeVariables(assertions, assignedFreeVariables)
-    Logger.log(s"Unoptimized assertions: ${assertions.length}", Logger.V)
-    Logger.log(s"Optimized assertions: ${optimizedAssertions.length}", Logger.V)
-    TraceFull(trace.startProgramState, optimizedAssertions, trace.trace)
-  }
+//  private def findAssignedFreeVariables(freeVariables: List[String], output: StaticAnalysisResult): List[String] = {
+//    var assignedFreeVariables = List[String]()
+//    for ((_, transitions) <- output.graph.get.edges) {
+//      for ((trace, _) <- transitions) {
+//        trace.foreach({
+//          case ActionSetVarT(variableName) =>
+//            if (freeVariables.contains(variableName) && ! assignedFreeVariables.contains(variableName)) {
+//              assignedFreeVariables = variableName :: assignedFreeVariables
+//            }
+//          case _ =>
+//        })
+//      }
+//    }
+//    assignedFreeVariables
+//  }
+//
+//  private def filterUnassignedFreeVariables(assertions: TraceWithoutStates, assignedFreeVariables: List[String]): TraceWithoutStates = {
+//    assertions.filter({
+//      case ActionGuardAssertFreeVariable(variableName, _, _, _) =>
+//        assignedFreeVariables.contains(variableName)
+//      case _ => true})
+//  }
+//
+//  private def optimizeVariableFoldingAssertions(trace: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
+//    val startState = trace.info.startState
+//    val boundVariables = variableAnalyzer.analyzeBoundVariables(trace.info.boundVariables.toSet, trace)
+//    val freeVariables = assertions.flatMap({
+//      case ActionGuardAssertFreeVariable(variableName, _, _, _) => List(variableName)
+//      case _ => List() })
+//    val assignedFreeVariables = findAssignedFreeVariables(freeVariables, output)
+//    val optimizedAssertions = filterUnassignedFreeVariables(assertions, assignedFreeVariables)
+//    Logger.log(s"Unoptimized assertions: ${assertions.length}", Logger.V)
+//    Logger.log(s"Optimized assertions: ${optimizedAssertions.length}", Logger.V)
+//    TraceFull(trace.startProgramState, optimizedAssertions, trace.trace)
+//  }
 
   /*********************************************************************************************************************
    *                                         DEAD STORE ELIMINATION OPTIMIZATION                                       *
    *********************************************************************************************************************/
 
-  private def optimizeDeadStoreElimination(traceFull: TraceFull[SchemeExp, Time], output: AnalysisOutput): TraceFull[SchemeExp, Time] = {
-    var deadVariables = variableAnalyzer.analyzeDeadVariables(traceFull.trace)
-    Logger.log(s"Dead variables in the trace $deadVariables", Logger.V)
-    for ((_, transitions) <- output.graph.get.edges) {
-      for ((trace, _) <- transitions) {
-        trace.foreach({
-          case ActionLookupVariableT(variableName, _, _) =>
-            if (deadVariables.contains(variableName)) {
-              deadVariables = deadVariables - variableName
-            }
-          case _ =>
-        })
-      }
-    }
-    Logger.log(s"All truly dead variables: $deadVariables", Logger.V)
-    traceFull
-  }
+//  private def optimizeDeadStoreElimination(traceFull: TraceFull[SchemeExp, Time], output: AnalysisOutput): TraceFull[SchemeExp, Time] = {
+//    var deadVariables = variableAnalyzer.analyzeDeadVariables(traceFull.trace)
+//    Logger.log(s"Dead variables in the trace $deadVariables", Logger.V)
+//    for ((_, transitions) <- output.graph.get.edges) {
+//      for ((trace, _) <- transitions) {
+//        trace.foreach({
+//          case ActionLookupVariableT(variableName, _, _) =>
+//            if (deadVariables.contains(variableName)) {
+//              deadVariables = deadVariables - variableName
+//            }
+//          case _ =>
+//        })
+//      }
+//    }
+//    Logger.log(s"All truly dead variables: $deadVariables", Logger.V)
+//    traceFull
+//  }
 
 }
