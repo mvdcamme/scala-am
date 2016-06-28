@@ -1,7 +1,7 @@
 /* An analysis for finding variables whose value never changes throughout the lifetime of a program. */
 
 case class ConstantAnalysis[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
-  (aam: AAM[Exp, HybridLattice.L, Addr, ZeroCFA.T], initialEnv: Environment[Addr])
+  (aam: AAM[Exp, HybridLattice.L, Addr, Time], initialEnv: Environment[Addr])
   extends BaseAnalysis[(Set[Addr], Set[Addr]), Exp, Abs, Addr, Time] {
 
   private def envToAddressSet(env: Environment[Addr]): Set[Addr] = {
@@ -35,10 +35,10 @@ case class ConstantAnalysis[Exp : Expression, Abs : JoinLattice, Addr : Address,
 }
 
 object ConstantVariableAnalysis {
-  def analyze[Exp: Expression, L : JoinLattice, Addr : Address]
-    (aam: AAM[Exp, HybridLattice.L, Addr, ZeroCFA.T], sem: Semantics[Exp, HybridLattice.L, Addr, ZeroCFA.T])
+  def analyze[Exp: Expression, L : JoinLattice, Addr : Address, Time : Timestamp]
+    (aam: AAM[Exp, HybridLattice.L, Addr, Time], sem: Semantics[Exp, HybridLattice.L, Addr, Time])
     (startState: aam.State, initialEnv: Environment[Addr]): Option[(Set[Addr], Set[Addr])] = {
-    val analysis = ConstantAnalysis[Exp, HybridLattice.L, Addr, ZeroCFA.T](aam, initialEnv)
+    val analysis = ConstantAnalysis[Exp, HybridLattice.L, Addr, Time](aam, initialEnv)
     aam.kickstartAnalysis(analysis, startState, sem, None)
   }
 }

@@ -332,7 +332,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
     val aam = new AAM[Exp, HybridLattice.L, HybridAddress.A, Time]
-    val (control, store, kstore, a, t) = currentProgramState.convertState(aam)(sem)
+    val (control, env, store, kstore, a, t) = currentProgramState.convertState(aam)(sem)
     val convertedControl = control match {
       case ConvertedControlError(reason) => aam.ControlError(reason)
       case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
@@ -341,8 +341,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     val startState = aam.State(convertedControl, store, kstore, a, t)
     // TODO timeout
     // TODO return output
-    val analysisOutput = aam.loop(Set(startState), Set(), Set(), sem.absSem, System.nanoTime, None, None)
-    println(analysisOutput)
+    val analysisOutput = ConstantVariableAnalysis.analyze[Exp, HybridLattice.L, HybridAddress.A, Time](aam, sem.absSem)(startState, env)
+    //val analysisOutput = aam.loop(Set(startState), Set(), Set(), sem.absSem, System.nanoTime, None, None)
+    println(analysisOutput.get._2)
   }
 
   private def switchToConcrete(): Unit = {
