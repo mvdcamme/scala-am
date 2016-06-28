@@ -75,7 +75,7 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
                   (sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time]):
     (ConvertedControl[Exp, Abs, Addr], Environment[Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, ZeroCFA.T)
 
-  def generateTraceInformation(action: Action[Exp, Abs, Addr]): Option[TraceInformation[HybridValue]]
+  def generateTraceInformation(action: Action[Exp, Abs, Addr]): Option[TraceInformation[HybridValue, HybridAddress.A]]
 }
 
 /**
@@ -501,7 +501,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     (newControl, newρ, newσ, newKStore, convertedA, ZeroCFA.isTimestamp.initial(""))
   }
 
-  def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress.A]): Option[TraceInformation[HybridValue]] = action match {
+  def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress.A]): Option[TraceInformation[HybridValue, HybridAddress.A]] = action match {
     case ActionPrimCallT(_, _, _) =>
       Some(PrimitiveAppliedInfo(v, vStack))
     case _ =>

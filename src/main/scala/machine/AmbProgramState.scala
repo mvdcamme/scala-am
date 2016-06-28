@@ -184,7 +184,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress.A]):
-  Option[TraceInformation[HybridValue]] =
+  Option[TraceInformation[HybridValue, HybridAddress.A]] =
     normalState.generateTraceInformation(action)
 
   def concretableState = normalState
