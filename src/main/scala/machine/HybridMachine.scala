@@ -42,8 +42,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     val intermediateStates = applyTraceIntermediateResults(state, trace)
     val resultingState = intermediateStates.last
     val traceStatesZipped = trace.zip(intermediateStates.tail)
-    val traceSomeTraceInfoZipped: tracer.TraceWithInfos = traceStatesZipped.map({ (instructionState) =>
-      (instructionState._1, instructionState._2.generateTraceInformation(instructionState._1)) })
+    val traceSomeTraceInfoZipped: tracer.TraceWithInfos = traceStatesZipped.map({ case (instruction, state) =>
+      (instruction, state.generateTraceInformation(instruction)) })
     (resultingState, traceSomeTraceInfoZipped)
   }
 

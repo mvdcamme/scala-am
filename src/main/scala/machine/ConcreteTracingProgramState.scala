@@ -291,7 +291,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case ActionEvalPushT(e, frame, _, _) =>
         val next = NormalKontAddress(e, t) // Hack to get infinite number of addresses in concrete mode
         ActionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, time.tick(t, e), v, vStack), action)
-      case ActionExtendEnvT(varName: String) =>
+      case ActionExtendEnvT(varName) =>
         val value = vStack.head.getVal
         val va = addr.variable(varName, value, t)
         val ρ1 = ρ.extend(varName, va)
@@ -502,8 +502,22 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress.A]): Option[TraceInformation[HybridValue, HybridAddress.A]] = action match {
+    case ActionAllocVarsT(variables) =>
+      val addresses = variables.map( (variable) => ρ.lookup(variable).get)
+      Some(VariablesAllocated(addresses))
+    case ActionExtendEnvT(variable) =>
+      Some(VariablesAllocated(List(ρ.lookup(variable).get)))
+    case ActionLookupVariableT(variable, _, _) =>
+      Some(AddressLookedUp(ρ.lookup(variable).get))
+    case ActionLookupVariablePushT(variable, _, _) =>
+      Some(AddressLookedUp(ρ.lookup(variable).get))
     case ActionPrimCallT(_, _, _) =>
       Some(PrimitiveAppliedInfo(v, vStack))
+    case ActionSetVarT(variable) =>
+      Some(VariablesReassigned(List(ρ.lookup(variable).get)))
+    case ActionStepInT(_, _, args, _, _, _, _, _) =>
+      val addresses = args.map( (arg) => ρ.lookup(arg).get)
+      Some(VariablesAllocated(addresses))
     case _ =>
       None
   }
