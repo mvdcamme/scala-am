@@ -377,7 +377,7 @@ object Main {
           case Config.Machine.AAC => genNonTracingMachineStartFun(new AAC[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Free => genNonTracingMachineStartFun(new Free[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Hybrid => {
-            val absSemantics = new SchemeSemantics[HybridLattice.L, HybridAddress.A, time.T](new SchemePrimitives[HybridAddress.A, HybridLattice.L])
+            val absSemantics = new SchemeSemantics[HybridLattice.L, HybridAddress.A, ZeroCFA.T](new SchemePrimitives[HybridAddress.A, HybridLattice.L])
             val sabs = implicitly[IsSchemeLattice[HybridLattice.L]]
             if (config.amb) {
               val sem = new AmbSchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, time.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])

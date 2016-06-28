@@ -53,7 +53,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
     }
   }
 
-  def convertState(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, Time])
+  def convertState(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T])
                   (oldSem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time]) =
     normalState.convertState(aam)(oldSem)
 

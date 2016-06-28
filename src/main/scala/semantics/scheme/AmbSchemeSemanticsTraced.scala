@@ -1,5 +1,5 @@
 class AmbSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
-  (override val absSem: SchemeSemantics[Abs, Addr, Time], primitives: SchemePrimitives[Addr, Abs])
+  (override val absSem: SchemeSemantics[Abs, Addr, ZeroCFA.T], primitives: SchemePrimitives[Addr, Abs])
   extends SchemeSemanticsTraced[Abs, Addr, Time](absSem, primitives) {
 
   case class FrameAmbT(exps: List[SchemeExp]) extends SchemeFrameT

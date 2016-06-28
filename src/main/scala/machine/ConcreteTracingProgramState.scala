@@ -71,9 +71,9 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
   def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
                 assertions: List[Action[Exp, Abs, Addr]]): Option[ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
 
-  def convertState(aam: AAM[Exp, Abs, Addr, Time])
+  def convertState(aam: AAM[Exp, Abs, Addr, ZeroCFA.T])
                   (sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time]):
-    (ConvertedControl[Exp, Abs, Addr], Environment[Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, Time)
+    (ConvertedControl[Exp, Abs, Addr], Environment[Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, ZeroCFA.T)
 
   def generateTraceInformation(action: Action[Exp, Abs, Addr]): Option[TraceInformation[HybridValue]]
 }
@@ -430,14 +430,14 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def convertEnvironment(env: Environment[HybridAddress.A]): Environment[HybridAddress.A] =
     env.map { (address) => HybridAddress.convertAddress(address) }
 
-  def convertKontAddress(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, Time])
+  def convertKontAddress(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T])
                         (address: KontAddr): KontAddr = address match {
     case address: NormalKontAddress[Exp, Time] =>
       NormalKontAddress(address.exp, address.time)
     case HaltKontAddress => HaltKontAddress
   }
 
-  def convertKStore(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, Time],
+  def convertKStore(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T],
                     sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
                     kontStore: KontStore[KontAddr],
                     ρ: Environment[HybridAddress.A],
@@ -465,10 +465,10 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     loop(KontStore.empty, a, vStack, ρ)
   }
 
-  def convertState(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, Time])
+  def convertState(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T])
                   (sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time]):
   (ConvertedControl[Exp, HybridValue, HybridAddress.A], Environment[HybridAddress.A],
-   Store[HybridAddress.A, HybridValue], KontStore[KontAddr], KontAddr, Time) = {
+   Store[HybridAddress.A, HybridValue], KontStore[KontAddr], KontAddr, ZeroCFA.T) = {
     val newρ = convertEnvironment(ρ)
     var newσ = Store.empty[HybridAddress.A, HybridLattice.L]
     def addToNewStore(tuple: (HybridAddress.A, HybridValue)): Boolean = {
@@ -498,7 +498,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case TracingControlKont(ka) =>
         ConvertedControlKont[Exp, HybridValue, HybridAddress.A](newV)
     }
-    (newControl, newρ, newσ, newKStore, convertedA, t)
+    (newControl, newρ, newσ, newKStore, convertedA, ZeroCFA.isTimestamp.initial(""))
   }
 
   def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress.A]): Option[TraceInformation[HybridValue]] = action match {
