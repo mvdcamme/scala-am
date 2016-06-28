@@ -40,9 +40,9 @@ class VariableAnalysis[Exp : Expression, Addr : Address, Time : Timestamp]
      * AT ALL POINTS in the trace. Note that this overapproximates the set of bound variables.
      */
 
-    val initialState: ProgramState[Exp, Time] = traceFull.startProgramState match {
+    val initialState: ProgramState[Exp, Time] = traceFull.info.startState match {
       case s: ProgramState[Exp, Time] => s
-      case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.startProgramState} instead")
+      case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.info.startState} instead")
     }
 
     var currentEnv: Environment[HybridAddress.A] = initialState.ρ
