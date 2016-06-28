@@ -1,40 +1,44 @@
-/* We develop an analysis for finding variables whose value never changes throughout the lifetime of a program. */
+/* An analysis for finding variables whose value never changes throughout the lifetime of a program. */
 
-/* The analysis itself only collects the error strings starting with "sink: " */
-case class ConstantAnalysis[Abs : JoinLattice, Addr : Address, Time : Timestamp](initialEnv: Environment[Addr])
-  extends BaseAnalysis[(Environment[Addr], Set[Addr]), SchemeExp, Abs, Addr, Time] {
-  def stepEval(e: SchemeExp, env: Environment[Addr], store: Store[Addr, Abs], t: Time, current: (Environment[Addr], Set[Addr])) = current
-  def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time, current: (Environment[Addr], Set[Addr])) = current
-  def error(error: SemanticError, current: (Environment[Addr], Set[Addr])) = current
-  def join(x: (Environment[Addr], Set[Addr]), y: (Environment[Addr], Set[Addr])) = x ++ y
-  def init = (initialEnv, Set())
+case class ConstantAnalysis[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
+  (aam: AAM[Exp, HybridLattice.L, Addr, ZeroCFA.T], initialEnv: Environment[Addr])
+  extends BaseAnalysis[(Set[Addr], Set[Addr]), Exp, Abs, Addr, Time] {
+
+  private def envToAddressSet(env: Environment[Addr]): Set[Addr] = {
+    var envAddresses: Set[Addr] = Set()
+    env.forall({ case (_, a) => envAddresses = envAddresses + a; true})
+    envAddresses
+  }
+
+  def stepEval(e: Exp, env: Environment[Addr], store: Store[Addr, Abs], t: Time, current: (Set[Addr], Set[Addr])) = {
+    val (previousAddresses, nonConstants) = current
+    val newAddresses = envToAddressSet(env)
+    /* The addresses that were present in the previous, but not in the new environment. */
+    val addressesRemoved = previousAddresses -- newAddresses
+    (newAddresses, nonConstants ++ addressesRemoved)
+  }
+  def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time, current: (Set[Addr], Set[Addr])) = {
+    val (previousAddresses, nonConstants) = current
+    val writtenAddresses = frame.writeEffectsFor()
+    (previousAddresses, nonConstants ++ writtenAddresses.asInstanceOf[Set[Addr]])
+  }
+  def error(error: SemanticError, current: (Set[Addr], Set[Addr])) = current
+  def join(x: (Set[Addr], Set[Addr]), y: (Set[Addr], Set[Addr])) = {
+    val (previousAddressesX, nonConstantsX) = x
+    val (previousAddressesY, nonConstantsY) = y
+    /* The addresses that were present in the previous, but not in the new environment. */
+    val addressesRemoved = (previousAddressesX -- previousAddressesY) ++ (previousAddressesY -- previousAddressesX)
+    val intersection = previousAddressesX.intersect(previousAddressesY)
+    (intersection, nonConstantsX ++ nonConstantsY ++ addressesRemoved)
+  }
+  def init = (envToAddressSet(initialEnv), Set())
 }
 
-/* We can finally run the analysis and detect when a tanted value flows to a sink */
 object ConstantVariableAnalysis {
-  def analyze[L : JoinLattice, Addr : Address](program: String): (Environment[Addr], Set[Addr]) = {
-    val sem = new SchemeSemantics[L, ClassicalAddress.A, ZeroCFA.T](new TSchemePrimitives[ClassicalAddress.A, L])
-    val machine = new AAM[SchemeExp, L, ClassicalAddress.A, ZeroCFA.T]
-    val analysis = TaintAnalysis[L, ClassicalAddress.A, ZeroCFA.T]
-    machine.analyze(sem.parse(program), sem, analysis, None) match {
-      case Some(v) => v
-      case None => println("Analysis did not succeed..."); Set()
-    }
-  }
-  def main(args: Array[String]) {
-    if (args.length >= 1) {
-      val cpLattice = new ConstantPropagationLattice(false)
-      implicit val isSchemeLattice = cpLattice.isSchemeLattice
-      val taintLattice = new TaintLattice[cpLattice.L]()
-      implicit val isTaintLattice = taintLattice.isTaintLattice
-      val errors = analyze[taintLattice.L](args(0))
-      if (errors.isEmpty) {
-        println("No taint errors detected")
-      } else {
-        errors.foreach({ case (source, sink) => println(s"tainted value flows from source at position $source to sink at position $sink") })
-      }
-    } else {
-      println("Please provide input program as argument")
-    }
+  def analyze[Exp: Expression, L : JoinLattice, Addr : Address]
+    (aam: AAM[Exp, HybridLattice.L, Addr, ZeroCFA.T], sem: Semantics[Exp, HybridLattice.L, Addr, ZeroCFA.T])
+    (startState: aam.State, initialEnv: Environment[Addr]): Option[(Set[Addr], Set[Addr])] = {
+    val analysis = ConstantAnalysis[Exp, HybridLattice.L, Addr, ZeroCFA.T](aam, initialEnv)
+    aam.kickstartAnalysis(analysis, startState, sem, None)
   }
 }

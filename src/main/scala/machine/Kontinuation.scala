@@ -1,7 +1,10 @@
 import scalaz.Scalaz._
 
 trait Frame {
+  type Address
+
   def subsumes(that: Frame): Boolean
+  def writeEffectsFor(): Set[Address] = Set()
 }
 trait KontAddress[A]
 

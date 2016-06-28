@@ -178,6 +178,34 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
     }
   }
 
+  def kickstartAnalysis[L](analysis: Analysis[L, Exp, Abs, Addr, Time], initialState: State,
+                           sem: Semantics[Exp, Abs, Addr, Time], timeout: Option[Long]): Option[L] = {
+    def loop(todo: Set[(State, L)], visited: Set[(State, L)], finalValue: Option[L], startingTime: Long): Option[L] =
+      if (timeout.map(System.nanoTime - startingTime > _).getOrElse(false)) {
+        None
+      } else {
+        todo.headOption match {
+          case Some((s, l)) =>
+            if (visited.contains((s, l)) || visited.exists({ case (s2, _) => s2.subsumes(s) })) {
+              loop(todo.tail, visited, finalValue, startingTime)
+            } else if (s.halted) {
+              loop(todo.tail, visited + ((s, l)), finalValue match {
+                case None => Some(s.stepAnalysis(analysis, l))
+                case Some(l2) => Some(analysis.join(l2, s.stepAnalysis(analysis, l)))
+              }, startingTime)
+            } else {
+              val succs = s.step(sem)
+              val l2 = s.stepAnalysis(analysis, l)
+              loop(todo.tail ++ succs.map(s2 => (s2, l2)), visited + ((s, l)), finalValue, startingTime)
+            }
+          case None => finalValue
+        }
+      }
+    val startingTime = System.nanoTime
+    loop(Set((initialState, analysis.init)), Set(), None, startingTime)
+  }
+
+
   /**
    * Performs the evaluation of an expression, possibly writing the output graph
    * in a file, and returns the set of final states reached
@@ -190,27 +218,6 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
 
   override def analyze[L](exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], analysis: Analysis[L, Exp, Abs, Addr, Time], timeout: Option[Long]) = {
     val startingTime = System.nanoTime
-    def loop(todo: Set[(State, L)], visited: Set[(State, L)], finalValue: Option[L]): Option[L] =
-      if (timeout.map(System.nanoTime - startingTime > _).getOrElse(false)) {
-        None
-      } else {
-        todo.headOption match {
-          case Some((s, l)) =>
-            if (visited.contains((s, l)) || visited.exists({ case (s2, _) => s2.subsumes(s) })) {
-              loop(todo.tail, visited, finalValue)
-            } else if (s.halted) {
-              loop(todo.tail, visited + ((s, l)), finalValue match {
-                case None => Some(s.stepAnalysis(analysis, l))
-                case Some(l2) => Some(analysis.join(l2, s.stepAnalysis(analysis, l)))
-              })
-            } else {
-              val succs = s.step(sem)
-              val l2 = s.stepAnalysis(analysis, l)
-              loop(todo.tail ++ succs.map(s2 => (s2, l2)), visited + ((s, l)), finalValue)
-            }
-          case None => finalValue
-        }
-      }
-    loop(Set((State.inject(exp, sem.initialEnv, sem.initialStore), analysis.init)), Set(), None)
+    kickstartAnalysis[L](analysis, State.inject(exp, sem.initialEnv, sem.initialStore), sem, timeout)
   }
 }

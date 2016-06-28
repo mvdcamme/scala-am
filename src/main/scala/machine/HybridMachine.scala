@@ -341,7 +341,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     val startState = aam.State(convertedControl, store, kstore, a, t)
     // TODO timeout
     // TODO return output
-    aam.loop(Set(startState), Set(), Set(), sem.absSem, System.nanoTime, None, None)
+    val analysisOutput = aam.loop(Set(startState), Set(), Set(), sem.absSem, System.nanoTime, None, None)
+    println(analysisOutput)
   }
 
   private def switchToConcrete(): Unit = {

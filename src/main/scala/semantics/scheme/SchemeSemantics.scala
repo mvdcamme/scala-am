@@ -17,7 +17,15 @@ class BaseSchemeSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestam
   case class FrameLet(variable: String, bindings: List[(String, Abs)], toeval: List[(String, SchemeExp)], body: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
   case class FrameLetStar(variable: String, bindings: List[(String, SchemeExp)], body: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
   case class FrameLetrec(addr: Addr, bindings: List[(Addr, SchemeExp)], body: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
-  case class FrameSet(variable: String, env: Environment[Addr]) extends SchemeFrame
+  case class FrameSet(variable: String, env: Environment[Addr]) extends SchemeFrame {
+
+    type Address = Addr
+
+    override def writeEffectsFor(): Set[Address] = env.lookup(variable) match {
+      case Some(a) => Set(a)
+      case None => Set()
+    }
+  }
   case class FrameBegin(rest: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
   case class FrameCond(cons: List[SchemeExp], clauses: List[(SchemeExp, List[SchemeExp])], env: Environment[Addr]) extends SchemeFrame
   case class FrameCase(clauses: List[(List[SchemeValue], List[SchemeExp])], default: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame

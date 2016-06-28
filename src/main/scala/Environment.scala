@@ -30,7 +30,7 @@ case class BasicEnvironment[Addr : Address](content: Map[String, Addr]) extends 
   def extend(name: String, a: Addr) = this.copy(content = content + (name -> a))
   def extend(values: Iterable[(String, Addr)]) = this.copy(content = content ++ values)
   def map(f: Addr => Addr): Environment[Addr] = {
-    val newMap : Map[String, Addr] = content.mapValues(f)
+    val newMap: Map[String, Addr] = content.mapValues(f)
     new BasicEnvironment[Addr](newMap)
   }
 }
