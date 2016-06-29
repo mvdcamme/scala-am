@@ -196,8 +196,9 @@ object Config {
             ApplyAllOptimizations
           case "N" | "n" | "None" | "none" =>
             ApplyNoOptimizations
-          case _ =>
-            ApplySpecificOptimization(x.toInt)
+          case string =>
+            val chars = string.toList
+            ApplySpecificOptimizations(chars.map(_.asDigit))
       }
         c.copy(tracingFlags = c.tracingFlags.copy(OPTIMIZATION = optimization)) } } text ("Apply (dynamic) optimizations")
       opt[String]("tracing") action { (b, c) =>
@@ -326,7 +327,7 @@ object Main {
             GlobalFlags.APPLY_OPTIMIZATION_MERGE_ACTIONS = true
             GlobalFlags.APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
             GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
-          case ApplySpecificOptimization(o) => o match {
+          case ApplySpecificOptimizations(ids) => ids.foreach({
             case 1 =>
               GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
             case 2 =>
@@ -339,7 +340,7 @@ object Main {
               GlobalFlags.APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
             case 6 =>
               GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
-          }
+          })
         }
 
         handleOptimization()

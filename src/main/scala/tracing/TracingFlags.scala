@@ -6,6 +6,6 @@ case class TracingFlags(DO_TRACING: Boolean = true,
 
 sealed trait ShouldApplyOptimization
 
-case class ApplySpecificOptimization(nr: Int) extends ShouldApplyOptimization
+case class ApplySpecificOptimizations(nr: List[Int]) extends ShouldApplyOptimization
 case object ApplyNoOptimizations extends ShouldApplyOptimization
 case object ApplyAllOptimizations extends ShouldApplyOptimization
