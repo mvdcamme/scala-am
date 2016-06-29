@@ -565,7 +565,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
       if (addressBound(address)) {
         originalActionInfo
       } else {
-        println(s"Replaced variable lookup for address $address with new actionInfo $newActionInfo")
+        Logger.log(s"Replaced variable lookup for address $address with new actionInfo $newActionInfo", Logger.D)
         newActionInfo
       }
     }
@@ -575,7 +575,6 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
         infos.find[TraceInstructionInfo](
           { case VariableLookedUp(_, _, _) => true; case _ => false},
           { case VariableLookedUp(_, address, value) =>
-          println(s"ActionLookupVariableT of address $address")
           val newActionInfo = (ActionReachedValueT[SchemeExp, HybridValue, HybridAddress.A](value),
                                infos.filter[VariableLookedUp[HybridValue, HybridAddress.A]])
           replaceVariableLookup(address, value, actionInfo, newActionInfo) }).getOrElse(actionInfo)
@@ -583,7 +582,6 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
         infos.find[TraceInstructionInfo](
           { case VariableLookedUp(_, _, _) => true; case _ => false},
           { case VariableLookedUp(_, address, value) =>
-          println(s"ActionLookupVariablePushT of address $address")
           val newActionInfo = (ActionReachedValuePushT[SchemeExp, HybridValue, HybridAddress.A](value),
             infos.filter[VariableLookedUp[HybridValue, HybridAddress.A]])
           replaceVariableLookup(address, value, actionInfo, newActionInfo) }).getOrElse(actionInfo)
@@ -603,7 +601,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     /* Combination of the above two sets of addresses, plus the set of addresses that become bound in
      * the state graph after the trace. */
     val allBoundAddresses = traceBoundAddresses ++ initialBoundAddresses ++ addresses
-    println(s"allBoundAddresses = $allBoundAddresses")
+    Logger.log(s"Initiating new variable folding optimization; allBoundAddresses = $allBoundAddresses", Logger.D)
     val optimizedTrace = replaceVariableLookups(traceFull.trace, allBoundAddresses)
     constructedFullTrace(traceFull, optimizedTrace)
   }
