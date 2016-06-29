@@ -510,9 +510,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case ActionExtendEnvT(variable) =>
       Some(VariablesAllocated(List(ρ.lookup(variable).get)))
     case ActionLookupVariableT(variable, _, _) =>
-      Some(AddressLookedUp(ρ.lookup(variable).get))
+      val a = ρ.lookup(variable).get
+      Some(VariableLookedUp(variable, a, σ.lookup(a).get))
     case ActionLookupVariablePushT(variable, _, _) =>
-      Some(AddressLookedUp(ρ.lookup(variable).get))
+      val a = ρ.lookup(variable).get
+      Some(VariableLookedUp(variable, a, σ.lookup(a).get))
     case ActionPrimCallT(_, _, _) =>
       Some(PrimitiveAppliedInfo(v, vStack))
     case ActionSetVarT(variable) =>
