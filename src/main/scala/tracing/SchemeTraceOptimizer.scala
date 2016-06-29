@@ -479,9 +479,14 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 //      if (pair._1) { function(traceFull, output) } else { traceFull }})
 //  }
 
+  /**
+    *
+    * @param trace The (full) trace to be optimized.
+    * @param addresses The addresses whose value may change over the execution of the program after the trace.
+    * @return The optimized (full) trace
+    */
   def applyStaticAnalysisOptimization(trace: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
-    //optimizeVariableFoldingAssertions(trace, addresses)
-    trace
+    optimizeVariableFoldingAssertions(trace, addresses)
   }
 
   /*********************************************************************************************************************
@@ -526,6 +531,61 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 //    Logger.log(s"Optimized assertions: ${optimizedAssertions.length}", Logger.V)
 //    TraceFull(trace.startProgramState, optimizedAssertions, trace.trace)
 //  }
+
+  private def collectBoundAddresses(trace: Trace): Set[HybridAddress.A] =
+    trace.foldRight(Set[HybridAddress.A]())((stateInfo, boundAddresses) => stateInfo match {
+      case (_, Some(VariablesAllocated(addresses))) =>
+        boundAddresses ++ addresses.toSet
+      case (_, Some(VariablesReassigned(addresses))) =>
+        boundAddresses ++ addresses.toSet
+      case _ => boundAddresses
+    })
+
+  private def replaceVariableLookups(trace: Trace, boundAddresses: Set[HybridAddress.A]): Trace = {
+
+    def addressBound(address: HybridAddress.A): Boolean = {
+      val abstractAddress = HybridAddress.convertAddress(address)
+      boundAddresses.contains(abstractAddress)
+    }
+
+    def replaceVariableLookup(address: HybridAddress.A, value: HybridValue,
+                              originalActionInfo: TraceInstructionInfo,
+                              newActionInfo: TraceInstructionInfo): TraceInstructionInfo = {
+      if (addressBound(address)) {
+        originalActionInfo
+      } else {
+        println(s"Replaced variable lookup for address $address")
+        newActionInfo
+      }
+    }
+
+    def replaceActionInfo(actionInfo: TraceInstructionInfo): TraceInstructionInfo = actionInfo match {
+      case (ActionLookupVariableT(_, _, _), Some(VariableLookedUp(_, address, value))) =>
+        println(s"ActionLookupVariableT of address $address")
+        replaceVariableLookup(address, value, actionInfo, (ActionReachedValueT[SchemeExp, HybridValue, HybridAddress.A](value), None))
+      case (ActionLookupVariablePushT(_, _, _), Some(VariableLookedUp(_, address, value))) =>
+        println(s"ActionLookupVariablePushT of address $address")
+        replaceVariableLookup(address, value, actionInfo, (ActionReachedValuePushT[SchemeExp, HybridValue, HybridAddress.A](value), None))
+      case _ =>
+        actionInfo
+    }
+
+    trace.map(replaceActionInfo)
+  }
+
+  private def optimizeVariableFoldingAssertions(traceFull: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
+    /* The addresses that are bound at the start of the trace. */
+    val initialBoundAddresses = traceFull.info.boundVariables.map( {case (_, address) => address })
+    /* The addresses that become bound by actions in the trace itself, e.g., addresses that are reassigned or allocated
+     * within the trace. */
+    val traceBoundAddresses = collectBoundAddresses(traceFull.trace)
+    /* Combination of the above two sets of addresses, plus the set of addresses that become bound in
+     * the state graph after the trace. */
+    val allBoundAddresses = traceBoundAddresses ++ initialBoundAddresses ++ addresses
+    println(allBoundAddresses)
+    val optimizedTrace = replaceVariableLookups(traceFull.trace, allBoundAddresses)
+    constructedFullTrace(traceFull, optimizedTrace)
+  }
 
   /*********************************************************************************************************************
    *                                         DEAD STORE ELIMINATION OPTIMIZATION                                       *

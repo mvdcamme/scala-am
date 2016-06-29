@@ -342,10 +342,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     // TODO timeout
     // TODO return output
     val analysisOutput = ConstantVariableAnalysis.analyze[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T](aam, sem.absSem)(startState, env)
-    val usefulAnalysis = analysisOutput.map(_._2)
+    val boundAddresses = analysisOutput.map(_._2)
     //val analysisOutput = aam.loop(Set(startState), Set(), Set(), sem.absSem, System.nanoTime, None, None)
-    println(usefulAnalysis)
-    usefulAnalysis
+    boundAddresses
   }
 
   private def switchToConcrete(): Unit = {
