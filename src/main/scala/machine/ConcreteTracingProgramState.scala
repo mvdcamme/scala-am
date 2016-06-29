@@ -490,7 +490,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case TracingControlEval(_) | TracingControlError(_) => a
       case TracingControlKont(ka) => ka
     }
-    val (newA, convertedKontStore) = convertKStore(aam, sem, kstore, ρ, newσ, startKontAddress, newVStack)
+    val (newA, convertedKontStore) = convertKStore(aam, sem, kstore, newρ, newσ, startKontAddress, newVStack)
     val convertedA = convertKontAddress(aam)(newA)
     val absSem = sem.absSem
     val newKStore = convertedKontStore //TODO not needed? convertedKontStore.map(absSem.convertFrame(convertValue(σ)))
