@@ -2,7 +2,7 @@
   * Basic Traced Scheme semantics, without any optimization
   */
 abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
-  (override val absSem: SchemeSemantics[Abs, Addr, ZeroCFA.T],
+  (override val absSem: BaseSchemeSemantics[Abs, Addr, ZeroCFA.T],
    override val primitives: SchemePrimitives[Addr, Abs])
   extends BaseSemanticsTraced[SchemeExp, Abs, Addr, Time](absSem, primitives) {
 
@@ -367,7 +367,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
   *     the evaluation of (f), instead of evaluating +, and 1 in separate states.
   */
 class SchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
-  (override val absSem: SchemeSemantics[Abs, Addr, ZeroCFA.T],
+  (override val absSem: BaseSchemeSemantics[Abs, Addr, ZeroCFA.T],
    primitives: SchemePrimitives[Addr, Abs])
   extends BaseSchemeSemanticsTraced[Abs, Addr, Time](absSem, primitives) {
 
