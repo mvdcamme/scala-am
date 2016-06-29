@@ -1,4 +1,5 @@
-case class TraceInfo[Exp : Expression, Time : Timestamp](boundVariables: List[String], startState: HybridMachine[Exp, Time]#PS)
+case class TraceInfo[Exp : Expression, Time : Timestamp]
+  (boundVariables: List[(String, HybridAddress.A)], startState: HybridMachine[Exp, Time]#PS)
 
 trait Tracer[Exp, Time] {
 
@@ -34,13 +35,13 @@ trait Tracer[Exp, Time] {
 
   def startTracingLoop(tc: TracerContext,
                        loopID: List[Exp],
-                       boundVariables: List[String],
+                       boundVariables: List[(String, HybridAddress.A)],
                        startState: HybridMachine[Exp, Time]#PS): TracerContext
 
   def startTracingGuard(tc: TracerContext,
                         loopID: List[Exp],
                         guardID: Integer,
-                        boundVariables: List[String],
+                        boundVariables: List[(String, HybridAddress.A)],
                         startState: HybridMachine[Exp, Time]#PS): TracerContext
 
   /*

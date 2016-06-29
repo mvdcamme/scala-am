@@ -22,8 +22,8 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
          (GlobalFlags.APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
          (GlobalFlags.APPLY_OPTIMIZATION_MERGE_ACTIONS, optimizeMergeActions(_)))
 
-  def detailedOptimizations(boundVariables: List[String]): List[(Boolean, (TraceFull[SchemeExp, Time] => TraceFull[SchemeExp, Time]))] =
-    List((GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING, optimizeVariableFolding(boundVariables)),
+  val detailedOptimizations: List[(Boolean, (TraceFull[SchemeExp, Time] => TraceFull[SchemeExp, Time]))] =
+    List((GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING, optimizeVariableFolding(_)),
          (GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)),
          (GlobalFlags.APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, optimizeTypeSpecialization(_)))
 
@@ -37,7 +37,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     Logger.log(s"Size of unoptimized trace = ${trace.trace.length}", Logger.V)
     val basicAssertedOptimizedTrace = foldOptimisations(trace, basicOptimizations)
     Logger.log(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}", Logger.V)
-    val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations(trace.info.boundVariables))
+    val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations)
     Logger.log(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}", Logger.V)
     val tier3AssertedOptimizedTrace = someAnalysisOutput match {
       case NonConstantAddresses(addresses) =>
@@ -354,7 +354,9 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
    *                                            VARIABLE FOLDING OPTIMIZATION                                         *
    ********************************************************************************************************************/
 
-  def optimizeVariableFolding(initialBoundVariables: List[String])(traceFull: TraceFull[SchemeExp, Time]): TraceFull[SchemeExp, Time] = {
+  def optimizeVariableFolding(traceFull: TraceFull[SchemeExp, Time]): TraceFull[SchemeExp, Time] = {
+
+    val initialBoundVariables = traceFull.info.boundVariables.map(_._1)
 
     var registerIndex: Integer = 0
 

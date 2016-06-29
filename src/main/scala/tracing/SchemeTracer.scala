@@ -32,7 +32,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
 
   def startTracingLoop(tc: TracerContext,
                        loopID: List[SchemeExp],
-                       boundVariables: List[String],
+                       boundVariables: List[(String, HybridAddress.A)],
                        startState: HybridMachine[SchemeExp, Time]#PS): SchemeTracerContext = tc match {
     case SchemeTracerContext(labelCounters, traceNodes, _) =>
       val label = NormalLabel(loopID)
@@ -44,7 +44,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
   def startTracingGuard(tc: TracerContext,
                         loopID: List[SchemeExp],
                         guardID: Integer,
-                        boundVariables: List[String],
+                        boundVariables: List[(String, HybridAddress.A)],
                         startState: HybridMachine[SchemeExp, Time]#PS): SchemeTracerContext = tc match {
     case SchemeTracerContext(labelCounters, traceNodes, _) =>
       val label = GuardLabel(loopID, guardID)
