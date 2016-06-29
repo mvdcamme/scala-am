@@ -23,6 +23,8 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
 
   def this(normalState: ProgramState[Exp, Time]) = this(normalState, List(HaltFailFrame()))
 
+  def ρ: Environment[HybridAddress.A] = normalState.ρ
+
   def wrapApplyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
                       action: Action[Exp, HybridValue, HybridAddress.A]):
     ActionReturn[Exp, HybridValue, HybridAddress.A, Time, AmbProgramState[Exp, Time]] = normalState.applyAction(sem, action) match {

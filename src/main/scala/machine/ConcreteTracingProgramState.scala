@@ -61,6 +61,8 @@ trait ConcretableTracingProgramState[Exp, Time] {
 trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramState[Exp, Abs, Addr, Time] {
   type HybridValue = HybridLattice.L
 
+  def ρ: Environment[HybridAddress.A]
+
   def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[InterpreterStep[Exp, Abs, Addr]]
   def applyAction(sem: SemanticsTraced[Exp, Abs, Addr, Time],
                   action: Action[Exp, Abs, Addr]):
