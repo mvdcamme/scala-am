@@ -62,7 +62,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
                   someAnalysisOutput: StaticAnalysisResult): SchemeTracerContext = {
       var finishedTc: SchemeTracerContext = tc
       if (! isLooping) {
-        finishedTc = appendTrace(tc, List((traceEndedInstruction.get, None)))
+        finishedTc = appendTrace(tc, List((traceEndedInstruction.get, TraceInfos.nil[HybridLattice.L, HybridAddress.A])))
       }
       val traceNodeAddedTc = addTrace(finishedTc, someAnalysisOutput)
       val newTrace = getTrace(traceNodeAddedTc, tc.curTraceNode.get.label).trace

@@ -77,7 +77,7 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
                   (sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time]):
     (ConvertedControl[Exp, Abs, Addr], Environment[Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, ZeroCFA.T)
 
-  def generateTraceInformation(action: Action[Exp, Abs, Addr]): Option[TraceInformation[HybridValue, HybridAddress.A]]
+  def generateTraceInformation(action: Action[Exp, Abs, Addr]): CombinedInfos[HybridValue, HybridAddress.A]
 }
 
 /**
@@ -503,27 +503,27 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     (newControl, newρ, newσ, newKStore, convertedA, ZeroCFA.isTimestamp.initial(""))
   }
 
-  def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress.A]): Option[TraceInformation[HybridValue, HybridAddress.A]] = action match {
+  def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress.A]): CombinedInfos[HybridValue, HybridAddress.A] = action match {
     case ActionAllocVarsT(variables) =>
       val addresses = variables.map( (variable) => ρ.lookup(variable).get)
-      Some(VariablesAllocated(addresses))
+      TraceInfos.single(VariablesAllocated(addresses))
     case ActionExtendEnvT(variable) =>
-      Some(VariablesAllocated(List(ρ.lookup(variable).get)))
+      TraceInfos.single(VariablesAllocated(List(ρ.lookup(variable).get)))
     case ActionLookupVariableT(variable, _, _) =>
       val a = ρ.lookup(variable).get
-      Some(VariableLookedUp(variable, a, σ.lookup(a).get))
+      TraceInfos.single(VariableLookedUp(variable, a, σ.lookup(a).get))
     case ActionLookupVariablePushT(variable, _, _) =>
       val a = ρ.lookup(variable).get
-      Some(VariableLookedUp(variable, a, σ.lookup(a).get))
+      TraceInfos.single(VariableLookedUp(variable, a, σ.lookup(a).get))
     case ActionPrimCallT(_, _, _) =>
-      Some(PrimitiveAppliedInfo(v, vStack))
+      TraceInfos.single(PrimitiveAppliedInfo(v, vStack))
     case ActionSetVarT(variable) =>
-      Some(VariablesReassigned(List(ρ.lookup(variable).get)))
+      TraceInfos.single(VariablesReassigned(List(ρ.lookup(variable).get)))
     case ActionStepInT(_, _, args, _, _, _, _, _) =>
       val addresses = args.map( (arg) => ρ.lookup(arg).get)
-      Some(VariablesAllocated(addresses))
+      TraceInfos.single(VariablesAllocated(addresses))
     case _ =>
-      None
+      TraceInfos.nil
   }
 
   def concretableState = this

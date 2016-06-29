@@ -8,7 +8,7 @@ trait Tracer[Exp, Time] {
 
   type TraceInstruction = Action[Exp, HybridLattice.L, HybridAddress.A]
   type TraceWithoutStates = List[TraceInstruction]
-  type TraceInstructionInfo = (TraceInstruction, Option[TraceInformation[HybridLattice.L, HybridAddress.A]])
+  type TraceInstructionInfo = (TraceInstruction, CombinedInfos[HybridLattice.L, HybridAddress.A])
   type TraceWithInfos = List[TraceInstructionInfo]
 
   type Trace = TraceWithInfos
@@ -91,4 +91,4 @@ trait Tracer[Exp, Time] {
 case class TraceFull[Exp : Expression, Time : Timestamp]
   (info: TraceInfo[Exp, Time],
    assertions: List[Action[Exp, HybridLattice.L, HybridAddress.A]],
-   trace: List[(Action[Exp, HybridLattice.L, HybridAddress.A], Option[TraceInformation[HybridLattice.L, HybridAddress.A]])])
+   trace: List[(Action[Exp, HybridLattice.L, HybridAddress.A], CombinedInfos[HybridLattice.L, HybridAddress.A])])

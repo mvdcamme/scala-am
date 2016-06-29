@@ -243,39 +243,44 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
   private def doOneConstantFold(firstPart: Trace, trace: Trace): Option[Trace] = {
     findNextEndPrimCall(trace) match {
       case Some((traceBefore, traceAtPrimCall)) =>
-       findNextStartFunCall(traceAtPrimCall.tail) match {
-         case Some((traceBetweenMarks, traceAtStartCall)) =>
-           val optimizedBlocks = filterAllOptimizedBlocks(traceBetweenMarks)
-           val actionStatePrimCall = traceBetweenMarks.find(_._1.isInstanceOf[ActionPrimCallT[SchemeExp, HybridValue, Addr]])
-           actionStatePrimCall match {
-             case Some((ActionPrimCallT(n, _, _), Some(PrimitiveAppliedInfo(result, _)))) =>
-               val x = findNextEndPrimCall(traceBetweenMarks)
-               x match {
-                 /* Another primitive is applied in this block */
-                 case Some((_, betweenInnerEndPrimCallAndOuterStartMark)) =>
-                   val betweenOuterPrimCallAndInnerEndPrimCall = findNextEndPrimCall(traceBetweenMarks).get._1
-                   val newFirstPart = firstPart ++ (traceBefore :+ traceAtPrimCall.head) ++ betweenOuterPrimCallAndInnerEndPrimCall
-                   val newTrace = betweenInnerEndPrimCallAndOuterStartMark ++ traceAtStartCall
-                   doOneConstantFold(newFirstPart, newTrace)
-                 case _ =>
-                   checkPrimitive(traceBetweenMarks, n).flatMap({ (traceAfterOperatorPush) =>
-                     //val guard = (ActionGuardSamePrimitive(), None)
-                     val replacingConstantAction: TraceInstructionInfo = (ActionReachedValueT[SchemeExp, HybridValue, HybridAddress.A](result), None)
-                     val actionEndOptimizedBlock = (ActionEndOptimizedBlock[SchemeExp, HybridValue, HybridAddress.A](), None)
-                     val actionStartOptimizedBlock = (ActionStartOptimizedBlock[SchemeExp, HybridValue, HybridAddress.A](), None)
-                     val replacingTrace = firstPart ++ (traceBefore :+ actionEndOptimizedBlock :+ replacingConstantAction) ++
-                                          /* Add all parts of the inner optimized blocks, except for the constants themselves that were folded there; those are folded away in the new block */
-                                          optimizedBlocks.foldLeft(List(): Trace)({ (acc, current) => acc ++ current.filter({ (actionState) => ! actionState._1.isInstanceOf[ActionReachedValueT[SchemeExp, HybridValue, Addr]] })}) ++
-                                          (traceAfterOperatorPush :+ actionStartOptimizedBlock) ++ traceAtStartCall.tail
-                     Some(replacingTrace)
-                   })
-               }
-             /* Should not happen: a primitive application block should always contains an ActionPrimCallTraced */
-             case None => None
-           }
-           /* Start of the primitive application is not part of the trace (e.g. in the case of (+ 1 (traced-loop) 2) ) */
-         case None => None
-       }
+        findNextStartFunCall(traceAtPrimCall.tail) match {
+          case Some((traceBetweenMarks, traceAtStartCall)) =>
+            val optimizedBlocks = filterAllOptimizedBlocks(traceBetweenMarks)
+            val actionStatePrimCall = traceBetweenMarks.find(_._1.isInstanceOf[ActionPrimCallT[SchemeExp, HybridValue, Addr]])
+            actionStatePrimCall match {
+              case Some((ActionPrimCallT(n, _, _), infos)) =>
+                infos.flatMap[Trace](
+                  { case PrimitiveAppliedInfo(_, _) => true; case _ => false },
+                  { case PrimitiveAppliedInfo(v, _) =>
+                    val result = v
+                    val x = findNextEndPrimCall(traceBetweenMarks)
+                    x match {
+                      /* Another primitive is applied in this block */
+                      case Some((_, betweenInnerEndPrimCallAndOuterStartMark)) =>
+                        val betweenOuterPrimCallAndInnerEndPrimCall = findNextEndPrimCall(traceBetweenMarks).get._1
+                        val newFirstPart = firstPart ++ (traceBefore :+ traceAtPrimCall.head) ++ betweenOuterPrimCallAndInnerEndPrimCall
+                        val newTrace = betweenInnerEndPrimCallAndOuterStartMark ++ traceAtStartCall
+                        doOneConstantFold(newFirstPart, newTrace)
+                      case _ =>
+                        checkPrimitive(traceBetweenMarks, n).flatMap({ (traceAfterOperatorPush) =>
+                          //val guard = (ActionGuardSamePrimitive(), None)
+                          val replacingConstantAction: TraceInstructionInfo = (ActionReachedValueT[SchemeExp, HybridValue, HybridAddress.A](result), TraceInfos.nil[HybridValue, HybridAddress.A])
+                          val actionEndOptimizedBlock = (ActionEndOptimizedBlock[SchemeExp, HybridValue, HybridAddress.A](), TraceInfos.nil[HybridValue, HybridAddress.A])
+                          val actionStartOptimizedBlock = (ActionStartOptimizedBlock[SchemeExp, HybridValue, HybridAddress.A](), TraceInfos.nil[HybridValue, HybridAddress.A])
+                          val replacingTrace = firstPart ++ (traceBefore :+ actionEndOptimizedBlock :+ replacingConstantAction) ++
+                            /* Add all parts of the inner optimized blocks, except for the constants themselves that were folded there; those are folded away in the new block */
+                            optimizedBlocks.foldLeft(List(): Trace)({ (acc, current) => acc ++ current.filter({ (actionState) => !actionState._1.isInstanceOf[ActionReachedValueT[SchemeExp, HybridValue, Addr]] }) }) ++
+                            (traceAfterOperatorPush :+ actionStartOptimizedBlock) ++ traceAtStartCall.tail
+                          Some(replacingTrace)
+                        })
+                    }
+                  })
+              /* Should not happen: a primitive application block should always contains an ActionPrimCallTraced */
+              case None => None
+            }
+          /* Start of the primitive application is not part of the trace (e.g. in the case of (+ 1 (traced-loop) 2) ) */
+          case None => None
+        }
       /* Absolutely no primitive is applied in the given trace  */
       case None => None
     }
@@ -318,8 +323,10 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
   private def optimizeTypeSpecialization(traceFull: TraceFull[SchemeExp, Time]): TraceFull[SchemeExp, Time] = {
     def loop(trace: Trace, acc: Trace): Trace = trace match {
       case Nil => acc.reverse
-      case (actionState1@(_, someInfo)) :: (actionState2@(ActionPrimCallT(n, fExp, argsExps), _)) :: rest => someInfo match {
-        case Some(PrimitiveAppliedInfo(_, vStack)) =>
+      case (actionState1@(_, infos)) :: (actionState2@(ActionPrimCallT(n, fExp, argsExps), _)) :: rest =>
+        infos.find[Trace](
+          { case PrimitiveAppliedInfo(_, _) => true; case _ => false},
+          { case PrimitiveAppliedInfo(_, vStack) =>
           val nrOfArgs = n - 1
           val operands = vStack.take(nrOfArgs).map(_.getVal)
           val supposedOperator = vStack(nrOfArgs).getVal
@@ -328,21 +335,22 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
           somePrimitive match {
             case None => throw new Exception(s"Operation being type-specialized is not a primitive: $supposedOperator")
             case primitive => primitive match {
-                case None =>
-                  /* Primitive application could not be type-specialized, so we do not replace this part of the trace. */
-                  loop(rest, actionState2 :: actionState1 :: acc)
-                case Some(primitive) =>
-                  val specializedPrim = typeSpecializePrimitive(primitive, operandsTypes)
-                  val restartPoint = RestartSpecializedPrimitive(primitive, n, fExp, argsExps)
-                  val specializedPrimGuard = ActionGuardSpecializedPrimitive[SchemeExp, HybridValue, HybridAddress.A](operandsTypes, nrOfArgs, restartPoint, GuardIDCounter.incCounter())
-                  val specializedPrimCallAction = ActionSpecializePrimitive[SchemeExp, HybridValue, HybridAddress.A](operandsTypes, specializedPrim, n, fExp, argsExps)
-                  loop(rest, (specializedPrimCallAction, actionState2._2) :: (specializedPrimGuard, None) :: actionState1 :: acc)
-              }
+              case None =>
+                /* Primitive application could not be type-specialized, so we do not replace this part of the trace. */
+                loop(rest, actionState2 :: actionState1 :: acc)
+              case Some(primitive) =>
+                val specializedPrim = typeSpecializePrimitive(primitive, operandsTypes)
+                val restartPoint = RestartSpecializedPrimitive(primitive, n, fExp, argsExps)
+                val specializedPrimGuard = ActionGuardSpecializedPrimitive[SchemeExp, HybridValue, HybridAddress.A](operandsTypes, nrOfArgs, restartPoint, GuardIDCounter.incCounter())
+                val specializedPrimCallAction = ActionSpecializePrimitive[SchemeExp, HybridValue, HybridAddress.A](operandsTypes, specializedPrim, n, fExp, argsExps)
+                loop(rest, (specializedPrimCallAction, actionState2._2) ::(specializedPrimGuard, infos) :: actionState1 :: acc)
+            }
           }
-        /* Since the state before applying the function was not recorded, we cannot know what the types of the operands were */
-        case _ =>
-          loop(rest, actionState2 :: actionState1 :: acc)
-      }
+        }) match {
+          case Some(result) => result
+          /* Since the state before applying the function was not recorded, we cannot know what the types of the operands were */
+          case None => loop(rest, actionState2 :: actionState1 :: acc)
+        }
       case action :: rest =>
         loop(rest, action :: acc)
     }
@@ -357,11 +365,8 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
   def optimizeVariableFolding(traceFull: TraceFull[SchemeExp, Time]): TraceFull[SchemeExp, Time] = {
 
     val initialBoundVariables = traceFull.info.boundVariables.map(_._1)
-
     var registerIndex: Integer = 0
-
     val boundVariables = variableAnalyzer.analyzeBoundVariables(initialBoundVariables.toSet, traceFull)
-
     var variablesConverted: List[(String, Integer)] = Nil
 
     val initialState: ProgramState[SchemeExp, Time] = traceFull.info.startState match {
@@ -370,6 +375,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     }
 
     def replaceVariableLookups(action: ActionLookupVariableT[SchemeExp, HybridValue, HybridAddress.A],
+                               infos: CombinedInfos[HybridValue, HybridAddress.A],
                                boundVariables: Set[String]): TraceInstructionInfo = {
 
       def generateIndex(variable: String): Option[Integer] = {
@@ -404,16 +410,16 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 
       if (boundVariables.contains(action.varName)) {
         /* Variable is bound and can therefore not be replaced */
-        (action, None)
+        (action, infos)
       } else {
         val newAction = generateAction(action.varName)
-        (newAction, None)
+        (newAction, infos.filter[VariableLookedUp[HybridValue, HybridAddress.A]])
       }
     }
 
     val optimisedTrace: Trace = traceFull.trace.map({
-      case (action @ ActionLookupVariableT(varName, _, _), _) =>
-        replaceVariableLookups(action, boundVariables)
+      case (action @ ActionLookupVariableT(varName, _, _), infos) =>
+        replaceVariableLookups(action, infos, boundVariables)
       case (action, someState) => (action, someState)
     })
 
@@ -432,12 +438,12 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     @tailrec
     def loop(trace: Trace, acc: Trace): Trace = trace match {
       case Nil => acc.reverse
-      case (ActionLookupVariableT(varName, read, write), s1) :: (ActionPushValT(), s2) :: rest =>
-        loop(rest, (ActionLookupVariablePushT[SchemeExp, HybridValue, HybridAddress.A](varName, read, write), s2) :: acc)
-      case (ActionReachedValueT(lit, read, write), s1) :: (ActionPushValT(), s2) :: rest =>
-        loop(rest, (ActionReachedValuePushT[SchemeExp, HybridValue, HybridAddress.A](lit, read, write), s2) :: acc)
-      case (ActionRestoreEnvT(), s1) :: (ActionSaveEnvT(), s2) :: rest =>
-        loop(rest, (ActionRestoreSaveEnvT[SchemeExp, HybridValue, HybridAddress.A](), s2) :: acc)
+      case (ActionLookupVariableT(varName, read, write), i1) :: (ActionPushValT(), i2) :: rest =>
+        loop(rest, (ActionLookupVariablePushT[SchemeExp, HybridValue, HybridAddress.A](varName, read, write), i1.join(i2)) :: acc)
+      case (ActionReachedValueT(lit, read, write), i1) :: (ActionPushValT(), i2) :: rest =>
+        loop(rest, (ActionReachedValuePushT[SchemeExp, HybridValue, HybridAddress.A](lit, read, write), i1.join(i2)) :: acc)
+      case (ActionRestoreEnvT(), i1) :: (ActionSaveEnvT(), i2) :: rest =>
+        loop(rest, (ActionRestoreSaveEnvT[SchemeExp, HybridValue, HybridAddress.A](), i1.join(i2)) :: acc)
       case otherAction :: rest =>
         loop(rest, otherAction :: acc)
     }
@@ -534,10 +540,14 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 
   private def collectBoundAddresses(trace: Trace): Set[HybridAddress.A] =
     trace.foldRight(Set[HybridAddress.A]())((stateInfo, boundAddresses) => stateInfo match {
-      case (_, Some(VariablesAllocated(addresses))) =>
-        boundAddresses ++ addresses.toSet
-      case (_, Some(VariablesReassigned(addresses))) =>
-        boundAddresses ++ addresses.toSet
+      case (_, infos) =>
+        infos.find[Set[HybridAddress.A]](
+          { case VariablesAllocated(_) => true; case _ => false},
+          { case VariablesAllocated(addresses) => boundAddresses ++ addresses.toSet }).getOrElse(boundAddresses)
+      case (_, infos) =>
+        infos.find[Set[HybridAddress.A]](
+          { case VariablesReassigned(_) => true; case _ => false},
+          { case VariablesReassigned(addresses) => boundAddresses ++ addresses.toSet }).getOrElse(boundAddresses)
       case _ => boundAddresses
     })
 
@@ -545,7 +555,8 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 
     def addressBound(address: HybridAddress.A): Boolean = {
       val abstractAddress = HybridAddress.convertAddress(address)
-      boundAddresses.contains(abstractAddress)
+      /* Check both the abstracted address and the concrete address */
+      boundAddresses.contains(abstractAddress) || boundAddresses.contains(address)
     }
 
     def replaceVariableLookup(address: HybridAddress.A, value: HybridValue,
@@ -554,18 +565,28 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
       if (addressBound(address)) {
         originalActionInfo
       } else {
-        println(s"Replaced variable lookup for address $address")
+        println(s"Replaced variable lookup for address $address with new actionInfo $newActionInfo")
         newActionInfo
       }
     }
 
     def replaceActionInfo(actionInfo: TraceInstructionInfo): TraceInstructionInfo = actionInfo match {
-      case (ActionLookupVariableT(_, _, _), Some(VariableLookedUp(_, address, value))) =>
-        println(s"ActionLookupVariableT of address $address")
-        replaceVariableLookup(address, value, actionInfo, (ActionReachedValueT[SchemeExp, HybridValue, HybridAddress.A](value), None))
-      case (ActionLookupVariablePushT(_, _, _), Some(VariableLookedUp(_, address, value))) =>
-        println(s"ActionLookupVariablePushT of address $address")
-        replaceVariableLookup(address, value, actionInfo, (ActionReachedValuePushT[SchemeExp, HybridValue, HybridAddress.A](value), None))
+      case (ActionLookupVariableT(_, _, _), infos) =>
+        infos.find[TraceInstructionInfo](
+          { case VariableLookedUp(_, _, _) => true; case _ => false},
+          { case VariableLookedUp(_, address, value) =>
+          println(s"ActionLookupVariableT of address $address")
+          val newActionInfo = (ActionReachedValueT[SchemeExp, HybridValue, HybridAddress.A](value),
+                               infos.filter[VariableLookedUp[HybridValue, HybridAddress.A]])
+          replaceVariableLookup(address, value, actionInfo, newActionInfo) }).getOrElse(actionInfo)
+      case (ActionLookupVariablePushT(_, _, _), infos) =>
+        infos.find[TraceInstructionInfo](
+          { case VariableLookedUp(_, _, _) => true; case _ => false},
+          { case VariableLookedUp(_, address, value) =>
+          println(s"ActionLookupVariablePushT of address $address")
+          val newActionInfo = (ActionReachedValuePushT[SchemeExp, HybridValue, HybridAddress.A](value),
+            infos.filter[VariableLookedUp[HybridValue, HybridAddress.A]])
+          replaceVariableLookup(address, value, actionInfo, newActionInfo) }).getOrElse(actionInfo)
       case _ =>
         actionInfo
     }
@@ -582,7 +603,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     /* Combination of the above two sets of addresses, plus the set of addresses that become bound in
      * the state graph after the trace. */
     val allBoundAddresses = traceBoundAddresses ++ initialBoundAddresses ++ addresses
-    println(allBoundAddresses)
+    println(s"allBoundAddresses = $allBoundAddresses")
     val optimizedTrace = replaceVariableLookups(traceFull.trace, allBoundAddresses)
     constructedFullTrace(traceFull, optimizedTrace)
   }
