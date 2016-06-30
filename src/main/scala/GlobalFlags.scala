@@ -6,7 +6,7 @@ object GlobalFlags {
   val PRINT_ENTIRE_TRACE = false
   val PRINT_ACTIONS_EXECUTED = false
 
-  val PRINT_EXECUTION_TIME = true
+  val PRINT_EXECUTION_TIME = false
 
   /*
    * The current message level. All messages that are logged must have a level greater than or equal to this level

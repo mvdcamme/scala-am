@@ -565,7 +565,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
       if (addressBound(address)) {
         originalActionInfo
       } else {
-        Logger.log(s"Replaced variable lookup for address $address with new actionInfo $newActionInfo", Logger.D)
+        Logger.log(s"Replaced variable lookup for address $address with new actionInfo $newActionInfo", Logger.E)
         newActionInfo
       }
     }
