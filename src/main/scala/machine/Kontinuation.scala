@@ -5,6 +5,8 @@ trait Frame {
 
   def subsumes(that: Frame): Boolean
   def writeEffectsFor(): Set[Address] = Set()
+
+  def savesEnv: Option[Environment[Address]] = None
 }
 trait KontAddress[A]
 

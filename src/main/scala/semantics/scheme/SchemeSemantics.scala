@@ -8,30 +8,56 @@ class BaseSchemeSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestam
   def sabs = implicitly[IsSchemeLattice[Abs]]
 
   trait SchemeFrame extends Frame {
+    type Address = Addr
+
     def subsumes(that: Frame) = that.equals(this)
     override def toString = s"${this.getClass.getSimpleName}"
   }
-  case class FrameFuncallOperator(fexp: SchemeExp, args: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
-  case class FrameFuncallOperands(f: Abs, fexp: SchemeExp, cur: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
-  case class FrameIf(cons: SchemeExp, alt: SchemeExp, env: Environment[Addr]) extends SchemeFrame
-  case class FrameLet(variable: String, bindings: List[(String, Abs)], toeval: List[(String, SchemeExp)], body: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
-  case class FrameLetStar(variable: String, bindings: List[(String, SchemeExp)], body: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
-  case class FrameLetrec(addr: Addr, bindings: List[(Addr, SchemeExp)], body: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
+  case class FrameFuncallOperator(fexp: SchemeExp, args: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame {
+    override def savesEnv(): Option[Environment[Address]] = Some(env)
+  }
+  case class FrameFuncallOperands(f: Abs, fexp: SchemeExp, cur: SchemeExp, args: List[(SchemeExp, Abs)], toeval: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame {
+    override def savesEnv(): Option[Environment[Address]] = Some(env)
+  }
+  case class FrameIf(cons: SchemeExp, alt: SchemeExp, env: Environment[Addr]) extends SchemeFrame {
+    override def savesEnv(): Option[Environment[Address]] = Some(env)
+  }
+  case class FrameLet(variable: String, bindings: List[(String, Abs)], toeval: List[(String, SchemeExp)], body: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame {
+    override def savesEnv(): Option[Environment[Address]] = Some(env)
+  }
+  case class FrameLetStar(variable: String, bindings: List[(String, SchemeExp)], body: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame {
+    override def savesEnv(): Option[Environment[Address]] = Some(env)
+  }
+  case class FrameLetrec(addr: Addr, bindings: List[(Addr, SchemeExp)], body: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame {
+    override def savesEnv(): Option[Environment[Address]] = Some(env)
+  }
   case class FrameSet(variable: String, env: Environment[Addr]) extends SchemeFrame {
-
-    type Address = Addr
 
     override def writeEffectsFor(): Set[Address] = env.lookup(variable) match {
       case Some(a) => Set(a)
       case None => Set()
     }
+
+    override def savesEnv(): Option[Environment[Address]] = Some(env)
   }
-  case class FrameBegin(rest: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
-  case class FrameCond(cons: List[SchemeExp], clauses: List[(SchemeExp, List[SchemeExp])], env: Environment[Addr]) extends SchemeFrame
-  case class FrameCase(clauses: List[(List[SchemeValue], List[SchemeExp])], default: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
-  case class FrameAnd(rest: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
-  case class FrameOr(rest: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame
-  case class FrameDefine(variable: String, env: Environment[Addr]) extends SchemeFrame
+  case class FrameBegin(rest: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame {
+    override def savesEnv(): Option[Environment[Address]] = Some(env)
+  }
+  case class FrameCond(cons: List[SchemeExp], clauses: List[(SchemeExp, List[SchemeExp])], env: Environment[Addr]) extends SchemeFrame {
+    override def savesEnv(): Option[Environment[Address]] = Some(env)
+  }
+  case class FrameCase(clauses: List[(List[SchemeValue], List[SchemeExp])], default: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame {
+    override def savesEnv(): Option[Environment[Address]] = Some(env)
+  }
+  case class FrameAnd(rest: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame {
+    override def savesEnv(): Option[Environment[Address]] = Some(env)
+  }
+  case class FrameOr(rest: List[SchemeExp], env: Environment[Addr]) extends SchemeFrame {
+    override def savesEnv(): Option[Environment[Address]] = Some(env)
+  }
+  case class FrameDefine(variable: String, env: Environment[Addr]) extends SchemeFrame {
+    override def savesEnv(): Option[Environment[Address]] = Some(env)
+  }
 
   def convertFrame(convertValue: Abs => Abs, frame: Frame): Frame = frame match {
     case FrameFuncallOperands(f, fexp, cur, args, toeval, env) =>

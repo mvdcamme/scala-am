@@ -18,9 +18,15 @@ case class ConstantAnalysis[Exp : Expression, Abs : JoinLattice, Addr : Address,
     (newAddresses, nonConstants ++ addressesRemoved)
   }
   def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time, current: (Set[Addr], Set[Addr])) = {
+    val someNewEnv = frame.savesEnv
     val (previousAddresses, nonConstants) = current
+    val newAddresses = someNewEnv match {
+      case Some(env) => envToAddressSet(env.asInstanceOf[Environment[Addr]])
+      case None => previousAddresses
+    }
+    val addressesRemoved = previousAddresses -- newAddresses
     val writtenAddresses = frame.writeEffectsFor()
-    (previousAddresses, nonConstants ++ writtenAddresses.asInstanceOf[Set[Addr]])
+    (newAddresses, nonConstants ++ writtenAddresses.asInstanceOf[Set[Addr]] ++ addressesRemoved)
   }
   def error(error: SemanticError, current: (Set[Addr], Set[Addr])) = current
   def join(x: (Set[Addr], Set[Addr]), y: (Set[Addr], Set[Addr])) = {
