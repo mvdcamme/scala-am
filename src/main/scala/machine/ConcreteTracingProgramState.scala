@@ -427,7 +427,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def convertValue(σ: Store[HybridAddress.A, HybridLattice.L])(value: HybridValue): HybridValue =
-    HybridLattice.convert[Exp, HybridAddress.A](value, σ)
+    HybridLattice.convert[Exp, HybridAddress.A](value, σ, convertEnvironment)
 
   def convertEnvironment(env: Environment[HybridAddress.A]): Environment[HybridAddress.A] =
     env.map { (address) => HybridAddress.convertAddress(address) }
