@@ -318,6 +318,11 @@ abstract class ActionT[Exp : Expression, Abs : JoinLattice, Addr : Address]() {
 
   def popsKStack: Boolean = false
   def pushesKStack: Boolean = false
+
+  def changesValueReg = false
+
+  def startsFunCallBlock = false
+  def endsFunCallBlock = false
 }
 
 trait IsGuard[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
@@ -352,6 +357,18 @@ trait PushesKStack[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
   override def pushesKStack = true
 }
 
+trait ChangesValueReg[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
+  override def changesValueReg = true
+}
+
+trait StartsFunCall[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
+  override def startsFunCallBlock = true
+}
+
+trait EndsFunCall[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
+  override def endsFunCallBlock = true
+}
+
 trait RestartPoint[Exp, Abs, Addr]
 
 case class RestartAssertion[Exp : Expression, Abs : JoinLattice, Addr : Address]()
@@ -382,9 +399,9 @@ case class ActionCreateClosureT[Exp : Expression, Abs : JoinLattice, Addr : Addr
 (λ : Exp)
   extends ActionT[Exp, Abs, Addr]
 case class ActionEndClosureCallT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
-  extends ActionT[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr] with EndsFunCall[Exp, Abs, Addr]
 case class ActionEndPrimCallT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
-  extends ActionT[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr] with EndsFunCall[Exp, Abs, Addr]
 case class ActionEndTrace[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (restartPoint: RestartPoint[Exp, Abs, Addr])
   extends ActionT[Exp, Abs, Addr]
@@ -437,15 +454,15 @@ case class ActionGuardSpecializedPrimitive[Exp : Expression, Abs : JoinLattice, 
 
 case class ActionLookupVariableT[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
-  extends ActionT[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr] with ChangesValueReg[Exp, Abs, Addr]
 case class ActionLookupVariablePushT[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (varName : String, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
-  extends ActionT[Exp, Abs, Addr] with PushesValue[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr] with ChangesValueReg[Exp, Abs, Addr] with PushesValue[Exp, Abs, Addr]
 case class ActionPopKontT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
   extends ActionT[Exp, Abs, Addr] with PopsKStack[Exp, Abs, Addr]
 case class ActionPrimCallT[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (n: Integer, fExp : Exp, argsExps : List[Exp])
-  extends ActionT[Exp, Abs, Addr] with PopsValue[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr] with ChangesValueReg[Exp, Abs, Addr] with PopsValue[Exp, Abs, Addr]
 case class ActionPushValT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
   extends ActionT[Exp, Abs, Addr] with PushesValue[Exp, Abs, Addr]
 /**
@@ -454,10 +471,10 @@ case class ActionPushValT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
   */
 case class ActionReachedValueT[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (v: Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
-  extends ActionT[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr] with ChangesValueReg[Exp, Abs, Addr]
 case class ActionReachedValuePushT[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (v : Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
-  extends ActionT[Exp, Abs, Addr] with PushesValue[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr] with ChangesValueReg[Exp, Abs, Addr] with PushesValue[Exp, Abs, Addr]
 case class ActionRestoreEnvT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
   extends ActionT[Exp, Abs, Addr] with RestoresEnv[Exp, Abs, Addr]
 case class ActionRestoreSaveEnvT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
@@ -469,7 +486,7 @@ case class ActionSetVarT[Exp : Expression, Abs : JoinLattice, Addr : Address]
   extends ActionT[Exp, Abs, Addr]
 case class ActionSpecializePrimitive[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (expectedType : SimpleTypes.Value, primitive: Primitive[Addr, Abs], n: Integer, fExp: Exp, argsExps: List[Exp])
-  extends ActionT[Exp, Abs, Addr] with PopsValue[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr] with ChangesValueReg[Exp, Abs, Addr] with PopsValue[Exp, Abs, Addr]
 /**
   * Similar to ActionEval, but only used when stepping inside a function's body
   * (clo is therefore the function stepped into). The number of arguments should
@@ -480,11 +497,11 @@ case class ActionStepInT[Exp : Expression, Abs : JoinLattice, Addr : Address]
  frame : Frame, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
   extends ActionT[Exp, Abs, Addr] with PopsValue[Exp, Abs, Addr] with SavesEnv[Exp, Abs, Addr]
 case class ActionStartFunCallT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
-  extends ActionT[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr] with StartsFunCall[Exp, Abs, Addr]
 
 case class ActionLookupRegister[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (index: Integer)
-  extends ActionT[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr] with ChangesValueReg[Exp, Abs, Addr]
 case class ActionPutRegister[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (variable: String, index: Integer)
   extends ActionT[Exp, Abs, Addr]

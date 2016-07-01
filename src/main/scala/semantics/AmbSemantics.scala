@@ -33,17 +33,17 @@ abstract class ActionSingleT[Exp : Expression, Abs : JoinLattice, Addr : Address
   extends ActionT[Exp, Abs, Addr]
 
 case class ActionSinglePopKontT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
-  extends ActionSingleT[Exp, Abs, Addr]
+  extends ActionSingleT[Exp, Abs, Addr] with PopsKStack[Exp, Abs, Addr]
 case class ActionSinglePushKontT[Exp : Expression, Abs : JoinLattice, Addr : Address]
   (frame: Frame)
-  extends ActionSingleT[Exp, Abs, Addr]
+  extends ActionSingleT[Exp, Abs, Addr] with PushesKStack[Exp, Abs, Addr]
 case class ActionSingleSaveSpecificEnvT[Exp : Expression, Abs : JoinLattice, Addr : Address]
   (ρToSave: Environment[Addr], ρToReplace: Environment[Addr])
-  extends ActionSingleT[Exp, Abs, Addr]
+  extends ActionSingleT[Exp, Abs, Addr] with SavesEnv[Exp, Abs, Addr]
 case class ActionSingleSaveValT[Exp : Expression, Abs : JoinLattice, Addr : Address]
   (value: Abs)
-  extends ActionSingleT[Exp, Abs, Addr]
+  extends ActionSingleT[Exp, Abs, Addr] with PushesValue[Exp, Abs, Addr]
 case class ActionSingleRestoreEnvT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
-  extends ActionSingleT[Exp, Abs, Addr]
+  extends ActionSingleT[Exp, Abs, Addr] with RestoresEnv[Exp, Abs, Addr]
 case class ActionSingleRestoreValT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
-  extends ActionSingleT[Exp, Abs, Addr]
+  extends ActionSingleT[Exp, Abs, Addr] with PopsValue[Exp, Abs, Addr]
