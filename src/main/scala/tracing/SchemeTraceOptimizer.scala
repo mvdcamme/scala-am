@@ -23,8 +23,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
          (GlobalFlags.APPLY_OPTIMIZATION_MERGE_ACTIONS, optimizeMergeActions(_)))
 
   val detailedOptimizations: List[(Boolean, (TraceFull[SchemeExp, Time] => TraceFull[SchemeExp, Time]))] =
-    List((GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING, optimizeVariableFolding(_)),
-         (GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)),
+    List((GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)),
          (GlobalFlags.APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, optimizeTypeSpecialization(_)))
 
   def foldOptimisations(traceFull: TraceFull[SchemeExp, Time], optimisations: List[(Boolean, (TraceFull[SchemeExp, Time] => TraceFull[SchemeExp, Time]))]): TraceFull[SchemeExp, Time] = {
@@ -41,9 +40,9 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     Logger.log(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}", Logger.V)
     val tier3AssertedOptimizedTrace = someAnalysisOutput match {
       case NonConstantAddresses(addresses) =>
-        applyStaticAnalysisOptimization(tier2AssertedOptimizedTrace, addresses)
+        applyConstantVariablesOptimizations(tier2AssertedOptimizedTrace, addresses)
       case NoStaticisAnalysisResult =>
-        tier2AssertedOptimizedTrace
+        possiblyOptimizeVariableFolding(tier2AssertedOptimizedTrace)
     }
     Logger.log(s"Size of statically optimized trace = ${tier3AssertedOptimizedTrace.trace.length}", Logger.V)
     val finalAssertedOptimizedTrace = removeFunCallBlockActions(tier3AssertedOptimizedTrace)
@@ -429,6 +428,20 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     TraceFull(traceFull.info, traceFull.assertions ++ putRegisterActions, optimisedTrace)
   }
 
+  /**
+    * Applies the variable folding optimization iff the APPLY_OPTIMIZATION_VARIABLE_FOLDING flag is enabled.
+    * @param traceFull The trace to be optimized via variable folding
+    * @return Either the optimized trace if the APPLY_OPTIMIZATION_VARIABLE_FOLDING flag was enabled,
+    *         or the input trace if not.
+    */
+  def possiblyOptimizeVariableFolding(traceFull: TraceFull[SchemeExp, Time]): TraceFull[SchemeExp, Time] = {
+    if (GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING) {
+      optimizeVariableFolding(traceFull)
+    } else {
+      traceFull
+    }
+  }
+
   /********************************************************************************************************************
    *                                              MERGE ACTIONS OPTIMIZATION                                          *
    ********************************************************************************************************************/
@@ -476,7 +489,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 //  val APPLY_OPTIMIZATION_DEAD_STORE_ELIMINATION = false
 //
 //  val staticAnalysisOptimisations: List[(Boolean, (TraceFull[SchemeExp, Time], AnalysisOutput) => TraceFull[SchemeExp, Time])] =
-//    List((APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS, optimizeVariableFoldingAssertions(_, _)))
+//    List((APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS, replaceVariablesWithConstants(_, _)))
 //
 //  def foldStaticOptimisations(traceFull: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A],
 //                              optimisations: List[(Boolean, (TraceFull[SchemeExp, Time], AnalysisOutput) => TraceFull[SchemeExp, Time])]): TraceFull[SchemeExp, Time] = {
@@ -491,12 +504,12 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     * @param addresses The addresses whose value may change over the execution of the program after the trace.
     * @return The optimized (full) trace
     */
-  def applyStaticAnalysisOptimization(trace: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
-    optimizeVariableFoldingAssertions(trace, addresses)
+  def applyConstantVariablesOptimizations(trace: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
+    replaceVariablesWithConstants(trace, addresses)
   }
 
   /*********************************************************************************************************************
-   *                                      VARIABLE FOLDING ASSERTIONS OPTIMIZATION                                     *
+   *                                    STATIC VARIABLE LOOKUP REMOVAL OPTIMIZATION                                    *
    *********************************************************************************************************************/
 
   /*
@@ -525,7 +538,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 //      case _ => true})
 //  }
 //
-//  private def optimizeVariableFoldingAssertions(trace: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
+//  private def replaceVariablesWithConstants(trace: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
 //    val startState = trace.info.startState
 //    val boundVariables = variableAnalyzer.analyzeBoundVariables(trace.info.boundVariables.toSet, trace)
 //    val freeVariables = assertions.flatMap({
@@ -538,7 +551,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 //    TraceFull(trace.startProgramState, optimizedAssertions, trace.trace)
 //  }
 
-  private def collectBoundAddresses(trace: Trace): Set[HybridAddress.A] =
+  private def collectTraceBoundAddresses(trace: Trace): Set[HybridAddress.A] =
     trace.foldRight(Set[HybridAddress.A]())((stateInfo, boundAddresses) => stateInfo match {
       case (_, infos) =>
         infos.find[Set[HybridAddress.A]](
@@ -550,6 +563,28 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
           { case VariablesReassigned(addresses) => boundAddresses ++ addresses.toSet }).getOrElse(boundAddresses)
       case _ => boundAddresses
     })
+
+  /**
+    * Finds all addresses of variables that are bound, both inside and outside of the trace.
+    * @param traceFull The trace which will be scanned to collect all addresses that are bound inside the trace.
+    * @param traceExteriorBoundAddresses The set of addresses that are bound outside of the trace.
+    *                                    One can rely on the ConstantVariableAnalysis to find these addresses via
+    *                                    abstract interpretation.
+    *
+    * @return The union of both variables that are bound inside the trace and the variables that are bound outside
+    *         of the trace.
+    */
+  private def findAllBoundAddresses(traceFull: TraceFull[SchemeExp, Time],
+                                    traceExteriorBoundAddresses: Set[HybridAddress.A]): Set[HybridAddress.A] = {
+    /* The addresses that are bound at the start of the trace. */
+    val initialBoundAddresses = traceFull.info.boundVariables.map( {case (_, address) => address })
+    /* The addresses that become bound by actions in the trace itself, e.g., addresses that are reassigned or allocated
+     * within the trace. */
+    val traceBoundAddresses = collectTraceBoundAddresses(traceFull.trace)
+    /* Combination of the above two sets of addresses, plus the set of addresses that become bound in
+     * the state graph after the trace. */
+    traceBoundAddresses ++ initialBoundAddresses ++ traceExteriorBoundAddresses
+  }
 
   private def replaceVariableLookups(trace: Trace, boundAddresses: Set[HybridAddress.A]): Trace = {
 
@@ -592,19 +627,16 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     trace.map(replaceActionInfo)
   }
 
-  private def optimizeVariableFoldingAssertions(traceFull: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
-    /* The addresses that are bound at the start of the trace. */
-    val initialBoundAddresses = traceFull.info.boundVariables.map( {case (_, address) => address })
-    /* The addresses that become bound by actions in the trace itself, e.g., addresses that are reassigned or allocated
-     * within the trace. */
-    val traceBoundAddresses = collectBoundAddresses(traceFull.trace)
-    /* Combination of the above two sets of addresses, plus the set of addresses that become bound in
-     * the state graph after the trace. */
-    val allBoundAddresses = traceBoundAddresses ++ initialBoundAddresses ++ addresses
+  private def replaceVariablesWithConstants(traceFull: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
+    val allBoundAddresses = findAllBoundAddresses(traceFull, addresses)
     Logger.log(s"Initiating new variable folding optimization; allBoundAddresses = $allBoundAddresses", Logger.D)
     val optimizedTrace = replaceVariableLookups(traceFull.trace, allBoundAddresses)
     constructedFullTrace(traceFull, optimizedTrace)
   }
+
+  /*********************************************************************************************************************
+   *                                         REMOVE CLOSURE GUARDS OPTIMIZATION                                        *
+   *********************************************************************************************************************/
 
   /*********************************************************************************************************************
    *                                         DEAD STORE ELIMINATION OPTIMIZATION                                       *
