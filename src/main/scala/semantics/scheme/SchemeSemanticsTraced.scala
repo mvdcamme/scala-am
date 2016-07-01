@@ -172,8 +172,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
     val fromPrim = sabs.getPrimitives(function).map( (prim) => {
       val primCallAction = ActionPrimCallT(valsToPop, fexp, argsv.map(_._1))
       val rp = RestartGuardDifferentPrimitive(primCallAction)
-      val guard = ActionGuardSamePrimitive(function, rp, GuardIDCounter.incCounter())
-      val allActions = commonActions :+ guard :+ primCallAction :+ actionEndPrimCall :+ actionPopKont
+      val allActions = commonActions :+ primCallAction :+ actionEndPrimCall :+ actionPopKont
       InterpreterStep[SchemeExp, Abs, Addr](allActions, SignalFalse[SchemeExp, Abs, Addr]())
     })
     if (fromClo.isEmpty && fromPrim.isEmpty) {
