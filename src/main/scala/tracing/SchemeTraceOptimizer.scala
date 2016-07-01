@@ -133,8 +133,10 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
    *                                          CONSTANT FOLDING OPTIMIZATION                                           *
    ********************************************************************************************************************/
 
-  case class ActionStartOptimizedBlock[Exp : Expression, Abs : JoinLattice, Addr : Address]() extends Action[Exp, Abs, Addr]
-  case class ActionEndOptimizedBlock[Exp : Expression, Abs : JoinLattice, Addr : Address]() extends Action[Exp, Abs, Addr]
+  case class ActionStartOptimizedBlock[Exp : Expression, Abs : JoinLattice, Addr : Address]()
+    extends ActionT[Exp, Abs, Addr]
+  case class ActionEndOptimizedBlock[Exp : Expression, Abs : JoinLattice, Addr : Address]()
+    extends ActionT[Exp, Abs, Addr]
 
   private def findNextPushVal(trace: Trace): Option[Trace] = {
     val updatedTrace = trace.dropWhile({case (ActionPushValT(), _) => false
@@ -387,7 +389,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
         }
       }
 
-      def generateAction(varName: String): Action[SchemeExp, HybridValue, HybridAddress.A] = {
+      def generateAction(varName: String): ActionT[SchemeExp, HybridValue, HybridAddress.A] = {
         val defaultAction = ActionLookupVariableT[SchemeExp, HybridValue, HybridAddress.A](varName)
         variablesConverted.find( _._1 == action.varName) match {
           case Some((_, index)) =>
@@ -422,7 +424,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
       case (action, someState) => (action, someState)
     })
 
-    val putRegisterActions: List[Action[SchemeExp, HybridValue, HybridAddress.A]] =
+    val putRegisterActions: List[ActionT[SchemeExp, HybridValue, HybridAddress.A]] =
       variablesConverted.map(tuple => ActionPutRegister[SchemeExp, HybridValue, HybridAddress.A](tuple._1, tuple._2))
 
     TraceFull(traceFull.info, traceFull.assertions ++ putRegisterActions, optimisedTrace)

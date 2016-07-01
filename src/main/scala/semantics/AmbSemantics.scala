@@ -20,17 +20,17 @@ case class UndoActionFrame[Exp : Expression, Abs : JoinLattice, Addr : Address]
  */
 
 case class ActionPopFailKontT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
-  extends Action[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr]
 case class ActionPushFailKontT[Exp : Expression, Abs : JoinLattice, Addr : Address]
   (failureFrame: Frame)
-  extends Action[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr]
 
 /*
  * Single actions
  */
 
 abstract class ActionSingleT[Exp : Expression, Abs : JoinLattice, Addr : Address]
-  extends Action[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr]
 
 case class ActionSinglePopKontT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
   extends ActionSingleT[Exp, Abs, Addr]

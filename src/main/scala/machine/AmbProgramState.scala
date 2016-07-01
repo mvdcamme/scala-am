@@ -26,7 +26,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
   def ρ: Environment[HybridAddress.A] = normalState.ρ
 
   def wrapApplyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
-                      action: Action[Exp, HybridValue, HybridAddress.A]):
+                      action: ActionT[Exp, HybridValue, HybridAddress.A]):
     ActionReturn[Exp, HybridValue, HybridAddress.A, Time, AmbProgramState[Exp, Time]] = normalState.applyAction(sem, action) match {
     case ActionStep(state, action) =>
       ActionStep(AmbProgramState(state, failStack), action)
@@ -35,14 +35,14 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def addFailAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
-                    action: Action[Exp, HybridValue, HybridAddress.A],
+                    action: ActionT[Exp, HybridValue, HybridAddress.A],
                     failAction: ActionSingleT[Exp, HybridValue, HybridAddress.A]):
   ActionReturn[Exp, HybridValue, HybridAddress.A, Time, AmbProgramState[Exp, Time]] = {
     addFailActions(sem, action, List(failAction))
   }
 
   def addFailActions(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
-                     action: Action[Exp, HybridValue, HybridAddress.A],
+                     action: ActionT[Exp, HybridValue, HybridAddress.A],
                      failActions: List[ActionSingleT[Exp, HybridValue, HybridAddress.A]]):
   ActionReturn[Exp, HybridValue, HybridAddress.A, Time, AmbProgramState[Exp, Time]] = {
     val step: ActionReturn[Exp, HybridValue, HybridAddress.A, Time, ProgramState[Exp, Time]] = normalState.applyAction(sem, action)
@@ -60,7 +60,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
     normalState.convertState(aam)(oldSem)
 
   def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
-                assertions: List[Action[Exp, HybridValue, HybridAddress.A]]): Option[AmbProgramState[Exp, Time]] =
+                assertions: List[ActionT[Exp, HybridValue, HybridAddress.A]]): Option[AmbProgramState[Exp, Time]] =
     normalState.runHeader(sem, assertions).fold(None: Option[AmbProgramState[Exp, Time]])(programState => Some(AmbProgramState(programState, failStack)))
 
   def restart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
@@ -101,7 +101,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
-                  action: Action[Exp, HybridValue, HybridAddress.A]):
+                  action: ActionT[Exp, HybridValue, HybridAddress.A]):
   ActionReturn[Exp, HybridValue, HybridAddress.A, Time, AmbProgramState[Exp, Time]] = action match {
     case ActionEvalPushT(e, frame, _, _) =>
       addFailAction(sem, action, ActionSinglePopKontT[Exp, HybridValue, HybridAddress.A]())
@@ -185,7 +185,7 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
     case _ => super.halted
   }
 
-  def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress.A]):
+  def generateTraceInformation(action: ActionT[Exp, HybridValue, HybridAddress.A]):
   CombinedInfos[HybridValue, HybridAddress.A] =
     normalState.generateTraceInformation(action)
 

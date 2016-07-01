@@ -124,21 +124,21 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
   /**
     * @param frameGen A function that generates the next frame to push, given the non-evaluated expressions of the body
     */
-  protected def evalBody(body: List[SchemeExp], frameGen: List[SchemeExp] => Frame): List[Action[SchemeExp, Abs, Addr]] = body match {
+  protected def evalBody(body: List[SchemeExp], frameGen: List[SchemeExp] => Frame): List[ActionT[SchemeExp, Abs, Addr]] = body match {
     case Nil => List(actionPopKont)
     case exp :: rest => List(actionSaveEnv, ActionEvalPushT(exp, frameGen(rest)))
   }
 
-  def conditional(v: Abs, t: List[Action[SchemeExp, Abs, Addr]], f: List[Action[SchemeExp, Abs, Addr]]): Set[InterpreterStep[SchemeExp, Abs, Addr]] =
+  def conditional(v: Abs, t: List[ActionT[SchemeExp, Abs, Addr]], f: List[ActionT[SchemeExp, Abs, Addr]]): Set[InterpreterStep[SchemeExp, Abs, Addr]] =
     (if (sabs.isTrue(v)) Set[InterpreterStep[SchemeExp, Abs, Addr]](InterpreterStep[SchemeExp, Abs, Addr](t, new SignalFalse)) else Set[InterpreterStep[SchemeExp, Abs, Addr]]()) ++
     (if (sabs.isFalse(v)) Set[InterpreterStep[SchemeExp, Abs, Addr]](InterpreterStep[SchemeExp, Abs, Addr](f, new SignalFalse)) else Set[InterpreterStep[SchemeExp, Abs, Addr]]())
 
   /*
    * TODO: Debugging: run tests only using if-expressions. Remove function ASAP and use function "conditional" instead!
    */
-  def conditionalIf(v: Abs, t: List[Action[SchemeExp, Abs, Addr]],
+  def conditionalIf(v: Abs, t: List[ActionT[SchemeExp, Abs, Addr]],
                     tRestart: RestartPoint[SchemeExp, Abs, Addr],
-                    f: List[Action[SchemeExp, Abs, Addr]],
+                    f: List[ActionT[SchemeExp, Abs, Addr]],
                     fRestart: RestartPoint[SchemeExp, Abs, Addr]): Set[InterpreterStep[SchemeExp, Abs, Addr]] =
     (if (sabs.isTrue(v)) {
       Set[InterpreterStep[SchemeExp, Abs, Addr]](InterpreterStep[SchemeExp, Abs, Addr](actionRestoreEnv :: ActionGuardTrueT[SchemeExp, Abs, Addr](fRestart, GuardIDCounter.incCounter()) :: t, SignalFalse[SchemeExp, Abs, Addr]()))
@@ -157,7 +157,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
      */
     val valsToPop = argsv.length + 1
 
-    val commonActions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv, actionPushVal)
+    val commonActions: List[ActionT[SchemeExp, Abs, Addr]] = List(actionRestoreEnv, actionPushVal)
 
     val fromClo: Set[InterpreterStep[SchemeExp, Abs, Addr]] = sabs.getClosures[SchemeExp, Addr](function).map({
       case (SchemeLambda(args, body, _), ρ1) =>
@@ -203,7 +203,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
   protected def funcallArgs(f: Abs, fexp: SchemeExp, args: List[SchemeExp], σ: Store[Addr, Abs], t: Time): Set[InterpreterStep[SchemeExp, Abs, Addr]] =
     funcallArgs(f, fexp, List(), args, σ, t)
 
-  protected def evalQuoted(exp: SExp, t: Time): (Abs, List[Action[SchemeExp, Abs, Addr]]) = exp match {
+  protected def evalQuoted(exp: SExp, t: Time): (Abs, List[ActionT[SchemeExp, Abs, Addr]]) = exp match {
     case SExpIdentifier(sym, _) => (sabs.injectSymbol(sym), List())
     case SExpPair(car, cdr, _) => {
       val care: SchemeExp = SchemeIdentifier(car.toString, car.pos)
@@ -263,7 +263,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
   }
 
   protected def evalWhileBody(condition: SchemeExp, body: List[SchemeExp], exps: List[SchemeExp]):
-    List[Action[SchemeExp, Abs, Addr]] = exps match {
+    List[ActionT[SchemeExp, Abs, Addr]] = exps match {
     case Nil => List(actionSaveEnv, ActionEvalPushT(condition, FrameWhileConditionT(condition, body)))
     case List(exp) => List(actionSaveEnv, ActionEvalPushT(exp, FrameWhileBodyT(condition, body, Nil)))
     case exp :: rest => List(actionSaveEnv, ActionEvalPushT(exp, FrameWhileBodyT(condition, body, rest)))
@@ -279,7 +279,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
           case Some(v2) => abs.subsumes(v, v2)
         }))
         /* TODO: precision could be improved by restricting v to v2 */
-          Set[InterpreterStep[SchemeExp, Abs, Addr]](interpreterStep(List[Action[SchemeExp, Abs, Addr]](actionRestoreEnv) ++ evalBody(body, FrameBeginT)))
+          Set[InterpreterStep[SchemeExp, Abs, Addr]](interpreterStep(List[ActionT[SchemeExp, Abs, Addr]](actionRestoreEnv) ++ evalBody(body, FrameBeginT)))
         else
           Set[InterpreterStep[SchemeExp, Abs, Addr]](interpreterStep(List(actionRestoreEnv)))
       })
@@ -306,18 +306,18 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
     case FrameLetT(name, bindings, (variable, e) :: toeval, body) =>
       Set(interpreterStep(List(actionRestoreEnv, actionPushVal, actionSaveEnv, ActionEvalPushT(e, FrameLetT(variable, (name, v) :: bindings, toeval, body)))))
     case FrameLetrecT(a, Nil, body) =>
-      val actions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv,
-                                                             ActionSetVarT[SchemeExp, Abs, Addr](a)) ++
+      val actions: List[ActionT[SchemeExp, Abs, Addr]] = List(actionRestoreEnv,
+                                                              ActionSetVarT[SchemeExp, Abs, Addr](a)) ++
                                                         evalBody(body, FrameBeginT)
       Set(InterpreterStep(actions, new SignalFalse))
     case FrameLetrecT(var1, (var2, exp) :: rest, body) =>
-      val actions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv,
+      val actions: List[ActionT[SchemeExp, Abs, Addr]] = List(actionRestoreEnv,
                                                              ActionSetVarT(var1),
                                                              ActionEvalPushT(exp, FrameLetrecT(var2, rest, body)),
                                                              actionSaveEnv)
       Set(InterpreterStep(actions, new SignalFalse))
     case FrameLetStarT(name, bindings, body) =>
-      val actions: List[Action[SchemeExp, Abs, Addr]] = List(actionRestoreEnv,
+      val actions: List[ActionT[SchemeExp, Abs, Addr]] = List(actionRestoreEnv,
                                                              actionPushVal,
                                                              ActionExtendEnvT[SchemeExp, Abs, Addr](name))
       bindings match {
@@ -370,7 +370,7 @@ class SchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Timest
    primitives: SchemePrimitives[Addr, Abs])
   extends BaseSchemeSemanticsTraced[Abs, Addr, Time](absSem, primitives) {
 
-  protected def addRead(action: Action[SchemeExp, Abs, Addr], read: Set[Addr]): Action[SchemeExp, Abs, Addr] = action match {
+  protected def addRead(action: ActionT[SchemeExp, Abs, Addr], read: Set[Addr]): ActionT[SchemeExp, Abs, Addr] = action match {
     case ActionReachedValueT(v, read2, write) => ActionReachedValueT(v, read ++ read2, write)
     case ActionEvalPushT(e, frame, read2, write) => ActionEvalPushT(e, frame, read ++ read2, write)
     case ActionEvalT(e, read2, write) => ActionEvalT(e, read ++ read2, write)

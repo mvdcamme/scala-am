@@ -6,7 +6,7 @@ trait Tracer[Exp, Time] {
   /* An opaque type storing bookkeeping information for the actual, concrete tracer */
   type TracerContext
 
-  type TraceInstruction = Action[Exp, HybridLattice.L, HybridAddress.A]
+  type TraceInstruction = ActionT[Exp, HybridLattice.L, HybridAddress.A]
   type TraceWithoutStates = List[TraceInstruction]
   type TraceInstructionInfo = (TraceInstruction, CombinedInfos[HybridLattice.L, HybridAddress.A])
   type TraceWithInfos = List[TraceInstructionInfo]
@@ -90,5 +90,5 @@ trait Tracer[Exp, Time] {
 
 case class TraceFull[Exp : Expression, Time : Timestamp]
   (info: TraceInfo[Exp, Time],
-   assertions: List[Action[Exp, HybridLattice.L, HybridAddress.A]],
-   trace: List[(Action[Exp, HybridLattice.L, HybridAddress.A], CombinedInfos[HybridLattice.L, HybridAddress.A])])
+   assertions: List[ActionT[Exp, HybridLattice.L, HybridAddress.A]],
+   trace: List[(ActionT[Exp, HybridLattice.L, HybridAddress.A], CombinedInfos[HybridLattice.L, HybridAddress.A])])

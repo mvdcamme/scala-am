@@ -5,7 +5,7 @@ trait ActionReturn[Exp, Abs, Addr, Time, +State] {
     throw new Exception(s"Unexpected result: $this does not have a resulting state")
 }
 case class ActionStep[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp, State <: ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
-  (newState: State, action: Action[Exp, Abs, Addr])
+  (newState: State, action: ActionT[Exp, Abs, Addr])
   extends ActionReturn[Exp, Abs, Addr, Time, State] {
   override def getState: State = newState
 }
@@ -65,19 +65,19 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
 
   def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[InterpreterStep[Exp, Abs, Addr]]
   def applyAction(sem: SemanticsTraced[Exp, Abs, Addr, Time],
-                  action: Action[Exp, Abs, Addr]):
+                  action: ActionT[Exp, Abs, Addr]):
     ActionReturn[Exp, Abs, Addr, Time, ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
   def restart(sem: SemanticsTraced[Exp, Abs, Addr, Time],
               restartPoint: RestartPoint[Exp, Abs, Addr]): ConcreteTracingProgramState[Exp, Abs, Addr, Time]
 
   def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
-                assertions: List[Action[Exp, Abs, Addr]]): Option[ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
+                assertions: List[ActionT[Exp, Abs, Addr]]): Option[ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
 
   def convertState(aam: AAM[Exp, Abs, Addr, ZeroCFA.T])
                   (sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time]):
     (ConvertedControl[Exp, Abs, Addr], Environment[Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, ZeroCFA.T)
 
-  def generateTraceInformation(action: Action[Exp, Abs, Addr]): CombinedInfos[HybridValue, HybridAddress.A]
+  def generateTraceInformation(action: ActionT[Exp, Abs, Addr]): CombinedInfos[HybridValue, HybridAddress.A]
 }
 
 /**
@@ -150,7 +150,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
-                assertions: List[Action[Exp, HybridValue, HybridAddress.A]]): Option[ProgramState[Exp, Time]] = {
+                assertions: List[ActionT[Exp, HybridValue, HybridAddress.A]]): Option[ProgramState[Exp, Time]] = {
     assertions.foldLeft(Some(this): Option[ProgramState[Exp, Time]])({ (someProgramState, action) =>
       someProgramState.fold(None: Option[ProgramState[Exp, Time]])(programState =>
       programState.applyAction(sem, action) match {
@@ -164,7 +164,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def doActionStepInTraced(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
-    action: Action[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp, Time] = action match {
+    action: ActionT[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp, Time] = action match {
     case ActionStepInT(fexp, bodyHead, _, argsv, n, frame, _, _) =>
       val (vals, poppedVStack) = popStackItems(vStack, n)
       val clo = vals.last.getVal
@@ -182,7 +182,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def handleClosureRestart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
-                           action: Action[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp, Time] =
+                           action: ActionT[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp, Time] =
     doActionStepInTraced(sem, action)
 
   def applyPrimitive(primitive: Primitive[HybridAddress.A, HybridValue], n: Integer, fExp: Exp, argsExps: List[Exp]): ProgramState[Exp, Time] = {
@@ -197,7 +197,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     }
   }
 
-  def handlePrimitiveRestart(action: Action[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp, Time] = {
+  def handlePrimitiveRestart(action: ActionT[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp, Time] = {
     action match {
       case ActionPrimCallT(n: Integer, fExp, argsExps) =>
         val (vals, newVStack) = popStackItems(vStack, n)
@@ -232,7 +232,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     ProgramState(control, ρ, σ, kstore, a, t, v, StoreEnv[HybridValue, HybridAddress.A](ρ) :: vStack)
 
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
-                  action: Action[Exp, HybridValue, HybridAddress.A]): ActionReturn[Exp, HybridValue, HybridAddress.A, Time, ProgramState[Exp, Time]] = {
+                  action: ActionT[Exp, HybridValue, HybridAddress.A]): ActionReturn[Exp, HybridValue, HybridAddress.A, Time, ProgramState[Exp, Time]] = {
 
     ActionLogger.logAction[Exp, HybridValue, HybridAddress.A](action)
 
@@ -503,7 +503,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     (newControl, newρ, newσ, newKStore, convertedA, ZeroCFA.isTimestamp.initial(""))
   }
 
-  def generateTraceInformation(action: Action[Exp, HybridValue, HybridAddress.A]): CombinedInfos[HybridValue, HybridAddress.A] = action match {
+  def generateTraceInformation(action: ActionT[Exp, HybridValue, HybridAddress.A]): CombinedInfos[HybridValue, HybridAddress.A] = action match {
     case ActionAllocVarsT(variables) =>
       val addresses = variables.map( (variable) => ρ.lookup(variable).get)
       TraceInfos.single(VariablesAllocated(addresses))

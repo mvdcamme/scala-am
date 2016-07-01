@@ -14,4 +14,4 @@ case class SignalEndLoop[Exp : Expression, Abs : JoinLattice, Addr : Address]
  * Interpreter return
  */
 case class InterpreterStep[Exp : Expression, Abs : JoinLattice, Addr : Address]
-  (trace: List[Action[Exp, Abs, Addr]], tracingSignal: TracingSignal[Exp, Abs, Addr])
+  (trace: List[ActionT[Exp, Abs, Addr]], tracingSignal: TracingSignal[Exp, Abs, Addr])

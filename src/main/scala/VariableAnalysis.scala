@@ -111,7 +111,7 @@ class VariableAnalysis[Exp : Expression, Addr : Address, Time : Timestamp]
       }
     }
 
-    def handleAction(action: Action[Exp, HybridValue, HybridAddress.A], boundVariables: Set[String]) = action match {
+    def handleAction(action: ActionT[Exp, HybridValue, HybridAddress.A], boundVariables: Set[String]) = action match {
       case ActionAllocVarsT(varNames) =>
         addVariables(varNames, boundVariables)
       case ActionExtendEnvT(varName) =>

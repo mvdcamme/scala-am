@@ -22,8 +22,8 @@ class AmbSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Tim
     case FrameAmbT(exp :: rest) =>
       Set(interpreterStep(List(ActionPushFailKontT(FrameAmbT(rest)), ActionEvalT(exp))))
     case UndoActionFrame(action) =>
-      val actions: List[Action[SchemeExp, Abs, Addr]] = List(action.asInstanceOf[Action[SchemeExp, Abs, Addr]],
-                                                             ActionPopFailKontT())
+      val actions: List[ActionT[SchemeExp, Abs, Addr]] = List(action.asInstanceOf[ActionT[SchemeExp, Abs, Addr]],
+                                                              ActionPopFailKontT())
       Set(interpreterStep(actions))
     case _ => super.stepKont(v, frame, σ, t)
   }
