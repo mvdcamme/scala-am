@@ -54,24 +54,51 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
    *                                                 COMMON FUNCTIONS                                                 *
    ********************************************************************************************************************/
 
+  /*
+   * Maps an instruction to a flag which indicates whether this instruction should be included (true) or not (false).
+   */
   private case class ActionStateMap(actionState: TraceInstructionInfo, var isUsed: Boolean)
 
   private def removeMatchingActions(trace: Trace, isAPushingAction: TraceInstruction => Boolean,
                                     isAPoppingAction: TraceInstruction => Boolean, isAnInterferingAction: TraceInstruction => Boolean): Trace = {
 
+    /* Stores all "pushing" actions for which no matching "popping" action has been encountered yet. */
     var stack = List[ActionStateMap]()
+
+    /* Equivalent to the input trace to be optimized, but instead of just storing trace instructions, this variable
+     * stores ActionStateMaps. The ActionStateMap at each point in this optimizedTrace equals the corresponding
+      * trace instruction in the input trace, plus the isUsed flag, which may be true or false. */
     var optimizedTrace: List[ActionStateMap] = List()
 
+    /*
+     * Checks to see what should be done with the given trace instruction info.
+     */
     def handleAction(actionState: TraceInstructionInfo): Unit = {
 
+      /* The optimization assumes by default that all trace instructions are used. */
       val actionStateMap = ActionStateMap(actionState, true)
       actionState._1 match {
+        /* An "interfering" action, e.g. a guard failure, is found. If this interfering action would be triggered,
+         * it would require all the "pushing" actions which haven't been matched yet (i.e., the actions currently
+         * residing on the stack) to be placed in the trace, to ensure soundness.
+         *
+         * We therefore set the "isUsed" flag of all actions in the stack to true, so that they are
+         * definitely placed in the trace. */
         case _ if isAnInterferingAction(actionState._1)  =>
           stack.foreach(actionStateMap => actionStateMap.isUsed = true)
+        /* If the action is a "pushing" action, it might be removed, so the isUsed flag is set to false.
+         * The action is also pushed onto the stack, until (if) its matching "popping" action is found. */
         case _ if isAPushingAction(actionState._1) =>
           actionStateMap.isUsed = false
           stack = actionStateMap :: stack
+        /* A "popping" action was found. This instruction matches the instruction at the top of the stack.
+         *
+         * If this matching "pushing" action can be removed, then so can this "popping" action, so we set the flag
+         * of this popping action to whatever the value of the "pushing" action is.*/
         case _ if isAPoppingAction(actionState._1) =>
+          /* It could be that there is no matching "pushing" action, i.e., the stack is empty. This could be because
+           * the tracer started recording between the execution of the matching "pushing" action and this "popping"
+           * action. In that case, this "popping" action cannot be removed. */
           stack.headOption match {
             case Some(action) =>
               actionStateMap.isUsed = action.isUsed
@@ -82,7 +109,13 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
       }
       optimizedTrace = optimizedTrace :+ actionStateMap
     }
+
     trace.foreach(handleAction(_))
+
+    /* If there are still "pushing" actions left on the stack (e.g., because the trace ended before reaching their
+     * matching "popping" action), those actions cannot be removed. */
+    stack.foreach(_.isUsed = true)
+    /* Actually filter away all actions which might be removed by the optimization. */
     optimizedTrace.filter(_.isUsed).map(_.actionState)
   }
 
