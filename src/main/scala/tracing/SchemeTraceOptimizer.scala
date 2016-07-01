@@ -54,8 +54,6 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
    *                                                 COMMON FUNCTIONS                                                 *
    ********************************************************************************************************************/
 
-  def isGuard(action: TraceInstruction): Boolean = action.isInstanceOf[ActionGuardT[SchemeExp, HybridValue, Addr]]
-
   private case class ActionStateMap(actionState: TraceInstructionInfo, var isUsed: Boolean)
 
   private def removeMatchingActions(trace: Trace, isAPushingAction: TraceInstruction => Boolean,
@@ -101,13 +99,15 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
            ActionEndTrace(_) |
            ActionExtendEnvT(_) =>
         true
-      case _ if isGuard(action) =>
+      case _ if action.isGuard =>
         true
       case _ =>
         false
     }
-    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionSaveEnvT[SchemeExp, HybridValue, Addr]],
-      _.isInstanceOf[ActionRestoreEnvT[SchemeExp, HybridValue, Addr]], isAnInterferingAction)
+    val optimizedTrace = removeMatchingActions(traceFull.trace,
+                                               { case ActionSaveEnvT() => true; case _ => false },
+                                               { case ActionRestoreEnvT() => true; case _ => false },
+                                               isAnInterferingAction)
     constructedFullTrace(traceFull, optimizedTrace)
   }
 
@@ -119,13 +119,15 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     def isAnInterferingAction(action: TraceInstruction): Boolean = action match {
       case ActionEndTrace(_) =>
         true
-      case _ if isGuard(action) =>
+      case _ if action.isGuard =>
         true
       case _ =>
         false
     }
-    val optimizedTrace = removeMatchingActions(traceFull.trace, _.isInstanceOf[ActionEvalPushT[SchemeExp, HybridValue, Addr]],
-                                               _.isInstanceOf[ActionPopKontT[SchemeExp, HybridValue, Addr]], isAnInterferingAction)
+    val optimizedTrace = removeMatchingActions(traceFull.trace,
+                                               { case ActionEvalPushT(_, _, _, _) => true; case _ => false },
+                                               { case ActionPopKontT() => true; case _ => false },
+                                               isAnInterferingAction)
     constructedFullTrace(traceFull, optimizedTrace)
   }
 
