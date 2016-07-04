@@ -241,6 +241,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     acc
   }
 
+  /* TODO */
   private def changesValueRegister(action: TraceInstruction): Boolean = action match {
     case ActionCreateClosureT(_) => true
     case ActionLookupVariableT(_, _, _) => true
@@ -537,12 +538,14 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 
   /**
     *
-    * @param trace The (full) trace to be optimized.
+    * @param traceFull The (full) trace to be optimized.
     * @param addresses The addresses whose value may change over the execution of the program after the trace.
     * @return The optimized (full) trace
     */
-  def applyConstantVariablesOptimizations(trace: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
-    replaceVariablesWithConstants(trace, addresses)
+  def applyConstantVariablesOptimizations(traceFull: TraceFull[SchemeExp, Time],
+                                          addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
+    val allBoundAddresses = findAllBoundAddresses(traceFull, addresses)
+    replaceVariablesWithConstants(traceFull, allBoundAddresses)
   }
 
   /*********************************************************************************************************************
@@ -623,18 +626,18 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     traceBoundAddresses ++ initialBoundAddresses ++ traceExteriorBoundAddresses
   }
 
-  private def replaceVariableLookups(trace: Trace, boundAddresses: Set[HybridAddress.A]): Trace = {
+  private def addressBound(address: HybridAddress.A, boundAddresses: Set[HybridAddress.A]): Boolean = {
+    val abstractAddress = HybridAddress.convertAddress(address)
+    /* Check both the abstracted address and the concrete address */
+    boundAddresses.contains(abstractAddress) || boundAddresses.contains(address)
+  }
 
-    def addressBound(address: HybridAddress.A): Boolean = {
-      val abstractAddress = HybridAddress.convertAddress(address)
-      /* Check both the abstracted address and the concrete address */
-      boundAddresses.contains(abstractAddress) || boundAddresses.contains(address)
-    }
+  private def replaceVariableLookups(trace: Trace, boundAddresses: Set[HybridAddress.A]): Trace = {
 
     def replaceVariableLookup(address: HybridAddress.A, value: HybridValue,
                               originalActionInfo: TraceInstructionInfo,
                               newActionInfo: TraceInstructionInfo): TraceInstructionInfo = {
-      if (addressBound(address)) {
+      if (addressBound(address, boundAddresses)) {
         originalActionInfo
       } else {
         Logger.log(s"Replaced variable lookup for address $address with new actionInfo $newActionInfo", Logger.E)
@@ -664,8 +667,8 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     trace.map(replaceActionInfo)
   }
 
-  private def replaceVariablesWithConstants(traceFull: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
-    val allBoundAddresses = findAllBoundAddresses(traceFull, addresses)
+  private def replaceVariablesWithConstants(traceFull: TraceFull[SchemeExp, Time],
+                                            allBoundAddresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
     Logger.log(s"Initiating new variable folding optimization; allBoundAddresses = $allBoundAddresses", Logger.D)
     val optimizedTrace = replaceVariableLookups(traceFull.trace, allBoundAddresses)
     constructedFullTrace(traceFull, optimizedTrace)
@@ -674,6 +677,108 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
   /*********************************************************************************************************************
    *                                         REMOVE CLOSURE GUARDS OPTIMIZATION                                        *
    *********************************************************************************************************************/
+
+  private def removeRedundantClosureGuards(traceFull: TraceFull[SchemeExp, Time],
+                                   allBoundAddresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
+    Logger.log(s"Initiating closure guards removal optimization; allBoundAddresses = $allBoundAddresses", Logger.E)
+
+    def usesConstant(traceInfo: TraceInstructionInfo): Boolean = {
+      val (action, infos) = traceInfo
+      action match {
+        case ActionReachedValueT(_, _, _) | ActionReachedValuePushT(_, _,) => true
+        case ActionLookupVariableT(variable) =>
+          infos.find[Boolean]({case VariableLookedUp(_, _) => true case _ => false},
+                              {case VariableLookedUp(_, address) => addressBound(address, allBoundAddresses)}).getOrElse(false)
+        case ActionLookupVariablePushT(variable) =>
+          infos.find[Boolean]({case VariableLookedUp(_, _) => true case _ => false},
+                              {case VariableLookedUp(_, address) => addressBound(address, allBoundAddresses)}).getOrElse(false)
+        case ActionCreateClosureT(_) => true
+        case _ => false
+      }
+    }
+
+    /**
+      *
+      * @param traceSoFar The entire trace encountered from the point of the changesValueRegAction (the head) until now.
+      * @param remainingTrace
+      * @return The trace from the changesValueReg action until the current position, and the remaining trace
+      */
+    def changesValueRegFound(traceSoFar: Trace, remainingTrace: Trace): (Trace, Trace) = remainingTrace match {
+      case Nil =>
+        (traceSoFar, Nil)
+      case (tuple@(action, infos)) :: rest => action match {
+        case ActionPushValT() =>
+          (traceSoFar :+ tuple, rest)
+        case _ =>
+          changesValueRegFound(traceSoFar :+ tuple, rest)
+      }
+    }
+
+    def removeMatchingClosureGuard(remainingTrace: Trace): Trace = {
+      /* It should be kept in mind that, while traversing the remainder of the trace, other (inlined) function calls
+       * may appear in the trace. This function only tries to remove the closure guard associated with the function
+       * call for which this function was called. */
+      def loop(remainingTrace: Trace, nrOfEndCallBlocks: Int): Trace = remainingTrace match {
+        case Nil => Nil
+        case (tuple@(action, _)) :: rest => action match {
+          case ActionGuardSameClosure(_, _, _) =>
+            /* Guard closure encountered: if this guard corresponds to the guard we are trying to remove, just return
+             * the rest of the trace, if it match  */
+            assert(nrOfEndCallBlocks >= 0)
+            if (nrOfEndCallBlocks == 0) {
+              rest
+            } else {
+              tuple :: loop(remainingTrace, nrOfEndCallBlocks)
+            }
+          case ActionStartFunCallT() =>
+            tuple :: loop(rest, nrOfEndCallBlocks + 1)
+          case ActionEndClosureCallT() | ActionEndPrimCallT() =>
+            tuple :: loop(rest, nrOfEndCallBlocks - 1)
+          case _ =>
+            tuple :: loop(rest, nrOfEndCallBlocks)
+        }
+      }
+      loop(remainingTrace, 0)
+    }
+
+    /**
+      * Takes care of the part of the trace that is within a function call block.
+      * @param traceSoFar The ENTIRE trace encountered so far.
+      * @param remainingTrace
+      * @return The part of the trace BEFORE the position of the head, and the part ATFER this head.
+      */
+    def inStartsFunCallBlock(traceSoFar: Trace, remainingTrace: Trace, changesValueReg: Option[TraceInstruction]): (Trace, Trace) = remainingTrace match {
+      case Nil => (traceSoFar, Nil)
+      case (tuple@(action, infos)) :: rest =>
+        if (action.endsFunCallBlock) {
+          (traceSoFar :+ tuple, rest)
+        } else if (action.startsFunCallBlock) {
+          inStartsFunCallBlock(traceSoFar :+ tuple, rest, None)
+        } else if (action.changesValueReg) {
+          if (action.pushesValue && usesConstant(tuple)) {
+            /* Same action can change value register and immediately push this value. */
+            removeMatchingClosureGuard(rest)
+          } else {
+            inStartsFunCallBlock(traceSoFar :+ tuple, rest, tuple)
+          }
+        } else {
+          action match {
+            case ActionPu
+          }
+        }
+
+    }
+
+    def loop(traceSoFar: Trace, remainingTrace: Trace): Trace = remainingTrace match {
+      case Nil => traceSoFar
+      case (tuple@(action, infos)) :: rest =>
+        if (action.startsFunCallBlock) {
+          loop(traceSoFar :+ tuple, rest)
+        } else if ()
+    }
+
+
+  }
 
   /*********************************************************************************************************************
    *                                         DEAD STORE ELIMINATION OPTIMIZATION                                       *
