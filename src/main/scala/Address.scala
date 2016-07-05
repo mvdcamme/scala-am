@@ -116,7 +116,7 @@ object HybridAddress extends AddressWrapper {
     def primitive(name: String) = { PrimitiveAddress(name) }
     def variable[Time : Timestamp, Abs : JoinLattice](name: String, value: Abs, t: Time) = {
       if (useConcrete) {
-        Left(variableConcrete[Time, Abs](name, t), variableAbstract[Time, Abs](name, value, t))
+        Left(variableConcrete[Time, Abs](name, t), variableAbstract[ZeroCFA.T, Abs](name, value, ZeroCFA.isTimestamp.initial("")))
       } else {
         Right(variableAbstract[Time, Abs](name, value, t))
       }
@@ -124,7 +124,7 @@ object HybridAddress extends AddressWrapper {
       
     def cell[Exp : Expression, Time : Timestamp](exp: Exp, t: Time) = {
       if (useConcrete) {
-        Left(cellConcrete[Exp, Time](exp, t), cellAbstract[Exp, Time](exp, t))
+        Left(cellConcrete[Exp, Time](exp, t), cellAbstract[Exp, ZeroCFA.T](exp, ZeroCFA.isTimestamp.initial("")))
       } else {
         Right(cellAbstract[Exp, Time](exp, t))
       }
