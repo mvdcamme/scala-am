@@ -84,7 +84,15 @@ object HybridAddress extends AddressWrapper {
   case class IntAddress(name: String, id: Int)
 
   case class Left(address1: IntAddress, address2: ClassicalAddress.A) extends A
-  case class Right(address: ClassicalAddress.A) extends A
+  case class Right(address: ClassicalAddress.A) extends A {
+    override def equals(that: Any): Boolean = that match {
+      case v: Right =>
+        address == v.address
+      case _ => super.equals(that)
+    }
+
+    override def hashCode() = address.hashCode()
+  }
   case class PrimitiveAddress(name: String) extends A
 
   def convertAddress(address: A): A = address match {
