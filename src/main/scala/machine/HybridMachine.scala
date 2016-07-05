@@ -103,8 +103,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
         }
       } else if (tracingFlags.DO_TRACING && tracingFlags.DO_GUARD_TRACING) {
         Logger.log(s"Started tracing guard $guardID", Logger.I)
+        val curTraceLabel = tn.get.label
         val psRestarted = restartPs()
-        val tcTRStarted = tracer.startTracingGuard(tc, loopID, guardID, List[(String, HybridAddress.A)](), psRestarted)
+        val tcTRStarted = tracer.startTracingGuard(tc, loopID, guardID, curTraceLabel, List[(String, HybridAddress.A)](), psRestarted)
         TracerState(TR, psRestarted)(tcTRStarted, tn)
       } else {
         /* Guard trace does not exist yet: start tracing it */

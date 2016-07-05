@@ -1,5 +1,12 @@
 case class TraceInfo[Exp : Expression, Time : Timestamp]
-  (boundVariables: List[(String, HybridAddress.A)], startState: HybridMachine[Exp, Time]#PS)
+  (boundVariables: List[(String, HybridAddress.A)],
+   startState: HybridMachine[Exp, Time]#PS,
+   parentTraceLabel: Option[Label[Exp]])
+
+trait Label[Exp]
+
+case class NormalLabel[Exp : Expression](loopID: List[Exp]) extends Label[Exp]
+case class GuardLabel[Exp : Expression](loopID: List[Exp], guardID: Integer) extends Label[Exp]
 
 trait Tracer[Exp, Time] {
 
@@ -13,15 +20,10 @@ trait Tracer[Exp, Time] {
 
   type Trace = TraceWithInfos
 
-  trait Label
-
-  case class NormalLabel(loopID: List[Exp]) extends Label
-  case class GuardLabel(loopID: List[Exp], guardID: Integer) extends Label
-
-  case class TraceNode[Trace](label: Label, trace: Trace, info: TraceInfo[Exp, Time])
+  case class TraceNode[Trace](label: Label[Exp], trace: Trace, info: TraceInfo[Exp, Time])
 
 
-  def getLoopID(label: Label): List[Exp]
+  def getLoopID(label: Label[Exp]): List[Exp]
 
   /*
    * Generating tracer context
@@ -41,6 +43,7 @@ trait Tracer[Exp, Time] {
   def startTracingGuard(tc: TracerContext,
                         loopID: List[Exp],
                         guardID: Integer,
+                        parentTraceLabel: Label[Exp],
                         boundVariables: List[(String, HybridAddress.A)],
                         startState: HybridMachine[Exp, Time]#PS): TracerContext
 

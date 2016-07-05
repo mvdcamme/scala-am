@@ -9,7 +9,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
   val semantics = sem
   type InstructionReturn = semantics.InstructionReturn
 
-  def getLoopID(label: Label): List[SchemeExp] = label match {
+  def getLoopID(label: Label[SchemeExp]): List[SchemeExp] = label match {
     case NormalLabel(loopID) => loopID
     case GuardLabel(loopID, _) => loopID
   }
@@ -36,7 +36,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
                        startState: HybridMachine[SchemeExp, Time]#PS): SchemeTracerContext = tc match {
     case SchemeTracerContext(labelCounters, traceNodes, _) =>
       val label = NormalLabel(loopID)
-      val traceInfo = TraceInfo(boundVariables, startState)
+      val traceInfo = TraceInfo(boundVariables, startState, None)
       val traceNode = TraceNode[Trace](label, Nil, traceInfo)
       SchemeTracerContext(labelCounters, traceNodes, Some(traceNode))
   }
@@ -44,11 +44,16 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
   def startTracingGuard(tc: TracerContext,
                         loopID: List[SchemeExp],
                         guardID: Integer,
+                        parentTraceLabel: Label[SchemeExp],
                         boundVariables: List[(String, HybridAddress.A)],
                         startState: HybridMachine[SchemeExp, Time]#PS): SchemeTracerContext = tc match {
     case SchemeTracerContext(labelCounters, traceNodes, _) =>
+      val parentTraceNode = getLoopTrace(tc, loopID)
+      val parentTraceInitialBoundVariables = parentTraceNode.trace.info.boundVariables
+      val allInitialBoundVariables = boundVariables ++ parentTraceInitialBoundVariables
+      println(s"Including initial bound variables of parent loop trace $parentTraceInitialBoundVariables for guard trace")
       val label = GuardLabel(loopID, guardID)
-      val traceInfo = TraceInfo(boundVariables, startState)
+      val traceInfo = TraceInfo(allInitialBoundVariables, startState, Some(parentTraceLabel))
       val traceNode = TraceNode[Trace](label, Nil, traceInfo)
       SchemeTracerContext(labelCounters, traceNodes, Some(traceNode))
   }
@@ -88,7 +93,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
   /* TODO refactor this */
 
   private def searchTraceWithLabelMatching(tc: TracerContext,
-                                           labelPred: Label => Boolean): Option[TraceNode[TraceFull[SchemeExp, Time]]] =
+                                           labelPred: Label[SchemeExp] => Boolean): Option[TraceNode[TraceFull[SchemeExp, Time]]] =
     tc.traceNodes.find({traceNode => labelPred(traceNode.label)})
 
   private def searchLoopTrace(tc: TracerContext,
@@ -99,7 +104,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
       searchTraceWithLabelMatching(tc, { case NormalLabel(_) => false
                                          case GuardLabel(_, guardID2) => guardID == guardID2 })
 
-  private def getTrace(tc: TracerContext, label: Label): TraceNode[TraceFull[SchemeExp, Time]] = searchTraceWithLabelMatching(tc, _ == label) match {
+  private def getTrace(tc: TracerContext, label: Label[SchemeExp]): TraceNode[TraceFull[SchemeExp, Time]] = searchTraceWithLabelMatching(tc, _ == label) match {
     case Some(traceNode) => traceNode
     case None => throw new Exception(s"Retrieving non-existing trace (should not happen): $label")
   }
@@ -182,7 +187,9 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
 
   private def addTrace(tc: TracerContext, someAnalysisOutput: StaticAnalysisResult): SchemeTracerContext = tc match {
     case SchemeTracerContext(labelCounters, traceNodes, Some(curTraceNode)) =>
-      val traceFull = TraceFull[SchemeExp, Time](TraceInfo[SchemeExp, Time](curTraceNode.info.boundVariables, curTraceNode.info.startState), List(), curTraceNode.trace.reverse)
+      val curInfo = curTraceNode.info
+      val newTraceInfo = TraceInfo[SchemeExp, Time](curInfo.boundVariables, curInfo.startState, curInfo.parentTraceLabel)
+      val traceFull = TraceFull[SchemeExp, Time](newTraceInfo, List(), curTraceNode.trace.reverse)
       val optimizedTraceFull: TraceFull[SchemeExp, Time] = someTraceOptimizer match {
         case Some(traceOptimizer) =>
           traceOptimizer.optimize(traceFull, someAnalysisOutput)
