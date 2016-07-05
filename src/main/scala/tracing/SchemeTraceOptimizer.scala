@@ -545,8 +545,8 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
   def applyConstantVariablesOptimizations(traceFull: TraceFull[SchemeExp, Time],
                                           addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
     val allBoundAddresses = findAllBoundAddresses(traceFull, addresses)
-    val optimizedTraceFull = replaceVariablesWithConstants(traceFull, allBoundAddresses)
-    removeRedundantClosureGuards(optimizedTraceFull, allBoundAddresses)
+    val varLookupsRemoved = replaceVariablesWithConstants(traceFull, allBoundAddresses)
+    removeRedundantClosureGuards(varLookupsRemoved, allBoundAddresses)
   }
 
   /*********************************************************************************************************************
