@@ -23,8 +23,8 @@ abstract class Benchmarks[Exp : Expression, Addr : Address, Time : Timestamp](va
   if (!concrete) { check("cpstak.scm", abs.inject(6)) }
   check("fib.scm", abs.inject(3))
   check("eta.scm", abs.inject(false))
-  check("fact.scm", abs.inject(120))
-  check("gcipd.scm", abs.inject(36))
+  check("fact.scm", abs.inject(40320))
+  check("gcipd.scm", abs.inject(5244))
   check("inc.scm", abs.inject(4))
   check("kcfa2.scm", abs.inject(false))
   check("kcfa3.scm", abs.inject(false))
