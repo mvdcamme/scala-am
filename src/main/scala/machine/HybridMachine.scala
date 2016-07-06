@@ -31,6 +31,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   def name = "HybridMachine"
 
+  var staticBoundAddresses: Option[Set[HybridAddress.A]] = None
+
   def applyTraceIntermediateResults(state: PS, trace: tracer.TraceWithoutStates): List[PS] = {
     trace.scanLeft(state)((currentState, action) => currentState.applyAction(sem, action) match {
       case ActionStep(updatedState, _) => updatedState
@@ -328,10 +330,14 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
   }
 
-  private def switchToAbstract(currentProgramState: PS): Option[Set[HybridAddress.A]] = {
+  private def switchToAbstract(): Unit = {
     Logger.log("HybridMachine switching to abstract", Logger.E)
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
+  }
+
+  private def startStaticAnalysis(currentProgramState: PS): Option[Set[HybridAddress.A]] = {
+    switchToAbstract()
     val aam = new AAM[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T]
     val (control, env, store, kstore, a, t) = currentProgramState.convertState(aam)(sem)
     val convertedControl = control match {
@@ -343,7 +349,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     // TODO timeout
     // TODO return output
     val boundAddresses = ConstantVariableAnalysis.analyze[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T](aam, sem.absSem, HybridLattice.isConstantValue)(startState, env)
-    println(s"boundAddresses are $boundAddresses")
+    Logger.log(s"boundAddresses are $boundAddresses", Logger.E)
     //val boundAddresses = analysisOutput.map(_._2)
     //val analysisOutput = aam.loop(Set(startState), Set(), Set(), sem.absSem, System.nanoTime, None, None)
     Some(boundAddresses)
@@ -357,7 +363,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
 
   private def runStaticAnalysis(currentProgramState: PS): StaticAnalysisResult = {
-    val analysisOutput = switchToAbstract(currentProgramState)
+    val analysisOutput = startStaticAnalysis(currentProgramState)
     switchToConcrete()
     analysisOutput match {
       case None => NoStaticisAnalysisResult
@@ -384,6 +390,19 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
    * in a file, and returns the set of final states reached
    */
   def eval(exp: Exp, graph: Boolean, timeout: Option[Long]): Output[HybridValue] = {
+
+    if (tracingFlags.SWITCH_ABSTRACT) {
+      Logger.log(s"Running static analysis before actually executing program", Logger.E)
+      val initialState = injectProgramState(exp, time)
+      val analysisResult = runStaticAnalysis(initialState)
+      analysisResult match {
+        case NonConstantAddresses(addresses) =>
+          staticBoundAddresses = Some(addresses)
+        case _ =>
+      }
+      Logger.log(s"Finished running static analysis before actually executing program", Logger.E)
+    }
+
     loop(injectExecutionState(exp), 0, System.nanoTime,
       if (graph) { Some(new Graph[PS, String]()) } else { None }, timeout)
   }
