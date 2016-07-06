@@ -323,7 +323,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         val (vals, _) = popStackItems(vStack, n)
         val operator = vals.last.getVal
         val primitivesSet = sabs.getPrimitives[HybridAddress.A, HybridValue](operator)
-        assert(primitivesSet.size == 1) //TODO
+        assert(primitivesSet.size == 1)
         ActionStep(applyPrimitive(primitivesSet.head, n, fExp, argsExps), action)
       case ActionPushValT() =>
         ActionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreVal[HybridValue, HybridAddress.A](v) :: vStack), action)

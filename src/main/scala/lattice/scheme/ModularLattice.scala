@@ -511,4 +511,25 @@ class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](counting)
   type L = lattice.LSet
   implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
+
+  def isConstantValue(value: L): Boolean = value match {
+    case lattice.Element(e) => e match {
+      case lattice.Bot => false
+      case lattice.Str(StringConstantPropagation.Constant(_)) => true
+      case lattice.Bool(_) => true
+      case lattice.Int(IntegerConstantPropagation.Constant(_)) => true
+      case lattice.Float(FloatConstantPropagation.Constant(_)) => true
+      case lattice.Char(CharConstantPropagation.Constant(_)) => true
+      case lattice.Symbol(SymbolConstantPropagation.Constant(_)) => true
+      case lattice.Closure(_, _) => true
+      case lattice.Prim(_) => true
+      case lattice.Cons(_, _) => true
+      case lattice.Nil => true
+      case lattice.Vec(_, _, _) => true
+      case lattice.VectorAddress(_) => true
+      case _ => false
+    }
+    /* If the value consists of a set of abstract values (i.e., Elements), the value is not a constant */
+    case _ => false
+  }
 }

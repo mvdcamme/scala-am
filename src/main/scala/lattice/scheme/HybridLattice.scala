@@ -20,7 +20,7 @@ object HybridLattice extends SchemeLattice {
   sealed trait L
 
   val concreteLattice = new ConcreteLattice(true)
-  val abstractLattice = new TypeSetLattice(true)
+  val abstractLattice = new ConstantPropagationLattice(true)
 
   val concreteSchemeLattice = concreteLattice.isSchemeLattice
   val abstractSchemeLattice = abstractLattice.isSchemeLattice
@@ -30,6 +30,12 @@ object HybridLattice extends SchemeLattice {
 
   case class Concrete(c: concreteLattice.L) extends L
   case class Abstract(a: abstractLattice.L) extends L
+
+  def isConstantValue(value: L): Boolean = value match {
+    case Concrete(_) =>
+      throw new Exception(s"isConstantValue called on concrete value $value")
+    case Abstract(v) => abstractLattice.isConstantValue(v)
+  }
 
   def convert[Exp : Expression, Addr : Address](value: L,
                                                 store: Store[HybridAddress.A, L],
@@ -53,6 +59,8 @@ object HybridLattice extends SchemeLattice {
         abstractLattice.lattice.isSchemeLattice.inject(i.asInstanceOf[ISet[Int]].toList.head)
       case lat.Float(f) =>
         abstractLattice.lattice.isSchemeLattice.inject(f.asInstanceOf[ISet[Float]].toList.head)
+      case lat.Char(c) =>
+        abstractLattice.lattice.isSchemeLattice.inject(c.asInstanceOf[ISet[Char]].toList.head)
       case lat.Symbol(s) =>
         abstractLattice.lattice.isSchemeLattice.injectSymbol(s.asInstanceOf[ISet[String]].toList.head)
       case lat.Prim(prim) =>
@@ -66,9 +74,13 @@ object HybridLattice extends SchemeLattice {
         abstractLattice.lattice.Nil
       case lat.Vec(size, elements, init) =>
         val actualSize = size.asInstanceOf[ISet[Int]].toList.head
-        val abstractSize = Type.typeIsInteger.inject(actualSize)
-        var abstractElements = collection.immutable.Map[Type.T, Addr]()
-        elements.foreach({ case (i, address: Addr) => abstractElements = abstractElements + (Type.typeIsInteger.inject(i.asInstanceOf[ISet[Int]].toList.head) -> address) })
+        val abstractSize = IntegerConstantPropagation.isInteger.inject(actualSize)
+        var abstractElements = collection.immutable.Map[IntegerConstantPropagation.L, Addr]()
+        elements.foreach({ case (i, address: Addr) => {
+          val index = i.asInstanceOf[ISet[Int]].toList.head
+          val newIndex: IntegerConstantPropagation.L = IntegerConstantPropagation.isInteger.inject(index)
+          abstractElements = abstractElements + (newIndex -> address)
+        } })
         abstractLattice.lattice.Vec[Addr](abstractSize, abstractElements, init.asInstanceOf[Addr])
     }
     value match {
@@ -282,7 +294,7 @@ object HybridLattice extends SchemeLattice {
         case None => throw new Exception(s"Values from different lattices cannot subsume each other: $x and $y")
     }
 
-    def counting = true
+    def counting = false
 
     def isPrimitiveValue(x: L): Boolean = delegateToLattice1[Boolean](x,
       (x: ConcL) => concreteSchemeLattice.isPrimitiveValue(x),

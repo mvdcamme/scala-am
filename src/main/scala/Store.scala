@@ -68,6 +68,8 @@ abstract class Store[Addr : Address, Abs : JoinLattice] {
   def delta: Option[Map[Addr, Abs]] = None
   /** Add a delta to the store. This clears the current delta */
   def addDelta(delta: Map[Addr, Abs]): Store[Addr, Abs] = throw new Exception("Store doesn't support deltas")
+  /** Converts the store to a set of address-value tuples */
+  def toSet: Set[(Addr, Abs)]
 }
 
 /** Basic store with no fancy feature, just a map from addresses to values */
@@ -93,6 +95,7 @@ case class BasicStore[Addr : Address, Abs : JoinLattice](content: Map[Addr, Abs]
     that.forall((binding: (Addr, Abs)) => abs.subsumes(lookupBot(binding._1), binding._2))
   def diff(that: Store[Addr, Abs]) =
     this.copy(content = content.filter({ case (a, v) => that.lookupBot(a) != v}))
+  def toSet = content.toSet
 }
 
 /** Store that combines a default read-only store with a writable store */
@@ -117,6 +120,7 @@ case class CombinedStore[Addr : Address, Abs : JoinLattice](ro: Store[Addr, Abs]
   def subsumes(that: Store[Addr, Abs]) =
     that.forall((binding: (Addr, Abs)) => abs.subsumes(lookupBot(binding._1), binding._2))
   def diff(that: Store[Addr, Abs]) = throw new Exception("CombinedStore does not support diff")
+  def toSet = ro.toSet ++ w.toSet
 }
 
 /** A store that supports store deltas. Many operations are not implemented because they are not needed. */
@@ -152,6 +156,7 @@ case class DeltaStore[Addr : Address, Abs : JoinLattice](content: Map[Addr, Abs]
   def diff(that: Store[Addr, Abs]) = throw new Exception("DeltaStore does not support diff")
   override def delta = Some(d)
   override def addDelta(delta: Map[Addr, Abs]) = this.copy(content = content |+| delta, d = Map())
+  def toSet = content.toSet
 }
 
 /* Count values for counting store */
@@ -209,6 +214,7 @@ case class CountingStore[Addr : Address, Abs : JoinLattice](content: Map[Addr, (
     } else {
       this.copy(content = content.filter({ case (a, v) => that.lookupBot(a) != v}))
     }
+  def toSet = content.toSet.map( (tuple: (Addr, (Count, Abs))) => (tuple._1, tuple._2._2))
 }
 
 object Store {
