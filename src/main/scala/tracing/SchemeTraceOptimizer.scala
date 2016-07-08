@@ -592,19 +592,6 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 //    TraceFull(trace.startProgramState, optimizedAssertions, trace.trace)
 //  }
 
-  private def collectTraceBoundAddresses(trace: Trace): Set[HybridAddress.A] =
-    trace.foldRight(Set[HybridAddress.A]())((stateInfo, boundAddresses) => stateInfo match {
-      case (_, infos) =>
-        infos.find[Set[HybridAddress.A]](
-          { case VariablesAllocated(_) => true; case _ => false},
-          { case VariablesAllocated(addresses) => boundAddresses ++ addresses.toSet }).getOrElse(boundAddresses)
-      case (_, infos) =>
-        infos.find[Set[HybridAddress.A]](
-          { case VariablesReassigned(_) => true; case _ => false},
-          { case VariablesReassigned(addresses) => boundAddresses ++ addresses.toSet }).getOrElse(boundAddresses)
-      case _ => boundAddresses
-    })
-
   /**
     * Finds all addresses of variables that are bound, both inside and outside of the trace.
     * @param traceFull The trace which will be scanned to collect all addresses that are bound inside the trace.
@@ -621,7 +608,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     val initialBoundAddresses = traceFull.info.boundVariables.map( {case (_, address) => address })
     /* The addresses that become bound by actions in the trace itself, e.g., addresses that are reassigned or allocated
      * within the trace. */
-    val traceBoundAddresses = collectTraceBoundAddresses(traceFull.trace)
+    val traceBoundAddresses = TraceAnalyzer.collectTraceBoundAddresses[SchemeExp, Time](traceFull.trace)
     /* Combination of the above two sets of addresses, plus the set of addresses that become bound in
      * the state graph after the trace. */
     traceBoundAddresses ++ initialBoundAddresses ++ traceExteriorBoundAddresses
