@@ -31,6 +31,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   def name = "HybridMachine"
 
+  val constantsAnalysis = new ConstantVariableAnalysis[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T]
   var staticBoundAddresses: Option[Set[HybridAddress.A]] = None
 
   def applyTraceIntermediateResults(state: PS, trace: tracer.TraceWithoutStates): List[PS] = {
@@ -347,7 +348,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     val startState = aam.State(convertedControl, store, kstore, a, t)
     // TODO timeout
     // TODO return output
-    val boundAddresses = ConstantVariableAnalysis.analyze[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T](aam, sem.absSem, HybridLattice.isConstantValue)(startState, env)
+    val boundAddresses = constantsAnalysis.analyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState, env)
     Logger.log(s"boundAddresses are $boundAddresses", Logger.E)
     //val boundAddresses = analysisOutput.map(_._2)
     //val analysisOutput = aam.loop(Set(startState), Set(), Set(), sem.absSem, System.nanoTime, None, None)
