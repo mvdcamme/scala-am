@@ -330,14 +330,13 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
   }
 
-  private def switchToAbstract(): Unit = {
+  private def switchToAbstract: Unit = {
     Logger.log("HybridMachine switching to abstract", Logger.E)
     HybridLattice.switchToAbstract
     HybridAddress.switchToAbstract
   }
 
   private def startStaticAnalysis(currentProgramState: PS): Option[Set[HybridAddress.A]] = {
-    switchToAbstract()
     val aam = new AAM[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T]
     val (control, env, store, kstore, a, t) = currentProgramState.convertState(aam)(sem)
     val convertedControl = control match {
@@ -355,7 +354,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     Some(boundAddresses)
   }
 
-  private def switchToConcrete(): Unit = {
+  private def switchToConcrete: Unit = {
     Logger.log("HybridMachine switching to concrete", Logger.E)
     HybridLattice.switchToConcrete
     HybridAddress.switchToConcrete
@@ -363,8 +362,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
 
   private def runStaticAnalysis(currentProgramState: PS): StaticAnalysisResult = {
+    switchToAbstract
     val analysisOutput = startStaticAnalysis(currentProgramState)
-    switchToConcrete()
+    switchToConcrete
     analysisOutput match {
       case None => NoStaticisAnalysisResult
       case Some(addresses) => NonConstantAddresses(addresses)
