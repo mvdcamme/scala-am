@@ -347,11 +347,8 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
     val startState = aam.State(convertedControl, store, kstore, a, t)
     // TODO timeout
-    // TODO return output
     val boundAddresses = constantsAnalysis.analyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState, env)
     Logger.log(s"boundAddresses are $boundAddresses", Logger.E)
-    //val boundAddresses = analysisOutput.map(_._2)
-    //val analysisOutput = aam.loop(Set(startState), Set(), Set(), sem.absSem, System.nanoTime, None, None)
     Some(boundAddresses)
   }
 
@@ -375,9 +372,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   private def findAnalysisOutput(currentProgramState: PS): StaticAnalysisResult = {
     if (tracingFlags.SWITCH_ABSTRACT) {
       runStaticAnalysis(currentProgramState)
-      //TODO
-      //analysisOutput.toDotFile(s"abstract_$numberOfTracesRecorded.dot")
-      //Some(analysisOutput)
     } else {
       NoStaticisAnalysisResult
     }
