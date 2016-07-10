@@ -1,3 +1,3 @@
 (let ((sq (lambda (x) (* x x))))
-  (sq 2)
+  (sq (sq (sq (sq (sq (sq 2))))))
   (sq 3))
