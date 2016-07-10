@@ -294,7 +294,7 @@ object HybridLattice extends SchemeLattice {
         case None => throw new Exception(s"Values from different lattices cannot subsume each other: $x and $y")
     }
 
-    def counting = false
+    def counting = if (doConcrete) { true } else { false }
 
     def isPrimitiveValue(x: L): Boolean = delegateToLattice1[Boolean](x,
       (x: ConcL) => concreteSchemeLattice.isPrimitiveValue(x),
