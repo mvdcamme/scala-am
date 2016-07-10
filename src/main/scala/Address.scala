@@ -83,10 +83,10 @@ object HybridAddress extends AddressWrapper {
 
   case class IntAddress(name: String, id: Int)
 
-  case class Left(address1: IntAddress, address2: ClassicalAddress.A) extends A
-  case class Right(address: ClassicalAddress.A) extends A {
+  case class ConcreteAddr(address1: IntAddress, address2: ClassicalAddress.A) extends A
+  case class AbstractAddr(address: ClassicalAddress.A) extends A {
     override def equals(that: Any): Boolean = that match {
-      case v: Right =>
+      case v: AbstractAddr =>
         address == v.address
       case _ => super.equals(that)
     }
@@ -97,8 +97,8 @@ object HybridAddress extends AddressWrapper {
 
   def convertAddress(address: A): A = address match {
     case HybridAddress.PrimitiveAddress(name) => HybridAddress.PrimitiveAddress(name)
-    case HybridAddress.Left(address1, address2) => HybridAddress.Right(address2)
-    case HybridAddress.Right(_) => address
+    case HybridAddress.ConcreteAddr(address1, address2) => HybridAddress.AbstractAddr(address2)
+    case HybridAddress.AbstractAddr(_) => address
     case _ => throw new Exception(s"Cannot reconvert an abstract address: $address")
   }
 
@@ -116,17 +116,17 @@ object HybridAddress extends AddressWrapper {
     def primitive(name: String) = { PrimitiveAddress(name) }
     def variable[Time : Timestamp, Abs : JoinLattice](name: String, value: Abs, t: Time) = {
       if (useConcrete) {
-        Left(variableConcrete[Time, Abs](name, t), variableAbstract[ZeroCFA.T, Abs](name, value, ZeroCFA.isTimestamp.initial("")))
+        ConcreteAddr(variableConcrete[Time, Abs](name, t), variableAbstract[ZeroCFA.T, Abs](name, value, ZeroCFA.isTimestamp.initial("")))
       } else {
-        Right(variableAbstract[Time, Abs](name, value, t))
+        AbstractAddr(variableAbstract[Time, Abs](name, value, t))
       }
     }
-      
+
     def cell[Exp : Expression, Time : Timestamp](exp: Exp, t: Time) = {
       if (useConcrete) {
-        Left(cellConcrete[Exp, Time](exp, t), cellAbstract[Exp, ZeroCFA.T](exp, ZeroCFA.isTimestamp.initial("")))
+        ConcreteAddr(cellConcrete[Exp, Time](exp, t), cellAbstract[Exp, ZeroCFA.T](exp, ZeroCFA.isTimestamp.initial("")))
       } else {
-        Right(cellAbstract[Exp, Time](exp, t))
+        AbstractAddr(cellAbstract[Exp, Time](exp, t))
       }
     }
   }
