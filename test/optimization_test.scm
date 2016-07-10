@@ -1,9 +1,8 @@
-(letrec ((x 10)
-         (test (lambda (a)
-                 (letrec ((f (lambda ()
-                               a)))
-                   (f)
-                   (f)
-                   (f)))))
-  (test 1)
-  (test 99))
+(letrec ((x 10))
+  (set! x 11)
+  (letrec ((test (lambda (n)
+                 x
+                 (if (< n 0)
+                     x
+                     (test (- n 1))))))
+    (test 100)))
