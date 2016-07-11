@@ -75,7 +75,7 @@ object HybridAddress extends AddressWrapper {
     useConcrete = false
   }
 
-  def switchToConcrete = {
+  def switchToConcrete() = {
     useConcrete = true
   }
 

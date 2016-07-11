@@ -9,11 +9,11 @@ object HybridLattice extends SchemeLattice {
 
   var doConcrete = true
 
-  def switchToAbstract = {
+  def switchToAbstract() = {
     doConcrete = false
   }
 
-  def switchToConcrete = {
+  def switchToConcrete() = {
     doConcrete = true
   }
 

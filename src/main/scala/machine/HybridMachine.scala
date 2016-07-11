@@ -31,7 +31,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   def name = "HybridMachine"
 
-  val constantsAnalysis = new ConstantVariableAnalysis[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T]
+  val constantsAnalysisLauncher = new ConstantsAnalyisLauncher[Exp, Time](tracingFlags)
   var staticBoundAddresses: Option[Set[HybridAddress.A]] = None
 
   def applyTraceIntermediateResults(state: PS, trace: tracer.TraceWithoutStates): List[PS] = {
@@ -195,7 +195,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       if (tracer.isTracingLoop(traceAppendedTc, loopID)) {
         Logger.log(s"Stopped tracing $loopID; LOOP DETECTED", Logger.I)
         numberOfTracesRecorded += 1
-        val analysisOutput = findAnalysisOutput(newState)
+        val analysisOutput = constantsAnalysisLauncher.runStaticAnalyis(sem, newState)
         val tcTRStopped = tracer.stopTracing(traceAppendedTc, true, None, analysisOutput)
         checkTraceAssertions(newState, tcTRStopped, loopID) match  {
           case Some(headerExecutedState) =>
@@ -217,7 +217,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
         Logger.log(s"Stopped tracing $loopID; NO LOOP DETECTED", Logger.I)
         numberOfTracesRecorded += 1
         val traceEndedInstruction = sem.endTraceInstruction(restartPoint)
-        val analysisOutput = findAnalysisOutput(newState)
+        val analysisOutput = constantsAnalysisLauncher.runStaticAnalyis(sem, newState)
         val tcTRStopped = tracer.stopTracing(tc, false, Some(traceEndedInstruction), analysisOutput)
         TracerState(NI, newState)(tcTRStopped, tn)
       } else {
@@ -331,13 +331,56 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
   }
 
-  private def switchToAbstract: Unit = {
+  def injectExecutionState(exp: Exp): TracerState =
+    new TracerState(NI, injectProgramState(exp, time))(tracer.newTracerContext, None)
+
+  /**
+   * Performs the evaluation of an expression, possibly writing the output graph
+   * in a file, and returns the set of final states reached
+   */
+  def eval(exp: Exp, graph: Boolean, timeout: Option[Long]): Output[HybridValue] = {
+    val initialState = injectProgramState(exp, time)
+    val analysisResult = constantsAnalysisLauncher.runInitialStaticAnalyis(sem, initialState)
+    analysisResult match {
+      case NonConstantAddresses(addresses) =>
+        staticBoundAddresses = Some(addresses)
+      case _ =>
+    }
+
+    loop(injectExecutionState(exp), 0, System.nanoTime,
+      if (graph) {
+        Some(new Graph[PS, String]())
+      } else {
+        None
+      }, timeout)
+  }
+}
+
+class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
+  (sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time]) {
+
+  /* The concrete program state the static analysis gets as input. This state is then converted to an
+   * abstract state and fed to the AAM. */
+  type PS = HybridMachine[Exp, Time]#PS
+  /* The specific type of AAM used for this analysis: an AAM using the HybridLattice, HybridAddress and ZeroCFA
+   * components. */
+  type SpecAAM = AAM[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T]
+  /* The specific environment used in the concrete state: an environment using the HybridAddress components. */
+  type SpecEnv = Environment[HybridAddress.A]
+
+  val constantsAnalysis = new ConstantVariableAnalysis[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T]
+
+  private def switchToAbstract(): Unit = {
     Logger.log("HybridMachine switching to abstract", Logger.E)
-    HybridLattice.switchToAbstract
-    HybridAddress.switchToAbstract
+    HybridLattice.switchToAbstract()
+    HybridAddress.switchToAbstract()
   }
 
-  private def startStaticAnalysis(currentProgramState: PS): Option[Set[HybridAddress.A]] = {
+  protected def launchAnalysis(aam: SpecAAM)(startState: aam.State, env: SpecEnv): Set[HybridAddress.A] = {
+    constantsAnalysis.analyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState, env)
+  }
+
+  private def startStaticAnalysis(currentProgramState: PS): Set[HybridAddress.A] = {
     val aam = new AAM[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T]
     val (control, env, store, kstore, a, t) = currentProgramState.convertState(aam)(sem)
     val convertedControl = control match {
@@ -347,58 +390,58 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
     }
     val startState = aam.State(convertedControl, store, kstore, a, t)
     // TODO timeout
-    val boundAddresses = constantsAnalysis.analyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState, env)
+    val boundAddresses = launchAnalysis(aam)(startState, env)
     Logger.log(s"boundAddresses are $boundAddresses", Logger.E)
-    Some(boundAddresses)
+    boundAddresses
   }
 
-  private def switchToConcrete: Unit = {
+  private def switchToConcrete(): Unit = {
     Logger.log("HybridMachine switching to concrete", Logger.E)
-    HybridLattice.switchToConcrete
-    HybridAddress.switchToConcrete
+    HybridLattice.switchToConcrete()
+    HybridAddress.switchToConcrete()
   }
 
-
-  private def runStaticAnalysis(currentProgramState: PS): StaticAnalysisResult = {
-    switchToAbstract
-    val analysisOutput = startStaticAnalysis(currentProgramState)
-    switchToConcrete
-    analysisOutput match {
-      case None => NoStaticisAnalysisResult
-      case Some(addresses) => NonConstantAddresses(addresses)
-    }
+  def runStaticAnalysis(currentProgramState: PS): StaticAnalysisResult = {
+    switchToAbstract()
+    val addresses = startStaticAnalysis(currentProgramState)
+    switchToConcrete()
+    NonConstantAddresses(addresses)
   }
+}
 
-  private def findAnalysisOutput(currentProgramState: PS): StaticAnalysisResult = {
+class InitialConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
+  (sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time])
+  extends ConstantsAnalysisLauncher[Exp, Time](sem) {
+
+  override protected def launchAnalysis(aam: SpecAAM)(startState: aam.State, env: SpecEnv): Set[HybridAddress.A] = {
+    Logger.log(s"Running static analysis before actually executing program", Logger.E)
+    val result = constantsAnalysis.initialAnalyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState, env)
+    Logger.log(s"Finished running static analysis before actually executing program", Logger.E)
+    result
+  }
+}
+
+class ConstantsAnalyisLauncher[Exp : Expression, Time : Timestamp](tracingFlags: TracingFlags) {
+
+  private def runAnalysis(analysisLauncher: ConstantsAnalysisLauncher[Exp, Time],
+                          state: HybridMachine[Exp, Time]#PS): StaticAnalysisResult = {
     if (tracingFlags.SWITCH_ABSTRACT) {
-      runStaticAnalysis(currentProgramState)
+      analysisLauncher.runStaticAnalysis(state)
     } else {
       NoStaticisAnalysisResult
     }
   }
 
-  def injectExecutionState(exp: Exp): TracerState =
-    new TracerState(NI, injectProgramState(exp, time))(tracer.newTracerContext, None)
-
-  /**
-   * Performs the evaluation of an expression, possibly writing the output graph
-   * in a file, and returns the set of final states reached
-   */
-  def eval(exp: Exp, graph: Boolean, timeout: Option[Long]): Output[HybridValue] = {
-
-    if (tracingFlags.SWITCH_ABSTRACT) {
-      Logger.log(s"Running static analysis before actually executing program", Logger.E)
-      val initialState = injectProgramState(exp, time)
-      val analysisResult = runStaticAnalysis(initialState)
-      analysisResult match {
-        case NonConstantAddresses(addresses) =>
-          staticBoundAddresses = Some(addresses)
-        case _ =>
-      }
-      Logger.log(s"Finished running static analysis before actually executing program", Logger.E)
-    }
-
-    loop(injectExecutionState(exp), 0, System.nanoTime,
-      if (graph) { Some(new Graph[PS, String]()) } else { None }, timeout)
+  def runInitialStaticAnalyis(sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
+                              state: HybridMachine[Exp, Time]#PS): StaticAnalysisResult = {
+    val constantsAnalysisLauncher = new InitialConstantsAnalysisLauncher[Exp, Time](sem)
+    runAnalysis(constantsAnalysisLauncher, state)
   }
+
+  def runStaticAnalyis(sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
+                       state: HybridMachine[Exp, Time]#PS): StaticAnalysisResult = {
+    val constantsAnalysisLauncher = new ConstantsAnalysisLauncher[Exp, Time](sem)
+    runAnalysis(constantsAnalysisLauncher, state)
+  }
+
 }
