@@ -15,122 +15,151 @@ class VariableAnalysis[Exp : Expression, Addr : Address, Time : Timestamp]
   type Trace = Tracer[Exp, HybridValue, Addr, Time]#TraceWithInfos
 
   /**
-    * Computes the set of bound variables in the given trace.
-    * @param initialBoundVariables The list of variables, if any, that are initially bound in the trace: e.g.,
+    * Computes the set of bound addresses in the given trace.
+    * @param initialBoundAddresses The list of addresses, if any, that are initially bound in the trace: e.g.,
     *                              the parameters of the function being traced.
-    * @param traceFull The trace of which the bound variables must be computed.
-    * @return The set of bound variables in the trace.
+    * @param traceFull The trace of which the bound addresses must be computed.
+    * @return The set of bound addresses in the trace.
     */
-  def analyzeBoundVariables(initialBoundVariables: Set[String], traceFull: TraceFull[Exp, HybridValue, Addr, Time]): Set[String] = {
+  def analyzeBoundAddresses(initialBoundAddresses: Set[Addr],
+                            traceFull: TraceFull[Exp, HybridValue, Addr, Time])
+                           :Set[Addr] = {
 
     /*
-     * Compute, for each action in the trace, what the set of bound variables are at this position in the trace.
-     * This set is computed by starting from the inital set of bound variables, and adding a new bound variable
-     * whenever we encounter a new action that binds a variable.
+     * Compute, for each action in the trace, what the set of bound addresses are at this position in the trace.
+     * This set is computed by starting from the inital set of bound addresses, and adding a new bound address
+     * whenever we encounter a new action that allocates a address.
      *
      * However, we have to take saving/restoring of the environment into account: when we save an environment,
-     * bind a variable and then restore the environment, this variable is no longer bound at the point in the
+     * bind an address and then restore the environment, this address is no longer bound at the point in the
      * trace after the restoration of the environment.
-     * Concretely, if we e.g., define a new variable and afterwards restore some previous environment, the variable
-     * is no longer part of that environment and must therefore be removed from the set of bound variables from
+     * Concretely, if we e.g., allocate a new address and afterwards restore some previous environment, the address
+     * is no longer part of that environment and must therefore be removed from the set of bound addresses from
      * that point in the trace onwards.
      * We therefore simulate saving/restoring the environment via the framesStack.
      *
-     * Lastly, if we encounter an assignment to some variable at any point in the trace, this variable becomes bound
-     * AT ALL POINTS in the trace. Note that this overapproximates the set of bound variables.
+     * Lastly, if we encounter an assignment to some address at any point in the trace, this address becomes bound
+     * AT ALL POINTS in the trace. Note that this overapproximates the set of bound addresses.
      */
 
-    val initialState: ConcreteTracingProgramState[Exp, HybridValue, Addr, Time] = traceFull.info.startState match {
-      case s: ProgramState[Exp, Time] => s
-      case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.info.startState} instead")
-    }
-
-    var currentEnv: Environment[Addr] = initialState.ρ
-    var vStack: List[Storable[HybridValue, Addr]] = initialState.vStack
+    var currentEnv: Environment[Addr] = traceFull.info.startState.ρ
+    var vStack: List[Storable[HybridValue, Addr]] = traceFull.info.startState.vStack
 
     /*
-     * The set of variables that are assigned, not defined, to inside of the trace.
-     * I.e., the set of variables involved in an ActionSetVarTraced.
+     * The set of addresses that are assigned, not defined, to inside of the trace.
+     * I.e., the set of addresses involved in an ActionSetVarTraced.
      */
-    var assignedVariables: Set[String] = Set()
+    var assignedAddresses: Set[Addr] = Set()
 
     /*
      * Simulates the environment stack: saving the environment triggers a push of a new, empty, list of vars on this
      * stack, restoring the environment triggers a pop.
      *
      */
-    val framesStack: Stack[List[String]] = Stack(List())
+    val framesStack: Stack[List[Addr]] = Stack(List())
 
     /**
-      * Adds a new bound variable, i.e., because an action is encountered that defines this variable in the environment.
-      * If the variable was not already placed in the boundVariables-set, it is inserted there.
-      * @param varName The name of the bound variable.
-      * @param boundVariables The set of previously encountered bound variables
-      * @return The updated set of bound variables.
+      * Adds a new bound addresses, i.e., because an action is encountered that allocates this address in the environment.
+      * If the address was not already placed in the boundAddresses-set, it is inserted there.
+      * @param address The address that is bound.
+      * @param boundAddresses The set of previously encountered bound addresses
+      * @return The updated set of bound addresses.
       */
-    def addVariable(varName: String, boundVariables: Set[String]): Set[String] = {
+    def addAddress(address: Addr, boundAddresses: Set[Addr]): Set[Addr] = {
       if (framesStack.isEmpty) {
         framesStack.push(List())
       }
-      framesStack.top + varName
-      boundVariables + varName
+      framesStack.push(framesStack.pop :+ address)
+      boundAddresses + address
     }
 
     /**
-      * Adds a list of newly bound variables. Similar to [[addVariable(String, Set[String]].
-      * @param varNames The names of the list of bound variables.
-      * @param boundVariables The set of previously encountered bound variables
-      * @return The updated set of bound variables.
+      * Adds a list of newly bound addresses. Similar to [[addAddress(String, Set[String]].
+      * @param addresses The names of the list of bound addresses.
+      * @param boundAddresses The set of previously encountered bound addresses
+      * @return The updated set of bound addresses.
       */
-    def addVariables(varNames: List[String], boundVariables: Set[String]): Set[String]  = {
-      varNames.foldLeft(boundVariables)({ (boundVariables, varName) =>
-          addVariable(varName, boundVariables)})
+    def addAddresses(addresses: List[Addr], boundAddresses: Set[Addr]): Set[Addr]  = {
+      addresses.foldLeft(boundAddresses)({ (boundAddresses, varName) =>
+          addAddress(varName, boundAddresses)})
     }
 
-    def handleRestoreEnvironment(boundVariables: Set[String]): Set[String] = {
+    def handleRestoreEnvironment(boundAddresses: Set[Addr]): Set[Addr] = {
       if (framesStack.isEmpty) {
-        boundVariables
+        boundAddresses
       } else {
-        val boundVariablesFrame = framesStack.pop()
-        boundVariablesFrame.foldLeft(boundVariables)({ (boundVariables, varName) =>
-          boundVariables - varName })
+        val boundAddressesFrame = framesStack.pop()
+        boundAddressesFrame.foldLeft(boundAddresses)({ (boundAddresses, varName) =>
+          boundAddresses - varName })
       }
     }
 
-    def handleSaveEnvironment(boundVariables: Set[String]): Set[String] = {
+    def handleSaveEnvironment(boundAddresses: Set[Addr]): Set[Addr] = {
       framesStack.push(List())
-      boundVariables
+      boundAddresses
     }
 
-    def handleSetVar(varName: String, boundVariables: Set[String]): Set[String] = {
-      if (! boundVariables.contains(varName)) {
-        assignedVariables += varName
-        boundVariables + varName
+    def handleSetVar(address: Addr, boundAddresses: Set[Addr]): Set[Addr] = {
+      if (! boundAddresses.contains(address)) {
+        assignedAddresses += address
+        boundAddresses + address
       } else {
-        boundVariables
+        boundAddresses
       }
     }
 
-    def handleAction(action: ActionT[Exp, HybridValue, Addr], boundVariables: Set[String]) = action match {
-      case ActionAllocVarsT(varNames) =>
-        addVariables(varNames, boundVariables)
-      case ActionExtendEnvT(varName) =>
-        addVariable(varName, boundVariables)
-      case ActionSaveEnvT() =>
-        handleSaveEnvironment(boundVariables)
-      case ActionSetVarT(varName) =>
-        handleSetVar(varName, boundVariables)
-      case ActionStepInT(_, _, args, _, _, _, _, _) =>
-        addVariables(args, handleSaveEnvironment(boundVariables))
-      case ActionRestoreEnvT() =>
-        handleRestoreEnvironment(boundVariables)
-      case _ =>
-        boundVariables
-     }
+    def handleSetVars(addresses: List[Addr], boundAddresses: Set[Addr]): Set[Addr] = {
+      addresses.foldLeft(boundAddresses)({case (boundAddresses, address) => handleSetVar(address, boundAddresses) })
+    }
 
-    val traceBoundVariables = traceFull.trace.scanLeft(initialBoundVariables)({ (boundVariables, actionState) => handleAction(actionState._1, boundVariables)})
-    traceBoundVariables.map({ (boundVariables) =>
-      boundVariables ++ assignedVariables
+    type TraceInstructionInfo = Tracer[Exp, HybridValue, Addr, Time]#TraceInstructionInfo
+
+    /*
+     * We are interested in: actions that allocate or reassign addresses, actions that save the environment on the
+     * stack and actions that restore the environment from the stack.
+     */
+    def handleInfos(instructionInfo: TraceInstructionInfo, boundAddresses: Set[Addr]) = instructionInfo match {
+      case (ActionRestoreEnvT(), _) =>
+        handleRestoreEnvironment(boundAddresses)
+      case (ActionSaveEnvT(), _) =>
+        handleSaveEnvironment(boundAddresses)
+      case _ =>
+        val result = instructionInfo._2.find[Set[Addr]]({
+          case AddressesAllocated(_) => true
+          case AddressesReassigned(_) => true
+          case _ => false
+        }, {
+          case AddressesAllocated(addresses) =>
+            addAddresses(addresses.asInstanceOf[List[Addr]], boundAddresses)
+          case AddressesReassigned(addresses) =>
+            handleSetVars(addresses.asInstanceOf[List[Addr]], boundAddresses)
+        })
+        result match {
+          case None => boundAddresses
+          case Some(r) => r
+        }
+    }
+
+//    match {
+//      case ActionAllocVarsT(addresses) =>
+//        addAddresses(addresses, boundAddresses)
+//      case ActionExtendEnvT(address) =>
+//        addAddress(address, boundAddresses)
+//      case ActionSaveEnvT() =>
+//        handleSaveEnvironment(boundAddresses)
+//      case ActionSetVarT(address) =>
+//        handleSetVar(address, boundAddresses)
+//      case ActionStepInT(_, _, args, _, _, _, _, _) =>
+//        addAddresses(args, handleSaveEnvironment(boundAddresses))
+//      case ActionRestoreEnvT() =>
+//        handleRestoreEnvironment(boundAddresses)
+//      case _ =>
+//        boundAddresses
+//     }
+
+    val traceBoundAddresses = traceFull.trace.scanLeft(initialBoundAddresses)({ (boundAddresses, actionState) => handleInfos(actionState, boundAddresses)})
+    traceBoundAddresses.map({ (boundAddresses) =>
+      boundAddresses ++ assignedAddresses
     }).last
   }
 

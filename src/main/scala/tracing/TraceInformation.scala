@@ -3,14 +3,14 @@
   */
 trait TraceInformation[Abs, Addr]
 
+case class AddressesAllocated[Abs : JoinLattice, Addr : Address]
+(addresses: List[Addr]) extends TraceInformation[Abs, Addr]
+case class AddressesReassigned[Abs : JoinLattice, Addr : Address]
+(addresses: List[Addr]) extends TraceInformation[Abs, Addr]
 case class PrimitiveAppliedInfo[Abs : JoinLattice, Addr : Address]
   (v: Abs, vStack: List[Storable[Abs, Addr]]) extends TraceInformation[Abs, Addr]
 case class VariableLookedUp[Abs : JoinLattice, Addr : Address]
   (variable: String, address: Addr, value: Abs) extends TraceInformation[Abs, Addr]
-case class VariablesAllocated[Abs : JoinLattice, Addr : Address]
-  (addresses: List[Addr]) extends TraceInformation[Abs, Addr]
-case class VariablesReassigned[Abs : JoinLattice, Addr : Address]
-  (addresses: List[Addr]) extends TraceInformation[Abs, Addr]
 
 class CombinedInfos[Abs : JoinLattice, Addr : Address](val infos: Set[TraceInformation[Abs, Addr]]) {
 
@@ -37,7 +37,7 @@ class CombinedInfos[Abs : JoinLattice, Addr : Address](val infos: Set[TraceInfor
 object TraceInfos {
   def nil[Abs : JoinLattice, Addr : Address]: CombinedInfos[Abs, Addr] =
     new CombinedInfos(Set())
-  def mulitple[Abs : JoinLattice, Addr : Address](infos: Set[TraceInformation[Abs, Addr]]): CombinedInfos[Abs, Addr] =
+  def multiple[Abs : JoinLattice, Addr : Address](infos: Set[TraceInformation[Abs, Addr]]): CombinedInfos[Abs, Addr] =
     new CombinedInfos(infos)
   def single[Abs : JoinLattice, Addr : Address](info: TraceInformation[Abs, Addr]): CombinedInfos[Abs, Addr] =
     new CombinedInfos(Set(info))

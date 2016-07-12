@@ -13,8 +13,8 @@ case object CannotBacktrackError extends SemanticError {
 case class AmbProgramState[Exp : Expression, Time : Timestamp]
 (normalState: ProgramState[Exp, Time],
  failStack: List[Frame])
-  extends ConcretableTracingProgramState[Exp, Time]
-  with ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, Time] {
+  extends ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, Time]
+  with ConcretableTracingProgramState[Exp, Time] {
 
   def abs = implicitly[JoinLattice[HybridValue]]
   def addr = implicitly[Address[HybridAddress.A]]
@@ -22,8 +22,6 @@ case class AmbProgramState[Exp : Expression, Time : Timestamp]
   def time = implicitly[Timestamp[Time]]
 
   def this(normalState: ProgramState[Exp, Time]) = this(normalState, List(HaltFailFrame()))
-
-  def ρ: Environment[HybridAddress.A] = normalState.ρ
 
   def wrapApplyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
                       action: ActionT[Exp, HybridValue, HybridAddress.A]):

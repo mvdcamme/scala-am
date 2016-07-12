@@ -79,11 +79,12 @@ class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
     HybridAddress.switchToAbstract()
   }
 
-  protected def launchAnalysis(aam: SpecAAM)(startState: aam.State, env: SpecEnv): ConstantAddresses[HybridAddress.A] = {
-    constantsAnalysis.analyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState, env)
+  protected def launchAnalysis(aam: SpecAAM)
+                              (startState: aam.State, env: SpecEnv, addressedLookedUp: Set[HybridAddress.A]): ConstantAddresses[HybridAddress.A] = {
+    constantsAnalysis.analyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState, env, addressedLookedUp)
   }
 
-  private def startStaticAnalysis(currentProgramState: PS): ConstantAddresses[HybridAddress.A] = {
+  private def startStaticAnalysis(currentProgramState: PS, addressedLookedUp: Set[HybridAddress.A]): ConstantAddresses[HybridAddress.A] = {
     val aam = new AAM[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T]
     val (control, env, store, kstore, a, t) = currentProgramState.convertState(aam)(sem)
     val convertedControl = control match {
@@ -93,7 +94,7 @@ class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
     }
     val startState = aam.State(convertedControl, store, kstore, a, t)
     // TODO timeout
-    val result = launchAnalysis(aam)(startState, env)
+    val result = launchAnalysis(aam)(startState, env, addressedLookedUp)
     Logger.log(s"analysis result is $result", Logger.E)
     result
   }
@@ -104,9 +105,9 @@ class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
     HybridAddress.switchToConcrete()
   }
 
-  def runStaticAnalysis(currentProgramState: PS): StaticAnalysisResult = {
+  def runStaticAnalysis(currentProgramState: PS, addressedLookedUp: Set[HybridAddress.A]): StaticAnalysisResult = {
     switchToAbstract()
-    val result = startStaticAnalysis(currentProgramState)
+    val result = startStaticAnalysis(currentProgramState, addressedLookedUp)
     switchToConcrete()
     result
   }
@@ -127,9 +128,10 @@ class InitialConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
 class ConstantsAnalyisLauncher[Exp : Expression, Time : Timestamp](tracingFlags: TracingFlags) {
 
   private def runAnalysis(analysisLauncher: ConstantsAnalysisLauncher[Exp, Time],
-                          state: HybridMachine[Exp, Time]#PS): StaticAnalysisResult = {
+                          state: HybridMachine[Exp, Time]#PS,
+                          addressedLookedUp: Set[HybridAddress.A]): StaticAnalysisResult = {
     if (tracingFlags.SWITCH_ABSTRACT) {
-      analysisLauncher.runStaticAnalysis(state)
+      analysisLauncher.runStaticAnalysis(state, addressedLookedUp)
     } else {
       NoStaticisAnalysisResult
     }
@@ -138,13 +140,14 @@ class ConstantsAnalyisLauncher[Exp : Expression, Time : Timestamp](tracingFlags:
   def runInitialStaticAnalyis(sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
                               state: HybridMachine[Exp, Time]#PS): StaticAnalysisResult = {
     val constantsAnalysisLauncher = new InitialConstantsAnalysisLauncher[Exp, Time](sem)
-    runAnalysis(constantsAnalysisLauncher, state)
+    runAnalysis(constantsAnalysisLauncher, state, Set())
   }
 
   def runStaticAnalyis(sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
-                       state: HybridMachine[Exp, Time]#PS): StaticAnalysisResult = {
+                       state: HybridMachine[Exp, Time]#PS,
+                       addressedLookedUp: Set[HybridAddress.A]): StaticAnalysisResult = {
     val constantsAnalysisLauncher = new ConstantsAnalysisLauncher[Exp, Time](sem)
-    runAnalysis(constantsAnalysisLauncher, state)
+    runAnalysis(constantsAnalysisLauncher, state, addressedLookedUp)
   }
 
 }

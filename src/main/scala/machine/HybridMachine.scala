@@ -31,7 +31,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   def name = "HybridMachine"
 
-  val constantsAnalysisLauncher = new ConstantsAnalyisLauncher[Exp, Time](tracingFlags)
   var staticBoundAddresses: Option[Set[HybridAddress.A]] = None
 
   def applyTraceIntermediateResults(state: PS, trace: tracer.TraceWithoutStates): List[PS] = {
@@ -197,7 +196,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
       if (tracer.isTracingLoop(traceAppendedTc, loopID)) {
         Logger.log(s"Stopped tracing $loopID; LOOP DETECTED", Logger.I)
         numberOfTracesRecorded += 1
-        val analysisOutput = constantsAnalysisLauncher.runStaticAnalyis(sem, newState)
         val tcTRStopped = tracer.stopTracing(traceAppendedTc, true, None, state)
         checkTraceAssertions(newState, tcTRStopped, loopID) match  {
           case Some(headerExecutedState) =>
@@ -219,7 +217,6 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
         Logger.log(s"Stopped tracing $loopID; NO LOOP DETECTED", Logger.I)
         numberOfTracesRecorded += 1
         val traceEndedInstruction = sem.endTraceInstruction(restartPoint)
-        val analysisOutput = constantsAnalysisLauncher.runStaticAnalyis(sem, newState)
         val tcTRStopped = tracer.stopTracing(tc, false, Some(traceEndedInstruction), state)
         TracerState(NI, newState)(tcTRStopped, tn)
       } else {
@@ -342,6 +339,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
    */
   def eval(exp: Exp, graph: Boolean, timeout: Option[Long]): Output[HybridValue] = {
     val initialState = injectProgramState(exp, time)
+    val constantsAnalysisLauncher = new ConstantsAnalyisLauncher[Exp, Time](tracingFlags)
     val analysisResult = constantsAnalysisLauncher.runInitialStaticAnalyis(sem, initialState)
     analysisResult match {
       case ConstantAddresses(constants, nonConstants) =>

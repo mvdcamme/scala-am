@@ -56,6 +56,15 @@ trait ConcretableTracingProgramState[Exp, Time] {
     concretableState.kstore.subsumes(that.concretableState.kstore) &&
     concretableState.t == that.concretableState.t
 
+  def control: TracingControl[Exp, HybridLattice.L, HybridAddress.A] = concretableState.control
+  def ρ: Environment[HybridAddress.A] = concretableState.ρ
+  def σ: Store[HybridAddress.A, HybridLattice.L] = concretableState.σ
+  def kstore: KontStore[KontAddr] = concretableState.kstore
+  def a: KontAddr = concretableState.a
+  def t: Time = concretableState.t
+  def v: HybridLattice.L = concretableState.v
+  def vStack: List[Storable[HybridLattice.L, HybridAddress.A]] = concretableState.vStack
+
 }
 
 trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramState[Exp, Abs, Addr, Time] {
@@ -93,15 +102,16 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
   * continuation lives.
   */
 case class ProgramState[Exp : Expression, Time : Timestamp]
-  (control: TracingControl[Exp, HybridLattice.L, HybridAddress.A],
-   ρ: Environment[HybridAddress.A],
-   σ: Store[HybridAddress.A, HybridLattice.L],
-   kstore: KontStore[KontAddr],
-   a: KontAddr,
-   t: Time,
-   v: HybridLattice.L,
-   vStack: List[Storable[HybridLattice.L, HybridAddress.A]]) extends ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, Time]
-                           with ConcretableTracingProgramState[Exp, Time] {
+  (override val control: TracingControl[Exp, HybridLattice.L, HybridAddress.A],
+   override val ρ: Environment[HybridAddress.A],
+   override val σ: Store[HybridAddress.A, HybridLattice.L],
+   override val kstore: KontStore[KontAddr],
+   override val a: KontAddr,
+   override val t: Time,
+   override val v: HybridLattice.L,
+   override val vStack: List[Storable[HybridLattice.L, HybridAddress.A]])
+  extends ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, Time]
+  with ConcretableTracingProgramState[Exp, Time] {
 
   def sabs = implicitly[IsSchemeLattice[HybridValue]]
   def abs = implicitly[JoinLattice[HybridLattice.L]]
@@ -513,9 +523,9 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def generateTraceInformation(action: ActionT[Exp, HybridValue, HybridAddress.A]): CombinedInfos[HybridValue, HybridAddress.A] = action match {
     case ActionAllocVarsT(variables) =>
       val addresses = variables.map( (variable) => ρ.lookup(variable).get)
-      TraceInfos.single(VariablesAllocated(addresses))
+      TraceInfos.single(AddressesAllocated(addresses))
     case ActionExtendEnvT(variable) =>
-      TraceInfos.single(VariablesAllocated(List(ρ.lookup(variable).get)))
+      TraceInfos.single(AddressesAllocated(List(ρ.lookup(variable).get)))
     case ActionLookupVariableT(variable, _, _) =>
       val a = ρ.lookup(variable).get
       TraceInfos.single(VariableLookedUp(variable, a, σ.lookup(a).get))
@@ -525,10 +535,10 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case ActionPrimCallT(_, _, _) =>
       TraceInfos.single(PrimitiveAppliedInfo(v, vStack))
     case ActionSetVarT(variable) =>
-      TraceInfos.single(VariablesReassigned(List(ρ.lookup(variable).get)))
+      TraceInfos.single(AddressesReassigned(List(ρ.lookup(variable).get)))
     case ActionStepInT(_, _, args, _, _, _, _, _) =>
       val addresses = args.map( (arg) => ρ.lookup(arg).get)
-      TraceInfos.single(VariablesAllocated(addresses))
+      TraceInfos.single(AddressesAllocated(addresses))
     case _ =>
       TraceInfos.nil
   }

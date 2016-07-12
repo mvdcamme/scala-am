@@ -4,7 +4,8 @@ import scala.annotation.tailrec
   * Created by mvdcamme on 24/02/16.
   */
 class SchemeTraceOptimizer[Time : Timestamp]
-  (val sem: SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, Time])
+  (val sem: SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, Time],
+   tracingFlags: TracingFlags)
   extends TraceOptimizer[SchemeExp, HybridLattice.L, HybridAddress.A, Time] {
 
   type TraceInstructionInfo = Tracer[SchemeExp, HybridLattice.L, HybridAddress.A, Time]#TraceInstructionInfo
@@ -18,6 +19,7 @@ class SchemeTraceOptimizer[Time : Timestamp]
 
   val sabs = implicitly[IsSchemeLattice[HybridValue]]
 
+  val constantsAnalysisLauncher = new ConstantsAnalyisLauncher[SchemeExp, Time](tracingFlags)
   val variableAnalyzer = new VariableAnalysis[SchemeExp, HybridAddress.A, Time](sem)
 
   val basicOptimizations: List[(Boolean, (SpecTraceFull => SpecTraceFull))] =
@@ -43,7 +45,9 @@ class SchemeTraceOptimizer[Time : Timestamp]
     Logger.log(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}", Logger.V)
     val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations)
     Logger.log(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}", Logger.V)
-    val tier3AssertedOptimizedTrace = someAnalysisOutput match {
+    val traceBoundAddresses = variableAnalyzer.analyzeBoundAddresses(trace.info.boundVariables.map(_._2).toSet, trace)
+    val analysisOutput = constantsAnalysisLauncher.runStaticAnalyis(sem, state, traceBoundAddresses)
+    val tier3AssertedOptimizedTrace = analysisOutput match {
       case ConstantAddresses(_, nonConstants) =>
         applyConstantVariablesOptimizations(tier2AssertedOptimizedTrace, nonConstants.asInstanceOf[Set[HybridAddress.A]])
       case NoStaticisAnalysisResult =>
@@ -406,9 +410,9 @@ class SchemeTraceOptimizer[Time : Timestamp]
 
   def optimizeVariableFolding(traceFull: SpecTraceFull): SpecTraceFull = {
 
-    val initialBoundVariables = traceFull.info.boundVariables.map(_._1)
+    val initialBoundAddresses = traceFull.info.boundVariables.map(_._2)
     var registerIndex: Integer = 0
-    val boundVariables = variableAnalyzer.analyzeBoundVariables(initialBoundVariables.toSet, traceFull)
+    val boundAddresses = variableAnalyzer.analyzeBoundAddresses(initialBoundAddresses.toSet, traceFull)
     var variablesConverted: List[(String, Integer)] = Nil
 
     val initialState: ProgramState[SchemeExp, Time] = traceFull.info.startState match {
@@ -418,9 +422,9 @@ class SchemeTraceOptimizer[Time : Timestamp]
 
     def replaceVariableLookups(action: ActionLookupVariableT[SchemeExp, HybridValue, HybridAddress.A],
                                infos: CombinedInfos[HybridValue, HybridAddress.A],
-                               boundVariables: Set[String]): TraceInstructionInfo = {
+                               boundAddresses: Set[HybridAddress.A]): TraceInstructionInfo = {
 
-      def generateIndex(variable: String): Option[Integer] = {
+      def generateIndex(address: HybridAddress.A): Option[Integer] = {
         if (registerIndex < RegisterStore.MAX_REGISTERS) {
           val someIndex = Some(registerIndex)
           registerIndex += 1
@@ -430,8 +434,8 @@ class SchemeTraceOptimizer[Time : Timestamp]
         }
       }
 
-      def generateAction(varName: String): ActionT[SchemeExp, HybridValue, HybridAddress.A] = {
-        val defaultAction = ActionLookupVariableT[SchemeExp, HybridValue, HybridAddress.A](varName)
+      def generateAction(address: HybridAddress.A): ActionT[SchemeExp, HybridValue, HybridAddress.A] = {
+        val defaultAction = action
         variablesConverted.find( _._1 == action.varName) match {
           case Some((_, index)) =>
             /* Variable lookup was already replaced by a register lookup */
@@ -439,7 +443,7 @@ class SchemeTraceOptimizer[Time : Timestamp]
           case None =>
           /* Variable can be replaced but isn't entered in the list yet.
              Generate an action to put it in some register if possible */
-          generateIndex(action.varName) match {
+          generateIndex(address) match {
             case Some(index) =>
               variablesConverted = variablesConverted :+ (action.varName, index)
               ActionLookupRegister[SchemeExp, HybridValue, HybridAddress.A](index)
@@ -450,18 +454,27 @@ class SchemeTraceOptimizer[Time : Timestamp]
         }
       }
 
-      if (boundVariables.contains(action.varName)) {
-        /* Variable is bound and can therefore not be replaced */
-        (action, infos)
-      } else {
-        val newAction = generateAction(action.varName)
-        (newAction, infos.filter[VariableLookedUp[HybridValue, HybridAddress.A]])
+      val someNewTraceInfo = infos.find[(ActionT[SchemeExp, HybridValue, HybridAddress.A], CombinedInfos[HybridValue, HybridAddress.A])](
+        { case VariableLookedUp(_, address, _) => true
+        case _ => false
+        }, { case VariableLookedUp(_, address, _) =>
+          if (boundAddresses.contains(address)) {
+            /* Variable is bound and can therefore not be replaced */
+            (action, infos)
+          } else {
+            val newAction = generateAction(address)
+            (newAction, infos.filter[VariableLookedUp[HybridValue, HybridAddress.A]])
+          }
+        })
+      someNewTraceInfo match {
+        case None => throw new Exception(s"Error: ActionLookUpT without an associated VariableLookedUp info: $action")
+        case Some(newTraceInfo) => newTraceInfo
       }
     }
 
     val optimisedTrace: Trace = traceFull.trace.map({
       case (action @ ActionLookupVariableT(varName, _, _), infos) =>
-        replaceVariableLookups(action, infos, boundVariables)
+        replaceVariableLookups(action, infos, boundAddresses)
       case (action, someState) => (action, someState)
     })
 

@@ -390,7 +390,7 @@ object Main {
               (program: String) => runTraced(machine)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
             } else {
                 val sem = new SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, time.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
-              val optimizer = new SchemeTraceOptimizer[HybridAddress.A, time.T](sem)
+              val optimizer = new SchemeTraceOptimizer[time.T](sem, config.tracingFlags)
               val tracerContext = new SchemeTracer[HybridLattice.L, HybridAddress.A, time.T](sem, config.tracingFlags, Some(optimizer))
                 val machine = new HybridMachine[SchemeExp, time.T](sem, tracerContext, config.tracingFlags, { (exp, t) =>
                         new ProgramState[SchemeExp, time.T](sem, sabs, exp, t)
