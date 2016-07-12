@@ -39,8 +39,8 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations)
     Logger.log(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}", Logger.V)
     val tier3AssertedOptimizedTrace = someAnalysisOutput match {
-      case NonConstantAddresses(addresses) =>
-        applyConstantVariablesOptimizations(tier2AssertedOptimizedTrace, addresses)
+      case ConstantAddresses(_, nonConstants) =>
+        applyConstantVariablesOptimizations(tier2AssertedOptimizedTrace, nonConstants.asInstanceOf[Set[HybridAddress.A]])
       case NoStaticisAnalysisResult =>
         possiblyOptimizeVariableFolding(tier2AssertedOptimizedTrace)
     }
@@ -539,12 +539,12 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
   /**
     *
     * @param traceFull The (full) trace to be optimized.
-    * @param addresses The addresses whose value may change over the execution of the program after the trace.
+    * @param nonConstants The addresses whose value may change over the execution of the program after the trace.
     * @return The optimized (full) trace
     */
   def applyConstantVariablesOptimizations(traceFull: TraceFull[SchemeExp, Time],
-                                          addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
-    val allBoundAddresses = findAllBoundAddresses(traceFull, addresses)
+                                          nonConstants: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
+    val allBoundAddresses = findAllBoundAddresses(traceFull, nonConstants)
     val varLookupsRemoved = replaceVariablesWithConstants(traceFull, allBoundAddresses)
     removeRedundantClosureGuards(varLookupsRemoved, allBoundAddresses)
   }

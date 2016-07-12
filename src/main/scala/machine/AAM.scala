@@ -152,7 +152,7 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
     }
   }
 
-  def kickstartEval(initialState: State, sem: Semantics[Exp, Abs, Addr, Time],
+  def kickstartEval(initialState: State, sem: Semantics[Exp, Abs, Addr, Time], stopEval: Option[State => Boolean],
                     timeout: Option[Long], graph: Boolean): AAMOutput = {
     def loop(todo: Set[State], visited: Set[State], halted: Set[State],
              startingTime: Long, graph: Option[Graph[State, Unit]]): AAMOutput = {
@@ -167,9 +167,9 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
                * number of visited states but leads to non-determinism due to the
                * non-determinism of Scala's headOption (it seems so at least). */
               loop(todo.tail, visited, halted, startingTime, graph)
-            } else if (s.halted) {
-              /* If the state is a final state, add it to the list of final states and
-               * continue exploring the graph */
+            } else if (s.halted || stopEval.fold(false)(pred => pred(s))) {
+              /* If the state is a final state or the stopEval predicate determines the machine can stop exploring
+               * this state, add it to the list of final states and continue exploring the graph */
               loop(todo.tail, visited + s, halted + s, startingTime, graph)
             } else {
               /* Otherwise, compute the successors of this state, update the graph, and push
@@ -220,7 +220,7 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
    * in a file, and returns the set of final states reached
    */
   def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Option[Long]): Output[Abs] = {
-    kickstartEval(State.inject(exp, sem.initialEnv, sem.initialStore), sem, timeout, graph)
+    kickstartEval(State.inject(exp, sem.initialEnv, sem.initialStore), sem, None, timeout, graph)
   }
 
   override def analyze[L](exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], analysis: Analysis[L, Exp, Abs, Addr, Time], timeout: Option[Long]) = {
