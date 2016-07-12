@@ -59,7 +59,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
       val parentTraceNode = getLoopTrace(tc, loopID)
       val parentTraceInitialBoundVariables = parentTraceNode.trace.info.boundVariables
       val allInitialBoundVariables = boundVariables ++ parentTraceInitialBoundVariables
-      println(s"Including initial bound variables of parent loop trace $parentTraceInitialBoundVariables for guard trace")
+      Logger.log(s"Including initial bound variables of parent loop trace $parentTraceInitialBoundVariables for guard trace", Logger.V)
       val label = GuardLabel(loopID, guardID)
       val traceInfo = TraceInfo(allInitialBoundVariables, startState, Some(parentTraceLabel))
       val traceNode = TraceNode[Trace](label, Nil, traceInfo)

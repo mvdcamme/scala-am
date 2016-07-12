@@ -38,7 +38,6 @@ object HybridLattice extends SchemeLattice {
   }
 
   def convert[Exp : Expression, Addr : Address](value: L,
-                                                store: Store[HybridAddress.A, L],
                                                 convertEnv: Environment[Addr] => Environment[Addr]): L = {
 
     import ConcreteString._

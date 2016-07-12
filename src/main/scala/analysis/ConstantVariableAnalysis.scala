@@ -15,7 +15,7 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
                            (output: aam.AAMOutput): ConstantAddresses[Addr] = {
     val storeValues = joinStores(aam)(output.finalStores)
     val initial = ConstantAddresses[Addr](Set(), Set())
-    storeValues.foldLeft(initial)({ case (result, (address, value)) =>
+    val result = storeValues.foldLeft(initial)({ case (result, (address, value)) =>
         if (isConstantValue(value)) {
           val extendedConstants = result.constants + address
           result.copy(constants = extendedConstants)
@@ -24,6 +24,9 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
           result.copy(nonConstants = extendedNonConstants)
         }
     })
+    Logger.log(s"Constant addresses are ${result.constants}", Logger.E)
+    Logger.log(s"NonConstant addresses are ${result.nonConstants}", Logger.E)
+    result
   }
 
   def analyze(aam: AAM[Exp, L, Addr, Time], sem: Semantics[Exp, L, Addr, Time], isConstantValue: L => Boolean)
@@ -44,7 +47,7 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
       case Some(value) =>
         ! isConstantValue(value)
     })
-    val output = aam.kickstartEval(startState, sem, Some(pred), None, false)
+    val output = aam.kickstartEval(startState, sem, None, None, false)
     analyzeOutput(aam, isConstantValue)(output)
   }
 
@@ -74,14 +77,15 @@ class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
   val constantsAnalysis = new ConstantVariableAnalysis[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T]
 
   private def switchToAbstract(): Unit = {
-    Logger.log("HybridMachine switching to abstract", Logger.E)
+    Logger.log("HybridMachine switching to abstract", Logger.I)
     HybridLattice.switchToAbstract()
     HybridAddress.switchToAbstract()
   }
 
   protected def launchAnalysis(aam: SpecAAM)
                               (startState: aam.State, env: SpecEnv, addressedLookedUp: Set[HybridAddress.A]): ConstantAddresses[HybridAddress.A] = {
-    constantsAnalysis.analyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState, env, addressedLookedUp)
+    val abstractAddressesLookedup = addressedLookedUp.map(HybridAddress.convertAddress(_))
+    constantsAnalysis.analyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState, env, abstractAddressesLookedup)
   }
 
   private def startStaticAnalysis(currentProgramState: PS, addressedLookedUp: Set[HybridAddress.A]): ConstantAddresses[HybridAddress.A] = {
@@ -95,12 +99,12 @@ class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
     val startState = aam.State(convertedControl, store, kstore, a, t)
     // TODO timeout
     val result = launchAnalysis(aam)(startState, env, addressedLookedUp)
-    Logger.log(s"analysis result is $result", Logger.E)
+    Logger.log(s"analysis result is $result", Logger.I)
     result
   }
 
   private def switchToConcrete(): Unit = {
-    Logger.log("HybridMachine switching to concrete", Logger.E)
+    Logger.log("HybridMachine switching to concrete", Logger.I)
     HybridLattice.switchToConcrete()
     HybridAddress.switchToConcrete()
   }
@@ -118,9 +122,9 @@ class InitialConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
   extends ConstantsAnalysisLauncher[Exp, Time](sem) {
 
   protected def launchAnalysis(aam: SpecAAM)(startState: aam.State, env: SpecEnv): ConstantAddresses[HybridAddress.A] = {
-    Logger.log(s"Running static analysis before actually executing program", Logger.E)
+    Logger.log(s"Running static analysis before actually executing program", Logger.I)
     val result = constantsAnalysis.initialAnalyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState, env)
-    Logger.log(s"Finished running static analysis before actually executing program", Logger.E)
+    Logger.log(s"Finished running static analysis before actually executing program", Logger.I)
     result
   }
 }

@@ -72,7 +72,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
 
   def convertToAbsSemanticsFrame(frame: Frame,
                                  ρ: Environment[Addr],
-                                 vStack: List[Storable[Abs, Addr]]):
+                                 vStack: List[Storable[Abs, Addr]],
+                                 convertValue: Abs => Abs):
   (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = frame match {
       case FrameBeginT(rest) => popEnvFromVStack(absSem.FrameBegin(rest, _), vStack)
       case FrameCaseT(clauses, default) => popEnvFromVStack(absSem.FrameCase(clauses, default, _), vStack)
@@ -90,10 +91,11 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
           popEnvFromVStack(absSem.FrameBegin(toeval, _), vStack)
         }
       case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
+        val convertedF = convertValue(f)
         val n = args.length + 1 /* We have to add 1 because the operator has also been pushed onto the vstack */
         val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
           val newArgs = args.map(_._1).zip(values)
-          absSem.FrameFuncallOperands(f.asInstanceOf[Abs], fexp, cur, newArgs, toeval, ρ)
+          absSem.FrameFuncallOperands(convertedF, fexp, cur, newArgs, toeval, ρ)
       }
         popEnvAndValuesFromVStack(generateFrameFun, n, vStack)
       case FrameFuncallOperatorT(fexp, args) => popEnvFromVStack(absSem.FrameFuncallOperator(fexp, args, _), vStack)

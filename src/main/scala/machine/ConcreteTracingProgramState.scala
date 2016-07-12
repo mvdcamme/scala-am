@@ -444,7 +444,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   }
 
   def convertValue(σ: Store[HybridAddress.A, HybridLattice.L])(value: HybridValue): HybridValue =
-    HybridLattice.convert[Exp, HybridAddress.A](value, σ, convertEnvironment)
+    HybridLattice.convert[Exp, HybridAddress.A](value, convertEnvironment)
 
   def convertEnvironment(env: Environment[HybridAddress.A]): Environment[HybridAddress.A] =
     env.map { (address) => HybridAddress.convertAddress(address) }
@@ -462,7 +462,9 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
                     ρ: Environment[HybridAddress.A],
                     σ: Store[HybridAddress.A, HybridValue],
                     a: KontAddr,
-                    vStack: List[Storable[HybridValue, HybridAddress.A]]): (KontAddr, KontStore[KontAddr]) = {
+                    vStack: List[Storable[HybridValue, HybridAddress.A]],
+                    convertEnvironment: Environment[HybridAddress.A] => Environment[HybridAddress.A])
+                   :(KontAddr, KontStore[KontAddr]) = {
     def loop(newKontStore: KontStore[KontAddr],
              a: KontAddr,
              vStack: List[Storable[HybridValue, HybridAddress.A]],
@@ -470,7 +472,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case HaltKontAddress => (HaltKontAddress, newKontStore)
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
-        val (someNewSemFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack)
+        val (someNewSemFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack, HybridLattice.convert(_, convertEnvironment))
         val (actualNext, extendedKontStore) = loop(newKontStore, next, newVStack, newρ)
         someNewSemFrame match {
           case Some(newSemFrame) =>
@@ -507,7 +509,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case TracingControlEval(_) | TracingControlError(_) => a
       case TracingControlKont(ka) => ka
     }
-    val (newA, convertedKontStore) = convertKStore(aam, sem, kstore, newρ, newσ, startKontAddress, newVStack)
+    val (newA, convertedKontStore) = convertKStore(aam, sem, kstore, newρ, newσ, startKontAddress, newVStack, convertEnvironment)
     val convertedA = convertKontAddress(aam)(newA)
     val absSem = sem.absSem
     val newKStore = convertedKontStore //TODO not needed? convertedKontStore.map(absSem.convertFrame(convertValue(σ)))

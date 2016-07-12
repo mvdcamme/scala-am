@@ -686,7 +686,7 @@ class SchemeTraceOptimizer[Time : Timestamp]
 
   private def removeRedundantClosureGuards(traceFull: SpecTraceFull,
                                            allBoundAddresses: Set[HybridAddress.A]): SpecTraceFull = {
-    Logger.log(s"Initiating closure guards removal optimization; allBoundAddresses = $allBoundAddresses", Logger.E)
+    Logger.log(s"Initiating closure guards removal optimization; allBoundAddresses = $allBoundAddresses", Logger.D)
 
     def isConstant(traceInfo: TraceInstructionInfo): Boolean = {
       val (action, infos) = traceInfo
@@ -708,7 +708,7 @@ class SchemeTraceOptimizer[Time : Timestamp]
           (traceSoFar, Nil)
         case (tuple@(action, _)) :: rest => action match {
           case ActionGuardSameClosure(_, _, _) =>
-            Logger.log(s"Removed closure guard $action", Logger.E)
+            Logger.log(s"Removed closure guard $action", Logger.D)
             (traceSoFar, rest)
           case _ if action.startsFunCallBlock =>
             val (newTraceSoFar, newRest) = inStartsFunCallBlock(traceSoFar :+ tuple, rest, None)
