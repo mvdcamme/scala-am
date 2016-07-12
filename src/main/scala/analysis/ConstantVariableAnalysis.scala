@@ -24,8 +24,8 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
           result.copy(nonConstants = extendedNonConstants)
         }
     })
-    Logger.log(s"Constant addresses are ${result.constants}", Logger.E)
-    Logger.log(s"NonConstant addresses are ${result.nonConstants}", Logger.E)
+    Logger.log(s"Constant addresses are ${result.constants}", Logger.D)
+    Logger.log(s"NonConstant addresses are ${result.nonConstants}", Logger.D)
     result
   }
 
@@ -35,7 +35,6 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
      * These addresses don't have to be checked again, because if the initial analysis could determine them to
      * remain constant, and if this analysis was sound, this new analysis will just determine again that they're
      * constant. */
-    //TODO addressesLookedUp must be the abstract HybridAddresses
     val initialConstants: Set[Addr] = initialAnalysisResults.fold(Set[Addr]())(_.constants)
     val relevantAddresses = addressedLookedUp -- initialConstants
     /* Stop exploring the state once all relevant addresses were found to be non-constant. */
@@ -47,7 +46,7 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
       case Some(value) =>
         ! isConstantValue(value)
     })
-    val output = aam.kickstartEval(startState, sem, None, None, false)
+    val output = aam.kickstartEval(startState, sem, Some(pred), None, false)
     analyzeOutput(aam, isConstantValue)(output)
   }
 

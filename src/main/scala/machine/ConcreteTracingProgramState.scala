@@ -460,7 +460,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
                     sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
                     kontStore: KontStore[KontAddr],
                     ρ: Environment[HybridAddress.A],
-                    σ: Store[HybridAddress.A, HybridValue],
                     a: KontAddr,
                     vStack: List[Storable[HybridValue, HybridAddress.A]],
                     convertEnvironment: Environment[HybridAddress.A] => Environment[HybridAddress.A])
@@ -476,7 +475,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         val (actualNext, extendedKontStore) = loop(newKontStore, next, newVStack, newρ)
         someNewSemFrame match {
           case Some(newSemFrame) =>
-            //val convertedFrame = sem.absSem.convertFrame(convertValue(σ), newSemFrame)
             val convertedFrame = newSemFrame
             (a, extendedKontStore.extend(a, Kont(convertedFrame, actualNext)))
           case None =>
@@ -509,7 +507,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case TracingControlEval(_) | TracingControlError(_) => a
       case TracingControlKont(ka) => ka
     }
-    val (newA, convertedKontStore) = convertKStore(aam, sem, kstore, newρ, newσ, startKontAddress, newVStack, convertEnvironment)
+    val (newA, convertedKontStore) = convertKStore(aam, sem, kstore, newρ, startKontAddress, newVStack, convertEnvironment)
     val convertedA = convertKontAddress(aam)(newA)
     val absSem = sem.absSem
     val newKStore = convertedKontStore //TODO not needed? convertedKontStore.map(absSem.convertFrame(convertValue(σ)))

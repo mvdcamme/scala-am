@@ -15,4 +15,20 @@ object TraceAnalyzer {
       case _ => boundAddresses
     })
 
+  /**
+    * Collects all the addresses that are looked up in the given trace.
+    * @param trace The trace to be scanned for addresses that are looked up.
+    */
+  def collectAddressesLookedUp[Exp : Expression, Time : Timestamp](trace: Trace[Exp, Time]): Set[HybridAddress.A] =
+    trace.foldLeft(Set[HybridAddress.A]())((addressesLookedUp, instructionInfo) =>
+      instructionInfo._2.find[Set[HybridAddress.A]]({
+        case VariableLookedUp(_, _, _) => true
+        case _ => false
+      }, {
+        case VariableLookedUp(_, address, _) => addressesLookedUp + address
+      }) match {
+        case Some(newAddressesLookedUp) => newAddressesLookedUp
+        case None => addressesLookedUp
+      })
+
 }

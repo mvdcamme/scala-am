@@ -45,8 +45,8 @@ class SchemeTraceOptimizer[Time : Timestamp]
     Logger.log(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}", Logger.V)
     val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations)
     Logger.log(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}", Logger.V)
-    val traceBoundAddresses = variableAnalyzer.analyzeBoundAddresses(trace.info.boundVariables.map(_._2).toSet, trace)
-    val analysisOutput = constantsAnalysisLauncher.runStaticAnalyis(sem, state, traceBoundAddresses)
+    val addressesLookedUp = TraceAnalyzer.collectAddressesLookedUp(trace.trace)
+    val analysisOutput = constantsAnalysisLauncher.runStaticAnalyis(sem, state, addressesLookedUp)
     val tier3AssertedOptimizedTrace = analysisOutput match {
       case ConstantAddresses(_, nonConstants) =>
         applyConstantVariablesOptimizations(tier2AssertedOptimizedTrace, nonConstants.asInstanceOf[Set[HybridAddress.A]])
@@ -412,7 +412,7 @@ class SchemeTraceOptimizer[Time : Timestamp]
 
     val initialBoundAddresses = traceFull.info.boundVariables.map(_._2)
     var registerIndex: Integer = 0
-    val boundAddresses = variableAnalyzer.analyzeBoundAddresses(initialBoundAddresses.toSet, traceFull)
+    val boundAddresses = TraceAnalyzer.collectTraceBoundAddresses(traceFull.trace)
     var variablesConverted: List[(String, Integer)] = Nil
 
     val initialState: ProgramState[SchemeExp, Time] = traceFull.info.startState match {
