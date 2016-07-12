@@ -3,13 +3,16 @@ import scala.annotation.tailrec
 /**
   * Created by mvdcamme on 24/02/16.
   */
-class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
-  (val sem: SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, Time]) {
+class SchemeTraceOptimizer[Time : Timestamp]
+  (val sem: SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, Time])
+  extends TraceOptimizer[SchemeExp, HybridLattice.L, HybridAddress.A, Time] {
 
-  type TraceInstructionInfo = Tracer[SchemeExp, Time]#TraceInstructionInfo
-  type TraceInstruction = Tracer[SchemeExp, Time]#TraceInstruction
-  type TraceWithoutStates = Tracer[SchemeExp, Time]#TraceWithoutStates
-  type Trace = Tracer[SchemeExp, Time]#TraceWithInfos
+  type TraceInstructionInfo = Tracer[SchemeExp, HybridLattice.L, HybridAddress.A, Time]#TraceInstructionInfo
+  type TraceInstruction = Tracer[SchemeExp, HybridLattice.L, HybridAddress.A, Time]#TraceInstruction
+  type TraceWithoutStates = Tracer[SchemeExp, HybridLattice.L, HybridAddress.A, Time]#TraceWithoutStates
+  type Trace = Tracer[SchemeExp, HybridLattice.L, HybridAddress.A, Time]#TraceWithInfos
+
+  type SpecTraceFull = TraceFull[SchemeExp, HybridLattice.L, HybridAddress.A, Time]
 
   type HybridValue = HybridLattice.L
 
@@ -17,22 +20,24 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 
   val variableAnalyzer = new VariableAnalysis[SchemeExp, HybridAddress.A, Time](sem)
 
-  val basicOptimizations: List[(Boolean, (TraceFull[SchemeExp, Time] => TraceFull[SchemeExp, Time]))] =
+  val basicOptimizations: List[(Boolean, (SpecTraceFull => SpecTraceFull))] =
     List((GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)),
          (GlobalFlags.APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING, optimizeEnvironmentLoading(_)),
          (GlobalFlags.APPLY_OPTIMIZATION_MERGE_ACTIONS, optimizeMergeActions(_)))
 
-  val detailedOptimizations: List[(Boolean, (TraceFull[SchemeExp, Time] => TraceFull[SchemeExp, Time]))] =
+  val detailedOptimizations: List[(Boolean, (SpecTraceFull => SpecTraceFull))] =
     List((GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING, optimizeConstantFolding(_)),
          (GlobalFlags.APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS, optimizeTypeSpecialization(_)))
 
-  def foldOptimisations(traceFull: TraceFull[SchemeExp, Time], optimisations: List[(Boolean, (TraceFull[SchemeExp, Time] => TraceFull[SchemeExp, Time]))]): TraceFull[SchemeExp, Time] = {
+  def foldOptimisations(traceFull: SpecTraceFull, optimisations: List[(Boolean, (SpecTraceFull => SpecTraceFull))]): SpecTraceFull= {
     optimisations.foldLeft(traceFull)({ (traceFull, pair) =>
-      val function: TraceFull[SchemeExp, Time] => TraceFull[SchemeExp, Time] = pair._2
+      val function: SpecTraceFull => SpecTraceFull = pair._2
       if (pair._1) { function(traceFull) } else { traceFull }})
   }
 
-  def optimize(trace: TraceFull[SchemeExp, Time], someAnalysisOutput: StaticAnalysisResult): TraceFull[SchemeExp, Time] = {
+  def optimize(trace: SpecTraceFull,
+               state: ConcreteTracingProgramState[SchemeExp, HybridLattice.L, HybridAddress.A, Time])
+              :SpecTraceFull = {
     Logger.log(s"Size of unoptimized trace = ${trace.trace.length}", Logger.V)
     val basicAssertedOptimizedTrace = foldOptimisations(trace, basicOptimizations)
     Logger.log(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}", Logger.V)
@@ -119,14 +124,14 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     optimizedTrace.filter(_.isUsed).map(_.actionState)
   }
 
-  private def createFullTrace(traceFull: TraceFull[SchemeExp, Time], optimisedTrace: Trace): TraceFull[SchemeExp, Time] =
+  private def createFullTrace(traceFull: SpecTraceFull, optimisedTrace: Trace): SpecTraceFull =
     traceFull.copy(trace = optimisedTrace)
 
   /********************************************************************************************************************
    *                                         ENVIRONMENT LOADING OPTIMIZATION                                         *
    ********************************************************************************************************************/
 
-  private def optimizeEnvironmentLoading(traceFull: TraceFull[SchemeExp, Time]): TraceFull[SchemeExp, Time] = {
+  private def optimizeEnvironmentLoading(traceFull: SpecTraceFull): SpecTraceFull = {
     def isAnInterferingAction(action: TraceInstruction) = action match {
       case ActionAllocVarsT(_) |
            ActionEndTrace(_) |
@@ -148,7 +153,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
    *                                        CONTINUATION LOADING OPTIMIZATION                                         *
    ********************************************************************************************************************/
 
-  private def optimizeContinuationLoading(traceFull: TraceFull[SchemeExp, Time]): TraceFull[SchemeExp, Time] = {
+  private def optimizeContinuationLoading(traceFull: SpecTraceFull): SpecTraceFull = {
     def isAnInterferingAction(action: TraceInstruction): Boolean = action match {
       case ActionEndTrace(_) =>
         true
@@ -168,10 +173,10 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
    *                                          CONSTANT FOLDING OPTIMIZATION                                           *
    ********************************************************************************************************************/
 
-  case class ActionStartOptimizedBlock[Exp : Expression, Abs : JoinLattice, Addr : Address]()
-    extends ActionT[Exp, Abs, Addr]
-  case class ActionEndOptimizedBlock[Exp : Expression, Abs : JoinLattice, Addr : Address]()
-    extends ActionT[Exp, Abs, Addr]
+  case class ActionStartOptimizedBlock[Exp : Expression, Abs : JoinLattice]()
+    extends ActionT[Exp, Abs, HybridAddress.A]
+  case class ActionEndOptimizedBlock[Exp : Expression, Abs : JoinLattice]()
+    extends ActionT[Exp, Abs, HybridAddress.A]
 
   private def findNextPushVal(trace: Trace): Option[Trace] = {
     val updatedTrace = trace.dropWhile({case (ActionPushValT(), _) => false
@@ -262,7 +267,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
           if (traceAtValueChangingAction.isEmpty) {
             None
           } else {
-            if (traceAtValueChangingAction.head._1.isInstanceOf[ActionReachedValueT[SchemeExp, HybridValue, Addr]]) {
+            if (traceAtValueChangingAction.head._1.isInstanceOf[ActionReachedValueT[SchemeExp, HybridValue, HybridAddress.A]]) {
               Some(traceAfterPush.tail)
             } else {
               /* The value that was pushed as an operand is not a constant */
@@ -283,7 +288,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
         findNextStartFunCall(traceAtPrimCall.tail) match {
           case Some((traceBetweenMarks, traceAtStartCall)) =>
             val optimizedBlocks = filterAllOptimizedBlocks(traceBetweenMarks)
-            val actionStatePrimCall = traceBetweenMarks.find(_._1.isInstanceOf[ActionPrimCallT[SchemeExp, HybridValue, Addr]])
+            val actionStatePrimCall = traceBetweenMarks.find(_._1.isInstanceOf[ActionPrimCallT[SchemeExp, HybridValue, HybridAddress.A]])
             actionStatePrimCall match {
               case Some((ActionPrimCallT(n, _, _), infos)) =>
                 infos.flatMap[Trace](
@@ -302,11 +307,11 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
                         checkPrimitive(traceBetweenMarks, n).flatMap({ (traceAfterOperatorPush) =>
                           //val guard = (ActionGuardSamePrimitive(), None)
                           val replacingConstantAction: TraceInstructionInfo = (ActionReachedValueT[SchemeExp, HybridValue, HybridAddress.A](result), TraceInfos.nil[HybridValue, HybridAddress.A])
-                          val actionEndOptimizedBlock = (ActionEndOptimizedBlock[SchemeExp, HybridValue, HybridAddress.A](), TraceInfos.nil[HybridValue, HybridAddress.A])
-                          val actionStartOptimizedBlock = (ActionStartOptimizedBlock[SchemeExp, HybridValue, HybridAddress.A](), TraceInfos.nil[HybridValue, HybridAddress.A])
+                          val actionEndOptimizedBlock = (ActionEndOptimizedBlock[SchemeExp, HybridValue](), TraceInfos.nil[HybridValue, HybridAddress.A])
+                          val actionStartOptimizedBlock = (ActionStartOptimizedBlock[SchemeExp, HybridValue](), TraceInfos.nil[HybridValue, HybridAddress.A])
                           val replacingTrace = firstPart ++ (traceBefore :+ actionEndOptimizedBlock :+ replacingConstantAction) ++
                             /* Add all parts of the inner optimized blocks, except for the constants themselves that were folded there; those are folded away in the new block */
-                            optimizedBlocks.foldLeft(List(): Trace)({ (acc, current) => acc ++ current.filter({ (actionState) => !actionState._1.isInstanceOf[ActionReachedValueT[SchemeExp, HybridValue, Addr]] }) }) ++
+                            optimizedBlocks.foldLeft(List(): Trace)({ (acc, current) => acc ++ current.filter({ (actionState) => !actionState._1.isInstanceOf[ActionReachedValueT[SchemeExp, HybridValue, HybridAddress.A]] }) }) ++
                             (traceAfterOperatorPush :+ actionStartOptimizedBlock) ++ traceAtStartCall.tail
                           Some(replacingTrace)
                         })
@@ -323,7 +328,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     }
   }
 
-  private def optimizeConstantFolding(traceFull: TraceFull[SchemeExp, Time]): TraceFull[SchemeExp, Time] = {
+  private def optimizeConstantFolding(traceFull: SpecTraceFull): SpecTraceFull = {
     def loop(trace: Trace): Trace = {
       doOneConstantFold(List(), trace) match {
         case Some(updatedTrace) =>
@@ -357,7 +362,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     case _ => prim
   }
 
-  private def optimizeTypeSpecialization(traceFull: TraceFull[SchemeExp, Time]): TraceFull[SchemeExp, Time] = {
+  private def optimizeTypeSpecialization(traceFull: SpecTraceFull): SpecTraceFull = {
     def loop(trace: Trace, acc: Trace): Trace = trace match {
       case Nil => acc.reverse
       case (actionState1@(_, infos)) :: (actionState2@(ActionPrimCallT(n, fExp, argsExps), _)) :: rest =>
@@ -399,7 +404,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
    *                                            VARIABLE FOLDING OPTIMIZATION                                         *
    ********************************************************************************************************************/
 
-  def optimizeVariableFolding(traceFull: TraceFull[SchemeExp, Time]): TraceFull[SchemeExp, Time] = {
+  def optimizeVariableFolding(traceFull: SpecTraceFull): SpecTraceFull = {
 
     val initialBoundVariables = traceFull.info.boundVariables.map(_._1)
     var registerIndex: Integer = 0
@@ -472,7 +477,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     * @return Either the optimized trace if the APPLY_OPTIMIZATION_VARIABLE_FOLDING flag was enabled,
     *         or the input trace if not.
     */
-  def possiblyOptimizeVariableFolding(traceFull: TraceFull[SchemeExp, Time]): TraceFull[SchemeExp, Time] = {
+  def possiblyOptimizeVariableFolding(traceFull: SpecTraceFull): SpecTraceFull = {
     if (GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING) {
       optimizeVariableFolding(traceFull)
     } else {
@@ -484,7 +489,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
    *                                              MERGE ACTIONS OPTIMIZATION                                          *
    ********************************************************************************************************************/
 
-  def optimizeMergeActions(traceFull: TraceFull[SchemeExp, Time]): TraceFull[SchemeExp, Time] = {
+  def optimizeMergeActions(traceFull: SpecTraceFull): SpecTraceFull = {
 
     @tailrec
     def loop(trace: Trace, acc: Trace): Trace = trace match {
@@ -507,7 +512,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
    *                                       FUNCALL BLOCK FILTERING OPTIMIZATION                                       *
    ********************************************************************************************************************/
 
-  def removeFunCallBlockActions(traceFull: TraceFull[SchemeExp, Time]): TraceFull[SchemeExp, Time] = {
+  def removeFunCallBlockActions(traceFull: SpecTraceFull): SpecTraceFull = {
     val optimizedTrace = traceFull.trace.filter({
       case (ActionEndClosureCallT(), _) => false
       case (ActionEndOptimizedBlock(), _) => false
@@ -526,13 +531,13 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 //  val APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS = false
 //  val APPLY_OPTIMIZATION_DEAD_STORE_ELIMINATION = false
 //
-//  val staticAnalysisOptimisations: List[(Boolean, (TraceFull[SchemeExp, Time], AnalysisOutput) => TraceFull[SchemeExp, Time])] =
+//  val staticAnalysisOptimisations: List[(Boolean, (SpecTraceFull, AnalysisOutput) => SpecTraceFull)] =
 //    List((APPLY_OPTIMIZATION_VARIABLE_FOLDING_ASSERTIONS, replaceVariablesWithConstants(_, _)))
 //
-//  def foldStaticOptimisations(traceFull: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A],
-//                              optimisations: List[(Boolean, (TraceFull[SchemeExp, Time], AnalysisOutput) => TraceFull[SchemeExp, Time])]): TraceFull[SchemeExp, Time] = {
+//  def foldStaticOptimisations(traceFull: SpecTraceFull, addresses: Set[HybridAddress.A],
+//                              optimisations: List[(Boolean, (SpecTraceFull, AnalysisOutput) => SpecTraceFull)]): SpecTraceFull = {
 //    optimisations.foldLeft(traceFull)({ (traceFull, pair) =>
-//      val function: (TraceFull[SchemeExp, Time], AnalysisOutput) => TraceFull[SchemeExp, Time] = pair._2
+//      val function: (SpecTraceFull, AnalysisOutput) => SpecTraceFull = pair._2
 //      if (pair._1) { function(traceFull, output) } else { traceFull }})
 //  }
 
@@ -542,8 +547,8 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     * @param nonConstants The addresses whose value may change over the execution of the program after the trace.
     * @return The optimized (full) trace
     */
-  def applyConstantVariablesOptimizations(traceFull: TraceFull[SchemeExp, Time],
-                                          nonConstants: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
+  def applyConstantVariablesOptimizations(traceFull: SpecTraceFull,
+                                          nonConstants: Set[HybridAddress.A]): SpecTraceFull = {
     val allBoundAddresses = findAllBoundAddresses(traceFull, nonConstants)
     val varLookupsRemoved = replaceVariablesWithConstants(traceFull, allBoundAddresses)
     removeRedundantClosureGuards(varLookupsRemoved, allBoundAddresses)
@@ -579,7 +584,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
 //      case _ => true})
 //  }
 //
-//  private def replaceVariablesWithConstants(trace: TraceFull[SchemeExp, Time], addresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
+//  private def replaceVariablesWithConstants(trace: SpecTraceFull, addresses: Set[HybridAddress.A]): SpecTraceFull = {
 //    val startState = trace.info.startState
 //    val boundVariables = variableAnalyzer.analyzeBoundVariables(trace.info.boundVariables.toSet, trace)
 //    val freeVariables = assertions.flatMap({
@@ -602,7 +607,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     * @return The union of both variables that are bound inside the trace and the variables that are bound outside
     *         of the trace.
     */
-  private def findAllBoundAddresses(traceFull: TraceFull[SchemeExp, Time],
+  private def findAllBoundAddresses(traceFull: SpecTraceFull,
                                     traceExteriorBoundAddresses: Set[HybridAddress.A]): Set[HybridAddress.A] = {
     /* The addresses that are bound at the start of the trace. */
     val initialBoundAddresses = traceFull.info.boundVariables.map( {case (_, address) => address })
@@ -655,8 +660,8 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
     trace.map(replaceActionInfo)
   }
 
-  private def replaceVariablesWithConstants(traceFull: TraceFull[SchemeExp, Time],
-                                            allBoundAddresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
+  private def replaceVariablesWithConstants(traceFull: SpecTraceFull,
+                                            allBoundAddresses: Set[HybridAddress.A]): SpecTraceFull = {
     Logger.log(s"Initiating new variable folding optimization; allBoundAddresses = $allBoundAddresses", Logger.D)
     val optimizedTrace = replaceVariableLookups(traceFull.trace, allBoundAddresses)
     createFullTrace(traceFull, optimizedTrace)
@@ -666,8 +671,8 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
    *                                         REMOVE CLOSURE GUARDS OPTIMIZATION                                        *
    *********************************************************************************************************************/
 
-  private def removeRedundantClosureGuards(traceFull: TraceFull[SchemeExp, Time],
-                                           allBoundAddresses: Set[HybridAddress.A]): TraceFull[SchemeExp, Time] = {
+  private def removeRedundantClosureGuards(traceFull: SpecTraceFull,
+                                           allBoundAddresses: Set[HybridAddress.A]): SpecTraceFull = {
     Logger.log(s"Initiating closure guards removal optimization; allBoundAddresses = $allBoundAddresses", Logger.E)
 
     def isConstant(traceInfo: TraceInstructionInfo): Boolean = {
@@ -782,7 +787,7 @@ class SchemeTraceOptimizer[Addr : Address, Time : Timestamp]
    *                                         DEAD STORE ELIMINATION OPTIMIZATION                                       *
    *********************************************************************************************************************/
 
-//  private def optimizeDeadStoreElimination(traceFull: TraceFull[SchemeExp, Time], output: AnalysisOutput): TraceFull[SchemeExp, Time] = {
+//  private def optimizeDeadStoreElimination(traceFull: SpecTraceFull, output: AnalysisOutput): SpecTraceFull = {
 //    var deadVariables = variableAnalyzer.analyzeDeadVariables(traceFull.trace)
 //    Logger.log(s"Dead variables in the trace $deadVariables", Logger.V)
 //    for ((_, transitions) <- output.graph.get.edges) {

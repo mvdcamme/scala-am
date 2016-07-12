@@ -8,11 +8,11 @@ import scala.collection.mutable.Stack
 class VariableAnalysis[Exp : Expression, Addr : Address, Time : Timestamp]
   (val sem: SemanticsTraced[Exp, HybridLattice.L, Addr, Time]) {
 
-  type TraceInstructionStates = Tracer[Exp, Time]#TraceInstructionInfo
-  type TraceInstruction = Tracer[Exp, Time]#TraceInstruction
-  type Trace = Tracer[Exp, Time]#TraceWithInfos
-
   type HybridValue = HybridLattice.L
+
+  type TraceInstructionStates = Tracer[Exp, HybridValue, Addr, Time]#TraceInstructionInfo
+  type TraceInstruction = Tracer[Exp, HybridValue, Addr, Time]#TraceInstruction
+  type Trace = Tracer[Exp, HybridValue, Addr, Time]#TraceWithInfos
 
   /**
     * Computes the set of bound variables in the given trace.
@@ -21,7 +21,7 @@ class VariableAnalysis[Exp : Expression, Addr : Address, Time : Timestamp]
     * @param traceFull The trace of which the bound variables must be computed.
     * @return The set of bound variables in the trace.
     */
-  def analyzeBoundVariables(initialBoundVariables: Set[String], traceFull: TraceFull[Exp, Time]): Set[String] = {
+  def analyzeBoundVariables(initialBoundVariables: Set[String], traceFull: TraceFull[Exp, HybridValue, Addr, Time]): Set[String] = {
 
     /*
      * Compute, for each action in the trace, what the set of bound variables are at this position in the trace.
@@ -40,13 +40,13 @@ class VariableAnalysis[Exp : Expression, Addr : Address, Time : Timestamp]
      * AT ALL POINTS in the trace. Note that this overapproximates the set of bound variables.
      */
 
-    val initialState: ProgramState[Exp, Time] = traceFull.info.startState match {
+    val initialState: ConcreteTracingProgramState[Exp, HybridValue, Addr, Time] = traceFull.info.startState match {
       case s: ProgramState[Exp, Time] => s
       case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.info.startState} instead")
     }
 
-    var currentEnv: Environment[HybridAddress.A] = initialState.ρ
-    var vStack: List[Storable[HybridValue, HybridAddress.A]] = initialState.vStack
+    var currentEnv: Environment[Addr] = initialState.ρ
+    var vStack: List[Storable[HybridValue, Addr]] = initialState.vStack
 
     /*
      * The set of variables that are assigned, not defined, to inside of the trace.
@@ -111,7 +111,7 @@ class VariableAnalysis[Exp : Expression, Addr : Address, Time : Timestamp]
       }
     }
 
-    def handleAction(action: ActionT[Exp, HybridValue, HybridAddress.A], boundVariables: Set[String]) = action match {
+    def handleAction(action: ActionT[Exp, HybridValue, Addr], boundVariables: Set[String]) = action match {
       case ActionAllocVarsT(varNames) =>
         addVariables(varNames, boundVariables)
       case ActionExtendEnvT(varName) =>

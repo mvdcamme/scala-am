@@ -19,7 +19,7 @@
 
 class HybridMachine[Exp : Expression, Time : Timestamp]
   (override val sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
-   val tracer: Tracer[Exp, Time],
+   val tracer: Tracer[Exp, HybridLattice.L, HybridAddress.A, Time],
    tracingFlags: TracingFlags,
    injectProgramState: (Exp, Timestamp[Time]) =>
                        ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, Time])
@@ -68,7 +68,9 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   val TE = ExecutionPhase.TE
   val TR = ExecutionPhase.TR
 
-  case class TracerState(ep: ExecutionPhase.Value, ps: PS)(tc: tracer.TracerContext, tn: Option[tracer.TraceNode[TraceFull[Exp, Time]]]) {
+  case class TracerState(ep: ExecutionPhase.Value, ps: PS)
+                        (tc: tracer.TracerContext,
+                         tn: Option[tracer.TraceNode[TraceFull[Exp, HybridLattice.L, HybridAddress.A, Time]]]) {
 
     def checkTraceAssertions(state: PS, tc: tracer.TracerContext, loopID: List[Exp]): Option[PS] = {
       val traceNode = tracer.getLoopTrace(tc, loopID)
@@ -196,7 +198,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
         Logger.log(s"Stopped tracing $loopID; LOOP DETECTED", Logger.I)
         numberOfTracesRecorded += 1
         val analysisOutput = constantsAnalysisLauncher.runStaticAnalyis(sem, newState)
-        val tcTRStopped = tracer.stopTracing(traceAppendedTc, true, None, analysisOutput)
+        val tcTRStopped = tracer.stopTracing(traceAppendedTc, true, None, state)
         checkTraceAssertions(newState, tcTRStopped, loopID) match  {
           case Some(headerExecutedState) =>
             startExecutingTrace(headerExecutedState, tcTRStopped, loopID)
@@ -218,7 +220,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
         numberOfTracesRecorded += 1
         val traceEndedInstruction = sem.endTraceInstruction(restartPoint)
         val analysisOutput = constantsAnalysisLauncher.runStaticAnalyis(sem, newState)
-        val tcTRStopped = tracer.stopTracing(tc, false, Some(traceEndedInstruction), analysisOutput)
+        val tcTRStopped = tracer.stopTracing(tc, false, Some(traceEndedInstruction), state)
         TracerState(NI, newState)(tcTRStopped, tn)
       } else {
         val traceAppendedTc = tracer.appendTrace(tc, traceWithStates)

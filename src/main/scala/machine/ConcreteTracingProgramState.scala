@@ -61,7 +61,14 @@ trait ConcretableTracingProgramState[Exp, Time] {
 trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramState[Exp, Abs, Addr, Time] {
   type HybridValue = HybridLattice.L
 
-  def ρ: Environment[HybridAddress.A]
+  def control: TracingControl[Exp, Abs, Addr]
+  def ρ: Environment[Addr]
+  def σ: Store[Addr, Abs]
+  def kstore: KontStore[KontAddr]
+  def a: KontAddr
+  def t: Time
+  def v: Abs
+  def vStack: List[Storable[Abs, Addr]]
 
   def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[InterpreterStep[Exp, Abs, Addr]]
   def applyAction(sem: SemanticsTraced[Exp, Abs, Addr, Time],
