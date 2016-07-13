@@ -155,6 +155,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def restart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
               restartPoint: RestartPoint[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp, Time] = restartPoint match {
     case RestartFromControl(newControlExp) =>
+      val newT = time.tick(t)
       ProgramState(TracingControlEval[Exp, HybridLattice.L, HybridAddress.A](newControlExp), ρ, σ, kstore, a, newT, v, vStack)
     case RestartGuardDifferentClosure(action) =>
       handleClosureRestart(sem, action)
