@@ -50,3 +50,49 @@ object ConcreteTimestamp extends TimestampWrapper {
     def tick[Exp](t: T, e: Exp) = tick(t)
   }
 }
+
+object HybridTimestamp extends TimestampWrapper {
+  trait T
+
+  var useConcrete = true
+
+  def switchToAbstract() = {
+    useConcrete = false
+  }
+
+  def switchToConcrete() = {
+    useConcrete = true
+  }
+
+  val abstractT = ZeroCFA
+  val concreteT = ConcreteTimestamp
+
+  type AbstractT = abstractT.T
+  type ConcreteT = concreteT.T
+
+  case class AbstractTime(a: AbstractT) extends T
+  case class ConcreteTime(c: ConcreteT, a: AbstractT) extends T
+
+  def convertTime(time: T): T = time match {
+    case AbstractTime(a) => time
+    case ConcreteTime(c, a) => AbstractTime(a)
+  }
+
+  implicit val isTimestamp = new Timestamp[T] {
+    def name = "Hybrid"
+    def initial(seed: String) =
+      if (useConcrete) {
+        ConcreteTime(concreteT.isTimestamp.initial(seed), abstractT.isTimestamp.initial(seed))
+      } else {
+        AbstractTime(abstractT.isTimestamp.initial(seed))
+      }
+    def tick(t: T) = t match {
+      case AbstractTime(a) => AbstractTime(abstractT.isTimestamp.tick(a))
+      case ConcreteTime(c, a) => ConcreteTime(concreteT.isTimestamp.tick(c), abstractT.isTimestamp.tick(a))
+    }
+    def tick[Exp](t: T, e: Exp) = t match {
+      case AbstractTime(a) => AbstractTime(abstractT.isTimestamp.tick(a, e))
+      case ConcreteTime(c, a) => ConcreteTime(concreteT.isTimestamp.tick(c, e), abstractT.isTimestamp.tick(a, e))
+    }
+  }
+}
