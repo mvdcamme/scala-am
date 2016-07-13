@@ -380,9 +380,6 @@ case class RestartFromControl[Exp : Expression, Abs : JoinLattice, Addr : Addres
 case class RestartGuardDifferentClosure[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (action : ActionStepInT[Exp, Abs, Addr])
   extends RestartPoint[Exp, Abs, Addr]
-case class RestartGuardDifferentPrimitive[Exp : Expression, Abs : JoinLattice, Addr : Address]
-(action : ActionPrimCallT[Exp, Abs, Addr])
-  extends RestartPoint[Exp, Abs, Addr]
 case class RestartSpecializedPrimitive[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (originalPrimitive: Primitive[Addr, Abs], n: Int, fExp: Exp, argsExps: List[Exp])
   extends RestartPoint[Exp, Abs, Addr]
@@ -444,9 +441,6 @@ case class ActionGuardTrueT[Exp : Expression, Abs : JoinLattice, Addr : Address]
   extends ActionGuardT[Exp, Abs, Addr](rp, id)
 case class ActionGuardSameClosure[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (recordedClosure : Abs, override val rp : RestartGuardDifferentClosure[Exp, Abs, Addr], override val id: Integer)
-  extends ActionGuardT[Exp, Abs, Addr](rp, id)
-case class ActionGuardSamePrimitive[Exp : Expression, Abs : JoinLattice, Addr : Address]
-(recordedPrimitive : Abs, override val rp : RestartGuardDifferentPrimitive[Exp, Abs, Addr], override val id: Integer)
   extends ActionGuardT[Exp, Abs, Addr](rp, id)
 case class ActionGuardSpecializedPrimitive[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (expectedType: SimpleTypes.Value, numberOfOperands: Int,

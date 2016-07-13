@@ -158,8 +158,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       ProgramState(TracingControlEval[Exp, HybridLattice.L, HybridAddress.A](newControlExp), ρ, σ, kstore, a, t, v, vStack)
     case RestartGuardDifferentClosure(action) =>
       handleClosureRestart(sem, action)
-    case RestartGuardDifferentPrimitive(action) =>
-      handlePrimitiveRestart(action)
     case RestartTraceEnded() => this
     case RestartSpecializedPrimitive(originalPrim, n, fExp, argsExps) =>
       val primAppliedState = applyPrimitive(originalPrim, n, fExp, argsExps)
@@ -214,27 +212,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     }
   }
 
-  def handlePrimitiveRestart(action: ActionT[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp, Time] = {
-    action match {
-      case ActionPrimCallT(n: Integer, fExp, argsExps) =>
-        val (vals, newVStack) = popStackItems(vStack, n)
-        val operator: HybridValue = vals.last.getVal
-        val operands: List[HybridValue] = vals.take(n - 1).map(_.getVal)
-        val primitive: Set[Primitive[HybridAddress.A, HybridValue]] = sabs.getPrimitives[HybridAddress.A, HybridValue](operator)
-        val result = primitive.headOption match {
-          case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), σ, t)
-          case None => throw new NotAPrimitiveException(s"Operator $fExp not a primitive: $operator")
-        }
-        result.value match {
-          case Some((v, newσ, effects)) =>
-            val primAppliedState = ProgramState(control, ρ, σ, kstore, a, t, v, newVStack)
-            val next = if (primAppliedState.a == HaltKontAddress) { HaltKontAddress } else { primAppliedState.kstore.lookup(primAppliedState.a).head.next }
-            ProgramState(TracingControlKont(primAppliedState.a), primAppliedState.ρ, primAppliedState.σ, primAppliedState.kstore, next, primAppliedState.t, primAppliedState.v, primAppliedState.vStack)
-          case None => throw new Exception(result.errors.head.toString)
-        }
-    }
-  }
-
   def restoreEnv(): ProgramState[Exp, Time] = {
     try {
       val (newρ, newVStack) = popStack(vStack)
@@ -276,15 +253,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
           ActionStep(this, guard)
         case _ =>
           throw new Exception(s"Mixing concrete values with abstract values: ${guard.recordedClosure} and $currentClosure")
-      }
-    }
-
-    def handlePrimitiveGuard(guard: ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress.A], currentPrimitive: HybridValue): ActionReturn[Exp, HybridValue, HybridAddress.A, Time, ProgramState[Exp, Time]] = {
-      if (guard.recordedPrimitive == currentPrimitive) {
-        ActionStep(this, guard)
-      } else {
-        Logger.log(s"Primitive guard failed: recorded primitive ${guard.recordedPrimitive} does not match current primitive $currentPrimitive", Logger.D)
-        GuardFailed(guard.rp, guard.id)
       }
     }
 
@@ -396,13 +364,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         } catch {
           case e : java.lang.IndexOutOfBoundsException =>
             throw new IncorrectStackSizeException
-        }
-      case action : ActionGuardSamePrimitive[Exp, HybridValue, HybridAddress.A] =>
-        val n = action.rp.action.n
-        if (vStack.length > n - 1) {
-          handlePrimitiveGuard(action, vStack(n - 1).getVal)
-        } else {
-          throw new IncorrectStackSizeException()
         }
       case ActionGuardAssertFreeVariable(variableName, expectedValue, rp, guardID) =>
         ρ.lookup(variableName) match {
