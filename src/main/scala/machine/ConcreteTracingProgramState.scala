@@ -155,7 +155,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def restart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
               restartPoint: RestartPoint[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp, Time] = restartPoint match {
     case RestartFromControl(newControlExp) =>
-      val newT = time.tick(t, newControlExp)
       ProgramState(TracingControlEval[Exp, HybridLattice.L, HybridAddress.A](newControlExp), ρ, σ, kstore, a, newT, v, vStack)
     case RestartGuardDifferentClosure(action) =>
       handleClosureRestart(sem, action)
@@ -237,7 +236,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
 
     ActionLogger.logAction[Exp, HybridValue, HybridAddress.A](action)
 
-    var newT = time.tick(t)
+    val newT = time.tick(t)
 
     def handleGuard(guard: ActionGuardT[Exp, HybridValue, HybridAddress.A],
                     guardCheckFunction: HybridValue => Boolean): ActionReturn[Exp, HybridValue, HybridAddress.A, Time, ProgramState[Exp, Time]] = {
@@ -286,7 +285,6 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       /* When a continuation needs to be pushed, push it in the continuation store */
       case ActionEvalPushT(e, frame, _, _) =>
         val next = NormalKontAddress(e, t) // Hack to get infinite number of addresses in concrete mode
-        newT = time.tick(t, e)
         ActionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, newT, v, vStack), action)
       case ActionExtendEnvT(varName) =>
         val value = vStack.head.getVal
