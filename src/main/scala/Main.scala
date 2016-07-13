@@ -378,27 +378,27 @@ object Main {
           case Config.Machine.AAC => genNonTracingMachineStartFun(new AAC[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Free => genNonTracingMachineStartFun(new Free[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Hybrid => {
-            val absSemantics = new BaseSchemeSemantics[HybridLattice.L, HybridAddress.A, ZeroCFA.T](new SchemePrimitives[HybridAddress.A, HybridLattice.L])
+            val absSemantics = new BaseSchemeSemantics[HybridLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, HybridLattice.L])
             val sabs = implicitly[IsSchemeLattice[HybridLattice.L]]
             if (config.amb) {
-              val sem = new AmbSchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, time.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
-              val tracerContext = new SchemeTracer[HybridLattice.L, HybridAddress.A, time.T](sem, config.tracingFlags, None)
-              val constantsAnalysisLauncher = new ConstantsAnalysisLauncher[SchemeExp, time.T](sem, config.tracingFlags)
-              val machine = new HybridMachine[SchemeExp, time.T](sem, constantsAnalysisLauncher, tracerContext, config.tracingFlags, { (exp, t) =>
-                val normalState = new ProgramState[SchemeExp, time.T](sem, sabs, exp, t)
-                new AmbProgramState[SchemeExp, time.T](normalState)
+              val sem = new AmbSchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, HybridTimestamp.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
+              val tracerContext = new SchemeTracer[HybridLattice.L, HybridAddress.A, HybridTimestamp.T](sem, config.tracingFlags, None)
+              val constantsAnalysisLauncher = new ConstantsAnalysisLauncher[SchemeExp](sem, config.tracingFlags)
+              val machine = new HybridMachine[SchemeExp](sem, constantsAnalysisLauncher, tracerContext, config.tracingFlags, { (exp) =>
+                val normalState = new ProgramState[SchemeExp](sem, sabs, exp)
+                new AmbProgramState[SchemeExp](normalState)
               })
               (program: String) => runTraced(machine)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
             } else {
-                val sem = new SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, time.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
-              val constantsAnalysisLauncher = new ConstantsAnalysisLauncher[SchemeExp, time.T](sem, config.tracingFlags)
-              val optimizer = new SchemeTraceOptimizer[time.T](sem, constantsAnalysisLauncher, config.tracingFlags)
-              val tracerContext = new SchemeTracer[HybridLattice.L, HybridAddress.A, time.T](sem, config.tracingFlags, Some(optimizer))
-                val machine = new HybridMachine[SchemeExp, time.T](sem,
+                val sem = new SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, HybridTimestamp.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
+              val constantsAnalysisLauncher = new ConstantsAnalysisLauncher[SchemeExp](sem, config.tracingFlags)
+              val optimizer = new SchemeTraceOptimizer(sem, constantsAnalysisLauncher, config.tracingFlags)
+              val tracerContext = new SchemeTracer[HybridLattice.L, HybridAddress.A, HybridTimestamp.T](sem, config.tracingFlags, Some(optimizer))
+                val machine = new HybridMachine[SchemeExp](sem,
                   constantsAnalysisLauncher,
                   tracerContext,
                   config.tracingFlags,
-                  { (exp, t) => new ProgramState[SchemeExp, time.T](sem, sabs, exp, t)})
+                  { (exp) => new ProgramState[SchemeExp](sem, sabs, exp)})
                 (program: String) => runTraced(machine)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
             }
           }

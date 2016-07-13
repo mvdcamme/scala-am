@@ -3,24 +3,22 @@ import scala.annotation.tailrec
 /**
   * Created by mvdcamme on 24/02/16.
   */
-class SchemeTraceOptimizer[Time : Timestamp]
-  (val sem: SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, Time],
-   constantsAnalysisLauncher: ConstantsAnalysisLauncher[SchemeExp, Time],
+class SchemeTraceOptimizer
+  (val sem: SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
+   constantsAnalysisLauncher: ConstantsAnalysisLauncher[SchemeExp],
    tracingFlags: TracingFlags)
-  extends TraceOptimizer[SchemeExp, HybridLattice.L, HybridAddress.A, Time] {
+  extends TraceOptimizer[SchemeExp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T] {
 
-  type TraceInstructionInfo = Tracer[SchemeExp, HybridLattice.L, HybridAddress.A, Time]#TraceInstructionInfo
-  type TraceInstruction = Tracer[SchemeExp, HybridLattice.L, HybridAddress.A, Time]#TraceInstruction
-  type TraceWithoutStates = Tracer[SchemeExp, HybridLattice.L, HybridAddress.A, Time]#TraceWithoutStates
-  type Trace = Tracer[SchemeExp, HybridLattice.L, HybridAddress.A, Time]#TraceWithInfos
+  type TraceInstructionInfo = Tracer[SchemeExp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]#TraceInstructionInfo
+  type TraceInstruction = Tracer[SchemeExp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]#TraceInstruction
+  type TraceWithoutStates = Tracer[SchemeExp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]#TraceWithoutStates
+  type Trace = Tracer[SchemeExp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]#TraceWithInfos
 
-  type SpecTraceFull = TraceFull[SchemeExp, HybridLattice.L, HybridAddress.A, Time]
+  type SpecTraceFull = TraceFull[SchemeExp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]
 
   type HybridValue = HybridLattice.L
 
   val sabs = implicitly[IsSchemeLattice[HybridValue]]
-
-  val variableAnalyzer = new VariableAnalysis[SchemeExp, HybridAddress.A, Time](sem)
 
   val basicOptimizations: List[(Boolean, (SpecTraceFull => SpecTraceFull))] =
     List((GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)),
@@ -38,14 +36,14 @@ class SchemeTraceOptimizer[Time : Timestamp]
   }
 
   def optimize(trace: SpecTraceFull,
-               state: ConcreteTracingProgramState[SchemeExp, HybridLattice.L, HybridAddress.A, Time])
+               state: ConcreteTracingProgramState[SchemeExp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T])
               :SpecTraceFull = {
     Logger.log(s"Size of unoptimized trace = ${trace.trace.length}", Logger.V)
     val basicAssertedOptimizedTrace = foldOptimisations(trace, basicOptimizations)
     Logger.log(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}", Logger.V)
     val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations)
     Logger.log(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}", Logger.V)
-    val addressesLookedUp = TraceAnalyzer.collectAddressesLookedUp(trace.trace)
+    val addressesLookedUp = TraceAnalyzer.collectAddressesLookedUp[SchemeExp, HybridTimestamp.T](trace.trace)
     val analysisOutput = constantsAnalysisLauncher.runStaticAnalysis(state, addressesLookedUp)
     val tier3AssertedOptimizedTrace = analysisOutput match {
       case ConstantAddresses(_, nonConstants) =>
@@ -412,11 +410,11 @@ class SchemeTraceOptimizer[Time : Timestamp]
 
     val initialBoundAddresses = traceFull.info.boundVariables.map(_._2)
     var registerIndex: Integer = 0
-    val boundAddresses = TraceAnalyzer.collectTraceBoundAddresses(traceFull.trace)
+    val boundAddresses = TraceAnalyzer.collectTraceBoundAddresses[SchemeExp, HybridTimestamp.T](traceFull.trace)
     var variablesConverted: List[(String, Integer)] = Nil
 
-    val initialState: ProgramState[SchemeExp, Time] = traceFull.info.startState match {
-      case s: ProgramState[SchemeExp, Time] => s
+    val initialState: ProgramState[SchemeExp] = traceFull.info.startState match {
+      case s: ProgramState[SchemeExp] => s
       case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.info.startState} instead")
     }
 
@@ -626,14 +624,14 @@ class SchemeTraceOptimizer[Time : Timestamp]
     val initialBoundAddresses = traceFull.info.boundVariables.map( {case (_, address) => address })
     /* The addresses that become bound by actions in the trace itself, e.g., addresses that are reassigned or allocated
      * within the trace. */
-    val traceBoundAddresses = TraceAnalyzer.collectTraceBoundAddresses[SchemeExp, Time](traceFull.trace)
+    val traceBoundAddresses = TraceAnalyzer.collectTraceBoundAddresses[SchemeExp, HybridTimestamp.T](traceFull.trace)
     /* Combination of the above two sets of addresses, plus the set of addresses that become bound in
      * the state graph after the trace. */
     traceBoundAddresses ++ initialBoundAddresses ++ traceExteriorBoundAddresses
   }
 
   private def addressBound(address: HybridAddress.A, boundAddresses: Set[HybridAddress.A]): Boolean = {
-    val abstractAddress = HybridAddress.convertAddress(address)
+    val abstractAddress = HybridAddress.convertAddress[SchemeExp, HybridTimestamp.T](address, HybridTimestamp.convertTime)
     /* Check both the abstracted address and the concrete address */
     boundAddresses.contains(abstractAddress) || boundAddresses.contains(address)
   }

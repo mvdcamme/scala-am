@@ -17,18 +17,18 @@
  * contains the value reached.
  */
 
-class HybridMachine[Exp : Expression, Time : Timestamp]
-  (override val sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
-   constantsAnalysisLauncher: ConstantsAnalysisLauncher[Exp, Time],
-   val tracer: Tracer[Exp, HybridLattice.L, HybridAddress.A, Time],
+class HybridMachine[Exp : Expression]
+  (override val sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
+   constantsAnalysisLauncher: ConstantsAnalysisLauncher[Exp],
+   val tracer: Tracer[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
    tracingFlags: TracingFlags,
-   injectProgramState: (Exp, Timestamp[Time]) =>
-                       ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, Time])
-    extends EvalKontMachineTraced[Exp, HybridLattice.L, HybridAddress.A, Time](sem) {
+   injectProgramState: (Exp) =>
+                       ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T])
+    extends EvalKontMachineTraced[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T](sem) {
 
   type HybridValue = HybridLattice.L
 
-  type PS = ConcreteTracingProgramState[Exp, HybridValue, HybridAddress.A, Time]
+  type PS = ConcreteTracingProgramState[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T]
 
   def name = "HybridMachine"
 
@@ -70,7 +70,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   case class TracerState(ep: ExecutionPhase.Value, ps: PS)
                         (tc: tracer.TracerContext,
-                         tn: Option[tracer.TraceNode[TraceFull[Exp, HybridLattice.L, HybridAddress.A, Time]]]) {
+                         tn: Option[tracer.TraceNode[TraceFull[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]]]) {
 
     def checkTraceAssertions(state: PS, tc: tracer.TracerContext, loopID: List[Exp]): Option[PS] = {
       val traceNode = tracer.getLoopTrace(tc, loopID)
@@ -262,7 +262,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
 
   }
 
-  case class HybridOutput[State <: TracingProgramState[Exp, HybridValue, HybridAddress.A, Time], Annotation]
+  case class HybridOutput[State <: TracingProgramState[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T], Annotation]
     (halted: Set[State], count: Int, t: Double, graph: Option[Graph[State, Annotation]], timedOut: Boolean)
       extends Output[HybridValue] {
 
@@ -332,14 +332,14 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
   }
 
   def injectExecutionState(exp: Exp): TracerState =
-    new TracerState(NI, injectProgramState(exp, time))(tracer.newTracerContext, None)
+    new TracerState(NI, injectProgramState(exp))(tracer.newTracerContext, None)
 
   /**
    * Performs the evaluation of an expression, possibly writing the output graph
    * in a file, and returns the set of final states reached
    */
   def eval(exp: Exp, graph: Boolean, timeout: Option[Long]): Output[HybridValue] = {
-    val initialState = injectProgramState(exp, time)
+    val initialState = injectProgramState(exp)
     val analysisResult = constantsAnalysisLauncher.runInitialStaticAnalysis(initialState)
     analysisResult match {
       case ConstantAddresses(constants, nonConstants) =>
