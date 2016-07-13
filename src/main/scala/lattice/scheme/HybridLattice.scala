@@ -7,14 +7,14 @@ object SimpleTypes extends Enumeration {
 
 object HybridLattice extends SchemeLattice {
 
-  var doConcrete = true
+  var useConcrete = true
 
   def switchToAbstract() = {
-    doConcrete = false
+    useConcrete = false
   }
 
   def switchToConcrete() = {
-    doConcrete = true
+    useConcrete = true
   }
 
   sealed trait L
@@ -28,8 +28,8 @@ object HybridLattice extends SchemeLattice {
   type ConcL = concreteLattice.L
   type AbstL = abstractLattice.L
 
-  case class Concrete(c: concreteLattice.L) extends L
-  case class Abstract(a: abstractLattice.L) extends L
+  case class Concrete(c: ConcL) extends L
+  case class Abstract(a: AbstL) extends L
 
   def isConstantValue(value: L): Boolean = value match {
     case Concrete(_) =>
@@ -201,7 +201,7 @@ object HybridLattice extends SchemeLattice {
       (y: AbstL) => abstractSchemeLattice.getPrimitives[Addr, Abs](y))
 
     def applyEither(f: () => ConcL, g: () => AbstL): L =
-      if (doConcrete) {
+      if (useConcrete) {
         Concrete(f())
       } else {
         Abstract(g())
@@ -293,7 +293,7 @@ object HybridLattice extends SchemeLattice {
         case None => throw new Exception(s"Values from different lattices cannot subsume each other: $x and $y")
     }
 
-    def counting = if (doConcrete) { true } else { false }
+    def counting = if (useConcrete) { true } else { false }
 
     def isPrimitiveValue(x: L): Boolean = delegateToLattice1[Boolean](x,
       (x: ConcL) => concreteSchemeLattice.isPrimitiveValue(x),

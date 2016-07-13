@@ -83,23 +83,22 @@ object HybridAddress extends AddressWrapper {
 
   case class IntAddress(name: String, id: Int)
 
-  case class ConcreteAddr(address1: IntAddress, address2: ClassicalAddress.A) extends A
-  case class AbstractAddr(address: ClassicalAddress.A) extends A {
+  case class ConcreteAddr(c: IntAddress, a: ClassicalAddress.A) extends A
+  case class AbstractAddr(a: ClassicalAddress.A) extends A {
     override def equals(that: Any): Boolean = that match {
       case v: AbstractAddr =>
-        address == v.address
+        a == v.a
       case _ => super.equals(that)
     }
 
-    override def hashCode() = address.hashCode()
+    override def hashCode() = a.hashCode()
   }
   case class PrimitiveAddress(name: String) extends A
 
   def convertAddress(address: A): A = address match {
-    case HybridAddress.PrimitiveAddress(name) => HybridAddress.PrimitiveAddress(name)
-    case HybridAddress.ConcreteAddr(address1, address2) => HybridAddress.AbstractAddr(address2)
-    case HybridAddress.AbstractAddr(_) => address
-    case _ => throw new Exception(s"Cannot reconvert an abstract address: $address")
+    case AbstractAddr(_) => address
+    case ConcreteAddr(c, a) => AbstractAddr(a)
+    case PrimitiveAddress(name) => PrimitiveAddress(name)
   }
 
   implicit val isAddress = new Address[A] {
