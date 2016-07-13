@@ -155,7 +155,8 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def restart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
               restartPoint: RestartPoint[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp, Time] = restartPoint match {
     case RestartFromControl(newControlExp) =>
-      ProgramState(TracingControlEval[Exp, HybridLattice.L, HybridAddress.A](newControlExp), ρ, σ, kstore, a, t, v, vStack)
+      val newT = time.tick(t, newControlExp)
+      ProgramState(TracingControlEval[Exp, HybridLattice.L, HybridAddress.A](newControlExp), ρ, σ, kstore, a, newT, v, vStack)
     case RestartGuardDifferentClosure(action) =>
       handleClosureRestart(sem, action)
     case RestartTraceEnded() => this
@@ -190,9 +191,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
           val newVStack = //machine.StoreEnv[HybridValue, HybridAddress.A](ρ2) ::
                           StoreEnv[HybridValue, HybridAddress.A](ρ) ::
                           poppedVStack
-          ProgramState[Exp, Time](TracingControlEval[Exp, HybridValue, HybridAddress.A](e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, time.tick(t, fexp), v, newVStack)
+          val newT = time.tick(t, fexp)
+          ProgramState[Exp, Time](TracingControlEval[Exp, HybridValue, HybridAddress.A](e), ρ2, σ2, kstore.extend(next, Kont(frame, a)), next, newT, v, newVStack)
         case Left(expectedNrOfArgs) =>
-          ProgramState[Exp, Time](TracingControlError(ArityError(fexp.toString, expectedNrOfArgs, n - 1)), ρ, σ, kstore, a, t, v, poppedVStack)
+          val newT = time.tick(t)
+          ProgramState[Exp, Time](TracingControlError(ArityError(fexp.toString, expectedNrOfArgs, n - 1)), ρ, σ, kstore, a, newT, v, poppedVStack)
       }
   }
 
@@ -206,7 +209,8 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     val result = primitive.call(fExp, argsExps.zip(operands.reverse), σ, t)
     result.value match {
       case Some((res, σ2, effects)) =>
-        ProgramState(control, ρ, σ2, kstore, a, t, res, newVStack)
+        val newT = time.tick(t)
+        ProgramState(control, ρ, σ2, kstore, a, newT, res, newVStack)
       case None =>
         throw new Exception(result.errors.head.toString)
     }
@@ -215,20 +219,25 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
   def restoreEnv(): ProgramState[Exp, Time] = {
     try {
       val (newρ, newVStack) = popStack(vStack)
-      ProgramState(control, newρ.getEnv, σ, kstore, a, t, v, newVStack)
+      val newT = time.tick(t)
+      ProgramState(control, newρ.getEnv, σ, kstore, a, newT, v, newVStack)
     } catch {
       case e : java.lang.IndexOutOfBoundsException =>
         throw new IncorrectStackSizeException()
     }
   }
 
-  protected def saveEnv(): ProgramState[Exp, Time] =
-    ProgramState(control, ρ, σ, kstore, a, t, v, StoreEnv[HybridValue, HybridAddress.A](ρ) :: vStack)
+  protected def saveEnv(): ProgramState[Exp, Time] = {
+    val newT = time.tick(t)
+    ProgramState(control, ρ, σ, kstore, a, newT, v, StoreEnv[HybridValue, HybridAddress.A](ρ) :: vStack)
+  }
 
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
                   action: ActionT[Exp, HybridValue, HybridAddress.A]): ActionReturn[Exp, HybridValue, HybridAddress.A, Time, ProgramState[Exp, Time]] = {
 
     ActionLogger.logAction[Exp, HybridValue, HybridAddress.A](action)
+
+    var newT = time.tick(t)
 
     def handleGuard(guard: ActionGuardT[Exp, HybridValue, HybridAddress.A],
                     guardCheckFunction: HybridValue => Boolean): ActionReturn[Exp, HybridValue, HybridAddress.A, Time, ProgramState[Exp, Time]] = {
@@ -260,41 +269,42 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case ActionAllocVarsT(variables) =>
         val addresses = variables.map(varName => addr.variable(varName, v, t))
         val (ρ1, σ1) = variables.zip(addresses).foldLeft((ρ, σ))({ case ((ρ2, σ2), (currV, currA)) => (ρ2.extend(currV, currA), σ2.extend(currA, abs.bottom)) })
-        ActionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, vStack), action)
+        ActionStep(ProgramState(control, ρ1, σ1, kstore, a, newT, v, vStack), action)
       case ActionCreateClosureT(λ) =>
         val newClosure = sabs.inject[Exp, HybridAddress.A]((λ, ρ))
-        ActionStep(ProgramState(control, ρ, σ, kstore, a, t, newClosure, vStack), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, newClosure, vStack), action)
       case ActionEndClosureCallT() =>
         ActionStep(this, action)
       case ActionEndPrimCallT() =>
         ActionStep(this, action)
       /* When an error is reached, we go to an error state */
       case ActionErrorT(err) =>
-        ActionStep(ProgramState(TracingControlError(err), ρ, σ, kstore, a, t, v, vStack), action)
+        ActionStep(ProgramState(TracingControlError(err), ρ, σ, kstore, a, newT, v, vStack), action)
       /* When a value needs to be evaluated, we go to an eval state */
       case ActionEvalT(e, _, _) =>
-        ActionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore, a, t, v, vStack), action)
+        ActionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore, a, newT, v, vStack), action)
       /* When a continuation needs to be pushed, push it in the continuation store */
       case ActionEvalPushT(e, frame, _, _) =>
         val next = NormalKontAddress(e, t) // Hack to get infinite number of addresses in concrete mode
-        ActionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, time.tick(t, e), v, vStack), action)
+        newT = time.tick(t, e)
+        ActionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, newT, v, vStack), action)
       case ActionExtendEnvT(varName) =>
         val value = vStack.head.getVal
         val va = addr.variable(varName, value, t)
         val ρ1 = ρ.extend(varName, va)
         val σ1 = σ.extend(va, value)
         val newVStack = vStack.tail
-        ActionStep(ProgramState(control, ρ1, σ1, kstore, a, t, v, newVStack), action)
+        ActionStep(ProgramState(control, ρ1, σ1, kstore, a, newT, v, newVStack), action)
       case ActionExtendStoreT(addr, lit) =>
         val σ1 = σ.extend(addr, lit)
-        ActionStep(ProgramState(control, ρ, σ1, kstore, a, t, lit, vStack), action)
+        ActionStep(ProgramState(control, ρ, σ1, kstore, a, newT, lit, vStack), action)
       case ActionLookupVariableT(varName, _, _) =>
         val newV = σ.lookup(ρ.lookup(varName).get).get
-        ActionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, vStack), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, newV, vStack), action)
       case ActionLookupVariablePushT(varName, _, _) => ρ.lookup(varName) match {
         case Some(address) =>
           val newV = σ.lookup(address).get
-          ActionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, StoreVal[HybridValue, HybridAddress.A](newV) :: vStack), action)
+          ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, newV, StoreVal[HybridValue, HybridAddress.A](newV) :: vStack), action)
         case None =>
           throw new Exception(s"Could not find variable $varName in environment")
       }
@@ -303,7 +313,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
           val kset = kstore.lookup(a)
           assert(kset.size == 1)
           kset.head.next}
-        ActionStep(ProgramState(TracingControlKont(a), ρ, σ, kstore, next, t, v, vStack), action)
+        ActionStep(ProgramState(TracingControlKont(a), ρ, σ, kstore, next, newT, v, vStack), action)
       case ActionPrimCallT(n: Integer, fExp, argsExps) =>
         val (vals, _) = popStackItems(vStack, n)
         val operator = vals.last.getVal
@@ -311,11 +321,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         assert(primitivesSet.size == 1)
         ActionStep(applyPrimitive(primitivesSet.head, n, fExp, argsExps), action)
       case ActionPushValT() =>
-        ActionStep(ProgramState(control, ρ, σ, kstore, a, t, v, StoreVal[HybridValue, HybridAddress.A](v) :: vStack), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, v, StoreVal[HybridValue, HybridAddress.A](v) :: vStack), action)
       case ActionReachedValueT(lit, _, _) =>
-        ActionStep(ProgramState(control, ρ, σ, kstore, a, t, lit, vStack), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, lit, vStack), action)
       case ActionReachedValuePushT(lit, _, _) =>
-        ActionStep(ProgramState(control, ρ, σ, kstore, a, t, lit, StoreVal[HybridValue, HybridAddress.A](lit) :: vStack), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, lit, StoreVal[HybridValue, HybridAddress.A](lit) :: vStack), action)
       case ActionRestoreEnvT() =>
         ActionStep(restoreEnv(), action)
       case ActionRestoreSaveEnvT() =>
@@ -325,7 +335,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
       case ActionSetVarT(variable) =>
         ρ.lookup(variable) match {
           case Some(address) =>
-            ActionStep(ProgramState(control, ρ, σ.update(address, v), kstore, a, t, v, vStack), action)
+            ActionStep(ProgramState(control, ρ, σ.update(address, v), kstore, a, newT, v, vStack), action)
           case None =>
             throw new VariableNotFoundException(variable)
         }
@@ -350,7 +360,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         ActionStep(this, action)
       case ActionLookupRegister(registerIndex) =>
         val value = RegisterStore.getRegister(registerIndex)
-        ActionStep(ProgramState(control, ρ, σ, kstore, a, t, value, vStack), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, value, vStack), action)
       case action : ActionEndTrace[Exp, HybridValue, HybridAddress.A] =>
         TraceEnded(action.restartPoint)
       case action : ActionGuardFalseT[Exp, HybridValue, HybridAddress.A] =>
