@@ -70,7 +70,15 @@ object HybridTimestamp extends TimestampWrapper {
   type AbstractT = abstractT.T
   type ConcreteT = concreteT.T
 
-  case class AbstractTime(a: AbstractT) extends T
+  case class AbstractTime(a: AbstractT) extends T {
+    override def equals(that: Any): Boolean = that match {
+      case v: AbstractTime =>
+        a == v.a
+      case _ => super.equals(that)
+    }
+
+    override def hashCode() = a.hashCode()
+  }
   case class ConcreteTime(c: ConcreteT, a: AbstractT) extends T
 
   def convertTime(time: T): T = time match {
