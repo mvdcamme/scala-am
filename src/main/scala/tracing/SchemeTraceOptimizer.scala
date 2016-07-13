@@ -5,6 +5,7 @@ import scala.annotation.tailrec
   */
 class SchemeTraceOptimizer[Time : Timestamp]
   (val sem: SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, Time],
+   constantsAnalysisLauncher: ConstantsAnalysisLauncher[SchemeExp, Time],
    tracingFlags: TracingFlags)
   extends TraceOptimizer[SchemeExp, HybridLattice.L, HybridAddress.A, Time] {
 
@@ -19,7 +20,6 @@ class SchemeTraceOptimizer[Time : Timestamp]
 
   val sabs = implicitly[IsSchemeLattice[HybridValue]]
 
-  val constantsAnalysisLauncher = new ConstantsAnalyisLauncher[SchemeExp, Time](tracingFlags)
   val variableAnalyzer = new VariableAnalysis[SchemeExp, HybridAddress.A, Time](sem)
 
   val basicOptimizations: List[(Boolean, (SpecTraceFull => SpecTraceFull))] =
@@ -46,7 +46,7 @@ class SchemeTraceOptimizer[Time : Timestamp]
     val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations)
     Logger.log(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}", Logger.V)
     val addressesLookedUp = TraceAnalyzer.collectAddressesLookedUp(trace.trace)
-    val analysisOutput = constantsAnalysisLauncher.runStaticAnalyis(sem, state, addressesLookedUp)
+    val analysisOutput = constantsAnalysisLauncher.runStaticAnalysis(state, addressesLookedUp)
     val tier3AssertedOptimizedTrace = analysisOutput match {
       case ConstantAddresses(_, nonConstants) =>
         applyConstantVariablesOptimizations(tier2AssertedOptimizedTrace, nonConstants.asInstanceOf[Set[HybridAddress.A]])

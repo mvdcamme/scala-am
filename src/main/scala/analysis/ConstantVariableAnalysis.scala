@@ -30,13 +30,15 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
   }
 
   def analyze(aam: AAM[Exp, L, Addr, Time], sem: Semantics[Exp, L, Addr, Time], isConstantValue: L => Boolean)
-             (startState: aam.State, initialEnv: Environment[Addr], addressedLookedUp: Set[Addr]): ConstantAddresses[Addr] = {
+             (startState: aam.State, addressedLookedUp: Set[Addr],
+             isInitial: Boolean): ConstantAddresses[Addr] = {
     /* The addresses determined to refer to constants by the initial global analysis.
      * These addresses don't have to be checked again, because if the initial analysis could determine them to
      * remain constant, and if this analysis was sound, this new analysis will just determine again that they're
      * constant. */
     val initialConstants: Set[Addr] = initialAnalysisResults.fold(Set[Addr]())(_.constants)
     val relevantAddresses = addressedLookedUp -- initialConstants
+    Logger.log(s"relevantAddresses = $relevantAddresses", Logger.E)
     /* Stop exploring the state once all relevant addresses were found to be non-constant. */
     val pred = (state: aam.State) => relevantAddresses.forall(addr => state.store.lookup(addr) match {
       case None =>
@@ -46,7 +48,7 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
       case Some(value) =>
         ! isConstantValue(value)
     })
-    val output = aam.kickstartEval(startState, sem, Some(pred), None, false)
+    val output = aam.kickstartEval(startState, sem, if (isInitial) None else Some(pred), None, false)
     analyzeOutput(aam, isConstantValue)(output)
   }
 
@@ -54,15 +56,18 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
     * Performs an initial global analysis of the entire program and saves the results for later use.
     */
   def initialAnalyze(aam: AAM[Exp, L, Addr, Time], sem: Semantics[Exp, L, Addr, Time], isConstantValue: L => Boolean)
-  (startState: aam.State, initialEnv: Environment[Addr]): ConstantAddresses[Addr] = {
-    val results = analyze(aam, sem, isConstantValue)(startState, initialEnv, Set())
-    initialAnalysisResults = Some(results)
-    results
+                    (startState: aam.State)
+                    :ConstantAddresses[Addr] = {
+    val output = aam.kickstartEval(startState, sem, None, None, false)
+    val result = analyzeOutput(aam, isConstantValue)(output)
+    initialAnalysisResults = Some(result)
+    result
   }
 }
 
-class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
-(sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time]) {
+class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp](
+     sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
+     tracingFlags: TracingFlags) {
 
   /* The concrete program state the static analysis gets as input. This state is then converted to an
    * abstract state and fed to the AAM. */
@@ -73,7 +78,7 @@ class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
   /* The specific environment used in the concrete state: an environment using the HybridAddress components. */
   type SpecEnv = Environment[HybridAddress.A]
 
-  val constantsAnalysis = new ConstantVariableAnalysis[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T]
+  final val constantsAnalysis = new ConstantVariableAnalysis[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T]
 
   private def switchToAbstract(): Unit = {
     Logger.log("HybridMachine switching to abstract", Logger.I)
@@ -82,14 +87,31 @@ class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
   }
 
   protected def launchAnalysis(aam: SpecAAM)
-                              (startState: aam.State, env: SpecEnv, addressedLookedUp: Set[HybridAddress.A]): ConstantAddresses[HybridAddress.A] = {
+                              (startState: aam.State, addressedLookedUp: Set[HybridAddress.A])
+                              :ConstantAddresses[HybridAddress.A] = {
     val abstractAddressesLookedup = addressedLookedUp.map(HybridAddress.convertAddress(_))
-    constantsAnalysis.analyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState, env, abstractAddressesLookedup)
+    constantsAnalysis.analyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState, abstractAddressesLookedup, false)
   }
 
-  private def startStaticAnalysis(currentProgramState: PS, addressedLookedUp: Set[HybridAddress.A]): ConstantAddresses[HybridAddress.A] = {
+  protected def launchInitialAnalysis(aam: SpecAAM)
+                                     (startState: aam.State)
+                                     :ConstantAddresses[HybridAddress.A] = {
+    Logger.log(s"Running static analysis before actually executing program", Logger.I)
+    val result = constantsAnalysis.initialAnalyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState)
+    Logger.log(s"Finished running static analysis before actually executing program", Logger.I)
+    result
+  }
+
+  /*
+   * The type of the second argument of the launchAnalysis higher-order parameter should be the State of the
+   * first parameter of launchAnalyis, but path dependent typing seems to cause problems when combined with
+   * higher-order functions.
+   */
+  private def startStaticAnalysis(currentProgramState: PS,
+                                  launchAnalysis: (SpecAAM, Any) => ConstantAddresses[HybridAddress.A])
+                                 :ConstantAddresses[HybridAddress.A] = {
     val aam = new AAM[Exp, HybridLattice.L, HybridAddress.A, ZeroCFA.T]
-    val (control, env, store, kstore, a, t) = currentProgramState.convertState(aam)(sem)
+    val (control, _, store, kstore, a, t) = currentProgramState.convertState(aam)(sem)
     val convertedControl = control match {
       case ConvertedControlError(reason) => aam.ControlError(reason)
       case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
@@ -97,7 +119,7 @@ class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
     }
     val startState = aam.State(convertedControl, store, kstore, a, t)
     // TODO timeout
-    val result = launchAnalysis(aam)(startState, env, addressedLookedUp)
+    val result = launchAnalysis(aam, startState)
     Logger.log(s"analysis result is $result", Logger.I)
     result
   }
@@ -108,49 +130,33 @@ class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
     HybridAddress.switchToConcrete()
   }
 
-  def runStaticAnalysis(currentProgramState: PS, addressedLookedUp: Set[HybridAddress.A]): StaticAnalysisResult = {
-    switchToAbstract()
-    val result = startStaticAnalysis(currentProgramState, addressedLookedUp)
-    switchToConcrete()
-    result
-  }
-}
-
-class InitialConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp]
-(sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time])
-  extends ConstantsAnalysisLauncher[Exp, Time](sem) {
-
-  protected def launchAnalysis(aam: SpecAAM)(startState: aam.State, env: SpecEnv): ConstantAddresses[HybridAddress.A] = {
-    Logger.log(s"Running static analysis before actually executing program", Logger.I)
-    val result = constantsAnalysis.initialAnalyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState, env)
-    Logger.log(s"Finished running static analysis before actually executing program", Logger.I)
-    result
-  }
-}
-
-class ConstantsAnalyisLauncher[Exp : Expression, Time : Timestamp](tracingFlags: TracingFlags) {
-
-  private def runAnalysis(analysisLauncher: ConstantsAnalysisLauncher[Exp, Time],
-                          state: HybridMachine[Exp, Time]#PS,
-                          addressedLookedUp: Set[HybridAddress.A]): StaticAnalysisResult = {
+  private def wrapRunAnalysis(runAnalysis: () => StaticAnalysisResult)
+                             :StaticAnalysisResult = {
     if (tracingFlags.SWITCH_ABSTRACT) {
-      analysisLauncher.runStaticAnalysis(state, addressedLookedUp)
+      switchToAbstract()
+      val result = runAnalysis()
+      switchToConcrete()
+      result
     } else {
       NoStaticisAnalysisResult
     }
   }
 
-  def runInitialStaticAnalyis(sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
-                              state: HybridMachine[Exp, Time]#PS): StaticAnalysisResult = {
-    val constantsAnalysisLauncher = new InitialConstantsAnalysisLauncher[Exp, Time](sem)
-    runAnalysis(constantsAnalysisLauncher, state, Set())
+  def runStaticAnalysis(currentProgramState: PS,
+                        addressesLookedUp: Set[HybridAddress.A])
+                       :StaticAnalysisResult = {
+    val fun = () => startStaticAnalysis(currentProgramState,
+                                       /* The type of startState should be aam.State, but path dependent types seem
+                                        * to cause problems when combined with higher-order functions. */
+                                       (aam: SpecAAM, startState) => launchAnalysis(aam)(startState.asInstanceOf[aam.State], addressesLookedUp))
+    wrapRunAnalysis(fun)
   }
 
-  def runStaticAnalyis(sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
-                       state: HybridMachine[Exp, Time]#PS,
-                       addressedLookedUp: Set[HybridAddress.A]): StaticAnalysisResult = {
-    val constantsAnalysisLauncher = new ConstantsAnalysisLauncher[Exp, Time](sem)
-    runAnalysis(constantsAnalysisLauncher, state, addressedLookedUp)
+  def runInitialStaticAnalysis(currentProgramState: PS): StaticAnalysisResult = {
+    val fun = () => startStaticAnalysis(currentProgramState,
+                                        /* The type of startState should be aam.State, but path dependent types seem
+                                         * to cause problems when combined with higher-order functions. */
+                                       (aam: SpecAAM, startState) => launchInitialAnalysis(aam)(startState.asInstanceOf[aam.State]))
+    wrapRunAnalysis(fun)
   }
-
 }

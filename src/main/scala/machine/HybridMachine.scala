@@ -19,6 +19,7 @@
 
 class HybridMachine[Exp : Expression, Time : Timestamp]
   (override val sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, Time],
+   constantsAnalysisLauncher: ConstantsAnalysisLauncher[Exp, Time],
    val tracer: Tracer[Exp, HybridLattice.L, HybridAddress.A, Time],
    tracingFlags: TracingFlags,
    injectProgramState: (Exp, Timestamp[Time]) =>
@@ -339,8 +340,7 @@ class HybridMachine[Exp : Expression, Time : Timestamp]
    */
   def eval(exp: Exp, graph: Boolean, timeout: Option[Long]): Output[HybridValue] = {
     val initialState = injectProgramState(exp, time)
-    val constantsAnalysisLauncher = new ConstantsAnalyisLauncher[Exp, Time](tracingFlags)
-    val analysisResult = constantsAnalysisLauncher.runInitialStaticAnalyis(sem, initialState)
+    val analysisResult = constantsAnalysisLauncher.runInitialStaticAnalysis(initialState)
     analysisResult match {
       case ConstantAddresses(constants, nonConstants) =>
         staticBoundAddresses = Some(nonConstants.asInstanceOf[Set[HybridAddress.A]])
