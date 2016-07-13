@@ -82,6 +82,7 @@ class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp](
 
   private def switchToAbstract(): Unit = {
     Logger.log("HybridMachine switching to abstract", Logger.I)
+    HybridTimestamp.switchToAbstract()
     HybridLattice.switchToAbstract()
     HybridAddress.switchToAbstract()
   }
@@ -126,6 +127,7 @@ class ConstantsAnalysisLauncher[Exp : Expression, Time : Timestamp](
 
   private def switchToConcrete(): Unit = {
     Logger.log("HybridMachine switching to concrete", Logger.I)
+    HybridTimestamp.switchToConcrete()
     HybridLattice.switchToConcrete()
     HybridAddress.switchToConcrete()
   }
