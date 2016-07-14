@@ -67,37 +67,22 @@ object ValueSensitiveAddress extends AddressWrapper {
 object HybridAddress extends AddressWrapper {
   trait A
 
-  var id = 0
-  
-  var useConcrete = true
-  
-  def switchToAbstract() = {
-    useConcrete = false
-  }
-
-  def switchToConcrete() = {
-    useConcrete = true
-  }
-
   val abstractAddress = ClassicalAddress.isAddress
 
-  case class IntAddress(name: String, id: Int)
-
-  case class AbstractAddr(a: ClassicalAddress.A) extends A {
+  case class HybridAddr(a: ClassicalAddress.A) extends A {
     override def equals(that: Any): Boolean = that match {
-      case v: AbstractAddr =>
+      case v: HybridAddr =>
         a == v.a
       case _ => super.equals(that)
     }
 
     override def hashCode() = a.hashCode()
   }
-  case class ConcreteAddr(c: IntAddress, a: ClassicalAddress.A) extends A
   case class PrimitiveAddress(name: String) extends A
 
   def convertAddress[Exp : Expression, Time : Timestamp]
       (address: A, convertTimestamp: Time => Time): A = address match {
-    case AbstractAddr(a) =>
+    case HybridAddr(a) =>
       val convertedA = a match {
         case ClassicalAddress.VariableAddress(name, t) =>
           ClassicalAddress.VariableAddress(name, convertTimestamp(t.asInstanceOf[Time]))
@@ -105,8 +90,7 @@ object HybridAddress extends AddressWrapper {
           ClassicalAddress.CellAddress(exp.asInstanceOf[Exp], convertTimestamp(t.asInstanceOf[Time]))
         case _ => a
       }
-      AbstractAddr(convertedA)
-    case ConcreteAddr(c, a) => AbstractAddr(a)
+      HybridAddr(convertedA)
     case PrimitiveAddress(name) => PrimitiveAddress(name)
   }
 
@@ -116,26 +100,15 @@ object HybridAddress extends AddressWrapper {
       case PrimitiveAddress(_) => true
       case _ => false
     }
-    def variableConcrete[Time : Timestamp, Abs: JoinLattice](name: String, t: Time) = { id += 1; IntAddress(name, id) }
-    def cellConcrete[Exp : Expression, Time : Timestamp](exp: Exp, t: Time) = { id += 1; IntAddress(s"cell-$exp", id) }
-    def variableAbstract[Time : Timestamp, Abs: JoinLattice](name: String, value: Abs, t: Time) = abstractAddress.variable[Time, Abs](name, value, t)
-    def cellAbstract[Exp : Expression, Time : Timestamp](exp: Exp, t: Time) = abstractAddress.cell(exp, t)
+    def variableAbstract[Time : Timestamp, Abs: JoinLattice](name: String, value: Abs, t: Time) =
+      abstractAddress.variable[Time, Abs](name, value, t)
+    def cellAbstract[Exp : Expression, Time : Timestamp](exp: Exp, t: Time) =
+      abstractAddress.cell(exp, t)
 
     def primitive(name: String) = { PrimitiveAddress(name) }
-    def variable[Time : Timestamp, Abs : JoinLattice](name: String, value: Abs, t: Time) = {
-      if (useConcrete) {
-        ConcreteAddr(variableConcrete[Time, Abs](name, t), variableAbstract[Time, Abs](name, value, t))
-      } else {
-        AbstractAddr(variableAbstract[Time, Abs](name, value, t))
-      }
-    }
-
-    def cell[Exp : Expression, Time : Timestamp](exp: Exp, t: Time) = {
-      if (useConcrete) {
-        ConcreteAddr(cellConcrete[Exp, Time](exp, t), cellAbstract[Exp, Time](exp, t))
-      } else {
-        AbstractAddr(cellAbstract[Exp, Time](exp, t))
-      }
-    }
+    def variable[Time : Timestamp, Abs : JoinLattice](name: String, value: Abs, t: Time) =
+      HybridAddr(variableAbstract[Time, Abs](name, value, t))
+    def cell[Exp : Expression, Time : Timestamp](exp: Exp, t: Time) =
+      HybridAddr(cellAbstract[Exp, Time](exp, t))
   }
 }

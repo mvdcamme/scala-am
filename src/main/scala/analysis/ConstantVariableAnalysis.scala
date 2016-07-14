@@ -84,7 +84,6 @@ class ConstantsAnalysisLauncher[Exp : Expression](
     Logger.log("HybridMachine switching to abstract", Logger.I)
     HybridTimestamp.switchToAbstract()
     HybridLattice.switchToAbstract()
-    HybridAddress.switchToAbstract()
   }
 
   protected def launchAnalysis(aam: SpecAAM)
@@ -129,7 +128,6 @@ class ConstantsAnalysisLauncher[Exp : Expression](
     Logger.log("HybridMachine switching to concrete", Logger.I)
     HybridTimestamp.switchToConcrete()
     HybridLattice.switchToConcrete()
-    HybridAddress.switchToConcrete()
   }
 
   private def wrapRunAnalysis(runAnalysis: () => StaticAnalysisResult)
