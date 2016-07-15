@@ -433,9 +433,6 @@ case class ActionExtendStoreT[Exp : Expression, Abs : JoinLattice, Addr : Addres
 case class ActionGuardFalseT[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (override val rp: RestartPoint[Exp, Abs, Addr], override val id: Integer)
   extends ActionGuardT[Exp, Abs, Addr](rp, id)
-case class ActionGuardAssertFreeVariable[Exp : Expression, Abs : JoinLattice, Addr : Address]
-(variable : String, originalValue : Abs, override val rp: RestartPoint[Exp, Abs, Addr], override val id: Integer)
-  extends ActionGuardT[Exp, Abs, Addr](rp, id)
 case class ActionGuardTrueT[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (override val rp: RestartPoint[Exp, Abs, Addr], override val id: Integer)
   extends ActionGuardT[Exp, Abs, Addr](rp, id)

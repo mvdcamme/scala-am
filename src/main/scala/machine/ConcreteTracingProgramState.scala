@@ -381,20 +381,6 @@ case class ProgramState[Exp : Expression]
           case e : java.lang.IndexOutOfBoundsException =>
             throw new IncorrectStackSizeException
         }
-      case ActionGuardAssertFreeVariable(variableName, expectedValue, rp, guardID) =>
-        ρ.lookup(variableName) match {
-          case Some(address) =>
-            val currentValue = σ.lookup(address).get
-            if (currentValue == expectedValue) {
-              ActionStep(this, action)
-            } else {
-              Logger.log(s"Variable $variableName with current value $currentValue does not match its expected value $expectedValue", Logger.V)
-              GuardFailed(rp, guardID)
-            }
-          case None =>
-            /* Variable could not be found => automatic guard failure as the value is completely unknown */
-            GuardFailed(rp, guardID)
-        }
     }
 
   }
