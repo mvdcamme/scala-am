@@ -24,8 +24,8 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
           result.copy(nonConstants = extendedNonConstants)
         }
     })
-    Logger.log(s"Constant addresses are ${result.constants}", Logger.D)
-    Logger.log(s"NonConstant addresses are ${result.nonConstants}", Logger.D)
+    Logger.log(s"Static analysis completed, constant addresses are ${result.constants}", Logger.D)
+    Logger.log(s"Static analysis completed, nonConstant addresses are ${result.nonConstants}", Logger.D)
     result
   }
 
@@ -38,12 +38,12 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
      * constant. */
     val initialConstants: Set[Addr] = initialAnalysisResults.fold(Set[Addr]())(_.constants)
     val relevantAddresses = addressedLookedUp -- initialConstants
-    Logger.log(s"relevantAddresses = $relevantAddresses", Logger.E)
+    Logger.log(s"Starting static analysis, relevantAddresses = $relevantAddresses", Logger.E)
     /* Stop exploring the state once all relevant addresses were found to be non-constant. */
     val pred = (state: aam.State) => relevantAddresses.forall(addr => state.store.lookup(addr) match {
       case None =>
         /* If the address is not in the store, which shouldn't happen?, definitely keep exploring the state. */
-        Logger.log(s"Found an abstract address not in the store: $addr", Logger.E)
+        Logger.log(s"Found an abstract address $addr not in the store during static analysis", Logger.E)
         false
       case Some(value) =>
         ! isConstantValue(value)

@@ -79,7 +79,7 @@ class HybridMachine[Exp : Expression]
     }
 
     def startExecutingTrace(state: PS, tc: tracer.TracerContext, loopID: List[Exp]): TracerState = {
-      Logger.log(s"Trace for loop $loopID already exists; EXECUTING TRACE", Logger.D)
+      Logger.log(s"Trace for loop $loopID already exists; EXECUTING TRACE", Logger.V)
       val traceNode = tracer.getLoopTrace(tc, loopID)
       TracerState(TE, state)(tc, Some(traceNode))
     }
@@ -95,7 +95,7 @@ class HybridMachine[Exp : Expression]
         /* Guard trace exists: check assertions and then either execute the trace
          * or just go back to normal interpretation */
         val psRestarted = restartPs()
-        Logger.log(s"Trace for guard $guardID already exists; EXECUTING GUARD TRACE", Logger.D)
+        Logger.log(s"Trace for guard $guardID already exists; EXECUTING GUARD TRACE", Logger.V)
         val traceNode = tracer.getGuardTrace(tc, guardID)
         val assertions = traceNode.trace.assertions
         psRestarted.runHeader(sem, assertions) match {
