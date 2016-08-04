@@ -1,3 +1,4 @@
+import scala.annotation.tailrec
 import scala.collection.immutable.Stack
 
 trait ActionReturn[Exp, Abs, Addr, Time, +State] {
@@ -426,24 +427,29 @@ case class ProgramState[Exp : Expression]
                     vStack: List[Storable[HybridValue, HybridAddress.A]],
                     convertEnvironment: Environment[HybridAddress.A] => Environment[HybridAddress.A])
                    :(KontAddr, KontStore[KontAddr]) = {
+
+    @tailrec
     def loop(newKontStore: KontStore[KontAddr],
              a: KontAddr,
              vStack: List[Storable[HybridValue, HybridAddress.A]],
-             ρ: Environment[HybridAddress.A]): (KontAddr, KontStore[KontAddr]) = a match {
-      case HaltKontAddress => (HaltKontAddress, newKontStore)
+             ρ: Environment[HybridAddress.A],
+             stack: List[(KontAddr, Option[Frame], List[Storable[HybridValue, HybridAddress.A]], Environment[HybridAddress.A])]): (KontAddr, KontStore[KontAddr]) = a match {
+      case HaltKontAddress =>
+        stack.foldLeft[(KontAddr, KontStore[KontAddr])] ((HaltKontAddress, newKontStore)) ({
+          case ((actualNext, extendedKontStore), (a, someNewSemFrame, newVStack, newρ)) => someNewSemFrame match {
+            case Some(newSemFrame) =>
+              (a, extendedKontStore.extend(a, Kont(newSemFrame, actualNext)))
+            case None =>
+              (actualNext, extendedKontStore)
+          }
+
+        })
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
         val (someNewSemFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack, HybridLattice.convert(_, convertEnvironment))
-        val (actualNext, extendedKontStore) = loop(newKontStore, next, newVStack, newρ)
-        someNewSemFrame match {
-          case Some(newSemFrame) =>
-            val convertedFrame = newSemFrame
-            (a, extendedKontStore.extend(a, Kont(convertedFrame, actualNext)))
-          case None =>
-            (actualNext, extendedKontStore)
-        }
+        loop(newKontStore, next, newVStack, newρ, (a, someNewSemFrame, newVStack, newρ) :: stack)
     }
-    loop(KontStore.empty, a, vStack, ρ)
+    loop(KontStore.empty, a, vStack, ρ, Nil)
   }
 
   def convertState(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T])
