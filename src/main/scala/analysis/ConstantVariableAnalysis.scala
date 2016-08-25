@@ -38,7 +38,7 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
      * constant. */
     val initialConstants: Set[Addr] = initialAnalysisResults.fold(Set[Addr]())(_.constants)
     val relevantAddresses = addressedLookedUp -- initialConstants
-    Logger.log(s"Starting static analysis, relevantAddresses = $relevantAddresses", Logger.E)
+    Logger.log(s"Starting static analysis, relevantAddresses = $relevantAddresses", Logger.I)
     /* Stop exploring the state once all relevant addresses were found to be non-constant. */
     val pred = (state: aam.State) => relevantAddresses.forall(addr => state.store.lookup(addr) match {
       case None =>
