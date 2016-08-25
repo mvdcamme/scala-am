@@ -206,8 +206,16 @@ object Config {
       } text ("Record and execute traces")
       opt[String]("threshold") action { (x, c) => c.copy(tracingFlags = c.tracingFlags.copy(TRACING_THRESHOLD = Integer.parseInt(x))) } text ("The minimum threshold required to consider a loop hot")
 
+      opt[String]("initial") action { (b, c) =>
+        readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(DO_INITIAL_ANALYSIS = bool))
+      } text ("Perform an initial static analysis over the program")
       opt[String]("switch") action { (b, c) =>
-        readBoolStringForTraceFlag(c, b, bool => c.tracingFlags.copy(SWITCH_ABSTRACT = bool))
+        /* Make sure, for the moment at least, that if runtime analyses are enabled, an initial analysis is also performed. */
+        readBoolStringForTraceFlag(c, b, bool => if (bool) {
+          c.tracingFlags.copy(SWITCH_ABSTRACT = true, DO_INITIAL_ANALYSIS = true)
+        } else {
+          c.tracingFlags.copy(SWITCH_ABSTRACT = false)
+        })
       } text ("Switch to abstract (type) interpretation after recording a trace and use this abstract information to optimize traces.")
       opt[Unit]("amb") action { (_, c) => c.copy(amb = true) } text ("Execute ambiguous Scheme instead of normal Scheme")
       opt[Time]('t', "timeout") action { (x, c) => c.copy(timeout = Some(x.nanoSeconds)) } text ("Timeout (none by default)")

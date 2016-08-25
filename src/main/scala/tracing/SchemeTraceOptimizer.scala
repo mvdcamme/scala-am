@@ -43,15 +43,31 @@ class SchemeTraceOptimizer
     Logger.log(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}", Logger.V)
     val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations)
     Logger.log(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}", Logger.V)
-    val addressesLookedUp = TraceAnalyzer.collectAddressesLookedUp[SchemeExp, HybridTimestamp.T](trace.trace)
-    val analysisOutput = constantsAnalysisLauncher.runStaticAnalysis(state, addressesLookedUp)
-    val tier3AssertedOptimizedTrace = analysisOutput match {
-      case ConstantAddresses(_, nonConstants) =>
-        applyConstantVariablesOptimizations(tier2AssertedOptimizedTrace, nonConstants.asInstanceOf[Set[HybridAddress.A]])
-      case NoStaticisAnalysisResult =>
+    val tier3AssertedOptimizedTrace =
+      if (tracingFlags.SWITCH_ABSTRACT) {
+        /* Runtime analyses (+ an initial analysis) performed. */
+        val addressesLookedUp = TraceAnalyzer.collectAddressesLookedUp[SchemeExp, HybridTimestamp.T](trace.trace)
+        val analysisOutput = constantsAnalysisLauncher.runStaticAnalysis(state, addressesLookedUp)
+        analysisOutput match {
+          case ConstantAddresses(_, nonConstants) =>
+            val staticallyOptimizedTrace = applyConstantVariablesOptimizations(tier2AssertedOptimizedTrace, nonConstants.asInstanceOf[Set[HybridAddress.A]])
+            Logger.log(s"Size of statically optimized trace = ${staticallyOptimizedTrace.trace.length}", Logger.V)
+            staticallyOptimizedTrace
+          case NoStaticisAnalysisResult =>
+            possiblyOptimizeVariableFolding(tier2AssertedOptimizedTrace)
+        }
+      } else if (tracingFlags.DO_INITIAL_ANALYSIS) {
+        /* Only an initial analysis performed. */
+        constantsAnalysisLauncher.constantsAnalysis.initialAnalysisResults.get match {
+          case ConstantAddresses(_, nonConstants) =>
+            val staticallyOptimizedTrace = applyConstantVariablesOptimizations(tier2AssertedOptimizedTrace, nonConstants.asInstanceOf[Set[HybridAddress.A]])
+            Logger.log(s"Size of statically optimized trace = ${staticallyOptimizedTrace.trace.length}", Logger.V)
+            staticallyOptimizedTrace
+        }
+      } else {
+        /* No analyses performed at all. */
         possiblyOptimizeVariableFolding(tier2AssertedOptimizedTrace)
-    }
-    Logger.log(s"Size of statically optimized trace = ${tier3AssertedOptimizedTrace.trace.length}", Logger.V)
+      }
     val finalAssertedOptimizedTrace = removeFunCallBlockActions(tier3AssertedOptimizedTrace)
     Logger.log(s"Size of final optimized trace = ${finalAssertedOptimizedTrace.trace.length}", Logger.V)
     finalAssertedOptimizedTrace

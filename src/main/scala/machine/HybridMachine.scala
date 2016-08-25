@@ -340,13 +340,14 @@ class HybridMachine[Exp : Expression]
    */
   def eval(exp: Exp, graph: Boolean, timeout: Option[Long]): Output[HybridValue] = {
     val initialState = injectProgramState(exp)
-    val analysisResult = constantsAnalysisLauncher.runInitialStaticAnalysis(initialState)
-    analysisResult match {
-      case ConstantAddresses(constants, nonConstants) =>
-        staticBoundAddresses = Some(nonConstants.asInstanceOf[Set[HybridAddress.A]])
-      case _ =>
+    if (tracingFlags.DO_INITIAL_ANALYSIS) {
+      val analysisResult = constantsAnalysisLauncher.runInitialStaticAnalysis(initialState)
+      analysisResult match {
+        case ConstantAddresses(constants, nonConstants) =>
+          staticBoundAddresses = Some(nonConstants.asInstanceOf[Set[HybridAddress.A]])
+        case _ =>
+      }
     }
-
     loop(injectExecutionState(exp), 0, System.nanoTime,
       if (graph) {
         Some(new Graph[PS, String]())
