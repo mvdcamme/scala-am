@@ -240,17 +240,26 @@ object Main {
   def runBasic[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
     (machine: BasicAbstractMachine[Exp, Abs, Addr, Time], output: Option[String], calcResult: () => Output[Abs],
      benchmarks_results_file: String, timeout: Option[Long], inspect: Boolean): Unit = {
+
+    def handleJITWarmUp(): Unit = {
+      val warmUpIterations = 2
+      val doWarmUp = false
+
+      if (doWarmUp) {
+        var i = 1
+        while (i < warmUpIterations) {
+          i += 1
+          calcResult()
+        }
+      }
+
+    }
+
     val abs = implicitly[JoinLattice[Abs]]
     val addr = implicitly[Address[Addr]]
     println(s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")
 
-//    /* JIT warm-up */
-//    TODO
-//    var i = 1
-//    while (i < 2) {
-//      i += 1
-//      calcResult()
-//    }
+    handleJITWarmUp()
 
     val result = calcResult()
 
@@ -264,10 +273,6 @@ object Main {
         printExecutionTimes(result, benchmarks_results_file)
     }
     println(s"Visited ${result.numberOfStates} states in ${result.time} seconds, ${result.finalValues.size} possible results: ${result.finalValues}")
-
-    if (GlobalFlags.PRINT_EXECUTION_TIME) {
-      printExecutionTimes(result, benchmarks_results_file)
-    }
 
     if (inspect) {
       try {
