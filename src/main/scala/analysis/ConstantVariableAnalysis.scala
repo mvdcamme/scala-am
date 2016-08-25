@@ -130,16 +130,12 @@ class ConstantsAnalysisLauncher[Exp : Expression](
     HybridLattice.switchToConcrete()
   }
 
-  private def wrapRunAnalysis(runAnalysis: () => StaticAnalysisResult)
-                             :StaticAnalysisResult = {
-    if (tracingFlags.SWITCH_ABSTRACT) {
-      switchToAbstract()
-      val result = runAnalysis()
-      switchToConcrete()
-      result
-    } else {
-      NoStaticisAnalysisResult
-    }
+  private def wrapRunAnalysis(runAnalysis: () => StaticAnalysisResult): StaticAnalysisResult = {
+    Logger.log("analyzing", Logger.I)
+    switchToAbstract()
+    val result = runAnalysis()
+    switchToConcrete()
+    result
   }
 
   def runStaticAnalysis(currentProgramState: PS,
