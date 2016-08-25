@@ -510,10 +510,12 @@ object IntegerConstantPropagation extends ConstantPropagation[Int] {
       case Constant(x) => float.inject(x)
       case Bottom => float.bottom
     }
-    def random(n: I): I = n match {
-      case Constant(x) => Constant(SchemeOps.random(x))
-      case _ => n
-    }
+//    TODO original implementation
+//    def random(n: I): I = n match {
+//      case Constant(x) => Constant(SchemeOps.random(x))
+//      case _ => n
+//    }
+    def random(n: I): I = top
     private def binop(op: (Int, Int) => Int, n1: I, n2: I) = (n1, n2) match {
       case (Top, Top) => Top
       case (Top, Constant(_)) => Top
