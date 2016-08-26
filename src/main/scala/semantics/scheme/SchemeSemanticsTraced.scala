@@ -70,13 +70,27 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
     (Some(frame), remainingVStack2, ρ)
   }
 
+  /*
+   * Converts a SchemeSemanticsFrame to a Frame of the abstract semantics.
+   * SchemeSemanticsFrames do not save all required fields, such as environments or already-evaluated values,
+   * in the frame itself, like the frames employed by the abstract semantics, but rather save those on the vstack.
+   *
+   * When converting a frame, these values and environments must therefore be popped from the vstack, in the process
+   * completely emptying this stack.
+   *
+   * To understand which values or environments should be popped from the vstack and inserted into the new, converted
+   * frame, take note of which values and environments are saved on the vstack when the original
+   * SchemeSemanticsFrame was generated.
+   */
   def convertToAbsSemanticsFrame(frame: Frame,
                                  ρ: Environment[Addr],
                                  vStack: List[Storable[Abs, Addr]],
                                  convertValue: Abs => Abs):
   (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = frame match {
-      case FrameBeginT(rest) => popEnvFromVStack(absSem.FrameBegin(rest, _), vStack)
-      case FrameCaseT(clauses, default) => popEnvFromVStack(absSem.FrameCase(clauses, default, _), vStack)
+      case FrameBeginT(rest) =>
+          popEnvFromVStack(absSem.FrameBegin(rest, _), vStack)
+      case FrameCaseT(clauses, default) =>
+        popEnvFromVStack(absSem.FrameCase(clauses, default, _), vStack)
       case FrameDefineT(variable) =>
         /* A FrameDefineT is not handled by these semantics:
          * neither the vStack nor the environment therefore have to be updated */
@@ -98,8 +112,10 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
           absSem.FrameFuncallOperands(convertedF, fexp, cur, newArgs, toeval, ρ)
       }
         popEnvAndValuesFromVStack(generateFrameFun, n, vStack)
-      case FrameFuncallOperatorT(fexp, args) => popEnvFromVStack(absSem.FrameFuncallOperator(fexp, args, _), vStack)
-      case FrameIfT(cons, alt) => popEnvFromVStack(absSem.FrameIf(cons, alt, _), vStack)
+      case FrameFuncallOperatorT(fexp, args) =>
+        popEnvFromVStack(absSem.FrameFuncallOperator(fexp, args, _), vStack)
+      case FrameIfT(cons, alt) =>
+        popEnvFromVStack(absSem.FrameIf(cons, alt, _), vStack)
       case FrameLetT(variable, bindings, toeval, body) =>
         /* When pushing a FrameLetT continuation on the continuation stack, we possibly push a value on the value stack,
          * in case we have just evaluated an expression for the let-bindings, and we always push an environment.
@@ -120,7 +136,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
          * FrameLetT, but this is immediately followed by an ActionExtendEnv which pops this value back from the stack.
          * There are therefore never any values for the let* bindings on the value stack. */
         popEnvFromVStack(absSem.FrameLetStar(variable, bindings, body, _), vStack)
-      case FrameSetT(variable) => popEnvFromVStack(absSem.FrameSet(variable, _), vStack)
+      case FrameSetT(variable) =>
+        popEnvFromVStack(absSem.FrameSet(variable, _), vStack)
     }
 
   /**
