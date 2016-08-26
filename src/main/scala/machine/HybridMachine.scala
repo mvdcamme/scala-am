@@ -32,6 +32,8 @@ class HybridMachine[Exp : Expression]
 
   def name = "HybridMachine"
 
+  var stepCount: Integer = 0
+
   var staticBoundAddresses: Option[Set[HybridAddress.A]] = None
 
   def applyTraceIntermediateResults(state: PS, trace: tracer.TraceWithoutStates): List[PS] = {
@@ -253,6 +255,7 @@ class HybridMachine[Exp : Expression]
     }
 
     def stepConcrete(): TracerState = {
+      stepCount += 1
       ep match {
         case NI => handleResponseRegular(ps.step(sem).get)
         case TE => doTraceExecutingStep()
@@ -308,6 +311,7 @@ class HybridMachine[Exp : Expression]
     */
   @scala.annotation.tailrec
   private def loop(s: TracerState, nrVisited: Integer, startingTime: Long, graph: Option[Graph[PS, String]], timeout: Option[Long]): HybridOutput[PS, String] = {
+    val analysis_interval = 20
     def endEvalLoop(timeout: Boolean): HybridOutput[PS, String] = {
       if (GlobalFlags.PRINT_ACTIONS_EXECUTED) {
         ActionLogger.printActions()
@@ -325,6 +329,10 @@ class HybridMachine[Exp : Expression]
     } else {
       /* Otherwise, compute the successors of this state, update the graph, and push
        * the new successors on the todo list */
+      if (stepCount % analysis_interval == 0) {
+        println(stepCount)
+        constantsAnalysisLauncher.runStaticAnalysis(s.ps, Set())
+      }
       val succ = s.stepConcrete()
       val newGraph = graph.map(_.addEdge(s.ps, "", succ.ps))
       loop(succ, nrVisited + 1, startingTime, newGraph, timeout)
