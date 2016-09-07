@@ -395,7 +395,7 @@ case class ActionAllocVarsT[Exp : Expression, Abs : JoinLattice, Addr : Address]
   extends ActionT[Exp, Abs, Addr]
 case class ActionCreateClosureT[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (λ : Exp)
-  extends ActionT[Exp, Abs, Addr]
+  extends ActionT[Exp, Abs, Addr] with ChangesValueReg[Exp, Abs, Addr]
 case class ActionEndClosureCallT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
   extends ActionT[Exp, Abs, Addr] with EndsFunCall[Exp, Abs, Addr]
 case class ActionEndPrimCallT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
@@ -492,6 +492,9 @@ case class ActionStartFunCallT[Exp : Expression, Abs : JoinLattice, Addr : Addre
   extends ActionT[Exp, Abs, Addr] with StartsFunCall[Exp, Abs, Addr]
 
 case class ActionLookupRegister[Exp : Expression, Abs : JoinLattice, Addr : Address]
+(index: Integer)
+  extends ActionT[Exp, Abs, Addr] with ChangesValueReg[Exp, Abs, Addr]
+case class ActionLookupRegisterPush[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (index: Integer)
   extends ActionT[Exp, Abs, Addr] with ChangesValueReg[Exp, Abs, Addr]
 case class ActionPutRegister[Exp : Expression, Abs : JoinLattice, Addr : Address]

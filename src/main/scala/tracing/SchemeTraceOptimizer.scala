@@ -266,12 +266,9 @@ class SchemeTraceOptimizer
 
   /* TODO */
   private def changesValueRegister(action: TraceInstruction): Boolean = action match {
-    case ActionCreateClosureT(_) => true
-    case ActionLookupVariableT(_, _, _) => true
-    case ActionPrimCallT(_, _, _) => true
-    case ActionReachedValueT(_, _, _) => true
-      /* Also add ActionPushTraced to guard against the case where there is no action that changes the value register
-       * in between two ActionPushTraced actions */
+    case _ if action.changesValueReg => true
+      /* Also add ActionPushValT to guard against the case where there is no action that changes the value register
+       * in between two ActionPushValT actions */
     case ActionPushValT() => true
     case _ => false
   }
@@ -424,7 +421,6 @@ class SchemeTraceOptimizer
 
   def optimizeVariableFolding(traceFull: SpecTraceFull): SpecTraceFull = {
 
-    val initialBoundAddresses = traceFull.info.boundVariables.map(_._2)
     var registerIndex: Integer = 0
     val boundAddresses = TraceAnalyzer.collectTraceBoundAddresses[SchemeExp, HybridTimestamp.T](traceFull.trace)
     var variablesConverted: List[(String, Integer)] = Nil
@@ -434,7 +430,9 @@ class SchemeTraceOptimizer
       case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.info.startState} instead")
     }
 
-    def replaceVariableLookups(action: ActionLookupVariableT[SchemeExp, HybridValue, HybridAddress.A],
+    def replaceVariableLookups(action: ActionT[SchemeExp, HybridValue, HybridAddress.A],
+                               varName: String,
+                               generateRegisterLookupAction: (Int) => ActionT[SchemeExp, HybridValue, HybridAddress.A],
                                infos: CombinedInfos[HybridValue, HybridAddress.A],
                                boundAddresses: Set[HybridAddress.A]): TraceInstructionInfo = {
 
@@ -450,17 +448,17 @@ class SchemeTraceOptimizer
 
       def generateAction(address: HybridAddress.A): ActionT[SchemeExp, HybridValue, HybridAddress.A] = {
         val defaultAction = action
-        variablesConverted.find( _._1 == action.varName) match {
+        variablesConverted.find( _._1 == varName) match {
           case Some((_, index)) =>
             /* Variable lookup was already replaced by a register lookup */
-            ActionLookupRegister[SchemeExp, HybridValue, HybridAddress.A](index)
+            generateRegisterLookupAction(index)
           case None =>
           /* Variable can be replaced but isn't entered in the list yet.
              Generate an action to put it in some register if possible */
           generateIndex(address) match {
             case Some(index) =>
-              variablesConverted = variablesConverted :+ (action.varName, index)
-              ActionLookupRegister[SchemeExp, HybridValue, HybridAddress.A](index)
+              variablesConverted = variablesConverted :+ (varName, index)
+              generateRegisterLookupAction(index)
             case None =>
               /* Variable couldn't be placed into a register, e.g., because there are no more registers left */
               defaultAction
@@ -488,7 +486,9 @@ class SchemeTraceOptimizer
 
     val optimisedTrace: Trace = traceFull.trace.map({
       case (action @ ActionLookupVariableT(varName, _, _), infos) =>
-        replaceVariableLookups(action, infos, boundAddresses)
+        replaceVariableLookups(action, varName, ActionLookupRegister[SchemeExp, HybridValue, HybridAddress.A](_), infos, boundAddresses)
+      case (action @ ActionLookupVariablePushT(varName, _, _), infos) =>
+        replaceVariableLookups(action, varName, ActionLookupRegisterPush[SchemeExp, HybridValue, HybridAddress.A](_), infos, boundAddresses)
       case (action, someState) => (action, someState)
     })
 
@@ -702,16 +702,26 @@ class SchemeTraceOptimizer
                                            allBoundAddresses: Set[HybridAddress.A]): SpecTraceFull = {
     Logger.log(s"Initiating closure guards removal optimization; allBoundAddresses = $allBoundAddresses", Logger.D)
 
+    /**
+      * Checks whether a TraceInstructionInfo puts a constant value in the value register.
+      * @param traceInfo The TraceInstructionInfo to be checked
+      * @return True iff the TraceInstructionInfo puts a constant value in the value register, false otherwise.
+      */
     def isConstant(traceInfo: TraceInstructionInfo): Boolean = {
       val (action, infos) = traceInfo
       action match {
+          /* The action puts a literal in the value register. */
         case ActionReachedValueT(_, _, _) | ActionReachedValuePushT(_, _, _) => true
+          /* If the action looks up a variable which is actually constant, this action is constant as well. */
         case ActionLookupVariableT(variable, _, _) =>
           infos.find[Boolean]({case VariableLookedUp(_, _, _) => true case _ => false},
                               {case VariableLookedUp(_, address, _) => addressBound(address, allBoundAddresses)}).getOrElse(false)
         case ActionLookupVariablePushT(variable, _, _) =>
+          /* If the action looks up a variable which is actually constant, this action is constant as well. */
           infos.find[Boolean]({case VariableLookedUp(_, _, _) => true case _ => false},
                               {case VariableLookedUp(_, address, _) => addressBound(address, allBoundAddresses)}).getOrElse(false)
+        /* Creating a closure comes down to creating a constant value.
+         * TODO closure environment might cause problems: check what happens if the closure environment changes  */
         case ActionCreateClosureT(_) => true
         case _ => false
       }
