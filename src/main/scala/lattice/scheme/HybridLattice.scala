@@ -19,8 +19,10 @@ object HybridLattice extends SchemeLattice {
 
   sealed trait L
 
+  val abstractLatticeCounting = true
+
   val concreteLattice = new ConcreteLattice(true)
-  val abstractLattice = new ConstantPropagationLattice(true)
+  val abstractLattice = new ConstantPropagationLattice(abstractLatticeCounting)
 
   val concreteSchemeLattice = concreteLattice.isSchemeLattice
   val abstractSchemeLattice = abstractLattice.isSchemeLattice
@@ -293,7 +295,7 @@ object HybridLattice extends SchemeLattice {
         case None => throw new Exception(s"Values from different lattices cannot subsume each other: $x and $y")
     }
 
-    def counting = if (useConcrete) { true } else { false }
+    def counting = if (useConcrete) { true } else { abstractLatticeCounting }
 
     def isPrimitiveValue(x: L): Boolean = delegateToLattice1[Boolean](x,
       (x: ConcL) => concreteSchemeLattice.isPrimitiveValue(x),
