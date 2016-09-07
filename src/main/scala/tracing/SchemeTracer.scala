@@ -80,16 +80,16 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
       val traceNodeAddedTc = addTrace(finishedTc, state)
       val newTrace = getTrace(traceNodeAddedTc, tc.curTraceNode.get.label).trace
       if (GlobalFlags.PRINT_ENTIRE_TRACE) {
-        Logger.log("------------ START TRACE ------------", Logger.E)
-        Logger.log("--------------- HEADER --------------", Logger.E)
+        Logger.log("------------ START TRACE ------------", Logger.U)
+        Logger.log("--------------- HEADER --------------", Logger.U)
         for (action <- newTrace.assertions) {
-          Logger.log(action, Logger.E)
+          Logger.log(action, Logger.U)
         }
-        Logger.log("-------------- ACTIONS --------------", Logger.E)
+        Logger.log("-------------- ACTIONS --------------", Logger.U)
         for (action <- newTrace.trace) {
-          Logger.log(action, Logger.E)
+          Logger.log(action, Logger.U)
         }
-        Logger.log("------------ END TRACE ------------", Logger.E)
+        Logger.log("------------ END TRACE ------------", Logger.U)
       }
       clearTrace(traceNodeAddedTc)
   }

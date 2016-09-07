@@ -660,7 +660,7 @@ class SchemeTraceOptimizer
       if (addressBound(address, boundAddresses)) {
         originalActionInfo
       } else {
-        Logger.log(s"Replaced variable lookup for address $address with new actionInfo $newActionInfo", Logger.I)
+        Logger.log(s"Replaced variable lookup for address $address with new actionInfo $newActionInfo", Logger.U)
         newActionInfo
       }
     }

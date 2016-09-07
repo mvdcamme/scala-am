@@ -12,7 +12,7 @@ object GlobalFlags {
    * The current message level. All messages that are logged must have a level greater than or equal to this level
    * in order to be printed.
    */
-  val level = Logger.E
+  val level = Logger.N
 
   var APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = false
   var APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = false

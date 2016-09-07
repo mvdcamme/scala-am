@@ -12,6 +12,8 @@ object Logger {
     val Verbose = Value(2)
     val Info = Value(3)
     val Essential = Value(4)
+    val Urgent = Value(5)
+    val NoLogging = Value(Integer.MAX_VALUE)
   }
 
   val D = LogLevel.Debug
@@ -20,6 +22,8 @@ object Logger {
   /* Starting and ending tracing */
   val I = LogLevel.Info
   val E = LogLevel.Essential
+  val U = LogLevel.Urgent
+  val N = LogLevel.NoLogging
 
   def log(message: String, messageLevel: LogLevel.Value): Unit = {
     if (messageLevel >= GlobalFlags.level) {
