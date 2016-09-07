@@ -1,8 +1,8 @@
 (let* ((a #f)
        (f (lambda ()
-            (if (= 1 0)
+            (if (= (random 2) 0)
                 (set! a 'foo)
-                (set! a 10))
+                (set! a 5))
             
             (define (loop n)
               (if (< n 0)
