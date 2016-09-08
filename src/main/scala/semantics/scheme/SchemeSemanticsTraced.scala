@@ -41,17 +41,6 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
     override def toString() = "FHalt"
   }
 
-  def convertFrame(convertValue: Abs => Abs, frame: Frame): Frame = frame match {
-    case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
-      val convertedF = convertValue(f)
-      val convertedArgs = args.map({ case (exp, value) => (exp, convertValue(value))})
-      FrameFuncallOperandsT(convertedF, fexp, cur, convertedArgs, toeval)
-    case FrameLetT(variable, bindings, toeval, body) =>
-      val convertedBindings = bindings.map({ case (variable, value) => (variable, convertValue(value))})
-      FrameLetT(variable, convertedBindings, toeval, body)
-    case _ => frame
-  }
-
   private def popEnvFromVStack(generateFrameFun: Environment[Addr] => Frame,
                                vStack: List[Storable[Abs, Addr]]):
   (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = {
