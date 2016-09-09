@@ -1,5 +1,5 @@
 ;; Taken from https://github.com/jensnicolay/abstractmemo
-;; Expected result: 36
+;; Expected result: 5244
 (letrec ((id (lambda (x) x))
          (f (lambda (n)
               (if (<= n 1)

@@ -1,3 +1,4 @@
+; expected result: 5
 (define (div2* n s)
   (if (= (* 2 n) s)
       n

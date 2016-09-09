@@ -1,3 +1,4 @@
+; expected result 21
 (letrec ((fib (lambda (n)
                 (if (< n 2)
                   n

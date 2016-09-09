@@ -1,3 +1,4 @@
+; expected result: 4
 (letrec ((ack (lambda (m n)
                 (if (= m 0)
                     (+ n 1)
