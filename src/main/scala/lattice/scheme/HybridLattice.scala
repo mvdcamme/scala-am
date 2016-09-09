@@ -19,7 +19,7 @@ object HybridLattice extends SchemeLattice {
 
   sealed trait L
 
-  val abstractLatticeCounting = true
+  val abstractLatticeCounting = false
 
   val concreteLattice = new ConcreteLattice(true)
   val abstractLattice = new ConstantPropagationLattice(abstractLatticeCounting)
