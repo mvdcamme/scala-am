@@ -59,6 +59,15 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
     (Some(frame), remainingVStack2, ρ)
   }
 
+  /* AAM does not allocate a new FrameBegin if the function's body consists of only one expression,
+   * so no new frame should be allocated now either. But we still have to remove the environment
+   * from the value stack. */
+  private def popEmptyFrameBeginFromVStack(vStack: List[Storable[Abs, Addr]]):
+  (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = {
+    val ρ = vStack.head.getEnv
+    (None, vStack.tail, ρ)
+  }
+
   /*
    * Converts a SchemeSemanticsFrame to a Frame of the abstract semantics.
    * SchemeSemanticsFrames do not save all required fields, such as environments or already-evaluated values,
@@ -76,8 +85,12 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
                                  vStack: List[Storable[Abs, Addr]],
                                  convertValue: Abs => Abs):
   (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = frame match {
-      case FrameBeginT(rest) =>
+      case FrameBeginT(rest) => rest match {
+        case Nil =>
+          popEmptyFrameBeginFromVStack(vStack)
+        case _ =>
           popEnvFromVStack(absSem.FrameBegin(rest, _), vStack)
+      }
       case FrameCaseT(clauses, default) =>
         popEnvFromVStack(absSem.FrameCase(clauses, default, _), vStack)
       case FrameDefineT(variable) =>
@@ -86,10 +99,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
         (Some(absSem.FrameDefine(variable, ρ)), vStack, ρ)
       case FrameFunBodyT(body, toeval) =>
         if (toeval.isEmpty) {
-          /* AAM does not allocate a new FrameBegin if the function's body consists of only one expression,
-           * so no new frame should be allocated now either. But we still have to remove the environment
-           * from the value stack. */
-          popEnvFromVStack(absSem.FrameBegin(toeval, _), vStack).copy(_1 = None)
+          popEmptyFrameBeginFromVStack(vStack)
         } else {
           popEnvFromVStack(absSem.FrameBegin(toeval, _), vStack)
         }
