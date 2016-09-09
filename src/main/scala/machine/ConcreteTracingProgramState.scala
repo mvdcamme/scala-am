@@ -310,8 +310,12 @@ case class ProgramState[Exp : Expression]
         ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, newV, vStack), action)
       case ActionLookupVariablePushT(varName, _, _) => ρ.lookup(varName) match {
         case Some(address) =>
-          val newV = σ.lookup(address).get
-          ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, newV, StoreVal[HybridValue, HybridAddress.A](newV) :: vStack), action)
+          σ.lookup(address) match {
+            case Some(value) =>
+              ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, value, StoreVal[HybridValue, HybridAddress.A](value) :: vStack), action)
+            case None =>
+              throw new Exception(s"Could not find address $address in store")
+          }
         case None =>
           throw new Exception(s"Could not find variable $varName in environment")
       }
@@ -368,6 +372,9 @@ case class ProgramState[Exp : Expression]
       case ActionLookupRegister(registerIndex) =>
         val value = RegisterStore.getRegister(registerIndex)
         ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, value, vStack), action)
+      case ActionLookupRegisterPush(registerIndex) =>
+        val value = RegisterStore.getRegister(registerIndex)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, value, StoreVal[HybridValue, HybridAddress.A](value) :: vStack), action)
       case action : ActionEndTrace[Exp, HybridValue, HybridAddress.A] =>
         TraceEnded(action.restartPoint)
       case action : ActionGuardFalseT[Exp, HybridValue, HybridAddress.A] =>
