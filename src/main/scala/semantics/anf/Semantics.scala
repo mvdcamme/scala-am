@@ -15,11 +15,6 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
     override def toString() = s"FrameLetrec(${v.toString})"
   }
 
-  def convertFrame(convertValue: Abs => Abs, frame: Frame): Frame = frame match {
-    case FrameLet(_, _, _) => frame
-    case FrameLetrec(_, _, _, _) => frame
-  }
-
   /** Performs evaluation of an atomic expression, returning either an error or the produced value */
   def atomicEval(e: ANFAtomicExp, env: Environment[Addr], store: Store[Addr, Abs]): MayFail[(Abs, Set[Effect[Addr]])] = e match {
     case lam: ANFLambda => MayFailSuccess((sabs.inject[ANFExp, Addr]((lam, env)), Set()))

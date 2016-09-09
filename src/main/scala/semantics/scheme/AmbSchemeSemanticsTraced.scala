@@ -4,8 +4,6 @@ class AmbSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Tim
 
   case class FrameAmbT(exps: List[SchemeExp]) extends SchemeFrameT
 
-  //TODO override convertFrame
-
   val actionPopFailKont = ActionPopFailKontT[SchemeExp, Abs, Addr]()
 
   override def stepEval(e: SchemeExp, ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): Set[InterpreterStep[SchemeExp, Abs, Addr]] = e match {

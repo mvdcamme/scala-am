@@ -478,15 +478,13 @@ case class ProgramState[Exp : Expression]
     }
     val (newA, convertedKontStore) = convertKStore(aam, sem, kstore, newρ, startKontAddress, newVStack, convertEnvironment)
     val convertedA = convertKontAddress(aam)(newA)
-    val absSem = sem.absSem
-    val newKStore = convertedKontStore //TODO not needed? convertedKontStore.map(absSem.convertFrame(convertValue(σ)))
     val newControl = control match {
       case TracingControlEval(exp) =>
         ConvertedControlEval[Exp, HybridValue, HybridAddress.A](exp, newρ)
       case TracingControlKont(ka) =>
         ConvertedControlKont[Exp, HybridValue, HybridAddress.A](newV)
     }
-    (newControl, newρ, newσ, newKStore, convertedA, newT)
+    (newControl, newρ, newσ, convertedKontStore, convertedA, newT)
   }
 
   def generateTraceInformation(action: ActionT[Exp, HybridValue, HybridAddress.A]): CombinedInfos[HybridValue, HybridAddress.A] = action match {

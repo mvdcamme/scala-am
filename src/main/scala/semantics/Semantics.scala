@@ -27,16 +27,6 @@ trait BasicSemantics[Exp, Abs, Addr, Time] {
   def bindArgs(l: List[(String, (Exp, Abs))], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): (Environment[Addr], Store[Addr, Abs])
 
   /**
-    * Defines how to convert continuation frames: all addresses and values included either directly or
-    * indirectly, i.e., through the environment, should be converted via the given conversion functions
-    * for addresses and values
-    * @param convertValue The conversion function for values
-    * @param frame The frame whose values and addresses should be converted
-    * @return The converted frame
-    */
-  def convertFrame(convertValue: Abs => Abs, frame: Frame): Frame
-
-  /**
     * Defines how to parse a program
     */
   def parse(program: String): Exp

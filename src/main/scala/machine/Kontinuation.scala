@@ -24,7 +24,6 @@ abstract class KontStore[KontAddr : KontAddress] {
   def forall(p: ((KontAddr, Set[Kont[KontAddr]])) => Boolean): Boolean
   def subsumes(that: KontStore[KontAddr]): Boolean
   def fastEq(that: KontStore[KontAddr]): Boolean = this == that
-  def map(convertFrame: Frame => Frame): KontStore[KontAddr]
 }
 
 case class BasicKontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kont[KontAddr]]]) extends KontStore[KontAddr] {
@@ -45,14 +44,6 @@ case class BasicKontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kon
     that.forall({ case (a, ks) =>
       ks.forall((k1) => lookup(a).exists(k2 => k2.subsumes(k1)))
     })
-  def map(convertFrame: Frame => Frame): KontStore[KontAddr] = {
-    def convertKontSets(set: Set[Kont[KontAddr]]): Set[Kont[KontAddr]] = {
-      set.map({
-        case Kont(frame, next) => Kont(convertFrame(frame), next)
-        case k => k})
-    }
-    BasicKontStore[KontAddr](content.map( { case (kontAddress, kontsSet) => (kontAddress, convertKontSets(kontsSet)) } ))
-  }
 }
 
 case class TimestampedKontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kont[KontAddr]]], timestamp: Int) extends KontStore[KontAddr] {
@@ -91,14 +82,6 @@ case class TimestampedKontStore[KontAddr : KontAddress](content: Map[KontAddr, S
     timestamp == that.asInstanceOf[TimestampedKontStore[KontAddr]].timestamp
   } else {
     false
-  }
-  def map(convertFrame: Frame => Frame): KontStore[KontAddr] = {
-    def convertKontSets(set: Set[Kont[KontAddr]]): Set[Kont[KontAddr]] = {
-      set.map({
-        case Kont(frame, next) => Kont(convertFrame(frame), next)
-        case k => k})
-    }
-    BasicKontStore[KontAddr](content.map( { case (kontAddress, kontsSet) => (kontAddress, convertKontSets(kontsSet)) } ))
   }
 }
 

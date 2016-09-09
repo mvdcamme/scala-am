@@ -86,11 +86,6 @@ class LamSemantics[Abs : LamLattice, Addr : Address, Time : Timestamp]
   /** And one frame to remember the operator value when we evaluate the operand */
   case class FrameFun(v: Abs) extends ANFFrame
 
-  def convertFrame(convertValue: Abs => Abs, frame: Frame) = frame match {
-    case FrameArg(_, _) => frame
-    case FrameFun(v) => FrameFun(convertValue(v))
-  }
-
   /** The stepEval function defines how to perform an evaluation step on an
     * expression */
   def stepEval(e: LamExp, env: Env, store: Sto, t: Time) = e match {
