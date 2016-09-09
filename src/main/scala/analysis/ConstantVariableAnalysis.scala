@@ -118,7 +118,6 @@ class ConstantsAnalysisLauncher[Exp : Expression](
       case ConvertedControlKont(v) => aam.ControlKont(v)
     }
     val startState = aam.State(convertedControl, store, kstore, a, t)
-    // TODO timeout
     val result = launchAnalysis(aam, startState)
     Logger.log(s"analysis result is $result", Logger.I)
     result

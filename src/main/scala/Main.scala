@@ -81,7 +81,6 @@ import java.io._
 object Config {
 
   object Machine extends Enumeration {
-    //TODO remove? type Machine = Value
     val AAC, AAM, AAMGlobalStore, Free, ConcreteMachine, Hybrid = Value
   }
 
