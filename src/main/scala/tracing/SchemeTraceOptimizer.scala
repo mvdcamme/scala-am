@@ -422,13 +422,9 @@ class SchemeTraceOptimizer
   def optimizeVariableFolding(traceFull: SpecTraceFull): SpecTraceFull = {
 
     var registerIndex: Integer = 0
-    val boundAddresses = TraceAnalyzer.collectTraceBoundAddresses[SchemeExp, HybridTimestamp.T](traceFull.trace)
+    val initialBoundAddresses = traceFull.info.boundVariables.map(_._2)
+    val boundAddresses = TraceAnalyzer.collectTraceBoundAddresses[SchemeExp, HybridTimestamp.T](traceFull.trace) ++ initialBoundAddresses
     var variablesConverted: List[(String, Integer)] = Nil
-
-    val initialState: ProgramState[SchemeExp] = traceFull.info.startState match {
-      case s: ProgramState[SchemeExp] => s
-      case _ => throw new Exception(s"Variable folding optimization expected state of type ProgramState[Exp, Time], got state ${traceFull.info.startState} instead")
-    }
 
     def replaceVariableLookups(action: ActionT[SchemeExp, HybridValue, HybridAddress.A],
                                varName: String,
@@ -660,7 +656,7 @@ class SchemeTraceOptimizer
       if (addressBound(address, boundAddresses)) {
         originalActionInfo
       } else {
-        Logger.log(s"Replaced variable lookup for address $address with new actionInfo $newActionInfo", Logger.U)
+        Logger.log(s"Replaced variable lookup for address $address with new actionInfo $newActionInfo", Logger.V)
         newActionInfo
       }
     }
