@@ -186,7 +186,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
     val mustRerunHeader = traceNode.label != currentTraceNode.label
 
     val traceHead = currentTraceNode.trace.trace.head
-    val updatedTraceNode = traceNode.copy(trace = traceNode.trace.copy(trace = currentTraceNode.trace.trace.tail))
+    val updatedTraceNode = currentTraceNode.copy(trace = currentTraceNode.trace.copy(trace = currentTraceNode.trace.trace.tail))
     (traceHead._1, updatedTraceNode, mustRerunHeader)
   }
 
