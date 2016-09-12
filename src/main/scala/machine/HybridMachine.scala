@@ -20,6 +20,7 @@
 class HybridMachine[Exp : Expression]
   (override val sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
    constantsAnalysisLauncher: ConstantsAnalysisLauncher[Exp],
+   pointsToAnalysisLauncher: PointsToAnalysisLauncher[Exp],
    val tracer: Tracer[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
    tracingFlags: TracingFlags,
    injectProgramState: (Exp) =>

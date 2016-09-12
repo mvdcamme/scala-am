@@ -31,8 +31,7 @@ class PointsToAnalysis[Exp: Expression, L : JoinLattice, Addr : Address, Time : 
 }
 
 class PointsToAnalysisLauncher[Exp : Expression]
-  (sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
-   tracingFlags: TracingFlags) extends AnalysisLauncher[Exp](sem) {
+  (sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]) extends AnalysisLauncher[Exp](sem) {
 
   val pointsToAnalysis = new PointsToAnalysis[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]
 
@@ -40,7 +39,7 @@ class PointsToAnalysisLauncher[Exp : Expression]
     val aam: SpecAAM = new SpecAAM()
     val startState = convertState(aam, currentProgramState)
     val result = pointsToAnalysis.analyze(aam, sem.absSem, HybridLattice.pointsTo)(startState, false)
-    Logger.log(s"Static points-to analysis result is $result", Logger.I)
+    Logger.log(s"Static points-to analysis result is $result", Logger.U)
     result
   }
 

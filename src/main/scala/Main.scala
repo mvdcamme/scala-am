@@ -390,29 +390,45 @@ object Main {
           case Config.Machine.AAC => genNonTracingMachineStartFun(new AAC[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Free => genNonTracingMachineStartFun(new Free[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Hybrid => {
+
             val absSemantics = new BaseSchemeSemantics[HybridLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, HybridLattice.L])
             val sabs = implicitly[IsSchemeLattice[HybridLattice.L]]
-            if (config.amb) {
-              val sem = new AmbSchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, HybridTimestamp.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
-              val tracerContext = new SchemeTracer[HybridLattice.L, HybridAddress.A, HybridTimestamp.T](sem, config.tracingFlags, None)
-              val constantsAnalysisLauncher = new ConstantsAnalysisLauncher[SchemeExp](sem, config.tracingFlags)
-              val machine = new HybridMachine[SchemeExp](sem, constantsAnalysisLauncher, tracerContext, config.tracingFlags, { (exp) =>
-                val normalState = new ProgramState[SchemeExp](sem, sabs, exp)
-                new AmbProgramState[SchemeExp](normalState)
-              })
-              (program: String) => runTraced(machine)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
-            } else {
+
+            /**
+              * Constructs several components required for running the HybridMachine: the semantics, the ConstantsAnalysisLauncher,
+              * (possibly, if one can be created) an optimizer for the traces, and an injection function for creating
+              * an initial state for the machine.
+              * @param createConstantsAnalysisLauncher A factory-function that, given some SchemeSemantics, creates
+              *                                        a ConstantsAnalysisLauncher.
+              * @return The four components mentioned above.
+              */
+            def constructComponents(createConstantsAnalysisLauncher: SemanticsTraced[SchemeExp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T] => ConstantsAnalysisLauncher[SchemeExp]):
+            (SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
+             ConstantsAnalysisLauncher[SchemeExp],
+             Option[SchemeTraceOptimizer],
+             SchemeExp =>  ConcreteTracingProgramState[SchemeExp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]) = {
+              if (config.amb) {
+                val sem = new AmbSchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, HybridTimestamp.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
+                val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem)
+                val injectState = { (exp: SchemeExp) =>
+                  val normalState = new ProgramState[SchemeExp](sem, sabs, exp)
+                  new AmbProgramState[SchemeExp](normalState)
+                }
+                (sem, constantsAnalysisLauncher, None, injectState)
+              } else {
                 val sem = new SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, HybridTimestamp.T](absSemantics, new SchemePrimitives[HybridAddress.A, HybridLattice.L])
-              val constantsAnalysisLauncher = new ConstantsAnalysisLauncher[SchemeExp](sem, config.tracingFlags)
-              val optimizer = new SchemeTraceOptimizer(sem, constantsAnalysisLauncher, config.tracingFlags)
-              val tracerContext = new SchemeTracer[HybridLattice.L, HybridAddress.A, HybridTimestamp.T](sem, config.tracingFlags, Some(optimizer))
-                val machine = new HybridMachine[SchemeExp](sem,
-                  constantsAnalysisLauncher,
-                  tracerContext,
-                  config.tracingFlags,
-                  { (exp) => new ProgramState[SchemeExp](sem, sabs, exp)})
-                (program: String) => runTraced(machine)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
+                val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem)
+                val someOptimizer = Some(new SchemeTraceOptimizer(sem, constantsAnalysisLauncher, config.tracingFlags))
+                val injectState = { (exp: SchemeExp) => new ProgramState[SchemeExp](sem, sabs, exp) }
+                (sem, constantsAnalysisLauncher, someOptimizer, injectState)
+              }
             }
+
+            val (sem, constantsAnalysisLauncher, someOptimizer, injectState) = constructComponents(new ConstantsAnalysisLauncher[SchemeExp](_, config.tracingFlags))
+            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[SchemeExp](sem)
+            val tracerContext = new SchemeTracer[HybridLattice.L, HybridAddress.A, HybridTimestamp.T](sem, config.tracingFlags, someOptimizer)
+            val machine = new HybridMachine[SchemeExp](sem, constantsAnalysisLauncher, pointsToAnalysisLauncher, tracerContext, config.tracingFlags, injectState)
+            (program: String) => runTraced(machine)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
           }
         }
 
@@ -424,10 +440,10 @@ object Main {
             }
             if (program == null) throw Done
             if (program.size > 0) startMachineFun(program)
-//              config.machine match {
-//                case Config.Machine.Hybrid => runTraced(machine, sem)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
-//                case _ => run(machine, sem)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
-//              }
+            //              config.machine match {
+            //                case Config.Machine.Hybrid => runTraced(machine, sem)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
+            //                case _ => run(machine, sem)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
+            //              }
           } while (config.file.isEmpty);
         } catch {
           case Done => ()
