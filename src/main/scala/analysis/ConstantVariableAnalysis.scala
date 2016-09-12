@@ -24,8 +24,8 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
           result.copy(nonConstants = extendedNonConstants)
         }
     })
-    Logger.log(s"Static analysis completed, constant addresses are ${result.constants}", Logger.D)
-    Logger.log(s"Static analysis completed, nonConstant addresses are ${result.nonConstants}", Logger.D)
+    Logger.log(s"Static constants analysis completed, constant addresses are ${result.constants}", Logger.D)
+    Logger.log(s"Static constants analysis completed, nonConstant addresses are ${result.nonConstants}", Logger.D)
     result
   }
 
@@ -38,7 +38,7 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
      * constant. */
     val initialConstants: Set[Addr] = initialAnalysisResults.fold(Set[Addr]())(_.constants)
     val relevantAddresses = addressedLookedUp -- initialConstants
-    Logger.log(s"Starting static analysis, relevantAddresses = $relevantAddresses", Logger.I)
+    Logger.log(s"Starting static constants analysis, relevantAddresses = $relevantAddresses", Logger.I)
     /* Stop exploring the state once all relevant addresses were found to be non-constant. */
     val pred = (state: aam.State) => relevantAddresses.forall(addr => state.store.lookup(addr) match {
       case None =>
@@ -67,24 +67,9 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
 
 class ConstantsAnalysisLauncher[Exp : Expression](
      sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
-     tracingFlags: TracingFlags) {
-
-  /* The concrete program state the static analysis gets as input. This state is then converted to an
-   * abstract state and fed to the AAM. */
-  type PS = HybridMachine[Exp]#PS
-  /* The specific type of AAM used for this analysis: an AAM using the HybridLattice, HybridAddress and ZeroCFA
-   * components. */
-  type SpecAAM = AAM[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]
-  /* The specific environment used in the concrete state: an environment using the HybridAddress components. */
-  type SpecEnv = Environment[HybridAddress.A]
+     tracingFlags: TracingFlags) extends AnalysisLauncher[Exp](sem) {
 
   final val constantsAnalysis = new ConstantVariableAnalysis[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]
-
-  private def switchToAbstract(): Unit = {
-    Logger.log("HybridMachine switching to abstract", Logger.I)
-    HybridTimestamp.switchToAbstract()
-    HybridLattice.switchToAbstract()
-  }
 
   protected def launchAnalysis(aam: SpecAAM)
                               (startState: aam.State, addressedLookedUp: Set[HybridAddress.A])
@@ -96,9 +81,9 @@ class ConstantsAnalysisLauncher[Exp : Expression](
   protected def launchInitialAnalysis(aam: SpecAAM)
                                      (startState: aam.State)
                                      :ConstantAddresses[HybridAddress.A] = {
-    Logger.log(s"Running static analysis before actually executing program", Logger.I)
+    Logger.log(s"Running initial static constants analysis", Logger.I)
     val result = constantsAnalysis.initialAnalyze(aam, sem.absSem, HybridLattice.isConstantValue)(startState)
-    Logger.log(s"Finished running static analysis before actually executing program", Logger.I)
+    Logger.log(s"Finished running initial static constants analysis", Logger.I)
     result
   }
 
@@ -111,29 +96,9 @@ class ConstantsAnalysisLauncher[Exp : Expression](
                                   launchAnalysis: (SpecAAM, Any) => ConstantAddresses[HybridAddress.A])
                                  :ConstantAddresses[HybridAddress.A] = {
     val aam = new AAM[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]
-    val (control, _, store, kstore, a, t) = currentProgramState.convertState(aam)(sem)
-    val convertedControl = control match {
-      case ConvertedControlError(reason) => aam.ControlError(reason)
-      case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
-      case ConvertedControlKont(v) => aam.ControlKont(v)
-    }
-    val startState = aam.State(convertedControl, store, kstore, a, t)
+    val startState = convertState(aam, currentProgramState)
     val result = launchAnalysis(aam, startState)
-    Logger.log(s"analysis result is $result", Logger.I)
-    result
-  }
-
-  private def switchToConcrete(): Unit = {
-    Logger.log("HybridMachine switching to concrete", Logger.I)
-    HybridTimestamp.switchToConcrete()
-    HybridLattice.switchToConcrete()
-  }
-
-  private def wrapRunAnalysis(runAnalysis: () => StaticAnalysisResult): StaticAnalysisResult = {
-    Logger.log("analyzing", Logger.I)
-    switchToAbstract()
-    val result = runAnalysis()
-    switchToConcrete()
+    Logger.log(s"Static constants analysis result is $result", Logger.I)
     result
   }
 
