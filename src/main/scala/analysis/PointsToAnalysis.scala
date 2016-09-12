@@ -35,12 +35,13 @@ class PointsToAnalysisLauncher[Exp : Expression]
 
   val pointsToAnalysis = new PointsToAnalysis[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]
 
-  def runStaticAnalysis(currentProgramState: PS): Set[(HybridAddress.A, Int)] = {
-    val aam: SpecAAM = new SpecAAM()
-    val startState = convertState(aam, currentProgramState)
-    val result = pointsToAnalysis.analyze(aam, sem.absSem, HybridLattice.pointsTo)(startState, false)
-    Logger.log(s"Static points-to analysis result is $result", Logger.U)
-    result
-  }
+  def runStaticAnalysis(currentProgramState: PS): StaticAnalysisResult =
+    wrapRunAnalysis(() => {
+      val aam: SpecAAM = new SpecAAM()
+      val startState = convertState(aam, currentProgramState)
+      val result = pointsToAnalysis.analyze(aam, sem.absSem, HybridLattice.pointsTo)(startState, false)
+      Logger.log(s"Static points-to analysis result is $result", Logger.U)
+      PointsToSet(result)
+    })
 
 }
