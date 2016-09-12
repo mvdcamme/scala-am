@@ -33,12 +33,21 @@ object HybridLattice extends SchemeLattice {
   case class Concrete(c: ConcL) extends L
   case class Abstract(a: AbstL) extends L
 
-  def isConstantValue(value: L): Boolean = value match {
+  /**
+    * If the given value matches to an abstract value, calls the given function f on the wrapped abstract value.
+    * If the value does not match an abstract value, an exception is thrown.
+    * @param value The value to be matched.
+    * @param f The function to be called on the abstract value inside 'value'.
+    * @tparam ResultType The return type of f.
+    * @return The result of f called on the wrapped abstract value inside 'value'.
+    */
+  private def handleAbstractValue[ResultType](value: L, f: AbstL => ResultType): ResultType = value match {
     case Concrete(_) =>
-      throw new Exception(s"isConstantValue called on concrete value $value")
-    case Abstract(v) => abstractLattice.isConstantValue(v)
+      throw new Exception(s"Value expected to be abstract; was instead: $value")
+    case Abstract(v) => f(v)
   }
 
+  def isConstantValue(value: L): Boolean = handleAbstractValue(value, abstractLattice.isConstantValue)
   def convert[Exp : Expression, Addr : Address](value: L,
                                                 convertEnv: Environment[Addr] => Environment[Addr]): L = {
 
