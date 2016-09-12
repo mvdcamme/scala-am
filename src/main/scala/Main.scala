@@ -395,12 +395,15 @@ object Main {
             val sabs = implicitly[IsSchemeLattice[HybridLattice.L]]
 
             /**
-              * Constructs several components required for running the HybridMachine: the semantics, the ConstantsAnalysisLauncher,
-              * (possibly, if one can be created) an optimizer for the traces, and an injection function for creating
-              * an initial state for the machine.
+              * A factory method for the construction of several components required for running the HybridMachine:
+              * the semantics, the ConstantsAnalysisLauncher, (possibly, if one can be created) an optimizer for the traces,
+              * and an injection function for creating an initial state for the machine.
+              * Construction of these components depends on whether the machine will execute regular Scheme programs
+              * or Amb-Scheme programs (in which case other semantics and another injection function should be used,
+              * and no optimizer can be created).
               * @param createConstantsAnalysisLauncher A factory-function that, given some SchemeSemantics, creates
               *                                        a ConstantsAnalysisLauncher.
-              * @return The four components mentioned above.
+              * @return A four-tuple consisting of the four components mentioned above.
               */
             def constructComponents(createConstantsAnalysisLauncher: SemanticsTraced[SchemeExp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T] => ConstantsAnalysisLauncher[SchemeExp]):
             (SchemeSemanticsTraced[HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
