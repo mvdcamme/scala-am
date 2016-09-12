@@ -512,7 +512,7 @@ class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
   type L = lattice.LSet
   implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
 
-  def isConstantValue(value: L): Boolean = value match {
+  def isConstantValue(x: L): Boolean = x match {
     case lattice.Element(e) => e match {
       case lattice.Bot => false
       case lattice.Str(StringConstantPropagation.Constant(_)) => true
@@ -531,5 +531,26 @@ class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
     }
     /* If the value consists of a set of abstract values (i.e., Elements), the value is not a constant */
     case _ => false
+  }
+
+  def pointsTo(x: L): Int = {
+
+    /**
+      * Returns 1 iff this value points to a (pointable) 'object'-type, such as
+      * @param lattice
+      * @param value
+      * @return
+      */
+    def pointsTo(lattice: MakeSchemeLattice[S, B, I, F, C, Sym])(value: lattice.Value): Boolean = value match {
+      case lattice.Cons(_, _) | lattice.Vec(_, _, _) | lattice.VectorAddress(_) => true
+      case _ => false
+    }
+
+    x match {
+      case lattice.Element(value) =>
+        if (pointsTo(lattice)(value)) 1 else 0
+      case lattice.Elements(values) =>
+        values.foldLeft[Int](0)((acc, value) => acc + (if (pointsTo(lattice)(value)) 1 else 0))
+      }
   }
 }
