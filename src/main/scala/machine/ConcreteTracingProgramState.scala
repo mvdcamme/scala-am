@@ -413,13 +413,17 @@ case class ProgramState[Exp : Expression]
     case _ => control.toString()
   }
 
-  def convertValue(σ: Store[HybridAddress.A, HybridLattice.L])(value: HybridValue): HybridValue =
+  private def convertValue(σ: Store[HybridAddress.A, HybridLattice.L])(value: HybridValue): HybridValue =
     HybridLattice.convert[Exp, HybridAddress.A](value)
 
-  def convertKontAddress(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T])
-                        (address: KontAddr): KontAddr = address match {
+  /**
+    * Maps one KontAddr to another.
+    * @param address The KontAddr to be mapped.
+    * @return The mapped KontAddr.
+    */
+  private def mapKontAddress(address: KontAddr): KontAddr = address match {
     case address: NormalKontAddress[Exp, HybridTimestamp.T] =>
-      NormalKontAddress(address.exp, address.time)
+      NormalKontAddress(address.exp, HybridTimestamp.convertTime(address.time))
     case HaltKontAddress => HaltKontAddress
   }
 
@@ -478,14 +482,15 @@ case class ProgramState[Exp : Expression]
       case TracingControlKont(ka) => ka
     }
     val (newA, convertedKontStore) = convertKStore(aam, sem, kstore, ρ, startKontAddress, newVStack)
-    val convertedA = convertKontAddress(aam)(newA)
+    val mappedConvertedKontStore = convertedKontStore.map(mapKontAddress)
+    val convertedA = mapKontAddress(newA)
     val newControl = control match {
       case TracingControlEval(exp) =>
         ConvertedControlEval[Exp, HybridValue, HybridAddress.A](exp, ρ)
       case TracingControlKont(ka) =>
         ConvertedControlKont[Exp, HybridValue, HybridAddress.A](newV)
     }
-    (newControl, ρ, newσ, convertedKontStore, convertedA, newT)
+    (newControl, ρ, newσ, mappedConvertedKontStore, convertedA, newT)
   }
 
   def generateTraceInformation(action: ActionT[Exp, HybridValue, HybridAddress.A]): CombinedInfos[HybridValue, HybridAddress.A] = action match {
