@@ -24,6 +24,14 @@ abstract class KontStore[KontAddr : KontAddress] {
   def forall(p: ((KontAddr, Set[Kont[KontAddr]])) => Boolean): Boolean
   def subsumes(that: KontStore[KontAddr]): Boolean
   def fastEq(that: KontStore[KontAddr]): Boolean = this == that
+
+  /**
+    * Maps all KontAddr variables, i.e., both the KontAddr keys as well as the KontAddr pointers to next frames,
+    * in the store via the given function f.
+    * @param f Maps one KontAddr value to another.
+    * @return A new KontStore in which all KontAddr keys have been mapped.
+    */
+  def map(f: KontAddr => KontAddr): KontStore[KontAddr]
 }
 
 case class BasicKontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kont[KontAddr]]]) extends KontStore[KontAddr] {
@@ -44,6 +52,12 @@ case class BasicKontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kon
     that.forall({ case (a, ks) =>
       ks.forall((k1) => lookup(a).exists(k2 => k2.subsumes(k1)))
     })
+
+  def map(f: KontAddr => KontAddr): KontStore[KontAddr] = {
+    val mappedContent = content.foldLeft[Map[KontAddr, Set[Kont[KontAddr]]]](Map[KontAddr, Set[Kont[KontAddr]]]())( {
+      case (kstore, (a, ks)) => kstore + (f(a) -> ks.map( kont => kont.copy(next = f(kont.next))) ) } )
+    BasicKontStore(mappedContent)
+  }
 }
 
 case class TimestampedKontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kont[KontAddr]]], timestamp: Int) extends KontStore[KontAddr] {
@@ -82,6 +96,12 @@ case class TimestampedKontStore[KontAddr : KontAddress](content: Map[KontAddr, S
     timestamp == that.asInstanceOf[TimestampedKontStore[KontAddr]].timestamp
   } else {
     false
+  }
+
+  def map(f: KontAddr => KontAddr): KontStore[KontAddr] = {
+    val mappedContent = content.foldLeft[Map[KontAddr, Set[Kont[KontAddr]]]](Map[KontAddr, Set[Kont[KontAddr]]]())( {
+      case (kstore, (a, ks)) => kstore + (a -> ks.map( kont => kont.copy(next = f(kont.next))) ) } )
+    TimestampedKontStore(mappedContent, timestamp)
   }
 }
 
