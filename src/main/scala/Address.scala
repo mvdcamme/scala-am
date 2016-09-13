@@ -80,20 +80,6 @@ object HybridAddress extends AddressWrapper {
   }
   case class PrimitiveAddress(name: String) extends A
 
-  def convertAddress[Exp : Expression, Time : Timestamp]
-      (address: A, convertTimestamp: Time => Time): A = address match {
-    case HybridAddr(a) =>
-      val convertedA = a match {
-        case ClassicalAddress.VariableAddress(name, t) =>
-          ClassicalAddress.VariableAddress(name, convertTimestamp(t.asInstanceOf[Time]))
-        case ClassicalAddress.CellAddress(exp, t) =>
-          ClassicalAddress.CellAddress(exp.asInstanceOf[Exp], convertTimestamp(t.asInstanceOf[Time]))
-        case _ => a
-      }
-      HybridAddr(convertedA)
-    case PrimitiveAddress(name) => PrimitiveAddress(name)
-  }
-
   implicit val isAddress = new Address[A] {
     def name = "Hybrid"
     def isPrimitive(x: A) = x match {

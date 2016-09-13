@@ -643,9 +643,9 @@ class SchemeTraceOptimizer
   }
 
   private def addressBound(address: HybridAddress.A, boundAddresses: Set[HybridAddress.A]): Boolean = {
-    val abstractAddress = HybridAddress.convertAddress[SchemeExp, HybridTimestamp.T](address, HybridTimestamp.convertTime)
+    //TODO val abstractAddress = HybridAddress.convertAddress[SchemeExp, HybridTimestamp.T](address, HybridTimestamp.convertTime)
     /* Check both the abstracted address and the concrete address */
-    boundAddresses.contains(abstractAddress) || boundAddresses.contains(address)
+    boundAddresses.contains(address) || boundAddresses.contains(address)
   }
 
   private def replaceVariableLookups(trace: Trace, boundAddresses: Set[HybridAddress.A]): Trace = {

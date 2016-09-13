@@ -51,8 +51,7 @@ object HybridLattice extends SchemeLattice {
 
   def pointsTo(value: L): Int = handleAbstractValue(value, abstractLattice.pointsTo)
 
-  def convert[Exp : Expression, Addr : Address](value: L,
-                                                convertEnv: Environment[Addr] => Environment[Addr]): L = {
+  def convert[Exp : Expression, Addr : Address](value: L): L = {
 
     import ConcreteString._
     import ConcreteBoolean._
@@ -79,8 +78,7 @@ object HybridLattice extends SchemeLattice {
       case lat.Prim(prim) =>
         abstractLattice.lattice.isSchemeLattice.inject(prim.asInstanceOf[Primitive[Addr, HybridLattice.L]])
       case lat.Closure(lambda, env) =>
-        val convertedEnv = convertEnv(env.asInstanceOf[Environment[Addr]])
-        abstractLattice.lattice.isSchemeLattice.inject((lambda, convertedEnv).asInstanceOf[(Exp, Environment[Addr])])
+        abstractLattice.lattice.isSchemeLattice.inject((lambda, env).asInstanceOf[(Exp, Environment[Addr])])
       case c: lat.Cons[Addr] =>
         abstractLattice.lattice.Cons[Addr](c.car, c.cdr)
       case lat.Nil =>
