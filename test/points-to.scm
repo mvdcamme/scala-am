@@ -1,11 +1,13 @@
-(let ((a #f))
-  (define (f b)
-    (if b
-        (set! a (cons 1 2))
-        (set! a (cons 3 4))))
-  (f #t)
-  (f #f)
-  (display a)
-  (newline)
-  a)
-  
+(define (id x)
+  x)
+
+(define (loop n x)
+  (cond ((< n 1) x)
+        ((= (modulo n 2) 0)
+         (let ((a (cons 1 2)))
+           (loop (- n 1) (id a))))
+        (else
+         (let ((b (cons 3 4)))
+           (loop (- n 1) (id b))))))
+
+(loop 100 'done)
