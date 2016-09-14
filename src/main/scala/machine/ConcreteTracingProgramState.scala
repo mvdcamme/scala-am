@@ -80,7 +80,7 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
   def v: Abs
   def vStack: List[Storable[Abs, Addr]]
 
-  def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[(InterpreterStep[Exp, Abs, Addr], KontStore[KontAddr])]
+  def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[InterpreterStep[Exp, Abs, Addr]]
   def applyAction(sem: SemanticsTraced[Exp, Abs, Addr, Time],
                   action: ActionT[Exp, Abs, Addr]):
     ActionReturn[Exp, Abs, Addr, Time, ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
@@ -95,8 +95,6 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
     (ConvertedControl[Exp, Abs, Addr], Environment[Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, HybridTimestamp.T)
 
   def generateTraceInformation(action: ActionT[Exp, Abs, Addr]): CombinedInfos[HybridValue, HybridAddress.A]
-
-  def setKStore(kontStore: KontStore[KontAddr]): ConcreteTracingProgramState[Exp, Abs, Addr, Time]
 }
 
 /**
@@ -139,21 +137,41 @@ case class ProgramState[Exp : Expression]
     * Computes the set of states that follow the current state
     */
   def step(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T])
-          :Option[(InterpreterStep[Exp, HybridValue, HybridAddress.A], KontStore[KontAddr])] = {
+          :Option[InterpreterStep[Exp, HybridValue, HybridAddress.A]] = {
+
+    /**
+      * Verifies that the set of InterpreterSteps, each of which leads to a successor of the current state, is a
+      * singleton, as there should only one possible successor of the current state during concrete execution of
+      * a program. Also extracts this InterpreterStep from the set and returns it.
+      * @param results The set of InterpreterSteps to be checked. Should be a singleton.
+      * @return The (only) InterpreterStep included in the given, singleton set. If the given set was not a singleton,
+      *         an AssertionError is thrown.
+      */
+    def assertResults(results: Set[InterpreterStep[Exp, HybridValue, HybridAddress.A]]): InterpreterStep[Exp, HybridValue, HybridAddress.A] = {
+      assert(results.size == 1)
+      results.head
+    }
+
     val result = control match {
       /* In a eval state, call the semantic's evaluation method */
-      case TracingControlEval(e) => Some((sem.stepEval(e, ρ, σ, t), kstore))
+      case TracingControlEval(e) => Some(assertResults(sem.stepEval(e, ρ, σ, t)))
       /* In a continuation state, call the semantic's continuation method */
       case TracingControlKont(ka) =>
-        val kont =  kstore.lookup(ka).head
-        Some((sem.stepKont(v, kont.frame, σ, t), kstore.remove(ka, kont)))
+        val konts =  kstore.lookup(ka)
+        /* During concrete interpretation, a continuation address should always point to just one frame. */
+        assert(konts.size == 1)
+        val kont = konts.head
+        val results = sem.stepKont(v, kont.frame, σ, t)
+        assert(results.size == 1)
+        val result = results.head
+        val removeKontAction = ActionRemoveKontT[Exp, HybridValue, HybridAddress.A](ka, kont)
+        Some(result.copy(trace = removeKontAction :: result.trace))
       /* In an error state, the state is not able to make a step */
       case TracingControlError(_) => None
     }
     result match {
-      case Some((set, kstore)) =>
-        assert(set.size == 1)
-        Some((set.head, kstore))
+      case Some(result) =>
+        Some(result)
       case None => None
     }
   }
@@ -341,6 +359,8 @@ case class ProgramState[Exp : Expression]
         ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, lit, vStack), action)
       case ActionReachedValuePushT(lit, _, _) =>
         ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, lit, StoreVal[HybridValue, HybridAddress.A](lit) :: vStack), action)
+      case ActionRemoveKontT(a, k) =>
+        ActionStep(copy(kstore = kstore.remove(a, k)), action)
       case ActionRestoreEnvT() =>
         ActionStep(restoreEnv(), action)
       case ActionRestoreSaveEnvT() =>
@@ -527,7 +547,4 @@ case class ProgramState[Exp : Expression]
       concreteSubsumes(that)
     case _ => false
   }
-
-  def setKStore(newKstore: KontStore[KontAddr]): ProgramState[Exp] =
-    ProgramState(control, ρ, σ, newKstore, a, t, v, vStack)
 }

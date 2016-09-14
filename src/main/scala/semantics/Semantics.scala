@@ -457,7 +457,7 @@ case class ActionReachedValueT[Exp : Expression, Abs : JoinLattice, Addr : Addre
 case class ActionReachedValuePushT[Exp : Expression, Abs : JoinLattice, Addr : Address]
 (v : Abs, read: Set[Addr] = Set[Addr](), write: Set[Addr] = Set[Addr]())
   extends ActionT[Exp, Abs, Addr] with ChangesValueReg[Exp, Abs, Addr] with PushesValue[Exp, Abs, Addr]
-case class ActionRemoveKontT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
+case class ActionRemoveKontT[Exp : Expression, Abs : JoinLattice, Addr : Address](a: KontAddr, k: Kont[KontAddr])
   extends ActionT[Exp, Abs, Addr]
 case class ActionRestoreEnvT[Exp : Expression, Abs : JoinLattice, Addr : Address]()
   extends ActionT[Exp, Abs, Addr] with RestoresEnv[Exp, Abs, Addr]
