@@ -80,7 +80,7 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
   def v: Abs
   def vStack: List[Storable[Abs, Addr]]
 
-  def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[InterpreterStep[Exp, Abs, Addr]]
+  def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[(InterpreterStep[Exp, Abs, Addr], KontStore[KontAddr])]
   def applyAction(sem: SemanticsTraced[Exp, Abs, Addr, Time],
                   action: ActionT[Exp, Abs, Addr]):
     ActionReturn[Exp, Abs, Addr, Time, ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
@@ -95,6 +95,8 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
     (ConvertedControl[Exp, Abs, Addr], Environment[Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, HybridTimestamp.T)
 
   def generateTraceInformation(action: ActionT[Exp, Abs, Addr]): CombinedInfos[HybridValue, HybridAddress.A]
+
+  def setKStore(kontStore: KontStore[KontAddr]): ConcreteTracingProgramState[Exp, Abs, Addr, Time]
 }
 
 /**
@@ -137,19 +139,21 @@ case class ProgramState[Exp : Expression]
     * Computes the set of states that follow the current state
     */
   def step(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T])
-          :Option[InterpreterStep[Exp, HybridValue, HybridAddress.A]] = {
+          :Option[(InterpreterStep[Exp, HybridValue, HybridAddress.A], KontStore[KontAddr])] = {
     val result = control match {
       /* In a eval state, call the semantic's evaluation method */
-      case TracingControlEval(e) => Some(sem.stepEval(e, ρ, σ, t))
+      case TracingControlEval(e) => Some((sem.stepEval(e, ρ, σ, t), kstore))
       /* In a continuation state, call the semantic's continuation method */
-      case TracingControlKont(ka) => Some(sem.stepKont(v, kstore.lookup(ka).head.frame, σ, t))
+      case TracingControlKont(ka) =>
+        val kont =  kstore.lookup(ka).head
+        Some((sem.stepKont(v, kont.frame, σ, t), kstore.remove(ka, kont)))
       /* In an error state, the state is not able to make a step */
       case TracingControlError(_) => None
     }
     result match {
-      case Some(set) =>
+      case Some((set, kstore)) =>
         assert(set.size == 1)
-        Some(set.head)
+        Some((set.head, kstore))
       case None => None
     }
   }
@@ -523,4 +527,7 @@ case class ProgramState[Exp : Expression]
       concreteSubsumes(that)
     case _ => false
   }
+
+  def setKStore(newKstore: KontStore[KontAddr]): ProgramState[Exp] =
+    ProgramState(control, ρ, σ, newKstore, a, t, v, vStack)
 }

@@ -71,7 +71,7 @@ class HybridMachine[Exp : Expression]
   val TE = ExecutionPhase.TE
   val TR = ExecutionPhase.TR
 
-  case class TracerState(ep: ExecutionPhase.Value, ps: PS)
+  case class TracerState(ep: ExecutionPhase.Value, var ps: PS)
                         (tc: tracer.TracerContext,
                          tn: Option[tracer.TraceNode[TraceFull[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]]]) {
 
@@ -257,9 +257,15 @@ class HybridMachine[Exp : Expression]
     def stepConcrete(): TracerState = {
       stepCount += 1
       ep match {
-        case NI => handleResponseRegular(ps.step(sem).get)
+        case NI =>
+          val stepResult = ps.step(sem).get
+          ps = ps.setKStore(stepResult._2)
+          handleResponseRegular(stepResult._1)
         case TE => doTraceExecutingStep()
-        case TR => handleResponseTracing(ps.step(sem).get)
+        case TR =>
+          val stepResult = ps.step(sem).get
+          ps = ps.setKStore(stepResult._2)
+          handleResponseTracing(stepResult._1)
       }
     }
 
@@ -329,10 +335,10 @@ class HybridMachine[Exp : Expression]
     } else {
       /* Otherwise, compute the successors of this state, update the graph, and push
        * the new successors on the todo list */
-            if (stepCount % analysis_interval == 0) {
-              Logger.log(s"stepCount: $stepCount", Logger.U)
-              pointsToAnalysisLauncher.runStaticAnalysis(s.ps)
-            }
+//            if (stepCount % analysis_interval == 0) {
+//              Logger.log(s"stepCount: $stepCount", Logger.U)
+//              pointsToAnalysisLauncher.runStaticAnalysis(s.ps)
+//            }
       val succ = s.stepConcrete()
       val newGraph = graph.map(_.addEdge(s.ps, "", succ.ps))
       loop(succ, nrVisited + 1, startingTime, newGraph, timeout)

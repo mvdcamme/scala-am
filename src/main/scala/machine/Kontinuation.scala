@@ -32,6 +32,14 @@ abstract class KontStore[KontAddr : KontAddress] {
     * @return A new KontStore in which all KontAddr keys have been mapped.
     */
   def map(f: KontAddr => KontAddr): KontStore[KontAddr]
+
+  /**
+    * Removes the Kont value k associated with the KontAddr a.
+    * @param a The KontAddr for which the Kont value must be removed.
+    * @param k The Kont value to be removed.
+    * @return A new KontStore in which the Kont value is removed.
+    */
+  def remove(a: KontAddr, k: Kont[KontAddr]): KontStore[KontAddr]
 }
 
 case class BasicKontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kont[KontAddr]]]) extends KontStore[KontAddr] {
@@ -57,6 +65,17 @@ case class BasicKontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kon
     val mappedContent = content.foldLeft[Map[KontAddr, Set[Kont[KontAddr]]]](Map[KontAddr, Set[Kont[KontAddr]]]())( {
       case (kstore, (a, ks)) => kstore + (f(a) -> ks.map( kont => kont.copy(next = f(kont.next))) ) } )
     BasicKontStore(mappedContent)
+  }
+
+  def remove(a: KontAddr, k: Kont[KontAddr]): KontStore[KontAddr] = content.get(a) match {
+    case Some(ks) =>
+      val filteredKs = ks - k
+      if (filteredKs.isEmpty) {
+        BasicKontStore(content - a)
+      } else {
+        BasicKontStore(content + (a -> filteredKs))
+      }
+    case None => this
   }
 }
 
@@ -102,6 +121,17 @@ case class TimestampedKontStore[KontAddr : KontAddress](content: Map[KontAddr, S
     val mappedContent = content.foldLeft[Map[KontAddr, Set[Kont[KontAddr]]]](Map[KontAddr, Set[Kont[KontAddr]]]())( {
       case (kstore, (a, ks)) => kstore + (a -> ks.map( kont => kont.copy(next = f(kont.next))) ) } )
     TimestampedKontStore(mappedContent, timestamp)
+  }
+
+  def remove(a: KontAddr, k: Kont[KontAddr]): KontStore[KontAddr] = content.get(a) match {
+    case Some(ks) =>
+      val filteredKs = ks - k
+      if (filteredKs.isEmpty) {
+        TimestampedKontStore(content - a, timestamp)
+      } else {
+        TimestampedKontStore(content + (a -> filteredKs), timestamp)
+      }
+    case None => this
   }
 }
 

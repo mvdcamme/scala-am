@@ -72,27 +72,29 @@ case class AmbProgramState[Exp : Expression]
     }
 
   def step(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T])
-          :Option[InterpreterStep[Exp, HybridValue, HybridAddress.A]] = {
+          :Option[(InterpreterStep[Exp, HybridValue, HybridAddress.A], KontStore[KontAddr])] = {
     val someStep = normalState.step(sem)
     someStep match {
       case None => None /* Step did not succeed */
-      case Some(step) =>
+      case Some((step, updatedKStore)) =>
+        /* Check whether a function body frame was just popped from the stack.
+         * If so, send a SignalEndLoop, in case the tracer had started tracing at this function call. */
         type PopKontAction = ActionSinglePopKontT[Exp, HybridValue, HybridAddress.A]
         val trace = step.trace
         val someActionSinglePopKont = trace.find(_.isInstanceOf[PopKontAction])
         someActionSinglePopKont match {
-          case None => someStep
+          case None => Some((step, updatedKStore))
           case Some(actionSinglePopKont) =>
             val someTopKont = normalState.kstore.lookup(normalState.a).headOption
             someTopKont match {
-              case None => someStep
+              case None => Some((step, updatedKStore))
               case Some(topKont) =>
                 val someBody = sem.getClosureBody(topKont.frame)
                 someBody match {
-                  case None => someStep
+                  case None => Some((step, updatedKStore))
                   case Some(body) =>
                     val signal = SignalEndLoop(body, RestartStoppedInBacktrack[Exp, HybridValue, HybridAddress.A]())
-                    Some(InterpreterStep(trace, signal))
+                    Some((InterpreterStep(trace, signal), updatedKStore))
                 }
             }
         }
@@ -195,5 +197,8 @@ case class AmbProgramState[Exp : Expression]
       concreteSubsumes(that)
     case _ => false
   }
+
+  def setKStore(newKontStore: KontStore[KontAddr]): AmbProgramState[Exp] =
+    AmbProgramState[Exp](normalState.setKStore(newKontStore), failStack)
 
 }
