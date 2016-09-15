@@ -53,9 +53,9 @@ case class AmbProgramState[Exp : Expression]
     }
   }
 
-  def convertState(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T])
+  def convertState(free: Free[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T])
                   (oldSem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T]) =
-    normalState.convertState(aam)(oldSem)
+    normalState.convertState(free)(oldSem)
 
   def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
                 assertions: List[ActionT[Exp, HybridValue, HybridAddress.A]]): Option[AmbProgramState[Exp]] =

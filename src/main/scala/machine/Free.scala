@@ -1,3 +1,21 @@
+sealed trait FreeKontAddr
+object FreeKontAddr {
+  implicit object KontAddrKontAddress extends KontAddress[FreeKontAddr]
+}
+/**
+  * A continuation address is either for a normal continuation, and contains an
+  * expression and the corresponding binding environment from the moment where
+  * the continuation has been allocated
+  */
+sealed case class FreeNormalKontAddress[Exp : Expression, Addr : Address](exp: Exp, env: Environment[Addr]) extends FreeKontAddr {
+  override def toString = s"FreeNormalKontAddress($exp)"
+}
+/** Or it is the address of the halt continuation */
+object FreeHaltKontAddress extends FreeKontAddr {
+  override def toString = "FreeHaltKontAddress"
+}
+
+
 /**
  * Implementation of "Pushdown Control-Flow Analysis for Free", which is
  * basically a variant of AAC with better complexity (Gilray, Thomas, et
@@ -8,39 +26,22 @@ class Free[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp
     extends EvalKontMachine[Exp, Abs, Addr, Time] {
   def name = "Free"
 
-  trait KontAddr
-  object KontAddr {
-    implicit object KontAddrKontAddress extends KontAddress[KontAddr]
-  }
-  /**
-   * A continuation address is either for a normal continuation, and contains an
-   * expression and the corresponding binding environment from the moment where
-   * the continuation has been allocated
-   */
-  case class NormalKontAddress(exp: Exp, env: Environment[Addr]) extends KontAddr {
-    override def toString = s"NormalKontAddress($exp)"
-  }
-  /** Or it is the address of the halt continuation */
-  object HaltKontAddress extends KontAddr {
-    override def toString = "HaltKontAddress"
-  }
-
   /**
    * A state contains the control component, a store, a continuation store, and
    * the address of the current continuation. The stores aren't actually local
    * to the state, but they are injected inside it during the state space
    * exploration phase.
    */
-  case class State(control: Control, store: Store[Addr, Abs], kstore: KontStore[KontAddr], k: KontAddr, t: Time) {
+  case class State(control: Control, store: Store[Addr, Abs], kstore: KontStore[FreeKontAddr], k: FreeKontAddr, t: Time) {
     override def toString = control.toString
     def subsumes(that: State): Boolean = control.subsumes(that.control) && store.subsumes(that.store) && kstore.subsumes(that.kstore) && k.equals(that.k)
 
     /** Integrate a set of action to compute the successor states */
-    private def integrate(k: KontAddr, actions: Set[Action[Exp, Abs, Addr]]): Set[State] =
+    private def integrate(k: FreeKontAddr, actions: Set[Action[Exp, Abs, Addr]]): Set[State] =
       actions.map({
         case ActionReachedValue(v, store, _) => State(ControlKont(v), store, kstore, k, time.tick(t))
         case ActionPush(frame, e, env, store, _) => {
-          val next = new NormalKontAddress(e, env)
+          val next = new FreeNormalKontAddress(e, env)
           State(ControlEval(e, env), store, kstore.extend(next, Kont(frame, k)), next, time.tick(t))
         }
         case ActionEval(e, env, store, _) => State(ControlEval(e, env), store, kstore, k, time.tick(t))
@@ -60,7 +61,7 @@ class Free[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp
     /** Checks whether this state has finished evaluation */
     def halted = control match {
       case ControlEval(_, _) => false
-      case ControlKont(v) => k.equals(HaltKontAddress)
+      case ControlKont(v) => k.equals(FreeHaltKontAddress)
       case ControlError(_) => true
     }
   }
@@ -68,7 +69,7 @@ class Free[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp
     def inject(exp: Exp, env: Iterable[(String, Addr)], store: Iterable[(Addr, Abs)]) =
       State(ControlEval(exp, Environment.empty[Addr].extend(env)),
         Store.initial[Addr, Abs](store),
-        KontStore.empty[KontAddr], HaltKontAddress, time.initial(""))
+        KontStore.empty[FreeKontAddr], FreeHaltKontAddress, time.initial(""))
   }
 
 
@@ -76,20 +77,20 @@ class Free[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp
    * A configuration is basically a state without the store and continuation
    * store (because these stores are global).
    */
-  case class Configuration(control: Control, k: KontAddr, t: Time) {
+  case class Configuration(control: Control, k: FreeKontAddr, t: Time) {
     override def toString = s"($control, $k)"
   }
   /**
    * Represents multiple states as a set of configuration that share the same
    * store and continuation store
    */
-  case class States(R: Set[Configuration], store: Store[Addr, Abs], kstore: KontStore[KontAddr]) {
+  case class States(R: Set[Configuration], store: Store[Addr, Abs], kstore: KontStore[FreeKontAddr]) {
     override def toString = R.toString
     /** Performs a step on all the contained states */
     def step(sem: Semantics[Exp, Abs, Addr, Time]): States = {
       val states = R.map(conf => State(conf.control, store, kstore, conf.k, conf.t))
       val succs = states.flatMap(state => state.step(sem))
-      val (store1, kstore1) = succs.foldLeft((Store.empty[Addr, Abs], KontStore.empty[KontAddr]))((acc, state) => (acc._1.join(state.store), acc._2.join(state.kstore)))
+      val (store1, kstore1) = succs.foldLeft((Store.empty[Addr, Abs], KontStore.empty[FreeKontAddr]))((acc, state) => (acc._1.join(state.store), acc._2.join(state.kstore)))
       States(succs.map(state => Configuration(state.control, state.k, state.t)), store1, kstore1)
     }
     def isEmpty = R.isEmpty
@@ -100,10 +101,17 @@ class Free[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp
   /** The output of the machine */
   case class FreeOutput(halted: Set[State], numberOfStates: Int, time: Double, graph: Option[Graph[State, Unit]], timedOut: Boolean)
       extends Output[Abs] {
+
     def finalValues = halted.flatMap(st => st.control match {
       case ControlKont(v) => Set[Abs](v)
       case _ => Set[Abs]()
     })
+
+    /**
+      * Returns the set of stores of the final states
+      */
+    def finalStores: Set[Store[Addr, Abs]] = halted.map(st => st.store)
+
     def containsFinalValue(v: Abs) = finalValues.exists(v2 => abs.subsumes(v2, v))
     def toDotFile(path: String) = graph match {
       case Some(g) => g.toDotFile(path, node => List(scala.xml.Text(node.toString)),
@@ -118,8 +126,8 @@ class Free[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp
   }
   object States {
     def inject(exp: Exp, env: Iterable[(String, Addr)], store: Iterable[(Addr, Abs)]) =
-      States(Set(Configuration(ControlEval(exp, Environment.empty[Addr].extend(env)), HaltKontAddress, time.initial(""))),
-        Store.initial[Addr, Abs](store), KontStore.empty[KontAddr])
+      States(Set(Configuration(ControlEval(exp, Environment.empty[Addr].extend(env)), FreeHaltKontAddress, time.initial(""))),
+        Store.initial[Addr, Abs](store), KontStore.empty[FreeKontAddr])
   }
 
   /**
@@ -145,27 +153,35 @@ class Free[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp
     }
   }
 
-  /**
-   * Performs state space exploration without building the graph
-   */
-  private def loop(s: States, visited: Set[States],
-    halted: Set[State], startingTime: Long, timeout: Option[Long],
-    sem: Semantics[Exp, Abs, Addr, Time]): Output[Abs] = {
-    val s2 = s.step(sem)
-    val h = halted ++ s.toStateSet.filter(_.halted)
-    if (s2.isEmpty || visited.contains(s2) || timeout.map(System.nanoTime - startingTime > _).getOrElse(false)) {
-      FreeOutput(h, visited.foldLeft(0)((acc, s) => acc + s.size),
-        (System.nanoTime - startingTime) / Math.pow(10, 9),
-        None, timeout.map(System.nanoTime - startingTime > _).getOrElse(false))
-    } else {
-      loop(s2, visited + s, h, startingTime, timeout, sem)
+  def kickstartEval(s: States,
+                    sem: Semantics[Exp, Abs, Addr, Time],
+                    stopEval: Option[States => Boolean],
+                    timeout: Option[Long]): FreeOutput = {
+
+    val startingTime = System.nanoTime
+    /**
+      * Performs state space exploration without building the graph
+      */
+    def loop(s: States, visited: Set[States],
+             halted: Set[State]): FreeOutput = {
+      val s2 = s.step(sem)
+      val h = halted ++ s.toStateSet.filter(_.halted)
+      if (s2.isEmpty || visited.contains(s2) ||
+          timeout.map(System.nanoTime - startingTime > _).getOrElse(false) || stopEval.fold(false)(pred => pred(s2))) {
+        FreeOutput(h, visited.foldLeft(0)((acc, s) => acc + s.size),
+          (System.nanoTime - startingTime) / Math.pow(10, 9),
+          None, timeout.map(System.nanoTime - startingTime > _).getOrElse(false))
+      } else {
+        loop(s2, visited + s, h)
+      }
     }
+    loop(s, Set(), Set())
   }
 
   def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Option[Long]): Output[Abs] =
     if (graph) {
       loopWithLocalGraph(States.inject(exp, sem.initialEnv, sem.initialStore), Set(), Set(), System.nanoTime, timeout, new Graph[State, Unit](), sem)
     } else {
-      loop(States.inject(exp, sem.initialEnv, sem.initialStore), Set(), Set(), System.nanoTime, timeout, sem)
+      kickstartEval(States.inject(exp, sem.initialEnv, sem.initialStore), sem, None, timeout)
     }
 }

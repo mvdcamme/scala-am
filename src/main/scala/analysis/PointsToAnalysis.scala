@@ -1,15 +1,15 @@
 class PointsToAnalysis[Exp: Expression, L : JoinLattice, Addr : Address, Time : Timestamp] {
 
-  private def joinStores(aam: AAM[Exp, L, Addr, Time])
+  private def joinStores(free: Free[Exp, L, Addr, Time])
                         (stores: Set[Store[Addr, L]]): Set[(Addr, L)] = {
     val joinedStore = stores.foldLeft(Store.initial(Set()): Store[Addr, L])
     { case (joinedStore, store) => joinedStore.join(store) }
     joinedStore.toSet
   }
 
-  private def analyzeOutput(aam: AAM[Exp, L, Addr, Time], pointsTo: L => Int)
-                           (output: aam.AAMOutput): Set[(Addr, Int)] = {
-    val storeValues = joinStores(aam)(output.finalStores)
+  private def analyzeOutput(free: Free[Exp, L, Addr, Time], pointsTo: L => Int)
+                           (output: free.FreeOutput): Set[(Addr, Int)] = {
+    val storeValues = joinStores(free)(output.finalStores)
     val initial = Set[(Addr, Int)]()
     val result: Set[(Addr, Int)] = storeValues.foldLeft(initial)({ case (result, (address, value)) =>
       val numberOfObjectsPointedTo: Int = pointsTo(value)
@@ -22,11 +22,11 @@ class PointsToAnalysis[Exp: Expression, L : JoinLattice, Addr : Address, Time : 
     result
   }
 
-  def analyze(aam: AAM[Exp, L, Addr, Time], sem: Semantics[Exp, L, Addr, Time], pointsTo: L => Int)
-             (startState: aam.State, isInitial: Boolean): Set[(Addr, Int)] = {
+  def analyze(free: Free[Exp, L, Addr, Time], sem: Semantics[Exp, L, Addr, Time], pointsTo: L => Int)
+             (startState: free.States, isInitial: Boolean): Set[(Addr, Int)] = {
     Logger.log(s"Starting static points-to analysis", Logger.I)
-    val output = aam.kickstartEval(startState, sem, None, None, false)
-    analyzeOutput(aam, pointsTo)(output)
+    val output = free.kickstartEval(startState, sem, None, None)
+    analyzeOutput(free, pointsTo)(output)
   }
 }
 
@@ -37,9 +37,9 @@ class PointsToAnalysisLauncher[Exp : Expression]
 
   def runStaticAnalysis(currentProgramState: PS): StaticAnalysisResult =
     wrapRunAnalysis(() => {
-      val aam: SpecAAM = new SpecAAM()
-      val startState = convertState(aam, currentProgramState)
-      val result = pointsToAnalysis.analyze(aam, sem.absSem, HybridLattice.pointsTo)(startState, false)
+      val free: SpecFree = new SpecFree()
+      val startStates = convertState(free, currentProgramState)
+      val result = pointsToAnalysis.analyze(free, sem.absSem, HybridLattice.pointsTo)(startStates, false)
       Logger.log(s"Static points-to analysis result is $result", Logger.U)
       PointsToSet(result)
     })

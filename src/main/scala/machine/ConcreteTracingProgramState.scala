@@ -90,9 +90,9 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
   def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
                 assertions: List[ActionT[Exp, Abs, Addr]]): Option[ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
 
-  def convertState(aam: AAM[Exp, Abs, Addr, Time])
+  def convertState(free: Free[Exp, Abs, Addr, Time])
                   (sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T]):
-    (ConvertedControl[Exp, Abs, Addr], Environment[Addr], Store[Addr, Abs], KontStore[KontAddr], KontAddr, HybridTimestamp.T)
+    (ConvertedControl[Exp, Abs, Addr], Environment[Addr], Store[Addr, Abs], KontStore[FreeKontAddr], FreeKontAddr, HybridTimestamp.T)
 
   def generateTraceInformation(action: ActionT[Exp, Abs, Addr]): CombinedInfos[HybridValue, HybridAddress.A]
 }
@@ -441,35 +441,54 @@ case class ProgramState[Exp : Expression]
     HybridLattice.convert[Exp, HybridAddress.A](value)
 
   /**
-    * Maps one KontAddr to another.
-    * @param address The KontAddr to be mapped.
-    * @return The mapped KontAddr.
+    * Converts all addresses in the environment.
+    * @param ρ The environment for which all addresses must be converted.
+    * @return A new environment with all addresses converted.
     */
-  private def mapKontAddress(address: KontAddr): KontAddr = address match {
+  /* Currently, we don't actually convert addresses in the environment or store, so at the moment,
+   * this function is just the identity function. */
+  private def convertEnv(ρ: Environment[HybridAddress.A]): Environment[HybridAddress.A] = ρ
+
+  /**
+    * Converts all addresses in the store.
+    * @param σ The store for which all addresses must be converted.
+    * @return A new store with all addresses converted.
+    */
+  /* Currently, we don't actually convert addresses in the environment or store, so at the moment,
+   * this function is just the identity function. */
+  private def convertSto(σ: Store[HybridAddress.A, HybridValue]): Store[HybridAddress.A, HybridValue] = σ
+
+  /**
+    * Converts a KontAddr into a FreeKontAddr.
+    * @param address The KontAddr to be converted.
+    * @param env The environment to used to allocate the FreeKontAddr.
+    * @return The converted FreeKontAddr.
+    */
+  private def convertKontAddress(address: KontAddr, env: Environment[HybridAddress.A]): FreeKontAddr = address match {
     case address: NormalKontAddress[Exp, HybridTimestamp.T] =>
-      NormalKontAddress(address.exp, HybridTimestamp.convertTime(address.time))
-    case HaltKontAddress => HaltKontAddress
+      FreeNormalKontAddress(address.exp, env)
+    case HaltKontAddress => FreeHaltKontAddress
   }
 
-  def convertKStore(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
+  def convertKStore(free: Free[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
                     sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
                     kontStore: KontStore[KontAddr],
                     ρ: Environment[HybridAddress.A],
                     a: KontAddr,
                     vStack: List[Storable[HybridValue, HybridAddress.A]])
-                   :(KontAddr, KontStore[KontAddr]) = {
+                   :(FreeKontAddr, KontStore[FreeKontAddr]) = {
 
     @tailrec
-    def loop(newKontStore: KontStore[KontAddr],
-             a: KontAddr,
+    def loop(a: KontAddr,
              vStack: List[Storable[HybridValue, HybridAddress.A]],
              ρ: Environment[HybridAddress.A],
-             stack: List[(KontAddr, Option[Frame], List[Storable[HybridValue, HybridAddress.A]], Environment[HybridAddress.A])]): (KontAddr, KontStore[KontAddr]) = a match {
+             stack: List[(KontAddr, Option[Frame], List[Storable[HybridValue, HybridAddress.A]], Environment[HybridAddress.A])]): (FreeKontAddr, KontStore[FreeKontAddr]) = a match {
       case HaltKontAddress =>
-        stack.foldLeft[(KontAddr, KontStore[KontAddr])] ((HaltKontAddress, newKontStore)) ({
+        stack.foldLeft[(FreeKontAddr, KontStore[FreeKontAddr])] ((FreeHaltKontAddress, KontStore.empty[FreeKontAddr])) ({
           case ((actualNext, extendedKontStore), (a, someNewSemFrame, newVStack, newρ)) => someNewSemFrame match {
             case Some(newSemFrame) =>
-              (a, extendedKontStore.extend(a, Kont(newSemFrame, actualNext)))
+              val convertedA = convertKontAddress(a, newρ)
+              (convertedA, extendedKontStore.extend(convertedA, Kont(newSemFrame, actualNext)))
             case None =>
               (actualNext, extendedKontStore)
           }
@@ -478,23 +497,25 @@ case class ProgramState[Exp : Expression]
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
         val (someNewSemFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack, HybridLattice.convert[Exp, HybridAddress.A](_))
-        loop(newKontStore, next, newVStack, newρ, (a, someNewSemFrame, newVStack, newρ) :: stack)
+        loop(next, newVStack, newρ, (a, someNewSemFrame, newVStack, newρ) :: stack)
     }
-    loop(KontStore.empty, a, vStack, ρ, Nil)
+    loop(a, vStack, ρ, Nil)
   }
 
-  def convertState(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T])
+  def convertState(free: Free[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T])
                   (sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T]):
   (ConvertedControl[Exp, HybridValue, HybridAddress.A], Environment[HybridAddress.A],
-   Store[HybridAddress.A, HybridValue], KontStore[KontAddr], KontAddr, HybridTimestamp.T) = {
+   Store[HybridAddress.A, HybridValue], KontStore[FreeKontAddr], FreeKontAddr, HybridTimestamp.T) = {
     val newT = HybridTimestamp.convertTime(t)
-    var newσ = Store.empty[HybridAddress.A, HybridLattice.L]
+    var valuesConvertedσ = Store.empty[HybridAddress.A, HybridLattice.L]
     def addToNewStore(tuple: (HybridAddress.A, HybridValue)): Boolean = {
       val newValue = convertValue(σ)(tuple._2)
-      newσ = newσ.extend(tuple._1, newValue)
+      valuesConvertedσ = valuesConvertedσ.extend(tuple._1, newValue)
       true
     }
     σ.forall(addToNewStore)
+    val convertedρ = convertEnv(ρ)
+    val convertedσ = convertSto(valuesConvertedσ)
     //val newA: KontAddr = a
     val newV = convertValue(σ)(v)
     val newVStack = vStack.map({
@@ -505,16 +526,14 @@ case class ProgramState[Exp : Expression]
       case TracingControlEval(_) | TracingControlError(_) => a
       case TracingControlKont(ka) => ka
     }
-    val (newA, convertedKontStore) = convertKStore(aam, sem, kstore, ρ, startKontAddress, newVStack)
-    val mappedConvertedKontStore = convertedKontStore.map(mapKontAddress)
-    val convertedA = mapKontAddress(newA)
+    val (convertedA, convertedKontStore) = convertKStore(free, sem, kstore, convertedρ, startKontAddress, newVStack)
     val newControl = control match {
       case TracingControlEval(exp) =>
-        ConvertedControlEval[Exp, HybridValue, HybridAddress.A](exp, ρ)
+        ConvertedControlEval[Exp, HybridValue, HybridAddress.A](exp, convertedρ)
       case TracingControlKont(ka) =>
         ConvertedControlKont[Exp, HybridValue, HybridAddress.A](newV)
     }
-    (newControl, ρ, newσ, mappedConvertedKontStore, convertedA, newT)
+    (newControl, convertedρ, convertedσ, convertedKontStore, convertedA, newT)
   }
 
   def generateTraceInformation(action: ActionT[Exp, HybridValue, HybridAddress.A]): CombinedInfos[HybridValue, HybridAddress.A] = action match {

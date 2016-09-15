@@ -1,21 +1,4 @@
 /**
-  * The store used for continuations is a KontStore (defined in
-  * Kontinuation.scala). It is parameterized by continuation addresses, that
-  * are element of the KontAddress typeclass.
-  */
-//trait KontAddr[Exp, Time]
-//case class NormalKontAddress[Exp, Time](exp: Exp, time: Time) extends KontAddr[Exp, Time] {
-//  override def toString = s"NormalKontAddress($exp)"
-//}
-//case class HaltKontAddress[Exp, Time]() extends KontAddr[Exp, Time] {
-//  override def toString = "HaltKontAddress"
-//}
-//
-//object KontAddr {
-//  implicit object KontAddrKontAddress extends KontAddress[KontAddr]
-//}
-
-/**
  * Implementation of a CESK machine following the AAM approach (Van Horn, David,
  * and Matthew Might. "Abstracting abstract machines." ACM Sigplan
  * Notices. Vol. 45. No. 9. ACM, 2010).

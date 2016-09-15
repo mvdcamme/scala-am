@@ -6,7 +6,7 @@ abstract class AnalysisLauncher[Exp : Expression]
   type PS = HybridMachine[Exp]#PS
   /* The specific type of AAM used for this analysis: an AAM using the HybridLattice, HybridAddress and ZeroCFA
    * components. */
-  type SpecAAM = AAM[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]
+  type SpecFree = Free[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]
   /* The specific environment used in the concrete state: an environment using the HybridAddress components. */
   type SpecEnv = Environment[HybridAddress.A]
 
@@ -31,19 +31,19 @@ abstract class AnalysisLauncher[Exp : Expression]
   }
 
   /**
-   * Converts the given state to a new state corresponding to the state employed by the given AAM.
-   * @param aam The AAM for which a new, converted, state must be generated.
+   * Converts the given state to a new state corresponding to the state employed by the given P4F machine.
+   * @param free The P4F machine for which a new, converted, state must be generated.
    * @param programState The program state to be converted.
    */
-  protected def convertState(aam: AAM[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
-                             programState: PS): aam.State = {
-    val (control, _, store, kstore, a, t) = programState.convertState(aam)(sem)
+  protected def convertState(free: Free[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
+                             programState: PS): free.States = {
+    val (control, _, store, kstore, a, t) = programState.convertState(free)(sem)
     val convertedControl = control match {
-      case ConvertedControlError(reason) => aam.ControlError(reason)
-      case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
-      case ConvertedControlKont(v) => aam.ControlKont(v)
+      case ConvertedControlError(reason) => free.ControlError(reason)
+      case ConvertedControlEval(exp, env) => free.ControlEval(exp, env)
+      case ConvertedControlKont(v) => free.ControlKont(v)
     }
-    aam.State(convertedControl, store, kstore, a, t)
+    free.States(Set(free.Configuration(convertedControl, a, t)), store, kstore)
   }
 
 }
