@@ -173,6 +173,9 @@ class BaseSchemeSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestam
     case SchemeQuoted(quoted, _) => evalQuoted(quoted, store, t) match {
       case (value, store2) => Set(ActionReachedValue(value, store2))
     }
+    /* The start-analysis expression only has an effect in the SchemeSemanticsTraced; in these semantics, it just
+     * evaluates to #f. */
+    case SchemeStartAnalysis(_) => Set(ActionReachedValue(sabs.inject(false), store))
     case SchemeValue(v, _) => evalValue(v) match {
       case Some(v) => Set(ActionReachedValue(v, store))
       case None => Set(ActionError(NotSupported(s"Unhandled value: $v")))

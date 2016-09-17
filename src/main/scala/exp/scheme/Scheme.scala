@@ -18,6 +18,10 @@ case class SchemeAmb(exps: List[SchemeExp], pos: Position) extends SchemeExp {
   }
 }
 
+case class SchemeStartAnalysis(pos: Position) extends SchemeExp {
+  override def toString() = "(start-analysis)"
+}
+
 /**
  * A lambda expression: (lambda (args...) body...)
  * Not supported: "rest"-arguments, of the form (lambda arg body), or (lambda (arg1 . args) body...)
@@ -237,6 +241,8 @@ trait SchemeCompiler {
   def compile(exp: SExp): SchemeExp = exp match {
     case SExpPair(SExpIdentifier("amb", pos), body, _) =>
       SchemeAmb(compileBody(body), exp.pos)
+    case SExpPair(SExpIdentifier("start-analysis", pos), SExpValue(ValueNil, _), _) =>
+      SchemeStartAnalysis(exp.pos)
     case SExpPair(SExpIdentifier("quote", _), SExpPair(quoted, SExpValue(ValueNil, _), _), _) =>
       compile(SExpQuoted(quoted, exp.pos))
     case SExpPair(SExpIdentifier("quote", _), _, _) =>
@@ -434,6 +440,7 @@ object SchemeRenamer {
     }
 
   def rename(exp: SchemeExp, names: NameMap, count: CountMap): (SchemeExp, CountMap) = exp match {
+
     case SchemeLambda(args, body, pos) =>
       countl(args, names, count) match {
         case (args1, names1, count1) => renameList(body, names1, count1) match {
@@ -644,6 +651,7 @@ object SchemeDesugarer {
     case exp :: rest => {
       val exp2 = exp match {
         case SchemeAmb(exps, pos) => SchemeAmb(exps.map(undefine1), pos)
+        case SchemeStartAnalysis(pos) => SchemeStartAnalysis(pos)
         case SchemeLambda(args, body, pos) => SchemeLambda(args, undefineBody(body), pos)
         case SchemeFuncall(f, args, pos) => SchemeFuncall(undefine1(f), args.map(undefine1), pos)
         case SchemeIf(cond, cons, alt, pos) => SchemeIf(undefine1(cond), undefine1(cons), undefine1(alt), pos)
@@ -735,6 +743,7 @@ object SchemeDesugarer {
       }
 
       case SchemeAmb(exps, pos) => SchemeAmb(exps.map(desugarExp), pos)
+      case SchemeStartAnalysis(pos) => SchemeStartAnalysis(pos)
       case SchemeLambda(args, body, pos) => SchemeLambda(args, body.map(desugarExp), pos)
       case SchemeFuncall(f, args, pos) => SchemeFuncall(desugarExp(f), args.map(desugarExp), pos)
       case SchemeIf(cond, cons, alt, pos) => SchemeIf(desugarExp(cond), desugarExp(cons), desugarExp(alt), pos)

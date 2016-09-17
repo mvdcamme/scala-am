@@ -245,13 +245,23 @@ class HybridMachine[Exp : Expression]
     }
 
     def handleResponseRegular(response: InterpreterStep[Exp, HybridValue, HybridAddress.A]): TracerState = response match {
-      case InterpreterStep(trace, SignalFalse()) => continueWithProgramState(trace)
-      case InterpreterStep(trace, signal) => handleSignalRegular(trace, signal)
+      case InterpreterStep(trace, SignalFalse()) =>
+        continueWithProgramState(trace)
+      case InterpreterStep(trace, SignalStartAnalysis()) =>
+        pointsToAnalysisLauncher.runStaticAnalysis(ps)
+        continueWithProgramState(trace)
+      case InterpreterStep(trace, signal) =>
+        handleSignalRegular(trace, signal)
     }
 
     def handleResponseTracing(response: InterpreterStep[Exp, HybridValue, HybridAddress.A]): TracerState = response match {
-      case InterpreterStep(trace, SignalFalse()) => continueWithProgramStateTracing(trace)
-      case InterpreterStep(trace, signal) => handleSignalTracing(trace, signal)
+      case InterpreterStep(trace, SignalFalse()) =>
+        continueWithProgramStateTracing(trace)
+      case InterpreterStep(trace, SignalStartAnalysis()) =>
+        pointsToAnalysisLauncher.runStaticAnalysis(ps)
+        continueWithProgramStateTracing(trace)
+      case InterpreterStep(trace, signal) =>
+        handleSignalTracing(trace, signal)
     }
 
     def stepConcrete(): TracerState = {
@@ -329,10 +339,10 @@ class HybridMachine[Exp : Expression]
     } else {
       /* Otherwise, compute the successors of this state, update the graph, and push
        * the new successors on the todo list */
-            if (stepCount % analysis_interval == 0) {
-              Logger.log(s"stepCount: $stepCount", Logger.U)
-              pointsToAnalysisLauncher.runStaticAnalysis(s.ps)
-            }
+//            if (stepCount % analysis_interval == 0) {
+//              Logger.log(s"stepCount: $stepCount", Logger.U)
+//              pointsToAnalysisLauncher.runStaticAnalysis(s.ps)
+//            }
       val succ = s.stepConcrete()
       val newGraph = graph.map(_.addEdge(s.ps, "", succ.ps))
       loop(succ, nrVisited + 1, startingTime, newGraph, timeout)

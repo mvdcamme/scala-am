@@ -273,6 +273,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
       val (value, actions) = evalQuoted(quoted, t)
       Set(interpreterStep(actions :+ ActionReachedValueT[SchemeExp, Abs, Addr](value) :+ actionPopKont))
     case SchemeSet(variable, exp, _) => Set(interpreterStep(List(actionSaveEnv, ActionEvalPushT(exp, FrameSetT(variable)))))
+    case SchemeStartAnalysis(_) => Set(InterpreterStep(List(ActionReachedValueT(sabs.inject(false)), actionPopKont), SignalStartAnalysis()))
     case SchemeValue(v, _) => evalValue(v) match {
       case Some(v) => Set(interpreterStep(List(ActionReachedValueT(v), actionPopKont)))
       case None => Set(interpreterStep(List(ActionErrorT(NotSupported(s"Unhandled value: $v")))))
