@@ -2,7 +2,7 @@
   x)
 
 (define (loop n x)
-  (cond ((< n 1) x)
+  (cond ((< n 1) (start-analysis) x)
         ((= (modulo n 2) 0)
          (let ((a (cons 1 2)))
            (loop (- n 1) (id a))))
