@@ -2,9 +2,18 @@ import scalaz.{Plus => _, _}
 import scalaz.Scalaz._
 import SchemeOps._
 
+trait LatticeInfoProvider[L] {
+
+  def isConstantValue(x: L): Boolean
+
+  def pointsTo(x: L): Int
+
+}
+
 class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(implicit str: IsString[S],
   bool: IsBoolean[B], int: IsInteger[I], float: IsFloat[F], char: IsChar[C],
   sym: IsSymbol[Sym]) {
+
   sealed trait Value
   case object Bot extends Value {
     override def toString = "⊥"
@@ -467,6 +476,52 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(implicit 
       isSchemeLattice.vector(addr, size, init).map({ case (a, v) => (Element(a), Element(v)) }))
     def nil: LSet = Element(isSchemeLattice.nil)
   }
+
+
+
+  implicit val latticeInfoProvider = lsetInfoProvider
+
+  object lsetInfoProvider extends LatticeInfoProvider[LSet] {
+
+    def isConstantValue(x: LSet): Boolean = x match {
+      case Element(e) => e match {
+        case Bot => false
+        case Str(StringConstantPropagation.Constant(_)) => true
+        case Bool(_) => true
+        case Int(IntegerConstantPropagation.Constant(_)) => true
+        case Float(FloatConstantPropagation.Constant(_)) => true
+        case Char(CharConstantPropagation.Constant(_)) => true
+        case Symbol(SymbolConstantPropagation.Constant(_)) => true
+        case Closure(_, _) => true
+        case Prim(_) => true
+        case Cons(_, _) => true
+        case Nil => true
+        case Vec(_, _, _) => true
+        case VectorAddress(_) => true
+        case _ => false
+      }
+      /* If the value consists of a set of abstract values (i.e., Elements), the value is not a constant */
+      case _ => false
+    }
+
+    def pointsTo(x: LSet): scala.Int = {
+
+      def pointsTo(value: Value): Boolean = value match {
+        case Symbol(_) | Prim(_) | Closure(_, _) |
+             Cons(_, _) | Vec(_, _, _) | VectorAddress(_) => true
+        case _ => false
+      }
+
+      x match {
+        case Element(value) =>
+          if (pointsTo(value)) 1 else 0
+        case Elements(values) =>
+          values.foldLeft[scala.Int](0)((acc, value) => acc + (if (pointsTo(value)) 1 else 0))
+      }
+    }
+
+  }
+
 }
 
 class ConcreteLattice(counting: Boolean) extends SchemeLattice {
@@ -512,46 +567,5 @@ class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
   type L = lattice.LSet
   implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
 
-  def isConstantValue(x: L): Boolean = x match {
-    case lattice.Element(e) => e match {
-      case lattice.Bot => false
-      case lattice.Str(StringConstantPropagation.Constant(_)) => true
-      case lattice.Bool(_) => true
-      case lattice.Int(IntegerConstantPropagation.Constant(_)) => true
-      case lattice.Float(FloatConstantPropagation.Constant(_)) => true
-      case lattice.Char(CharConstantPropagation.Constant(_)) => true
-      case lattice.Symbol(SymbolConstantPropagation.Constant(_)) => true
-      case lattice.Closure(_, _) => true
-      case lattice.Prim(_) => true
-      case lattice.Cons(_, _) => true
-      case lattice.Nil => true
-      case lattice.Vec(_, _, _) => true
-      case lattice.VectorAddress(_) => true
-      case _ => false
-    }
-    /* If the value consists of a set of abstract values (i.e., Elements), the value is not a constant */
-    case _ => false
-  }
 
-  def pointsTo(x: L): Int = {
-
-    /**
-      * Returns 1 iff this value points to a (pointable) 'object'-type, such as
-      * @param lattice
-      * @param value
-      * @return
-      */
-    def pointsTo(lattice: MakeSchemeLattice[S, B, I, F, C, Sym])(value: lattice.Value): Boolean = value match {
-      case lattice.Symbol(_) | lattice.Prim(_) | lattice.Closure(_, _) |
-           lattice.Cons(_, _) | lattice.Vec(_, _, _) | lattice.VectorAddress(_) => true
-      case _ => false
-    }
-
-    x match {
-      case lattice.Element(value) =>
-        if (pointsTo(lattice)(value)) 1 else 0
-      case lattice.Elements(values) =>
-        values.foldLeft[Int](0)((acc, value) => acc + (if (pointsTo(lattice)(value)) 1 else 0))
-      }
-  }
 }

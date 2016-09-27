@@ -47,9 +47,9 @@ object HybridLattice extends SchemeLattice {
     case Abstract(v) => f(v)
   }
 
-  def isConstantValue(value: L): Boolean = handleAbstractValue(value, abstractLattice.isConstantValue)
+  def isConstantValue(value: L): Boolean = handleAbstractValue(value, abstractLattice.lattice.latticeInfoProvider.isConstantValue)
 
-  def pointsTo(value: L): Int = handleAbstractValue(value, abstractLattice.pointsTo)
+  def pointsTo(value: L): Int = handleAbstractValue(value, abstractLattice.lattice.latticeInfoProvider.pointsTo)
 
   def convert[Exp : Expression, Addr : Address](value: L,
                                                 addressConverter: AddressConverter[Addr],
