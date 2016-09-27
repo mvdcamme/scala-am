@@ -20,3 +20,12 @@ object ConvertTimeStampConverter extends TimestampConverter[HybridTimestamp.T] {
   }
 
 }
+
+/*
+ * To be used for converting hybrid-timestamps: delegates to the proper conversion strategy.
+ */
+object DefaultHybridTimestampConverter extends TimestampConverter[HybridTimestamp.T] {
+
+  def convertTimestamp(time: HybridTimestamp.T): HybridTimestamp.T = ConvertTimeStampConverter.convertTimestamp(time)
+
+}

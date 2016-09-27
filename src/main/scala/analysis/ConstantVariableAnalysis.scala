@@ -74,8 +74,8 @@ class ConstantsAnalysisLauncher[Exp : Expression](
   protected def launchAnalysis(free: SpecFree)
                               (startStates: free.States, addressedLookedUp: Set[HybridAddress.A])
                               :ConstantAddresses[HybridAddress.A] = {
-    //TODO val abstractAddressesLookedup = addressedLookedUp.map(HybridAddress.convertAddress(_, HybridTimestamp.convertTime))
-    constantsAnalysis.analyze(free, sem.absSem, HybridLattice.isConstantValue)(startStates, addressedLookedUp, false)
+    val abstractAddressesLookedup = addressedLookedUp.map(new DefaultHybridAddressConverter().convertAddress)
+    constantsAnalysis.analyze(free, sem.absSem, HybridLattice.isConstantValue)(startStates, abstractAddressesLookedup, false)
   }
 
   protected def launchInitialAnalysis(free: SpecFree)

@@ -81,11 +81,6 @@ object HybridTimestamp extends TimestampWrapper {
   }
   case class ConcreteTime(c: ConcreteT, a: AbstractT) extends T
 
-  def convertTime(time: T): T = time match {
-    case AbstractTime(a) => time
-    case ConcreteTime(c, a) => AbstractTime(a)
-  }
-
   implicit val isTimestamp = new Timestamp[T] {
     def name = "Hybrid"
     def initial(seed: String) =

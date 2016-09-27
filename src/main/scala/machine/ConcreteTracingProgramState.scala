@@ -438,16 +438,16 @@ case class ProgramState[Exp : Expression]
   }
 
   private def convertValue(σ: Store[HybridAddress.A, HybridLattice.L])(value: HybridValue): HybridValue =
-    HybridLattice.convert[Exp, HybridAddress.A](value)
+    HybridLattice.convert[Exp, HybridAddress.A](value, convertEnv)
 
   /**
     * Converts all addresses in the environment.
-    * @param ρ The environment for which all addresses must be converted.
+    * @param env The environment for which all addresses must be converted.
     * @return A new environment with all addresses converted.
     */
-  /* Currently, we don't actually convert addresses in the environment or store, so at the moment,
-   * this function is just the identity function. */
-  private def convertEnv(ρ: Environment[HybridAddress.A]): Environment[HybridAddress.A] = ρ
+  private def convertEnv(env: Environment[HybridAddress.A]): Environment[HybridAddress.A] =
+    env.map { (address) => new DefaultHybridAddressConverter().convertAddress(address) }
+
 
   /**
     * Converts all addresses in the store.
@@ -459,12 +459,12 @@ case class ProgramState[Exp : Expression]
   private def convertSto(σ: Store[HybridAddress.A, HybridValue]): Store[HybridAddress.A, HybridValue] = σ
 
   /**
-    * Converts a KontAddr into a FreeKontAddr.
+    * Maps a KontAddr to a FreeKontAddr.
     * @param address The KontAddr to be converted.
     * @param env The environment to used to allocate the FreeKontAddr.
     * @return The converted FreeKontAddr.
     */
-  private def convertKontAddress(address: KontAddr, env: Environment[HybridAddress.A]): FreeKontAddr = address match {
+  private def mapKontAddress(address: KontAddr, env: Environment[HybridAddress.A]): FreeKontAddr = address match {
     case address: NormalKontAddress[Exp, HybridTimestamp.T] =>
       FreeNormalKontAddress(address.exp, env)
     case HaltKontAddress => FreeHaltKontAddress
@@ -487,7 +487,7 @@ case class ProgramState[Exp : Expression]
         stack.foldLeft[(FreeKontAddr, KontStore[FreeKontAddr])] ((FreeHaltKontAddress, KontStore.empty[FreeKontAddr])) ({
           case ((actualNext, extendedKontStore), (a, someNewSemFrame, newVStack, newρ)) => someNewSemFrame match {
             case Some(newSemFrame) =>
-              val convertedA = convertKontAddress(a, newρ)
+              val convertedA = mapKontAddress(a, newρ)
               (convertedA, extendedKontStore.extend(convertedA, Kont(newSemFrame, actualNext)))
             case None =>
               (actualNext, extendedKontStore)
@@ -496,7 +496,7 @@ case class ProgramState[Exp : Expression]
         })
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
-        val (someNewSemFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack, HybridLattice.convert[Exp, HybridAddress.A](_))
+        val (someNewSemFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack, HybridLattice.convert[Exp, HybridAddress.A](_, convertEnv))
         loop(next, newVStack, newρ, (a, someNewSemFrame, newVStack, newρ) :: stack)
     }
     loop(a, vStack, ρ, Nil)
@@ -506,11 +506,13 @@ case class ProgramState[Exp : Expression]
                   (sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T]):
   (ConvertedControl[Exp, HybridValue, HybridAddress.A], Environment[HybridAddress.A],
    Store[HybridAddress.A, HybridValue], KontStore[FreeKontAddr], FreeKontAddr, HybridTimestamp.T) = {
-    val newT = HybridTimestamp.convertTime(t)
+
+    val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
     var valuesConvertedσ = Store.empty[HybridAddress.A, HybridLattice.L]
     def addToNewStore(tuple: (HybridAddress.A, HybridValue)): Boolean = {
-      val newValue = convertValue(σ)(tuple._2)
-      valuesConvertedσ = valuesConvertedσ.extend(tuple._1, newValue)
+      val convertedAddress = new DefaultHybridAddressConverter().convertAddress(tuple._1)
+      val convertedValue = convertValue(σ)(tuple._2)
+      valuesConvertedσ = valuesConvertedσ.extend(convertedAddress, convertedValue)
       true
     }
     σ.forall(addToNewStore)
@@ -520,7 +522,7 @@ case class ProgramState[Exp : Expression]
     val newV = convertValue(σ)(v)
     val newVStack = vStack.map({
       case StoreVal(v) => StoreVal[HybridValue, HybridAddress.A](convertValue(σ)(v))
-      case StoreEnv(ρ) => StoreEnv[HybridValue, HybridAddress.A](ρ)
+      case StoreEnv(ρ) => StoreEnv[HybridValue, HybridAddress.A](convertEnv(ρ))
     })
     val startKontAddress = control match {
       case TracingControlEval(_) | TracingControlError(_) => a
