@@ -542,7 +542,8 @@ class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
       * @return
       */
     def pointsTo(lattice: MakeSchemeLattice[S, B, I, F, C, Sym])(value: lattice.Value): Boolean = value match {
-      case lattice.Cons(_, _) | lattice.Vec(_, _, _) | lattice.VectorAddress(_) => true
+      case lattice.Symbol(_) | lattice.Prim(_) | lattice.Closure(_, _) |
+           lattice.Cons(_, _) | lattice.Vec(_, _, _) | lattice.VectorAddress(_) => true
       case _ => false
     }
 
