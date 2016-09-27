@@ -438,7 +438,7 @@ case class ProgramState[Exp : Expression]
   }
 
   private def convertValue(σ: Store[HybridAddress.A, HybridLattice.L])(value: HybridValue): HybridValue =
-    HybridLattice.convert[Exp, HybridAddress.A](value, convertEnv)
+    HybridLattice.convert[Exp, HybridAddress.A](value, new DefaultHybridAddressConverter[Exp], convertEnv)
 
   /**
     * Converts all addresses in the environment.
@@ -496,7 +496,9 @@ case class ProgramState[Exp : Expression]
         })
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
-        val (someNewSemFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack, HybridLattice.convert[Exp, HybridAddress.A](_, convertEnv))
+        val addressConverter = new DefaultHybridAddressConverter[Exp]
+        val convertValueFun: HybridValue => HybridValue = HybridLattice.convert[Exp, HybridAddress.A](_, addressConverter, convertEnv)
+        val (someNewSemFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack, convertValueFun)
         loop(next, newVStack, newρ, (a, someNewSemFrame, newVStack, newρ) :: stack)
     }
     loop(a, vStack, ρ, Nil)
