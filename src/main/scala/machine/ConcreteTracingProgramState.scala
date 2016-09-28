@@ -69,7 +69,6 @@ trait ConcretableTracingProgramState[Exp] {
 }
 
 trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramState[Exp, Abs, Addr, Time] {
-  type HybridValue = HybridLattice.L
 
   def control: TracingControl[Exp, Abs, Addr]
   def ρ: Environment[Addr]
@@ -102,7 +101,7 @@ trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramSt
   * continuation store, and an address representing where the current
   * continuation lives.
   */
-case class ProgramState[Exp : Expression]
+case class ProgramState[HybridVal : HybridLattice, Exp : Expression]
   (override val control: TracingControl[Exp, HybridLattice.L, HybridAddress.A],
    override val ρ: Environment[HybridAddress.A],
    override val σ: Store[HybridAddress.A, HybridLattice.L],

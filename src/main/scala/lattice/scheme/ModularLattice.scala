@@ -11,7 +11,7 @@ trait LatticeInfoProvider[L] {
 }
 
 class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(implicit str: IsString[S],
-  bool: IsBoolean[B], int: IsInteger[I], float: IsFloat[F], char: IsChar[C],
+  bool: IsBoolean[B], val int: IsInteger[I], float: IsFloat[F], char: IsChar[C],
   sym: IsSymbol[Sym]) {
 
   sealed trait Value
@@ -524,7 +524,16 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(implicit 
 
 }
 
-class ConcreteLattice(counting: Boolean) extends SchemeLattice {
+trait HasMakeSchemeLattice[S, B, I, F, C, Sym] extends SchemeLattice {
+
+  val lattice: MakeSchemeLattice[S, B, I, F, C, Sym]
+
+  type L = lattice.LSet
+
+}
+
+class ConcreteLattice(counting: Boolean)
+  extends HasMakeSchemeLattice[ConcreteString.S, ConcreteBoolean.B, ConcreteInteger.I, ConcreteFloat.F, ConcreteChar.C, ConcreteSymbol.Sym] {
   import ConcreteString._
   import ConcreteBoolean._
   import ConcreteInteger._
@@ -533,15 +542,16 @@ class ConcreteLattice(counting: Boolean) extends SchemeLattice {
   import ConcreteSymbol._
 
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](counting)
-  type L = lattice.LSet
+//  type L = lattice.LSet
   implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
 }
 
-class TypeSetLattice(counting: Boolean) extends SchemeLattice {
+class TypeSetLattice(counting: Boolean)
+  extends HasMakeSchemeLattice[Type.T, ConcreteBoolean.B, Type.T, Type.T, Type.T, Type.T] {
   import Type._
   import ConcreteBoolean._
   val lattice = new MakeSchemeLattice[T, B, T, T, T, T](counting)
-  type L = lattice.LSet
+//  type L = lattice.LSet
   implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
 }
 
@@ -555,7 +565,9 @@ class BoundedIntLattice(bound: Int, counting: Boolean) extends SchemeLattice {
   implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
 }
 
-class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
+class ConstantPropagationLattice(counting: Boolean)
+  extends HasMakeSchemeLattice[StringConstantPropagation.S, ConcreteBoolean.B, IntegerConstantPropagation.I,
+                               FloatConstantPropagation.F, CharConstantPropagation.C, SymbolConstantPropagation.Sym] {
   import StringConstantPropagation._
   import ConcreteBoolean._
   import IntegerConstantPropagation._
@@ -564,7 +576,7 @@ class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
   import SymbolConstantPropagation._
 
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](counting)
-  type L = lattice.LSet
+//  type L = lattice.LSet
   implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
 
 
