@@ -95,8 +95,6 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
 
   def getClosureBody(frame: Frame): Option[List[Exp]]
 
-  def absSem: Semantics[Exp, Abs, Addr, Time]
-
   def convertToAbsSemanticsFrame(frame: Frame,
                                  ρ: Environment[Addr],
                                  vStack: List[Storable[Abs, Addr]],
@@ -269,7 +267,7 @@ abstract class BaseSemantics[Exp : Expression, Abs : JoinLattice, Addr : Address
 }
 
 abstract class BaseSemanticsTraced[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
-(override val absSem: Semantics[Exp, Abs, Addr, Time], val primitives: Primitives[Addr, Abs])
+(val primitives: Primitives[Addr, Abs])
   extends SemanticsTraced[Exp, Abs, Addr, Time] {
   /* wtf scala */
   def abs = implicitly[JoinLattice[Abs]]

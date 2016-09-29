@@ -6,13 +6,11 @@ import scala.collection.mutable.Stack
   * Created by mvdcamme on 08/03/16.
   */
 class VariableAnalysis[Exp : Expression, Addr : Address, Time : Timestamp]
-  (val sem: SemanticsTraced[Exp, HybridLattice.L, Addr, Time]) {
+  (val sem: SemanticsTraced[Exp, ConcreteConcreteLattice.L, Addr, Time]) {
 
-  type HybridValue = HybridLattice.L
-
-  type TraceInstructionStates = Tracer[Exp, HybridValue, Addr, Time]#TraceInstructionInfo
-  type TraceInstruction = Tracer[Exp, HybridValue, Addr, Time]#TraceInstruction
-  type Trace = Tracer[Exp, HybridValue, Addr, Time]#TraceWithInfos
+  type TraceInstructionStates = Tracer[Exp, ConcreteConcreteLattice.L, Addr, Time]#TraceInstructionInfo
+  type TraceInstruction = Tracer[Exp, ConcreteConcreteLattice.L, Addr, Time]#TraceInstruction
+  type Trace = Tracer[Exp, ConcreteConcreteLattice.L, Addr, Time]#TraceWithInfos
 
   def analyzeDeadVariables(trace: Trace): Set[String] = {
 

@@ -17,17 +17,17 @@
  * contains the value reached.
  */
 
-class HybridMachine[Exp : Expression]
-  (override val sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
-   constantsAnalysisLauncher: ConstantsAnalysisLauncher[Exp],
+class HybridMachine[AbstL : IsSchemeLattice, Exp : Expression]
+  (override val sem: SemanticsTraced[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
+   constantsAnalysisLauncher: ConstantsAnalysisLauncher[AbstL, Exp],
    pointsToAnalysisLauncher: PointsToAnalysisLauncher[AbstL, Exp],
-   val tracer: Tracer[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
+   val tracer: Tracer[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
    tracingFlags: TracingFlags,
    injectProgramState: (Exp) =>
-                        ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T])
-    extends EvalKontMachineTraced[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T](sem) {
+                        ConcreteTracingProgramState[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T])
+    extends EvalKontMachineTraced[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](sem) {
 
-  type HybridValue = HybridLattice.L
+  type HybridValue = ConcreteConcreteLattice.L
 
   type PS = ConcreteTracingProgramState[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T]
 
@@ -73,7 +73,7 @@ class HybridMachine[Exp : Expression]
 
   case class TracerState(ep: ExecutionPhase.Value, var ps: PS)
                         (tc: tracer.TracerContext,
-                         tn: Option[tracer.TraceNode[TraceFull[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]]]) {
+                         tn: Option[tracer.TraceNode[TraceFull[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]]]) {
 
     def checkTraceAssertions(state: PS, tc: tracer.TracerContext, loopID: List[Exp]): Option[PS] = {
       val traceNode = tracer.getLoopTrace(tc, loopID)

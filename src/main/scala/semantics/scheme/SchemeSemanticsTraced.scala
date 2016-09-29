@@ -2,9 +2,8 @@
   * Basic Traced Scheme semantics, without any optimization
   */
 abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
-  (override val absSem: BaseSchemeSemantics[Abs, Addr, Time],
-   override val primitives: SchemePrimitives[Addr, Abs])
-  extends BaseSemanticsTraced[SchemeExp, Abs, Addr, Time](absSem, primitives) {
+  (override val primitives: SchemePrimitives[Addr, Abs])
+  extends BaseSemanticsTraced[SchemeExp, Abs, Addr, Time](primitives) {
 
   def sabs = implicitly[IsSchemeLattice[Abs]]
 
@@ -83,7 +82,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
   def convertToAbsSemanticsFrame(frame: Frame,
                                  ρ: Environment[Addr],
                                  vStack: List[Storable[Abs, Addr]],
-                                 convertValue: Abs => Abs):
+                                 convertValue: Abs => Abs,
+                                 absSem: BaseSchemeSemantics[Abs, Addr, Time]):
   (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = frame match {
       case FrameBeginT(rest) => rest match {
         case Nil =>
@@ -384,9 +384,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
   *     the evaluation of (f), instead of evaluating +, and 1 in separate states.
   */
 class SchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
-  (override val absSem: BaseSchemeSemantics[Abs, Addr, Time],
-   primitives: SchemePrimitives[Addr, Abs])
-  extends BaseSchemeSemanticsTraced[Abs, Addr, Time](absSem, primitives) {
+  (primitives: SchemePrimitives[Addr, Abs])
+  extends BaseSchemeSemanticsTraced[Abs, Addr, Time](primitives) {
 
   protected def addRead(action: ActionT[SchemeExp, Abs, Addr], read: Set[Addr]): ActionT[SchemeExp, Abs, Addr] = action match {
     case ActionReachedValueT(v, read2, write) => ActionReachedValueT(v, read ++ read2, write)

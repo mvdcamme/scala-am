@@ -21,9 +21,9 @@ case class IncorrectStackSizeException() extends Exception
 case class VariableNotFoundException(variable: String) extends Exception(variable)
 case class NotAPrimitiveException(message: String) extends Exception(message)
 
-trait ConcretableTracingProgramState[AbstL, Exp] {
+trait ConcretableTracingProgramState[Exp] {
 
-  def concretableState: ProgramState[AbstL, Exp]
+  def concretableState: ProgramState[Exp]
 
   /**
     * Checks if the current state is a final state. It is the case if it
@@ -39,8 +39,8 @@ trait ConcretableTracingProgramState[AbstL, Exp] {
     * Returns the set of final values that can be reached
     */
   def finalValues = concretableState.control match {
-    case TracingControlKont(_) => Set[HybridLattice[AbstL]#L](concretableState.v)
-    case _ => Set[HybridLattice[AbstL]#L]()
+    case TracingControlKont(_) => Set[ConcreteConcreteLattice.L](concretableState.v)
+    case _ => Set[ConcreteConcreteLattice.L]()
   }
 
   def graphNodeColor = concretableState.control match {
@@ -49,7 +49,7 @@ trait ConcretableTracingProgramState[AbstL, Exp] {
     case TracingControlError(_) => Colors.Red
   }
 
-  def concreteSubsumes(that: ConcretableTracingProgramState[AbstL, Exp]): Boolean =
+  def concreteSubsumes(that: ConcretableTracingProgramState[Exp]): Boolean =
     concretableState.control.subsumes(that.concretableState.control) &&
     concretableState.ρ.subsumes(that.concretableState.ρ) &&
     concretableState.σ.subsumes(that.concretableState.σ) &&
@@ -57,20 +57,20 @@ trait ConcretableTracingProgramState[AbstL, Exp] {
     concretableState.kstore.subsumes(that.concretableState.kstore) &&
     concretableState.t == that.concretableState.t
 
-  def control: TracingControl[Exp, HybridLattice[AbstL]#L, HybridAddress.A] = concretableState.control
+  def control: TracingControl[Exp, ConcreteConcreteLattice.L, HybridAddress.A] = concretableState.control
   def ρ: Environment[HybridAddress.A] = concretableState.ρ
-  def σ: Store[HybridAddress.A, HybridLattice[AbstL]#L] = concretableState.σ
+  def σ: Store[HybridAddress.A, ConcreteConcreteLattice.L] = concretableState.σ
   def kstore: KontStore[KontAddr] = concretableState.kstore
   def a: KontAddr = concretableState.a
   def t: HybridTimestamp.T = concretableState.t
-  def v: HybridLattice[AbstL]#L = concretableState.v
-  def vStack: List[Storable[HybridLattice[AbstL]#L, HybridAddress.A]] = concretableState.vStack
+  def v: ConcreteConcreteLattice.L = concretableState.v
+  def vStack: List[Storable[ConcreteConcreteLattice.L, HybridAddress.A]] = concretableState.vStack
 
 }
 
-trait ConcreteTracingProgramState[AbstL, Exp, Abs, Addr, Time] extends TracingProgramState[Exp, Abs, Addr, Time] {
+trait ConcreteTracingProgramState[Exp, Abs, Addr, Time] extends TracingProgramState[Exp, Abs, Addr, Time] {
 
-  type HybridValue = HybridLattice[AbstL]#L
+  type HybridValue = ConcreteConcreteLattice.L
 
   def control: TracingControl[Exp, Abs, Addr]
   def ρ: Environment[Addr]
@@ -84,16 +84,15 @@ trait ConcreteTracingProgramState[AbstL, Exp, Abs, Addr, Time] extends TracingPr
   def step(sem: SemanticsTraced[Exp, Abs, Addr, Time]): Option[InterpreterStep[Exp, Abs, Addr]]
   def applyAction(sem: SemanticsTraced[Exp, Abs, Addr, Time],
                   action: ActionT[Exp, Abs, Addr]):
-    ActionReturn[Exp, Abs, Addr, Time, ConcreteTracingProgramState[AbstL, Exp, Abs, Addr, Time]]
+    ActionReturn[Exp, Abs, Addr, Time, ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
   def restart(sem: SemanticsTraced[Exp, Abs, Addr, Time],
-              restartPoint: RestartPoint[Exp, Abs, Addr]): ConcreteTracingProgramState[AbstL, Exp, Abs, Addr, Time]
+              restartPoint: RestartPoint[Exp, Abs, Addr]): ConcreteTracingProgramState[Exp, Abs, Addr, Time]
 
   def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, Time],
-                assertions: List[ActionT[Exp, Abs, Addr]]): Option[ConcreteTracingProgramState[AbstL, Exp, Abs, Addr, Time]]
+                assertions: List[ActionT[Exp, Abs, Addr]]): Option[ConcreteTracingProgramState[Exp, Abs, Addr, Time]]
 
-  def convertState(free: Free[Exp, Abs, Addr, Time])
-                  (sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T]):
-    (ConvertedControl[Exp, Abs, Addr], Environment[Addr], Store[Addr, Abs], KontStore[FreeKontAddr], FreeKontAddr, HybridTimestamp.T)
+  def convertState[AbstL : IsSchemeLattice](free: Free[Exp, AbstL, Addr, Time], sem: SemanticsTraced[Exp, AbstL, HybridAddress.A, HybridTimestamp.T]):
+    (ConvertedControl[Exp, AbstL, Addr], Environment[Addr], Store[Addr, AbstL], KontStore[FreeKontAddr], FreeKontAddr, HybridTimestamp.T)
 
   def generateTraceInformation(action: ActionT[Exp, Abs, Addr]): CombinedInfos[HybridValue, HybridAddress.A]
 }
@@ -103,21 +102,20 @@ trait ConcreteTracingProgramState[AbstL, Exp, Abs, Addr, Time] extends TracingPr
   * continuation store, and an address representing where the current
   * continuation lives.
   */
-case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
-  (hybridLattice: HybridLattice[AbstL],
-   override val control: TracingControl[Exp, HybridLattice[AbstL]#L, HybridAddress.A],
+case class ProgramState[Exp : Expression]
+  (override val control: TracingControl[Exp, ConcreteConcreteLattice.L, HybridAddress.A],
    override val ρ: Environment[HybridAddress.A],
-   override val σ: Store[HybridAddress.A, HybridLattice[AbstL]#L],
+   override val σ: Store[HybridAddress.A, ConcreteConcreteLattice.L],
    override val kstore: KontStore[KontAddr],
    override val a: KontAddr,
    override val t: HybridTimestamp.T,
-   override val v: HybridLattice[AbstL]#L,
-   override val vStack: List[Storable[HybridLattice[AbstL]#L, HybridAddress.A]])
-  extends ConcreteTracingProgramState[AbstL, Exp, HybridLattice[AbstL]#L, HybridAddress.A, HybridTimestamp.T]
-  with ConcretableTracingProgramState[AbstL, Exp] {
+   override val v: ConcreteConcreteLattice.L,
+   override val vStack: List[Storable[ConcreteConcreteLattice.L, HybridAddress.A]])
+  extends ConcreteTracingProgramState[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
+  with ConcretableTracingProgramState[Exp] {
 
   def sabs = implicitly[IsSchemeLattice[HybridValue]]
-  def abs = implicitly[JoinLattice[HybridValue]]
+  def abs = implicitly[JoinLattice[ConcreteConcreteLattice.L]]
   def addr = implicitly[Address[HybridAddress.A]]
   def time = implicitly[Timestamp[HybridTimestamp.T]]
 
@@ -180,10 +178,10 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
 
   def restart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
               restartPoint: RestartPoint[Exp, HybridValue, HybridAddress.A])
-             :ProgramState[AbstL, Exp] = restartPoint match {
+             :ProgramState[Exp] = restartPoint match {
     case RestartFromControl(newControlExp) =>
       val newT = time.tick(t)
-      ProgramState(hybridLattice, TracingControlEval[Exp, HybridValue, HybridAddress.A](newControlExp), ρ, σ, kstore, a, newT, v, vStack)
+      ProgramState(TracingControlEval[Exp, HybridValue, HybridAddress.A](newControlExp), ρ, σ, kstore, a, newT, v, vStack)
     case RestartGuardDifferentClosure(action) =>
       handleClosureRestart(sem, action)
     case RestartTraceEnded() => this
@@ -194,9 +192,9 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
 
   def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
                 assertions: List[ActionT[Exp, HybridValue, HybridAddress.A]])
-               :Option[ProgramState[AbstL, Exp]] = {
-    assertions.foldLeft(Some(this): Option[ProgramState[AbstL, Exp]])({ (someProgramState, action) =>
-      someProgramState.fold(None: Option[ProgramState[AbstL, Exp]])(programState =>
+               :Option[ProgramState[Exp]] = {
+    assertions.foldLeft(Some(this): Option[ProgramState[Exp]])({ (someProgramState, action) =>
+      someProgramState.fold(None: Option[ProgramState[Exp]])(programState =>
       programState.applyAction(sem, action) match {
         case ActionStep(newState, _) => Some(newState)
         case GuardFailed(_, _) => None
@@ -208,7 +206,7 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
   }
 
   def doActionStepInTraced(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
-    action: ActionT[Exp, HybridValue, HybridAddress.A]): ProgramState[AbstL, Exp] = action match {
+    action: ActionT[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp] = action match {
     case ActionStepInT(fexp, bodyHead, _, argsv, n, frame, _, _) =>
       val (vals, poppedVStack) = popStackItems(vStack, n)
       val clo = vals.last.getVal
@@ -220,51 +218,51 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
                           StoreEnv[HybridValue, HybridAddress.A](ρ) ::
                           poppedVStack
           val newT = time.tick(t, fexp)
-          ProgramState[AbstL, Exp](hybridLattice, TracingControlEval[Exp, HybridValue, HybridAddress.A](e), ρ2, σ2,
+          ProgramState[Exp](TracingControlEval[Exp, HybridValue, HybridAddress.A](e), ρ2, σ2,
                             kstore.extend(next, Kont(frame, a)), next, newT, v, newVStack)
         case Left(expectedNrOfArgs) =>
           val newT = time.tick(t)
-          ProgramState[AbstL, Exp](hybridLattice, TracingControlError(ArityError(fexp.toString, expectedNrOfArgs, n - 1)), ρ, σ,
+          ProgramState[Exp](TracingControlError(ArityError(fexp.toString, expectedNrOfArgs, n - 1)), ρ, σ,
                             kstore, a, newT, v, poppedVStack)
       }
   }
 
   def handleClosureRestart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
-                           action: ActionT[Exp, HybridValue, HybridAddress.A]): ProgramState[AbstL, Exp] =
+                           action: ActionT[Exp, HybridValue, HybridAddress.A]): ProgramState[Exp] =
     doActionStepInTraced(sem, action)
 
-  def applyPrimitive(primitive: Primitive[HybridAddress.A, HybridValue], n: Integer, fExp: Exp, argsExps: List[Exp]): ProgramState[AbstL, Exp] = {
+  def applyPrimitive(primitive: Primitive[HybridAddress.A, HybridValue], n: Integer, fExp: Exp, argsExps: List[Exp]): ProgramState[Exp] = {
     val (vals, newVStack) = popStackItems(vStack, n)
     val operands: List[HybridValue] = vals.take(n - 1).map(_.getVal)
     val result = primitive.call(fExp, argsExps.zip(operands.reverse), σ, t)
     result.value match {
       case Some((res, σ2, effects)) =>
         val newT = time.tick(t)
-        ProgramState(hybridLattice, control, ρ, σ2, kstore, a, newT, res, newVStack)
+        ProgramState(control, ρ, σ2, kstore, a, newT, res, newVStack)
       case None =>
         throw new Exception(result.errors.head.toString)
     }
   }
 
-  def restoreEnv(): ProgramState[AbstL, Exp] = {
+  def restoreEnv(): ProgramState[Exp] = {
     try {
       val (newρ, newVStack) = popStack(vStack)
       val newT = time.tick(t)
-      ProgramState(hybridLattice, control, newρ.getEnv, σ, kstore, a, newT, v, newVStack)
+      ProgramState(control, newρ.getEnv, σ, kstore, a, newT, v, newVStack)
     } catch {
       case e : java.lang.IndexOutOfBoundsException =>
         throw new IncorrectStackSizeException()
     }
   }
 
-  protected def saveEnv(): ProgramState[AbstL, Exp] = {
+  protected def saveEnv(): ProgramState[Exp] = {
     val newT = time.tick(t)
-    ProgramState(hybridLattice, control, ρ, σ, kstore, a, newT, v, StoreEnv[HybridValue, HybridAddress.A](ρ) :: vStack)
+    ProgramState(control, ρ, σ, kstore, a, newT, v, StoreEnv[HybridValue, HybridAddress.A](ρ) :: vStack)
   }
 
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
                   action: ActionT[Exp, HybridValue, HybridAddress.A])
-                 :ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, ProgramState[AbstL, Exp]] = {
+                 :ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, ProgramState[Exp]] = {
 
     ActionLogger.logAction[Exp, HybridValue, HybridAddress.A](action)
 
@@ -272,7 +270,7 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
 
     def handleGuard(guard: ActionGuardT[Exp, HybridValue, HybridAddress.A],
                     guardCheckFunction: HybridValue => Boolean)
-                   :ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, ProgramState[AbstL, Exp]] = {
+                   :ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, ProgramState[Exp]] = {
       if (guardCheckFunction(v)) {
         ActionStep(this, guard)
       } else {
@@ -282,18 +280,16 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
 
     def handleClosureGuard(guard: ActionGuardSameClosure[Exp, HybridValue, HybridAddress.A],
                            currentClosure: HybridValue)
-                          :ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, ProgramState[AbstL, Exp]] = {
+                          :ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, ProgramState[Exp]] = {
       (guard.recordedClosure, currentClosure) match {
-        case (hybridLattice.Concrete(hybridLattice.concreteLattice.lattice.Element(hybridLattice.concreteLattice.lattice.Closure(lam1, env1))),
-              hybridLattice.Concrete(hybridLattice.concreteLattice.lattice.Element(hybridLattice.concreteLattice.lattice.Closure(lam2, env2)))) =>
+        case (ConcreteConcreteLattice.lattice.Element(ConcreteConcreteLattice.lattice.Closure(lam1, env1)),
+              ConcreteConcreteLattice.lattice.Element(ConcreteConcreteLattice.lattice.Closure(lam2, env2))) =>
           if (lam1 == lam2) {
             ActionStep(this, guard)
           } else {
             Logger.log(s"Closure guard failed: recorded closure $lam1 does not match current closure $lam2", Logger.D)
             GuardFailed(guard.rp, guard.id)
           }
-        case (hybridLattice.Abstract(_), hybridLattice.Abstract(_)) =>
-          ActionStep(this, guard)
         case _ =>
           throw new Exception(s"Mixing concrete values with abstract values: ${guard.recordedClosure} and $currentClosure")
       }
@@ -303,42 +299,42 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
       case ActionAllocVarsT(variables) =>
         val addresses = variables.map(varName => addr.variable(varName, v, t))
         val (ρ1, σ1) = variables.zip(addresses).foldLeft((ρ, σ))({ case ((ρ2, σ2), (currV, currA)) => (ρ2.extend(currV, currA), σ2.extend(currA, abs.bottom)) })
-        ActionStep(ProgramState(hybridLattice, control, ρ1, σ1, kstore, a, newT, v, vStack), action)
+        ActionStep(ProgramState(control, ρ1, σ1, kstore, a, newT, v, vStack), action)
       case ActionCreateClosureT(λ) =>
         val newClosure = sabs.inject[Exp, HybridAddress.A]((λ, ρ))
-        ActionStep(ProgramState(hybridLattice, control, ρ, σ, kstore, a, newT, newClosure, vStack), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, newClosure, vStack), action)
       case ActionEndClosureCallT() =>
         ActionStep(this, action)
       case ActionEndPrimCallT() =>
         ActionStep(this, action)
       /* When an error is reached, we go to an error state */
       case ActionErrorT(err) =>
-        ActionStep(ProgramState(hybridLattice, TracingControlError(err), ρ, σ, kstore, a, newT, v, vStack), action)
+        ActionStep(ProgramState(TracingControlError(err), ρ, σ, kstore, a, newT, v, vStack), action)
       /* When a value needs to be evaluated, we go to an eval state */
       case ActionEvalT(e, _, _) =>
-        ActionStep(ProgramState(hybridLattice, TracingControlEval(e), ρ, σ, kstore, a, newT, v, vStack), action)
+        ActionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore, a, newT, v, vStack), action)
       /* When a continuation needs to be pushed, push it in the continuation store */
       case ActionEvalPushT(e, frame, _, _) =>
         val next = NormalKontAddress(e, t) // Hack to get infinite number of addresses in concrete mode
-        ActionStep(ProgramState(hybridLattice, TracingControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, newT, v, vStack), action)
+        ActionStep(ProgramState(TracingControlEval(e), ρ, σ, kstore.extend(next, Kont(frame, a)), next, newT, v, vStack), action)
       case ActionExtendEnvT(varName) =>
         val value = vStack.head.getVal
         val va = addr.variable(varName, value, t)
         val ρ1 = ρ.extend(varName, va)
         val σ1 = σ.extend(va, value)
         val newVStack = vStack.tail
-        ActionStep(ProgramState(hybridLattice, control, ρ1, σ1, kstore, a, newT, v, newVStack), action)
+        ActionStep(ProgramState(control, ρ1, σ1, kstore, a, newT, v, newVStack), action)
       case ActionExtendStoreT(addr, lit) =>
         val σ1 = σ.extend(addr, lit)
-        ActionStep(ProgramState(hybridLattice, control, ρ, σ1, kstore, a, newT, lit, vStack), action)
+        ActionStep(ProgramState(control, ρ, σ1, kstore, a, newT, lit, vStack), action)
       case ActionLookupVariableT(varName, _, _) =>
         val newV = σ.lookup(ρ.lookup(varName).get).get
-        ActionStep(ProgramState(hybridLattice, control, ρ, σ, kstore, a, newT, newV, vStack), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, newV, vStack), action)
       case ActionLookupVariablePushT(varName, _, _) => ρ.lookup(varName) match {
         case Some(address) =>
           σ.lookup(address) match {
             case Some(value) =>
-              ActionStep(ProgramState(hybridLattice, control, ρ, σ, kstore, a, newT, value, StoreVal[HybridValue, HybridAddress.A](value) :: vStack), action)
+              ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, value, StoreVal[HybridValue, HybridAddress.A](value) :: vStack), action)
             case None =>
               throw new Exception(s"Could not find address $address in store")
           }
@@ -350,7 +346,7 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
           val kset = kstore.lookup(a)
           assert(kset.size == 1)
           kset.head.next}
-        ActionStep(ProgramState(hybridLattice, TracingControlKont(a), ρ, σ, kstore, next, newT, v, vStack), action)
+        ActionStep(ProgramState(TracingControlKont(a), ρ, σ, kstore, next, newT, v, vStack), action)
       case ActionPrimCallT(n: Integer, fExp, argsExps) =>
         val (vals, _) = popStackItems(vStack, n)
         val operator = vals.last.getVal
@@ -358,11 +354,11 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
         assert(primitivesSet.size == 1)
         ActionStep(applyPrimitive(primitivesSet.head, n, fExp, argsExps), action)
       case ActionPushValT() =>
-        ActionStep(ProgramState(hybridLattice, control, ρ, σ, kstore, a, newT, v, StoreVal[HybridValue, HybridAddress.A](v) :: vStack), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, v, StoreVal[HybridValue, HybridAddress.A](v) :: vStack), action)
       case ActionReachedValueT(lit, _, _) =>
-        ActionStep(ProgramState(hybridLattice, control, ρ, σ, kstore, a, newT, lit, vStack), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, lit, vStack), action)
       case ActionReachedValuePushT(lit, _, _) =>
-        ActionStep(ProgramState(hybridLattice, control, ρ, σ, kstore, a, newT, lit, StoreVal[HybridValue, HybridAddress.A](lit) :: vStack), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, lit, StoreVal[HybridValue, HybridAddress.A](lit) :: vStack), action)
       case ActionRemoveKontT(a, k) =>
         ActionStep(copy(kstore = kstore.remove(a, k)), action)
       case ActionRestoreEnvT() =>
@@ -374,13 +370,13 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
       case ActionSetVarT(variable) =>
         ρ.lookup(variable) match {
           case Some(address) =>
-            ActionStep(ProgramState(hybridLattice, control, ρ, σ.update(address, v), kstore, a, newT, v, vStack), action)
+            ActionStep(ProgramState(control, ρ, σ.update(address, v), kstore, a, newT, v, vStack), action)
           case None =>
             throw new VariableNotFoundException(variable)
         }
       case ActionGuardSpecializedPrimitive(expectedType, n, rp, guardID) =>
         val operands = popStackItems(vStack, n - 1)._1.map(_.getVal)
-        val currentOperandsTypes = hybridLattice.LatticeConverter.getValuesTypes(operands)
+        val currentOperandsTypes = latticeConverter.getValuesTypes(operands)
         if (currentOperandsTypes == expectedType) {
           ActionStep(this, action)
         } else {
@@ -399,10 +395,10 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
         ActionStep(this, action)
       case ActionLookupRegister(registerIndex) =>
         val value = RegisterStore.getRegister(registerIndex)
-        ActionStep(ProgramState(hybridLattice, control, ρ, σ, kstore, a, newT, value, vStack), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, value, vStack), action)
       case ActionLookupRegisterPush(registerIndex) =>
         val value = RegisterStore.getRegister(registerIndex)
-        ActionStep(ProgramState(hybridLattice, control, ρ, σ, kstore, a, newT, value, StoreVal[HybridValue, HybridAddress.A](value) :: vStack), action)
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, value, StoreVal[HybridValue, HybridAddress.A](value) :: vStack), action)
       case action : ActionEndTrace[Exp, HybridValue, HybridAddress.A] =>
         TraceEnded(action.restartPoint)
       case action : ActionGuardFalseT[Exp, HybridValue, HybridAddress.A] =>
@@ -424,12 +420,12 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
   /**
     * Builds the state with the initial environment and stores
     */
-  def this(sem: SemanticsTraced[Exp, HybridLattice[AbstL]#L, HybridAddress.A, HybridTimestamp.T],
-           sabs: IsSchemeLattice[HybridLattice[AbstL]#L],
+  def this(sem: SemanticsTraced[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
+           sabs: IsSchemeLattice[ConcreteConcreteLattice.L],
            exp: Exp) =
     this(TracingControlEval(exp),
          Environment.initial[HybridAddress.A](sem.initialEnv),
-         Store.initial[HybridAddress.A, HybridLattice[AbstL]#L](sem.initialStore),
+         Store.initial[HybridAddress.A, ConcreteConcreteLattice.L](sem.initialStore),
          KontStore.empty[KontAddr],
          HaltKontAddress,
          HybridTimestamp.isTimestamp.initial(""),
@@ -441,7 +437,7 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
     case _ => control.toString()
   }
 
-  private def convertValue(σ: Store[HybridAddress.A, HybridValue])(value: HybridValue): HybridValue =
+  private def convertValue[AbstL : IsSchemeLattice](σ: Store[HybridAddress.A, AbstL])(value: AbstL): AbstL =
     hybridLattice.convert[Exp, HybridAddress.A](value, new DefaultHybridAddressConverter[Exp], convertEnv)
 
   /**
@@ -474,19 +470,19 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
     case HaltKontAddress => FreeHaltKontAddress
   }
 
-  def convertKStore(free: Free[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
-                    sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
+  def convertKStore[AbstL : IsSchemeLattice](free: Free[Exp, AbstL, HybridAddress.A, HybridTimestamp.T],
+                    sem: SemanticsTraced[Exp, AbstL, HybridAddress.A, HybridTimestamp.T],
                     kontStore: KontStore[KontAddr],
                     ρ: Environment[HybridAddress.A],
                     a: KontAddr,
-                    vStack: List[Storable[HybridValue, HybridAddress.A]])
+                    vStack: List[Storable[AbstL, HybridAddress.A]])
                    :(FreeKontAddr, KontStore[FreeKontAddr]) = {
 
     @tailrec
     def loop(a: KontAddr,
-             vStack: List[Storable[HybridValue, HybridAddress.A]],
+             vStack: List[Storable[AbstL, HybridAddress.A]],
              ρ: Environment[HybridAddress.A],
-             stack: List[(KontAddr, Option[Frame], List[Storable[HybridValue, HybridAddress.A]], Environment[HybridAddress.A])]): (FreeKontAddr, KontStore[FreeKontAddr]) = a match {
+             stack: List[(KontAddr, Option[Frame], List[Storable[AbstL, HybridAddress.A]], Environment[HybridAddress.A])]): (FreeKontAddr, KontStore[FreeKontAddr]) = a match {
       case HaltKontAddress =>
         stack.foldLeft[(FreeKontAddr, KontStore[FreeKontAddr])] ((FreeHaltKontAddress, KontStore.empty[FreeKontAddr])) ({
           case ((actualNext, extendedKontStore), (a, someNewSemFrame, newVStack, newρ)) => someNewSemFrame match {
@@ -501,21 +497,21 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
         val addressConverter = new DefaultHybridAddressConverter[Exp]
-        val convertValueFun: HybridValue => HybridValue = hybridLattice.convert[Exp, HybridAddress.A](_, addressConverter, convertEnv)
+        val convertValueFun: AbstL => AbstL = hybridLattice.convert[Exp, HybridAddress.A](_, addressConverter, convertEnv)
         val (someNewSemFrame, newVStack, newρ) = sem.convertToAbsSemanticsFrame(frame, ρ, vStack, convertValueFun)
         loop(next, newVStack, newρ, (a, someNewSemFrame, newVStack, newρ) :: stack)
     }
     loop(a, vStack, ρ, Nil)
   }
 
-  def convertState(free: Free[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T])
-                  (sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T]):
-  (ConvertedControl[Exp, HybridValue, HybridAddress.A], Environment[HybridAddress.A],
-   Store[HybridAddress.A, HybridValue], KontStore[FreeKontAddr], FreeKontAddr, HybridTimestamp.T) = {
+  def convertState[AbstL : IsSchemeLattice](free: Free[Exp, AbstL, HybridAddress.A, HybridTimestamp.T],
+                   sem: SemanticsTraced[Exp, AbstL, HybridAddress.A, HybridTimestamp.T]):
+  (ConvertedControl[Exp, AbstL, HybridAddress.A], Environment[HybridAddress.A],
+   Store[HybridAddress.A, AbstL], KontStore[FreeKontAddr], FreeKontAddr, HybridTimestamp.T) = {
 
     val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
-    var valuesConvertedσ = Store.empty[HybridAddress.A, HybridValue]
-    def addToNewStore(tuple: (HybridAddress.A, HybridValue)): Boolean = {
+    var valuesConvertedσ = Store.empty[HybridAddress.A, AbstL]
+    def addToNewStore(tuple: (HybridAddress.A, AbstL)): Boolean = {
       val convertedAddress = new DefaultHybridAddressConverter().convertAddress(tuple._1)
       val convertedValue = convertValue(σ)(tuple._2)
       valuesConvertedσ = valuesConvertedσ.extend(convertedAddress, convertedValue)
@@ -527,8 +523,8 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
     //val newA: KontAddr = a
     val newV = convertValue(σ)(v)
     val newVStack = vStack.map({
-      case StoreVal(v) => StoreVal[HybridValue, HybridAddress.A](convertValue(σ)(v))
-      case StoreEnv(ρ) => StoreEnv[HybridValue, HybridAddress.A](convertEnv(ρ))
+      case StoreVal(v) => StoreVal[AbstL, HybridAddress.A](convertValue(σ)(v))
+      case StoreEnv(ρ) => StoreEnv[AbstL, HybridAddress.A](convertEnv(ρ))
     })
     val startKontAddress = control match {
       case TracingControlEval(_) | TracingControlError(_) => a
@@ -537,9 +533,9 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
     val (convertedA, convertedKontStore) = convertKStore(free, sem, kstore, convertedρ, startKontAddress, newVStack)
     val newControl = control match {
       case TracingControlEval(exp) =>
-        ConvertedControlEval[Exp, HybridValue, HybridAddress.A](exp, convertedρ)
+        ConvertedControlEval[Exp, AbstL, HybridAddress.A](exp, convertedρ)
       case TracingControlKont(ka) =>
-        ConvertedControlKont[Exp, HybridValue, HybridAddress.A](newV)
+        ConvertedControlKont[Exp, AbstL, HybridAddress.A](newV)
     }
     (newControl, convertedρ, convertedσ, convertedKontStore, convertedA, newT)
   }
@@ -570,7 +566,7 @@ case class ProgramState[AbstL : IsConvertableLattice, Exp : Expression]
   def concretableState = this
 
   def subsumes(that: TracingProgramState[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T]): Boolean = that match {
-    case that: ProgramState[AbstL, Exp] =>
+    case that: ProgramState[Exp] =>
       concreteSubsumes(that)
     case _ => false
   }

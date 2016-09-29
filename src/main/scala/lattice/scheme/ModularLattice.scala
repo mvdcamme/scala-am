@@ -568,9 +568,6 @@ class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
   import FloatConstantPropagation._
   import CharConstantPropagation._
   import SymbolConstantPropagation._
-
-  type In = I
-
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](counting)
   type L = lattice.LSet
   implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet

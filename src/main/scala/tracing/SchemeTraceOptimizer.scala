@@ -3,20 +3,20 @@ import scala.annotation.tailrec
 /**
   * Created by mvdcamme on 24/02/16.
   */
-class SchemeTraceOptimizer
-  (val sem: SchemeSemanticsTraced[HybridLattice#L, HybridAddress.A, HybridTimestamp.T],
-   constantsAnalysisLauncher: ConstantsAnalysisLauncher[SchemeExp],
+class SchemeTraceOptimizer[Abs : IsSchemeLattice]
+  (val sem: SchemeSemanticsTraced[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
+   constantsAnalysisLauncher: ConstantsAnalysisLauncher[Abs, SchemeExp],
    tracingFlags: TracingFlags)
-  extends TraceOptimizer[SchemeExp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T] {
+  extends TraceOptimizer[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] {
 
-  type TraceInstructionInfo = Tracer[SchemeExp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T]#TraceInstructionInfo
-  type TraceInstruction = Tracer[SchemeExp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T]#TraceInstruction
-  type TraceWithoutStates = Tracer[SchemeExp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T]#TraceWithoutStates
-  type Trace = Tracer[SchemeExp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T]#TraceWithInfos
+  type TraceInstructionInfo = Tracer[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]#TraceInstructionInfo
+  type TraceInstruction = Tracer[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]#TraceInstruction
+  type TraceWithoutStates = Tracer[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]#TraceWithoutStates
+  type Trace = Tracer[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]#TraceWithInfos
 
-  type SpecTraceFull = TraceFull[SchemeExp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T]
+  type SpecTraceFull = TraceFull[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
 
-  type HybridValue = HybridLattice#L
+  type HybridValue = ConcreteConcreteLattice.L
 
   val sabs = implicitly[IsSchemeLattice[HybridValue]]
 
@@ -36,7 +36,7 @@ class SchemeTraceOptimizer
   }
 
   def optimize(trace: SpecTraceFull,
-               state: ConcreteTracingProgramState[SchemeExp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T])
+               state: ConcreteTracingProgramState[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T])
               :SpecTraceFull = {
     Logger.log(s"Size of unoptimized trace = ${trace.trace.length}", Logger.V)
     val basicAssertedOptimizedTrace = foldOptimisations(trace, basicOptimizations)

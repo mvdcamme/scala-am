@@ -1,6 +1,6 @@
 object TraceAnalyzer {
 
-  type Trace[Exp, Time] = Tracer[Exp, HybridLattice.L, HybridAddress.A, Time]#TraceWithInfos
+  type Trace[Exp, Time] = Tracer[Exp, ConcreteConcreteLattice.L, HybridAddress.A, Time]#TraceWithInfos
 
   def collectTraceBoundAddresses[Exp : Expression, Time : Timestamp](trace: Trace[Exp, Time]): Set[HybridAddress.A] =
     trace.foldRight(Set[HybridAddress.A]())((stateInfo, boundAddresses) => stateInfo match {
