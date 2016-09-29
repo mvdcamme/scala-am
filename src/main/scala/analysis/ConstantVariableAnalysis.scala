@@ -66,23 +66,24 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
 }
 
 class ConstantsAnalysisLauncher[Exp : Expression](
-     sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
+     hybridLattice: HybridLattice,
+     sem: SemanticsTraced[Exp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T],
      tracingFlags: TracingFlags) extends AnalysisLauncher[Exp](sem) {
 
-  final val constantsAnalysis = new ConstantVariableAnalysis[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]
+  final val constantsAnalysis = new ConstantVariableAnalysis[Exp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T]
 
   protected def launchAnalysis(free: SpecFree)
                               (startStates: free.States, addressedLookedUp: Set[HybridAddress.A])
                               :ConstantAddresses[HybridAddress.A] = {
     val abstractAddressesLookedup = addressedLookedUp.map(new DefaultHybridAddressConverter().convertAddress)
-    constantsAnalysis.analyze(free, sem.absSem, HybridLattice.isConstantValue)(startStates, abstractAddressesLookedup, false)
+    constantsAnalysis.analyze(free, sem.absSem, hybridLattice.isConstantValue)(startStates, abstractAddressesLookedup, false)
   }
 
   protected def launchInitialAnalysis(free: SpecFree)
                                      (startStates: free.States)
                                      :ConstantAddresses[HybridAddress.A] = {
     Logger.log(s"Running initial static constants analysis", Logger.I)
-    val result = constantsAnalysis.initialAnalyze(free, sem.absSem, HybridLattice.isConstantValue)(startStates)
+    val result = constantsAnalysis.initialAnalyze(free, sem.absSem, hybridLattice.isConstantValue)(startStates)
     Logger.log(s"Finished running initial static constants analysis", Logger.I)
     result
   }
@@ -95,7 +96,7 @@ class ConstantsAnalysisLauncher[Exp : Expression](
   private def startStaticAnalysis(currentProgramState: PS,
                                   launchAnalysis: (SpecFree, Any) => ConstantAddresses[HybridAddress.A])
                                  :ConstantAddresses[HybridAddress.A] = {
-    val free = new Free[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]
+    val free = new Free[Exp, hybridLattice.L, HybridAddress.A, HybridTimestamp.T]
     val startState = convertState(free, currentProgramState)
     val result = launchAnalysis(free, startState)
     Logger.log(s"Static constants analysis result is $result", Logger.I)

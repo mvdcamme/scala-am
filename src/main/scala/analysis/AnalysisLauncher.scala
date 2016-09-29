@@ -1,25 +1,26 @@
 abstract class AnalysisLauncher[Exp : Expression]
-  (sem: SemanticsTraced[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]) {
+  (hybridLattice: HybridLattice,
+   sem: SemanticsTraced[Exp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T]) {
 
   /* The concrete program state the static analysis gets as input. This state is then converted to an
    * abstract state and fed to the AAM. */
   type PS = HybridMachine[Exp]#PS
   /* The specific type of AAM used for this analysis: an AAM using the HybridLattice, HybridAddress and ZeroCFA
    * components. */
-  type SpecFree = Free[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]
+  type SpecFree = Free[Exp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T]
   /* The specific environment used in the concrete state: an environment using the HybridAddress components. */
   type SpecEnv = Environment[HybridAddress.A]
 
   protected def switchToAbstract(): Unit = {
     Logger.log("HybridMachine switching to abstract", Logger.I)
     HybridTimestamp.switchToAbstract()
-    HybridLattice.switchToAbstract()
+    hybridLattice.switchToAbstract()
   }
 
   protected def switchToConcrete(): Unit = {
     Logger.log("HybridMachine switching to concrete", Logger.I)
     HybridTimestamp.switchToConcrete()
-    HybridLattice.switchToConcrete()
+    hybridLattice.switchToConcrete()
   }
 
   protected def wrapRunAnalysis(runAnalysis: () => StaticAnalysisResult): StaticAnalysisResult = {
@@ -35,7 +36,7 @@ abstract class AnalysisLauncher[Exp : Expression]
    * @param free The P4F machine for which a new, converted, state must be generated.
    * @param programState The program state to be converted.
    */
-  protected def convertState(free: Free[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T],
+  protected def convertState(free: Free[Exp, hybridLattice.L, HybridAddress.A, HybridTimestamp.T],
                              programState: PS): free.States = {
     val (control, _, store, kstore, a, t) = programState.convertState(free)(sem)
     val convertedControl = control match {

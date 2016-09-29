@@ -524,16 +524,18 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(implicit 
 
 }
 
-trait HasMakeSchemeLattice[S, B, I, F, C, Sym] extends SchemeLattice {
+trait HasMakeSchemeLattice extends SchemeLattice {
 
-  val lattice: MakeSchemeLattice[S, B, I, F, C, Sym]
+  type In
+
+  val lattice: MakeSchemeLattice[_, _, In, _, _, _]
 
   type L = lattice.LSet
 
 }
 
 class ConcreteLattice(counting: Boolean)
-  extends HasMakeSchemeLattice[ConcreteString.S, ConcreteBoolean.B, ConcreteInteger.I, ConcreteFloat.F, ConcreteChar.C, ConcreteSymbol.Sym] {
+  extends HasMakeSchemeLattice {
   import ConcreteString._
   import ConcreteBoolean._
   import ConcreteInteger._
@@ -547,7 +549,7 @@ class ConcreteLattice(counting: Boolean)
 }
 
 class TypeSetLattice(counting: Boolean)
-  extends HasMakeSchemeLattice[Type.T, ConcreteBoolean.B, Type.T, Type.T, Type.T, Type.T] {
+  extends HasMakeSchemeLattice {
   import Type._
   import ConcreteBoolean._
   val lattice = new MakeSchemeLattice[T, B, T, T, T, T](counting)
@@ -566,14 +568,15 @@ class BoundedIntLattice(bound: Int, counting: Boolean) extends SchemeLattice {
 }
 
 class ConstantPropagationLattice(counting: Boolean)
-  extends HasMakeSchemeLattice[StringConstantPropagation.S, ConcreteBoolean.B, IntegerConstantPropagation.I,
-                               FloatConstantPropagation.F, CharConstantPropagation.C, SymbolConstantPropagation.Sym] {
+  extends HasMakeSchemeLattice {
   import StringConstantPropagation._
   import ConcreteBoolean._
   import IntegerConstantPropagation._
   import FloatConstantPropagation._
   import CharConstantPropagation._
   import SymbolConstantPropagation._
+
+  type In = I
 
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](counting)
 //  type L = lattice.LSet

@@ -5,8 +5,8 @@ object SimpleTypes extends Enumeration {
       Primitive, String, Symbol, Top, Vector, VectorAddress = Value
 }
 
-class HybridLattice[S : IsString, B : IsBoolean, I : IsInteger, F : IsFloat, C : IsChar, Sym : IsSymbol]
-  (val abstractLattice: HasMakeSchemeLattice[S, B, I, F, C, Sym]) extends SchemeLattice {
+class HybridLattice
+  (val abstractLattice: HasMakeSchemeLattice) extends SchemeLattice {
 
   var useConcrete = true
 
@@ -48,20 +48,13 @@ class HybridLattice[S : IsString, B : IsBoolean, I : IsInteger, F : IsFloat, C :
     case Abstract(v) => f(v)
   }
 
-  def isConstantValue(value: L): Boolean = handleAbstractValue(value, abstractLattice.lattice.latticeInfoProvider.isConstantValue)
+  def isConstantValue(value: L): Boolean = handleAbstractValue[Boolean](value, abstractLattice.lattice.latticeInfoProvider.isConstantValue)
 
-  def pointsTo(value: L): Int = handleAbstractValue(value, abstractLattice.lattice.latticeInfoProvider.pointsTo)
+  def pointsTo(value: L): Int = handleAbstractValue[Int](value, abstractLattice.lattice.latticeInfoProvider.pointsTo)
 
   def convert[Exp : Expression, Addr : Address](value: L,
                                                 addressConverter: AddressConverter[Addr],
                                                 convertEnv: Environment[Addr] => Environment[Addr]): L = {
-
-   // import ConcreteString._
-    import ConcreteBoolean._
-//    import ConcreteInteger._
-    import ConcreteFloat._
-    import ConcreteChar._
-    import ConcreteSymbol._
 
     def convertValue(v: concreteLattice.lattice.Value): abstractLattice.lattice.Value = v match {
       case concreteLattice.lattice.Bot =>
@@ -89,11 +82,11 @@ class HybridLattice[S : IsString, B : IsBoolean, I : IsInteger, F : IsFloat, C :
         abstractLattice.lattice.Nil
       case concreteLattice.lattice.Vec(size, elements, init) =>
         val actualSize = size.asInstanceOf[ISet[Int]].toList.head
-        val abstractSize: I = abstractLattice.lattice.int.inject(actualSize)
-        var abstractElements = collection.immutable.Map[I, Addr]()
+        val abstractSize: abstractLattice.In = abstractLattice.lattice.int.inject(actualSize)
+        var abstractElements = collection.immutable.Map[abstractLattice.In, Addr]()
         elements.foreach({ case (i, address: Addr) => {
           val index = i.asInstanceOf[ISet[Int]].toList.head
-          val newIndex: I = abstractLattice.lattice.int.inject(index)
+          val newIndex: abstractLattice.In = abstractLattice.lattice.int.inject(index)
           abstractElements = abstractElements + (newIndex -> address)
         } })
         abstractLattice.lattice.Vec[Addr](abstractSize, abstractElements, init.asInstanceOf[Addr])

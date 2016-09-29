@@ -399,7 +399,7 @@ object Main {
             import SymbolConstantPropagation._
 
             val constantPropagationLattice = new ConstantPropagationLattice(false)
-            val hybridLattice = new HybridLattice[S, B, I, F, C, Sym](constantPropagationLattice)
+            val hybridLattice = new HybridLattice(constantPropagationLattice)
             implicit val isSchemeLattice = hybridLattice.isSchemeLattice
 
             val absSemantics = new SchemeSemantics[hybridLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, hybridLattice.L])
@@ -425,7 +425,7 @@ object Main {
                 val sem = new AmbSchemeSemanticsTraced[hybridLattice.L, HybridAddress.A, HybridTimestamp.T](absSemantics, new SchemePrimitives[HybridAddress.A, hybridLattice.L])
                 val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem)
                 val injectState = { (exp: SchemeExp) =>
-                  val normalState = new ProgramState[SchemeExp](sem, sabs, exp)
+                  val normalState = new ProgramState[SchemeExp](hybridLattice, sem, sabs, exp)
                   new AmbProgramState[SchemeExp](normalState)
                 }
                 (sem, constantsAnalysisLauncher, None, injectState)
@@ -433,7 +433,7 @@ object Main {
                 val sem = new SchemeSemanticsTraced[hybridLattice.L, HybridAddress.A, HybridTimestamp.T](absSemantics, new SchemePrimitives[HybridAddress.A, hybridLattice.L])
                 val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem)
                 val someOptimizer = Some(new SchemeTraceOptimizer(sem, constantsAnalysisLauncher, config.tracingFlags))
-                val injectState = { (exp: SchemeExp) => new ProgramState[SchemeExp](sem, sabs, exp) }
+                val injectState = { (exp: SchemeExp) => new ProgramState[SchemeExp](hybridLattice, sem, sabs, exp) }
                 (sem, constantsAnalysisLauncher, someOptimizer, injectState)
               }
             }
