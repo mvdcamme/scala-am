@@ -10,59 +10,59 @@ case object CannotBacktrackError extends SemanticError {
   override def toString = "Program cannot backtrack any further"
 }
 
-case class AmbProgramState[Exp : Expression]
-(normalState: ProgramState[Exp],
+case class AmbProgramState[AbstL : IsConvertableLattice, Exp : Expression]
+(normalState: ProgramState[AbstL, Exp],
  failStack: List[Frame])
-  extends ConcreteTracingProgramState[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T]
-  with ConcretableTracingProgramState[Exp] {
+  extends ConcreteTracingProgramState[AbstL, Exp, HybridLattice[AbstL]#L, HybridAddress.A, HybridTimestamp.T]
+  with ConcretableTracingProgramState[AbstL, Exp] {
 
   def abs = implicitly[JoinLattice[HybridValue]]
   def addr = implicitly[Address[HybridAddress.A]]
   def exp = implicitly[Expression[Exp]]
   def time = implicitly[Timestamp[HybridTimestamp.T]]
 
-  def this(normalState: ProgramState[Exp]) = this(normalState, List(HaltFailFrame()))
+  def this(normalState: ProgramState[AbstL, Exp]) = this(normalState, List(HaltFailFrame()))
 
   def wrapApplyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
                       action: ActionT[Exp, HybridValue, HybridAddress.A]):
-    ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]] = normalState.applyAction(sem, action) match {
+    ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[AbstL, Exp]] = normalState.applyAction(sem, action) match {
     case ActionStep(state, action) =>
       ActionStep(AmbProgramState(state, failStack), action)
-    case GuardFailed(rp, guardID) => GuardFailed[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]](rp, guardID)
-    case TraceEnded(rp) => TraceEnded[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]](rp)
+    case GuardFailed(rp, guardID) => GuardFailed[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[AbstL, Exp]](rp, guardID)
+    case TraceEnded(rp) => TraceEnded[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[AbstL, Exp]](rp)
   }
 
   def addFailAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
                     action: ActionT[Exp, HybridValue, HybridAddress.A],
                     failAction: ActionSingleT[Exp, HybridValue, HybridAddress.A]):
-  ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]] = {
+  ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[AbstL, Exp]] = {
     addFailActions(sem, action, List(failAction))
   }
 
   def addFailActions(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
                      action: ActionT[Exp, HybridValue, HybridAddress.A],
                      failActions: List[ActionSingleT[Exp, HybridValue, HybridAddress.A]]):
-  ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]] = {
-    val step: ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, ProgramState[Exp]] = normalState.applyAction(sem, action)
+  ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[AbstL, Exp]] = {
+    val step: ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, ProgramState[AbstL, Exp]] = normalState.applyAction(sem, action)
     step match {
       case ActionStep(state, action) =>
         val failureFrames = failActions.map({ action => UndoActionFrame(action) })
         ActionStep(AmbProgramState(state, failureFrames ++ failStack), action)
-      case GuardFailed(rp, guardID) => GuardFailed[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]](rp, guardID)
-      case TraceEnded(rp) => TraceEnded[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]](rp)
+      case GuardFailed(rp, guardID) => GuardFailed[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[AbstL, Exp]](rp, guardID)
+      case TraceEnded(rp) => TraceEnded[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[AbstL, Exp]](rp)
     }
   }
 
-  def convertState(free: Free[Exp, HybridLattice.L, HybridAddress.A, HybridTimestamp.T])
+  def convertState(free: Free[Exp, HybridLattice[AbstL]#L, HybridAddress.A, HybridTimestamp.T])
                   (oldSem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T]) =
     normalState.convertState(free)(oldSem)
 
   def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
-                assertions: List[ActionT[Exp, HybridValue, HybridAddress.A]]): Option[AmbProgramState[Exp]] =
-    normalState.runHeader(sem, assertions).fold(None: Option[AmbProgramState[Exp]])(programState => Some(AmbProgramState(programState, failStack)))
+                assertions: List[ActionT[Exp, HybridValue, HybridAddress.A]]): Option[AmbProgramState[AbstL, Exp]] =
+    normalState.runHeader(sem, assertions).fold(None: Option[AmbProgramState[AbstL, Exp]])(programState => Some(AmbProgramState(programState, failStack)))
 
   def restart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
-              restartPoint: RestartPoint[Exp, HybridValue, HybridAddress.A]): AmbProgramState[Exp] = restartPoint match {
+              restartPoint: RestartPoint[Exp, HybridValue, HybridAddress.A]): AmbProgramState[AbstL, Exp] = restartPoint match {
       case RestartStoppedInBacktrack() =>
         val newNormalState = normalState.restart(sem, RestartTraceEnded())
         AmbProgramState(newNormalState, failStack)
@@ -103,7 +103,7 @@ case class AmbProgramState[Exp : Expression]
 
   def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
                   action: ActionT[Exp, HybridValue, HybridAddress.A]):
-  ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]] = action match {
+  ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[AbstL, Exp]] = action match {
     case ActionEvalPushT(e, frame, _, _) =>
       addFailAction(sem, action, ActionSinglePopKontT[Exp, HybridValue, HybridAddress.A]())
     case ActionExtendEnvT(_) =>
@@ -193,7 +193,7 @@ case class AmbProgramState[Exp : Expression]
   def concretableState = normalState
 
   def subsumes(that: TracingProgramState[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T]): Boolean = that match {
-    case that: AmbProgramState[Exp] =>
+    case that: AmbProgramState[AbstL, Exp] =>
       concreteSubsumes(that)
     case _ => false
   }

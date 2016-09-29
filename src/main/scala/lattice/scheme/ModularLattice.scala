@@ -431,7 +431,7 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(implicit 
     case Element(x) => f(x)
     case Elements(xs) => xs.foldMap(x => f(x))(b)
   }
-  val isSchemeLatticeSet = new IsSchemeLattice[LSet] {
+  val isSchemeLatticeSet = new IsConvertableLattice[LSet] {
     val name = s"SetLattice(${str.name}, ${bool.name}, ${int.name}, ${float.name}, ${char.name}, ${sym.name})"
     val counting = supportsCounting
 
@@ -475,11 +475,15 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(implicit 
     def vector[Addr : Address](addr: Addr, size: LSet, init: Addr): MayFail[(LSet, LSet)] = foldMapLSet(size, size =>
       isSchemeLattice.vector(addr, size, init).map({ case (a, v) => (Element(a), Element(v)) }))
     def nil: LSet = Element(isSchemeLattice.nil)
+
+    def injectVector[Addr : Address](size: scala.Int, elements: Map[scala.Int, Addr], init: Addr): LSet = {
+      val newMap = elements.mapKeys[I]( (i) => int.inject(i) )
+      Element(Vec(int.inject(size), newMap, init))
+    }
+    def injectVectorAddress[Addr : Address](addr: Addr): LSet = Element(VectorAddress[Addr](addr))
+
+    val latticeInfoProvider = lsetInfoProvider
   }
-
-
-
-  implicit val latticeInfoProvider = lsetInfoProvider
 
   object lsetInfoProvider extends LatticeInfoProvider[LSet] {
 
@@ -524,18 +528,7 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(implicit 
 
 }
 
-trait HasMakeSchemeLattice extends SchemeLattice {
-
-  type In
-
-  val lattice: MakeSchemeLattice[_, _, In, _, _, _]
-
-  type L = lattice.LSet
-
-}
-
-class ConcreteLattice(counting: Boolean)
-  extends HasMakeSchemeLattice {
+class ConcreteLattice(counting: Boolean) extends SchemeLattice {
   import ConcreteString._
   import ConcreteBoolean._
   import ConcreteInteger._
@@ -544,17 +537,18 @@ class ConcreteLattice(counting: Boolean)
   import ConcreteSymbol._
 
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](counting)
-//  type L = lattice.LSet
-  implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
+  type L = lattice.LSet
+  implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
 }
 
-class TypeSetLattice(counting: Boolean)
-  extends HasMakeSchemeLattice {
+object ConcreteConcreteLattice extends ConcreteLattice(true)
+
+class TypeSetLattice(counting: Boolean) extends SchemeLattice {
   import Type._
   import ConcreteBoolean._
   val lattice = new MakeSchemeLattice[T, B, T, T, T, T](counting)
-//  type L = lattice.LSet
-  implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
+  type L = lattice.LSet
+  implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
 }
 
 class BoundedIntLattice(bound: Int, counting: Boolean) extends SchemeLattice {
@@ -564,11 +558,10 @@ class BoundedIntLattice(bound: Int, counting: Boolean) extends SchemeLattice {
   import bounded._
   val lattice = new MakeSchemeLattice[T, B, I, T, T, T](counting)
   type L = lattice.LSet
-  implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
+  implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
 }
 
-class ConstantPropagationLattice(counting: Boolean)
-  extends HasMakeSchemeLattice {
+class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
   import StringConstantPropagation._
   import ConcreteBoolean._
   import IntegerConstantPropagation._
@@ -579,8 +572,8 @@ class ConstantPropagationLattice(counting: Boolean)
   type In = I
 
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](counting)
-//  type L = lattice.LSet
-  implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
+  type L = lattice.LSet
+  implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
 
 
 }

@@ -66,11 +66,11 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
 }
 
 class ConstantsAnalysisLauncher[Exp : Expression](
-     hybridLattice: HybridLattice,
-     sem: SemanticsTraced[Exp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T],
-     tracingFlags: TracingFlags) extends AnalysisLauncher[Exp](sem) {
+     hybridLattice: HybridLattice[ConstantPropagationLattice]#L,
+     sem: SemanticsTraced[Exp, HybridLattice[ConstantPropagationLattice#L]#L, HybridAddress.A, HybridTimestamp.T],
+     tracingFlags: TracingFlags) extends AnalysisLauncher[ConstantPropagationLattice#L, Exp](sem) {
 
-  final val constantsAnalysis = new ConstantVariableAnalysis[Exp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T]
+  final val constantsAnalysis = new ConstantVariableAnalysis[Exp, HybridLattice[ConstantPropagationLattice]#L, HybridAddress.A, HybridTimestamp.T]
 
   protected def launchAnalysis(free: SpecFree)
                               (startStates: free.States, addressedLookedUp: Set[HybridAddress.A])

@@ -1,13 +1,13 @@
-abstract class AnalysisLauncher[Exp : Expression]
-  (hybridLattice: HybridLattice,
-   sem: SemanticsTraced[Exp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T]) {
+abstract class AnalysisLauncher[AbstL : IsConvertableLattice, Exp : Expression]
+  (hybridLattice: HybridLattice[AbstL],
+   sem: SemanticsTraced[Exp, HybridLattice[AbstL]#L, HybridAddress.A, HybridTimestamp.T]) {
 
   /* The concrete program state the static analysis gets as input. This state is then converted to an
    * abstract state and fed to the AAM. */
   type PS = HybridMachine[Exp]#PS
   /* The specific type of AAM used for this analysis: an AAM using the HybridLattice, HybridAddress and ZeroCFA
    * components. */
-  type SpecFree = Free[Exp, HybridLattice#L, HybridAddress.A, HybridTimestamp.T]
+  type SpecFree = Free[Exp, HybridLattice[AbstL]#L, HybridAddress.A, HybridTimestamp.T]
   /* The specific environment used in the concrete state: an environment using the HybridAddress components. */
   type SpecEnv = Environment[HybridAddress.A]
 
