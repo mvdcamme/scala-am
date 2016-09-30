@@ -2,26 +2,26 @@ import scalaz.{Plus => _, _}
 import scalaz.Scalaz._
 import SchemeOps._
 
-//trait LatticeInfoProvider[L] {
-//
-//  def simpleType(x: L): SimpleTypes.Value
-//
-//  def simpleTypes(xs: List[L]): SimpleTypes.Value = {
-//    xs.foldLeft(SimpleTypes.Bottom)({ (previousValuesTypes, value) =>
-//      if (previousValuesTypes == SimpleTypes.Bottom) {
-//        simpleType(value)
-//      } else if (previousValuesTypes == simpleType(value)) {
-//        previousValuesTypes
-//      } else {
-//        SimpleTypes.Top
-//      }})
-//  }
-//
-//  def isConstantValue(x: L): Boolean
-//
-//  def pointsTo(x: L): Int
-//
-//}
+trait LatticeInfoProvider[L] {
+
+  def simpleType(x: L): SimpleTypes.Value
+
+  def simpleTypes(xs: List[L]): SimpleTypes.Value = {
+    xs.foldLeft(SimpleTypes.Bottom)({ (previousValuesTypes, value) =>
+      if (previousValuesTypes == SimpleTypes.Bottom) {
+        simpleType(value)
+      } else if (previousValuesTypes == simpleType(value)) {
+        previousValuesTypes
+      } else {
+        SimpleTypes.Top
+      }})
+  }
+
+  def isConstantValue(x: L): Boolean
+
+  def pointsTo(x: L): Int
+
+}
 
 class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(implicit str: IsString[S],
   bool: IsBoolean[B], val int: IsInteger[I], float: IsFloat[F], char: IsChar[C],
@@ -444,7 +444,7 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(implicit 
     case Element(x) => f(x)
     case Elements(xs) => xs.foldMap(x => f(x))(b)
   }
-  val isSchemeLatticeSet = new IsSchemeLattice[LSet] { // TODO IsConvertableLatticw[L] {
+  val isSchemeLatticeSet = new IsConvertableLattice[LSet] {
     val name = s"SetLattice(${str.name}, ${bool.name}, ${int.name}, ${float.name}, ${char.name}, ${sym.name})"
     val counting = supportsCounting
 
@@ -495,70 +495,70 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(implicit 
     }
     def injectVectorAddress[Addr : Address](addr: Addr): LSet = Element(VectorAddress[Addr](addr))
 
-//    val latticeInfoProvider = lsetInfoProvider TODO
+    val latticeInfoProvider = lsetInfoProvider
   }
 
-//  object lsetInfoProvider extends LatticeInfoProvider[LSet] { TODO
-//
-//    def simpleType(x: LSet): SimpleTypes.Value = x match {
-//      case Element(Bool(_)) => SimpleTypes.Boolean
-//      case Element(Bot) => SimpleTypes.Bottom
-//      case Element(Char(_)) => SimpleTypes.Char
-//      case Element(Closure(_, _)) => SimpleTypes.Closure
-//      case Element(Cons(_, _)) => SimpleTypes.Cons
-//      case Element(Float(_)) => SimpleTypes.Float
-//      case Element(Int(_)) => SimpleTypes.Integer
-//      case Element(Nil) => SimpleTypes.Nil
-//      case Element(Prim(_)) => SimpleTypes.Primitive
-//      case Element(Str(_)) => SimpleTypes.String
-//      case Element(Symbol(_)) => SimpleTypes.Symbol
-//      case Element(Vec(_, _, _)) => SimpleTypes.Vector
-//      case Element(VectorAddress(_)) => SimpleTypes.VectorAddress
-//      case _ => SimpleTypes.Top
-//    }
-//
-//    def isConstantValue(x: LSet): Boolean = x match {
-//      case Element(e) => e match {
-//        case Bot => false
-//        case Str(StringConstantPropagation.Constant(_)) => true
-//        case Bool(_) => true
-//        case Int(IntegerConstantPropagation.Constant(_)) => true
-//        case Float(FloatConstantPropagation.Constant(_)) => true
-//        case Char(CharConstantPropagation.Constant(_)) => true
-//        case Symbol(SymbolConstantPropagation.Constant(_)) => true
-//        case Closure(_, _) => true
-//        case Prim(_) => true
-//        case Cons(_, _) => true
-//        case Nil => true
-//        case Vec(_, _, _) => true
-//        case VectorAddress(_) => true
-//        case _ => false
-//      }
-//      /* If the value consists of a set of abstract values (i.e., Elements), the value is not a constant */
-//      case _ => false
-//    }
-//
-//    def pointsTo(x: LSet): scala.Int = {
-//
-//      def pointsTo(value: Value): Boolean = value match {
-//        case Symbol(_) | Prim(_) | Closure(_, _) |
-//             Cons(_, _) | Vec(_, _, _) | VectorAddress(_) => true
-//        case _ => false
-//      }
-//
-//      x match {
-//        case Element(value) =>
-//          if (pointsTo(value)) 1 else 0
-//        case Elements(values) =>
-//          values.foldLeft[scala.Int](0)((acc, value) => acc + (if (pointsTo(value)) 1 else 0))
-//      }
-//    }
-//
-//  }
+  object lsetInfoProvider extends LatticeInfoProvider[LSet] {
+
+    def simpleType(x: LSet): SimpleTypes.Value = x match {
+      case Element(Bool(_)) => SimpleTypes.Boolean
+      case Element(Bot) => SimpleTypes.Bottom
+      case Element(Char(_)) => SimpleTypes.Char
+      case Element(Closure(_, _)) => SimpleTypes.Closure
+      case Element(Cons(_, _)) => SimpleTypes.Cons
+      case Element(Float(_)) => SimpleTypes.Float
+      case Element(Int(_)) => SimpleTypes.Integer
+      case Element(Nil) => SimpleTypes.Nil
+      case Element(Prim(_)) => SimpleTypes.Primitive
+      case Element(Str(_)) => SimpleTypes.String
+      case Element(Symbol(_)) => SimpleTypes.Symbol
+      case Element(Vec(_, _, _)) => SimpleTypes.Vector
+      case Element(VectorAddress(_)) => SimpleTypes.VectorAddress
+      case _ => SimpleTypes.Top
+    }
+
+    def isConstantValue(x: LSet): Boolean = x match {
+      case Element(e) => e match {
+        case Bot => false
+        case Str(StringConstantPropagation.Constant(_)) => true
+        case Bool(_) => true
+        case Int(IntegerConstantPropagation.Constant(_)) => true
+        case Float(FloatConstantPropagation.Constant(_)) => true
+        case Char(CharConstantPropagation.Constant(_)) => true
+        case Symbol(SymbolConstantPropagation.Constant(_)) => true
+        case Closure(_, _) => true
+        case Prim(_) => true
+        case Cons(_, _) => true
+        case Nil => true
+        case Vec(_, _, _) => true
+        case VectorAddress(_) => true
+        case _ => false
+      }
+      /* If the value consists of a set of abstract values (i.e., Elements), the value is not a constant */
+      case _ => false
+    }
+
+    def pointsTo(x: LSet): scala.Int = {
+
+      def pointsTo(value: Value): Boolean = value match {
+        case Symbol(_) | Prim(_) | Closure(_, _) |
+             Cons(_, _) | Vec(_, _, _) | VectorAddress(_) => true
+        case _ => false
+      }
+
+      x match {
+        case Element(value) =>
+          if (pointsTo(value)) 1 else 0
+        case Elements(values) =>
+          values.foldLeft[scala.Int](0)((acc, value) => acc + (if (pointsTo(value)) 1 else 0))
+      }
+    }
+
+  }
 
 }
 
-class ConcreteLattice(counting: Boolean) extends SchemeLattice {
+class ConcreteLattice(counting: Boolean) extends SchemeLatticeInfoProvider {
   import ConcreteString._
   import ConcreteBoolean._
   import ConcreteInteger._
@@ -568,11 +568,11 @@ class ConcreteLattice(counting: Boolean) extends SchemeLattice {
 
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](counting)
   type L = lattice.LSet
-  implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet // TODO was originally an IsConvertableLattice[L]
-//  val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider TODO
+  implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
+  val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider
 }
 
-object ConcreteConcreteLattice extends SchemeLattice {
+object ConcreteConcreteLattice extends SchemeLatticeInfoProvider {
   import ConcreteString._
   import ConcreteBoolean._
   import ConcreteInteger._
@@ -582,31 +582,31 @@ object ConcreteConcreteLattice extends SchemeLattice {
 
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](true)
   type L = lattice.LSet
-  implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
-//  implicit val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider TODO
+  val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
+  val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider
 }
 
-class TypeSetLattice(counting: Boolean) extends SchemeLattice {
+class TypeSetLattice(counting: Boolean) extends SchemeLatticeInfoProvider {
   import Type._
   import ConcreteBoolean._
   val lattice = new MakeSchemeLattice[T, B, T, T, T, T](counting)
   type L = lattice.LSet
-  implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
-//  val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider TODO
+  implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
+  val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider
 }
 
-class BoundedIntLattice(bound: Int, counting: Boolean) extends SchemeLattice {
+class BoundedIntLattice(bound: Int, counting: Boolean) extends SchemeLatticeInfoProvider {
   import Type._
   import ConcreteBoolean._
   val bounded = new BoundedInteger(bound)
   import bounded._
   val lattice = new MakeSchemeLattice[T, B, I, T, T, T](counting)
   type L = lattice.LSet
-  implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
-//  val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider TODO
+  implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
+  val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider
 }
 
-class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
+class ConstantPropagationLattice(counting: Boolean) extends SchemeLatticeInfoProvider {
   import StringConstantPropagation._
   import ConcreteBoolean._
   import IntegerConstantPropagation._
@@ -615,8 +615,8 @@ class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
   import SymbolConstantPropagation._
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](counting)
   type L = lattice.LSet
-  implicit val isSchemeLattice: IsSchemeLattice[L] = lattice.isSchemeLatticeSet
-//  val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider TODO
+  implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
+  val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider
 
 
 }

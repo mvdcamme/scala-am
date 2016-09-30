@@ -7,7 +7,7 @@ class SchemeTraceOptimizer//[Abs : IsSchemeLattice] TODO
   (val sem: SchemeSemanticsTraced[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
 //   constantsAnalysisLauncher: ConstantsAnalysisLauncher[Abs, SchemeExp],
    tracingFlags: TracingFlags)
-  (implicit unused: IsSchemeLattice[ConcreteConcreteLattice.L])
+  (implicit sabs: IsSchemeLattice[ConcreteConcreteLattice.L], latInfoProv: LatticeInfoProvider[ConcreteConcreteLattice.L])
   extends TraceOptimizer[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] {
 
   type TraceInstructionInfo = Tracer[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]#TraceInstructionInfo
@@ -18,8 +18,6 @@ class SchemeTraceOptimizer//[Abs : IsSchemeLattice] TODO
   type SpecTraceFull = TraceFull[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
 
   type ConcreteValue = ConcreteConcreteLattice.L
-
-  val sabs = implicitly[IsSchemeLattice[ConcreteConcreteLattice.L]] //TODO change back to HybridValue
 
   val basicOptimizations: List[(Boolean, (SpecTraceFull => SpecTraceFull))] =
     List((GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)),
@@ -360,8 +358,6 @@ class SchemeTraceOptimizer//[Abs : IsSchemeLattice] TODO
   /********************************************************************************************************************
    *                                          TYPE SPECIALIZATION OPTIMIZATION                                        *
    ********************************************************************************************************************/
-
-  val isTracableLattice = implicitly[TracableLattice[ConcreteValue]]
 
   private def typeSpecializePrimitive(prim: Primitive[HybridAddress.A, ConcreteValue],
                                       operandsTypes: SimpleTypes.Value): Primitive[HybridAddress.A, ConcreteValue] = prim match {

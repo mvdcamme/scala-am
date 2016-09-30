@@ -111,11 +111,10 @@ case class ProgramState[Exp : Expression]
    override val t: HybridTimestamp.T,
    override val v: ConcreteConcreteLattice.L,
    override val vStack: List[Storable[ConcreteConcreteLattice.L, HybridAddress.A]])
-  (implicit unused: IsSchemeLattice[ConcreteConcreteLattice.L])
+  (implicit sabs: IsSchemeLattice[ConcreteConcreteLattice.L], latInfoProv: LatticeInfoProvider[ConcreteConcreteLattice.L])
   extends ConcreteTracingProgramState[Exp, HybridAddress.A, HybridTimestamp.T]
   with ConcretableTracingProgramState[Exp] {
 
-  def sabs = implicitly[IsSchemeLattice[ConcreteConcreteLattice.L]]
   def abs = implicitly[JoinLattice[ConcreteConcreteLattice.L]]
   def addr = implicitly[Address[HybridAddress.A]]
   def time = implicitly[Timestamp[HybridTimestamp.T]]
@@ -377,7 +376,7 @@ case class ProgramState[Exp : Expression]
         }
       case ActionGuardSpecializedPrimitive(expectedType, n, rp, guardID) =>
         val operands = popStackItems(vStack, n - 1)._1.map(_.getVal)
-        val currentOperandsTypes = latticeConverter.getValuesTypes(operands)
+        val currentOperandsTypes = latInfoProv.simpleTypes(operands)
         if (currentOperandsTypes == expectedType) {
           ActionStep(this, action)
         } else {
@@ -422,8 +421,7 @@ case class ProgramState[Exp : Expression]
     * Builds the state with the initial environment and stores
     */
   def this(sem: SemanticsTraced[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-           sabs: IsSchemeLattice[ConcreteConcreteLattice.L],
-           exp: Exp)(implicit unused: IsSchemeLattice[ConcreteConcreteLattice.L]) =
+           exp: Exp)(implicit sabs: IsSchemeLattice[ConcreteConcreteLattice.L], latInfoProv: LatticeInfoProvider[ConcreteConcreteLattice.L]) =
     this(TracingControlEval(exp),
          Environment.initial[HybridAddress.A](sem.initialEnv),
          Store.initial[HybridAddress.A, ConcreteConcreteLattice.L](sem.initialStore),

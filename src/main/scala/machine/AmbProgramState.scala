@@ -13,7 +13,7 @@ case object CannotBacktrackError extends SemanticError {
 case class AmbProgramState[Exp : Expression]
 (normalState: ProgramState[Exp],
  failStack: List[Frame])
-(implicit unused: IsSchemeLattice[ConcreteConcreteLattice.L])
+(implicit sabs: IsSchemeLattice[ConcreteConcreteLattice.L], latInfoProv: LatticeInfoProvider[ConcreteConcreteLattice.L])
   extends ConcreteTracingProgramState[Exp, HybridAddress.A, HybridTimestamp.T]
   with ConcretableTracingProgramState[Exp] {
 

@@ -399,8 +399,9 @@ object Main {
 //            implicit val convertableLattice2: IsConvertableLattice[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.isSchemeLattice
 
 //            val abstSem = new SchemeSemantics[abstLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, abstLattice.L]) TODO
-            implicit val doSabs = ConcreteConcreteLattice.isSchemeLattice
-            val sabs = implicitly[IsSchemeLattice[ConcreteConcreteLattice.L]]
+            implicit val sabsCCLattice = ConcreteConcreteLattice.isSchemeLattice
+            implicit val cCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
+            val sabs = implicitly[IsConvertableLattice[ConcreteConcreteLattice.L]]
             val abstSem = new SchemeSemantics[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
 
 
@@ -428,7 +429,7 @@ object Main {
                 val sem = new AmbSchemeSemanticsTraced[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
 //                val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem) TODO
                 val injectState = { (exp: SchemeExp) =>
-                  val normalState = new ProgramState[SchemeExp](sem, sabs, exp)
+                  val normalState = new ProgramState[SchemeExp](sem, exp)
                   AmbProgramState[SchemeExp](normalState, List(HaltFailFrame()))
                 }
 //                (sem, constantsAnalysisLauncher, None, injectState) TODO
@@ -439,7 +440,7 @@ object Main {
 //                implicit val latticeInfoProvider: LatticeInfoProvider[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.lattice.lsetInfoProvider TODO
 //                val someOptimizer = Some(new SchemeTraceOptimizer[abstLattice.L](sem, constantsAnalysisLauncher, config.tracingFlags)) TODO
                 val someOptimizer = Some(new SchemeTraceOptimizer(sem, config.tracingFlags)) // TODO [abstLattice.L]
-                val injectState = { (exp: SchemeExp) => new ProgramState[SchemeExp](sem, sabs, exp) }
+                val injectState = { (exp: SchemeExp) => new ProgramState[SchemeExp](sem, exp) }
 //                (sem, constantsAnalysisLauncher, someOptimizer, injectState) TODO
                 (sem, someOptimizer, injectState)
               }
