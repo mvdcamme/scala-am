@@ -17,19 +17,20 @@
  * contains the value reached.
  */
 
-class HybridMachine[AbstL : IsSchemeLattice, Exp : Expression]
+class HybridMachine[Exp : Expression]  // TODO [AbstL : IsSchemeLattice, Exp : Expression]
   (override val sem: SemanticsTraced[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-   constantsAnalysisLauncher: ConstantsAnalysisLauncher[AbstL, Exp],
-   pointsToAnalysisLauncher: PointsToAnalysisLauncher[AbstL, Exp],
+//   constantsAnalysisLauncher: ConstantsAnalysisLauncher[AbstL, Exp], TODO
+//   pointsToAnalysisLauncher: PointsToAnalysisLauncher[AbstL, Exp],
    val tracer: Tracer[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
    tracingFlags: TracingFlags,
    injectProgramState: (Exp) =>
-                        ConcreteTracingProgramState[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T])
+                        ConcreteTracingProgramState[Exp, HybridAddress.A, HybridTimestamp.T])
+  (implicit unused: IsSchemeLattice[ConcreteConcreteLattice.L])
     extends EvalKontMachineTraced[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](sem) {
 
-  type HybridValue = ConcreteConcreteLattice.L
+  type ConcreteValue = ConcreteConcreteLattice.L
 
-  type PS = ConcreteTracingProgramState[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T]
+  type PS = ConcreteTracingProgramState[Exp, HybridAddress.A, HybridTimestamp.T]
 
   def name = "HybridMachine"
 
@@ -87,7 +88,7 @@ class HybridMachine[AbstL : IsSchemeLattice, Exp : Expression]
       TracerState(TE, state)(tc, Some(traceNode))
     }
 
-    private def handleGuardFailure(rp: RestartPoint[Exp, HybridValue, HybridAddress.A], guardID: Integer, loopID: List[Exp]): TracerState = {
+    private def handleGuardFailure(rp: RestartPoint[Exp, ConcreteValue, HybridAddress.A], guardID: Integer, loopID: List[Exp]): TracerState = {
       def restartPs(): PS = {
         ps.restart(sem, rp)
       }
@@ -177,7 +178,7 @@ class HybridMachine[AbstL : IsSchemeLattice, Exp : Expression]
         }
       } else if (tracingFlags.DO_TRACING && labelCounter >= tracingFlags.TRACING_THRESHOLD) {
         Logger.log(s"Started tracing $loopID", Logger.I)
-        val someBoundVariables = trace.find(_.isInstanceOf[ActionStepInT[Exp, HybridValue, HybridAddress.A]]).flatMap({
+        val someBoundVariables = trace.find(_.isInstanceOf[ActionStepInT[Exp, ConcreteValue, HybridAddress.A]]).flatMap({
           case ActionStepInT(_, _, args, _, _, _, _, _) => Some(args)
           case _ => None /* Should not happen */
         })
@@ -211,8 +212,8 @@ class HybridMachine[AbstL : IsSchemeLattice, Exp : Expression]
       }
     }
 
-    def canEndLoopEncounteredTracing(trace: List[ActionT[Exp, HybridValue, HybridAddress.A]],
-                                     restartPoint: RestartPoint[Exp, HybridValue, HybridAddress.A],
+    def canEndLoopEncounteredTracing(trace: List[ActionT[Exp, ConcreteValue, HybridAddress.A]],
+                                     restartPoint: RestartPoint[Exp, ConcreteValue, HybridAddress.A],
                                      loopID: List[Exp]): TracerState = {
       Logger.log(s"Tracing phase: CanEndLoop encountered for loop $loopID", Logger.D)
       val (newState, traceWithStates) = applyTraceAndGetStates(ps, trace)
@@ -228,8 +229,8 @@ class HybridMachine[AbstL : IsSchemeLattice, Exp : Expression]
       }
     }
 
-    def handleSignalRegular(trace: List[ActionT[Exp, HybridValue, HybridAddress.A]],
-                            signal: TracingSignal[Exp, HybridValue, HybridAddress.A]): TracerState = signal match {
+    def handleSignalRegular(trace: List[ActionT[Exp, ConcreteValue, HybridAddress.A]],
+                            signal: TracingSignal[Exp, ConcreteValue, HybridAddress.A]): TracerState = signal match {
       case SignalEndLoop(loopID, _) =>
         Logger.log(s"Regular phase: CanEndLoop encountered for loop $loopID", Logger.D)
         continueWithProgramState(trace)
@@ -238,27 +239,27 @@ class HybridMachine[AbstL : IsSchemeLattice, Exp : Expression]
         canStartLoopEncounteredRegular(applyTrace(ps, trace), trace, loopID)
     }
 
-    def handleSignalTracing(trace: List[ActionT[Exp, HybridValue, HybridAddress.A]],
-                            signal: TracingSignal[Exp, HybridValue, HybridAddress.A]): TracerState = signal match {
+    def handleSignalTracing(trace: List[ActionT[Exp, ConcreteValue, HybridAddress.A]],
+                            signal: TracingSignal[Exp, ConcreteValue, HybridAddress.A]): TracerState = signal match {
       case SignalEndLoop(loopID, restartPoint) => canEndLoopEncounteredTracing(trace, restartPoint, loopID)
       case SignalStartLoop(loopID) => canStartLoopEncounteredTracing(trace, loopID)
     }
 
-    def handleResponseRegular(response: InterpreterStep[Exp, HybridValue, HybridAddress.A]): TracerState = response match {
+    def handleResponseRegular(response: InterpreterStep[Exp, ConcreteValue, HybridAddress.A]): TracerState = response match {
       case InterpreterStep(trace, SignalFalse()) =>
         continueWithProgramState(trace)
       case InterpreterStep(trace, SignalStartAnalysis()) =>
-        pointsToAnalysisLauncher.runStaticAnalysis(ps)
+//        pointsToAnalysisLauncher.runStaticAnalysis(ps) TODO
         continueWithProgramState(trace)
       case InterpreterStep(trace, signal) =>
         handleSignalRegular(trace, signal)
     }
 
-    def handleResponseTracing(response: InterpreterStep[Exp, HybridValue, HybridAddress.A]): TracerState = response match {
+    def handleResponseTracing(response: InterpreterStep[Exp, ConcreteValue, HybridAddress.A]): TracerState = response match {
       case InterpreterStep(trace, SignalFalse()) =>
         continueWithProgramStateTracing(trace)
       case InterpreterStep(trace, SignalStartAnalysis()) =>
-        pointsToAnalysisLauncher.runStaticAnalysis(ps)
+//        pointsToAnalysisLauncher.runStaticAnalysis(ps) TODO
         continueWithProgramStateTracing(trace)
       case InterpreterStep(trace, signal) =>
         handleSignalTracing(trace, signal)
@@ -275,9 +276,9 @@ class HybridMachine[AbstL : IsSchemeLattice, Exp : Expression]
 
   }
 
-  case class HybridOutput[State <: TracingProgramState[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T], Annotation]
+  case class HybridOutput[State <: TracingProgramState[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T], Annotation]
     (halted: Set[State], count: Int, t: Double, graph: Option[Graph[State, Annotation]], timedOut: Boolean)
-      extends Output[HybridValue] {
+      extends Output[ConcreteValue] {
 
     /**
      * Returns the list of final values that can be reached
@@ -287,7 +288,7 @@ class HybridMachine[AbstL : IsSchemeLattice, Exp : Expression]
     /**
      * Checks if a halted state contains a value that subsumes @param v
      */
-    def containsFinalValue(v: HybridValue) = finalValues.exists(v2 => abs.subsumes(v2, v))
+    def containsFinalValue(v: ConcreteValue) = finalValues.exists(v2 => abs.subsumes(v2, v))
 
     /**
      * Returns the number of visited states
@@ -356,16 +357,16 @@ class HybridMachine[AbstL : IsSchemeLattice, Exp : Expression]
    * Performs the evaluation of an expression, possibly writing the output graph
    * in a file, and returns the set of final states reached
    */
-  def eval(exp: Exp, graph: Boolean, timeout: Option[Long]): Output[HybridValue] = {
+  def eval(exp: Exp, graph: Boolean, timeout: Option[Long]): Output[ConcreteValue] = {
     val initialState = injectProgramState(exp)
-    if (tracingFlags.DO_INITIAL_ANALYSIS) {
-      val analysisResult = constantsAnalysisLauncher.runInitialStaticAnalysis(initialState)
-      analysisResult match {
-        case ConstantAddresses(constants, nonConstants) =>
-          staticBoundAddresses = Some(nonConstants.asInstanceOf[Set[HybridAddress.A]])
-        case _ =>
-      }
-    }
+//    if (tracingFlags.DO_INITIAL_ANALYSIS) {  TODO
+//      val analysisResult = constantsAnalysisLauncher.runInitialStaticAnalysis(initialState)
+//      analysisResult match {
+//        case ConstantAddresses(constants, nonConstants) =>
+//          staticBoundAddresses = Some(nonConstants.asInstanceOf[Set[HybridAddress.A]])
+//        case _ =>
+//      }
+//    }
     loop(injectExecutionState(exp), 0, System.nanoTime,
       if (graph) {
         Some(new Graph[PS, String]())

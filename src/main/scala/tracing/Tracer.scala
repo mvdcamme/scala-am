@@ -1,6 +1,6 @@
-case class TraceInfo[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
+case class TraceInfo[Exp : Expression, Addr : Address, Time : Timestamp]
   (boundVariables: List[(String, Addr)],
-   startState: ConcreteTracingProgramState[Exp, Abs, Addr, Time],
+   startState: ConcreteTracingProgramState[Exp, Addr, Time],
    parentTraceLabel: Option[Label[Exp]])
 
 trait Label[Exp]
@@ -20,7 +20,7 @@ trait Tracer[Exp, Abs, Addr, Time] {
 
   type Trace = TraceWithInfos
 
-  case class TraceNode[Trace](label: Label[Exp], trace: Trace, info: TraceInfo[Exp, Abs, Addr, Time])
+  case class TraceNode[Trace](label: Label[Exp], trace: Trace, info: TraceInfo[Exp, Addr, Time])
 
 
   def getLoopID(label: Label[Exp]): List[Exp]
@@ -38,14 +38,14 @@ trait Tracer[Exp, Abs, Addr, Time] {
   def startTracingLoop(tc: TracerContext,
                        loopID: List[Exp],
                        boundVariables: List[(String, Addr)],
-                       startState: ConcreteTracingProgramState[Exp, Abs, Addr, Time]): TracerContext
+                       startState: ConcreteTracingProgramState[Exp, Addr, Time]): TracerContext
 
   def startTracingGuard(tc: TracerContext,
                         loopID: List[Exp],
                         guardID: Integer,
                         parentTraceLabel: Label[Exp],
                         boundVariables: List[(String, Addr)],
-                        startState: ConcreteTracingProgramState[Exp, Abs, Addr, Time]): TracerContext
+                        startState: ConcreteTracingProgramState[Exp, Addr, Time]): TracerContext
 
   /*
    * Stop tracing
@@ -53,7 +53,7 @@ trait Tracer[Exp, Abs, Addr, Time] {
 
   def stopTracing(tc: TracerContext, isLooping: Boolean,
                   traceEndedInstruction: Option[TraceInstruction],
-                  state: ConcreteTracingProgramState[Exp, Abs, Addr, Time]): TracerContext
+                  state: ConcreteTracingProgramState[Exp, Addr, Time]): TracerContext
 
   /*
    * Finding traces
@@ -93,6 +93,6 @@ trait Tracer[Exp, Abs, Addr, Time] {
 }
 
 case class TraceFull[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
-  (info: TraceInfo[Exp, Abs, Addr, Time],
+  (info: TraceInfo[Exp, Addr, Time],
    assertions: List[ActionT[Exp, Abs, Addr]],
    trace: List[(ActionT[Exp, Abs, Addr], CombinedInfos[Abs, Addr])])

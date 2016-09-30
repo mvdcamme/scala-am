@@ -13,43 +13,44 @@ case object CannotBacktrackError extends SemanticError {
 case class AmbProgramState[Exp : Expression]
 (normalState: ProgramState[Exp],
  failStack: List[Frame])
-  extends ConcreteTracingProgramState[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
+(implicit unused: IsSchemeLattice[ConcreteConcreteLattice.L])
+  extends ConcreteTracingProgramState[Exp, HybridAddress.A, HybridTimestamp.T]
   with ConcretableTracingProgramState[Exp] {
 
-  def abs = implicitly[JoinLattice[ConcreteConcreteLattice.L]] //TODO change back to HybridValue
+  def abs = implicitly[JoinLattice[ConcreteConcreteLattice.L]] //TODO change back to ConcreteValue
   def addr = implicitly[Address[HybridAddress.A]]
   def exp = implicitly[Expression[Exp]]
   def time = implicitly[Timestamp[HybridTimestamp.T]]
 
-  def this(normalState: ProgramState[Exp]) = this(normalState, List(HaltFailFrame()))
+//  def this(notUsed: JoinLattice[ConcreteConcreteLattice.L], normalState: ProgramState[Exp]) = AmbProgramState[Exp](notUsed, normalState, List(HaltFailFrame())) TODO
 
-  def wrapApplyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
-                      action: ActionT[Exp, HybridValue, HybridAddress.A]):
-    ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]] = normalState.applyAction(sem, action) match {
+  def wrapApplyAction(sem: SemanticsTraced[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                      action: ActionT[Exp, ConcreteValue, HybridAddress.A]):
+    ActionReturn[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]] = normalState.applyAction(sem, action) match {
     case ActionStep(state, action) =>
       ActionStep(AmbProgramState(state, failStack), action)
-    case GuardFailed(rp, guardID) => GuardFailed[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]](rp, guardID)
-    case TraceEnded(rp) => TraceEnded[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]](rp)
+    case GuardFailed(rp, guardID) => GuardFailed[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]](rp, guardID)
+    case TraceEnded(rp) => TraceEnded[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]](rp)
   }
 
-  def addFailAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
-                    action: ActionT[Exp, HybridValue, HybridAddress.A],
-                    failAction: ActionSingleT[Exp, HybridValue, HybridAddress.A]):
-  ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]] = {
+  def addFailAction(sem: SemanticsTraced[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                    action: ActionT[Exp, ConcreteValue, HybridAddress.A],
+                    failAction: ActionSingleT[Exp, ConcreteValue, HybridAddress.A]):
+  ActionReturn[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]] = {
     addFailActions(sem, action, List(failAction))
   }
 
-  def addFailActions(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
-                     action: ActionT[Exp, HybridValue, HybridAddress.A],
-                     failActions: List[ActionSingleT[Exp, HybridValue, HybridAddress.A]]):
-  ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]] = {
-    val step: ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, ProgramState[Exp]] = normalState.applyAction(sem, action)
+  def addFailActions(sem: SemanticsTraced[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                     action: ActionT[Exp, ConcreteValue, HybridAddress.A],
+                     failActions: List[ActionSingleT[Exp, ConcreteValue, HybridAddress.A]]):
+  ActionReturn[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]] = {
+    val step: ActionReturn[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T, ProgramState[Exp]] = normalState.applyAction(sem, action)
     step match {
       case ActionStep(state, action) =>
         val failureFrames = failActions.map({ action => UndoActionFrame(action) })
         ActionStep(AmbProgramState(state, failureFrames ++ failStack), action)
-      case GuardFailed(rp, guardID) => GuardFailed[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]](rp, guardID)
-      case TraceEnded(rp) => TraceEnded[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]](rp)
+      case GuardFailed(rp, guardID) => GuardFailed[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]](rp, guardID)
+      case TraceEnded(rp) => TraceEnded[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]](rp)
     }
   }
 
@@ -57,12 +58,12 @@ case class AmbProgramState[Exp : Expression]
                    oldSem: SemanticsTraced[Exp, Abs, HybridAddress.A, HybridTimestamp.T]) =
     normalState.convertState(free, oldSem)
 
-  def runHeader(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
-                assertions: List[ActionT[Exp, HybridValue, HybridAddress.A]]): Option[AmbProgramState[Exp]] =
+  def runHeader(sem: SemanticsTraced[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                assertions: List[ActionT[Exp, ConcreteValue, HybridAddress.A]]): Option[AmbProgramState[Exp]] =
     normalState.runHeader(sem, assertions).fold(None: Option[AmbProgramState[Exp]])(programState => Some(AmbProgramState(programState, failStack)))
 
-  def restart(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
-              restartPoint: RestartPoint[Exp, HybridValue, HybridAddress.A]): AmbProgramState[Exp] = restartPoint match {
+  def restart(sem: SemanticsTraced[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+              restartPoint: RestartPoint[Exp, ConcreteValue, HybridAddress.A]): AmbProgramState[Exp] = restartPoint match {
       case RestartStoppedInBacktrack() =>
         val newNormalState = normalState.restart(sem, RestartTraceEnded())
         AmbProgramState(newNormalState, failStack)
@@ -71,15 +72,15 @@ case class AmbProgramState[Exp : Expression]
         AmbProgramState(newNormalState, failStack)
     }
 
-  def step(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T])
-          :Option[InterpreterStep[Exp, HybridValue, HybridAddress.A]] = {
+  def step(sem: SemanticsTraced[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T])
+          :Option[InterpreterStep[Exp, ConcreteValue, HybridAddress.A]] = {
     val someStep = normalState.step(sem)
     someStep match {
       case None => None /* Step did not succeed */
       case Some(step) =>
         /* Check whether a function body frame was just popped from the stack.
          * If so, send a SignalEndLoop, in case the tracer had started tracing at this function call. */
-        type PopKontAction = ActionSinglePopKontT[Exp, HybridValue, HybridAddress.A]
+        type PopKontAction = ActionSinglePopKontT[Exp, ConcreteValue, HybridAddress.A]
         val trace = step.trace
         val someActionSinglePopKont = trace.find(_.isInstanceOf[PopKontAction])
         someActionSinglePopKont match {
@@ -93,7 +94,7 @@ case class AmbProgramState[Exp : Expression]
                 someBody match {
                   case None => Some(step)
                   case Some(body) =>
-                    val signal = SignalEndLoop(body, RestartStoppedInBacktrack[Exp, HybridValue, HybridAddress.A]())
+                    val signal = SignalEndLoop(body, RestartStoppedInBacktrack[Exp, ConcreteValue, HybridAddress.A]())
                     Some(InterpreterStep(trace, signal))
                 }
             }
@@ -101,13 +102,13 @@ case class AmbProgramState[Exp : Expression]
     }
   }
 
-  def applyAction(sem: SemanticsTraced[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T],
-                  action: ActionT[Exp, HybridValue, HybridAddress.A]):
-  ActionReturn[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]] = action match {
+  def applyAction(sem: SemanticsTraced[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                  action: ActionT[Exp, ConcreteValue, HybridAddress.A]):
+  ActionReturn[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T, AmbProgramState[Exp]] = action match {
     case ActionEvalPushT(e, frame, _, _) =>
-      addFailAction(sem, action, ActionSinglePopKontT[Exp, HybridValue, HybridAddress.A]())
+      addFailAction(sem, action, ActionSinglePopKontT[Exp, ConcreteValue, HybridAddress.A]())
     case ActionExtendEnvT(_) =>
-      addFailAction(sem, action, ActionSingleSaveValT[Exp, HybridValue, HybridAddress.A](normalState.vStack.head.getVal))
+      addFailAction(sem, action, ActionSingleSaveValT[Exp, ConcreteValue, HybridAddress.A](normalState.vStack.head.getVal))
     case ActionPopFailKontT() => failStack match {
       case head :: tail =>
         /* Transfer frame that was allocated at the failstack to the normal continuation stack:
@@ -129,21 +130,21 @@ case class AmbProgramState[Exp : Expression]
       if (normalState.a == HaltKontAddress) {
         addFailActions(sem, action, Nil)
       } else {
-        val failAction = ActionSinglePushKontT[Exp, HybridValue, HybridAddress.A](normalState.kstore.lookup(normalState.a).head.frame)
+        val failAction = ActionSinglePushKontT[Exp, ConcreteValue, HybridAddress.A](normalState.kstore.lookup(normalState.a).head.frame)
         addFailAction(sem, action, failAction)
       }
     case ActionPrimCallT(n, fExp, argsExps) =>
       val (vals, _) = normalState.vStack.splitAt(n)
-      val actionsSaveVal = vals.map({ (storable: Storable[HybridValue, HybridAddress.A]) => ActionSingleSaveValT[Exp, HybridValue, HybridAddress.A](storable.getVal) })
+      val actionsSaveVal = vals.map({ (storable: Storable[ConcreteValue, HybridAddress.A]) => ActionSingleSaveValT[Exp, ConcreteValue, HybridAddress.A](storable.getVal) })
       addFailActions(sem, action, actionsSaveVal)
     case ActionPushFailKontT(failureFrame) =>
       ActionStep(AmbProgramState(normalState, failureFrame :: failStack), action)
     case ActionPushValT() =>
-      addFailAction(sem, action, ActionSingleRestoreValT[Exp, HybridValue, HybridAddress.A]())
+      addFailAction(sem, action, ActionSingleRestoreValT[Exp, ConcreteValue, HybridAddress.A]())
     case ActionRestoreEnvT() =>
-      addFailAction(sem, action, ActionSingleSaveSpecificEnvT[Exp, HybridValue, HybridAddress.A](normalState.vStack.head.getEnv, normalState.ρ))
+      addFailAction(sem, action, ActionSingleSaveSpecificEnvT[Exp, ConcreteValue, HybridAddress.A](normalState.vStack.head.getEnv, normalState.ρ))
     case ActionSaveEnvT() =>
-      addFailAction(sem, action, ActionSingleRestoreEnvT[Exp, HybridValue, HybridAddress.A]())
+      addFailAction(sem, action, ActionSingleRestoreEnvT[Exp, ConcreteValue, HybridAddress.A]())
     case ActionStepInT(fexp, e, args, argsv, n, frame, _, _) =>
       val (vals, _) = normalState.vStack.splitAt(n)
       /*
@@ -151,9 +152,9 @@ case class AmbProgramState[Exp : Expression]
        *                       save extended lexical environment
        *                       push FrameFunBody continuation
        */
-      val actionsSaveVal = vals.map({ (storable: Storable[HybridValue, HybridAddress.A]) => ActionSingleSaveValT[Exp, HybridValue, HybridAddress.A](storable.getVal) })
-      val failActions = ActionSinglePopKontT[Exp, HybridValue, HybridAddress.A]() ::
-                        ActionSingleRestoreEnvT[Exp, HybridValue, HybridAddress.A]() ::
+      val actionsSaveVal = vals.map({ (storable: Storable[ConcreteValue, HybridAddress.A]) => ActionSingleSaveValT[Exp, ConcreteValue, HybridAddress.A](storable.getVal) })
+      val failActions = ActionSinglePopKontT[Exp, ConcreteValue, HybridAddress.A]() ::
+                        ActionSingleRestoreEnvT[Exp, ConcreteValue, HybridAddress.A]() ::
                         actionsSaveVal
       addFailActions(sem, action, failActions)
     case ActionSinglePopKontT() =>
@@ -173,10 +174,10 @@ case class AmbProgramState[Exp : Expression]
         throw new Exception("Value stack is empty!")
     }
     case ActionSingleSaveSpecificEnvT(ρToSave, ρToReplace) =>
-      val newNormalState = normalState.copy(ρ = ρToReplace, vStack = StoreEnv[HybridValue, HybridAddress.A](ρToSave) :: normalState.vStack)
+      val newNormalState = normalState.copy(ρ = ρToReplace, vStack = StoreEnv[ConcreteValue, HybridAddress.A](ρToSave) :: normalState.vStack)
       ActionStep(AmbProgramState(newNormalState, failStack), action)
     case ActionSingleSaveValT(value) =>
-      val newNormalState = normalState.copy(vStack = StoreVal[HybridValue, HybridAddress.A](value) :: normalState.vStack)
+      val newNormalState = normalState.copy(vStack = StoreVal[ConcreteValue, HybridAddress.A](value) :: normalState.vStack)
       ActionStep(AmbProgramState(newNormalState, failStack), action)
     case _ => wrapApplyAction(sem, action)
   }
@@ -186,13 +187,13 @@ case class AmbProgramState[Exp : Expression]
     case _ => super.halted
   }
 
-  def generateTraceInformation(action: ActionT[Exp, HybridValue, HybridAddress.A]):
-  CombinedInfos[HybridValue, HybridAddress.A] =
+  def generateTraceInformation(action: ActionT[Exp, ConcreteValue, HybridAddress.A]):
+  CombinedInfos[ConcreteValue, HybridAddress.A] =
     normalState.generateTraceInformation(action)
 
   def concretableState = normalState
 
-  def subsumes(that: TracingProgramState[Exp, HybridValue, HybridAddress.A, HybridTimestamp.T]): Boolean = that match {
+  def subsumes(that: TracingProgramState[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T]): Boolean = that match {
     case that: AmbProgramState[Exp] =>
       concreteSubsumes(that)
     case _ => false

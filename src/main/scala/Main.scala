@@ -358,7 +358,7 @@ object Main {
         handleOptimization()
 
         val lattice: SchemeLattice = config.lattice match {
-          case Config.Lattice.Concrete => new ConcreteLattice(true)
+          case Config.Lattice.Concrete => if (config.counting) { ConcreteConcreteLattice } else { new ConcreteLattice(true) }
           case Config.Lattice.TypeSet => new TypeSetLattice(config.counting)
           case Config.Lattice.BoundedInt => new BoundedIntLattice(config.bound, config.counting)
           case Config.Lattice.Constant => new ConstantPropagationLattice(config.counting)
@@ -391,15 +391,17 @@ object Main {
           case Config.Machine.Free => genNonTracingMachineStartFun(new Free[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Hybrid => {
 
-            val abstLattice = new ConstantPropagationLattice(false)
-            implicit val joinLattice1: JoinLattice[abstLattice.L] = abstLattice.isSchemeLattice
-            implicit val joinLattice2: JoinLattice[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.isSchemeLattice
+//            val abstLattice = new ConstantPropagationLattice(false) TODO
+//            implicit val joinLattice1: JoinLattice[abstLattice.L] = abstLattice.isSchemeLattice
+//            implicit val joinLattice2: JoinLattice[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.isSchemeLattice
 
-            implicit val convertableLattice1: IsConvertableLattice[abstLattice.L] = abstLattice.isSchemeLattice
-            implicit val convertableLattice2: IsConvertableLattice[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.isSchemeLattice
+//            implicit val convertableLattice1: IsConvertableLattice[abstLattice.L] = abstLattice.isSchemeLattice
+//            implicit val convertableLattice2: IsConvertableLattice[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.isSchemeLattice
 
-            val abstSem = new SchemeSemantics[abstLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, abstLattice.L])
+//            val abstSem = new SchemeSemantics[abstLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, abstLattice.L]) TODO
+            implicit val doSabs = ConcreteConcreteLattice.isSchemeLattice
             val sabs = implicitly[IsSchemeLattice[ConcreteConcreteLattice.L]]
+            val abstSem = new SchemeSemantics[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
 
 
 
@@ -410,40 +412,44 @@ object Main {
               * Construction of these components depends on whether the machine will execute regular Scheme programs
               * or Amb-Scheme programs (in which case other semantics and another injection function should be used,
               * and no optimizer can be created).
-              * @param createConstantsAnalysisLauncher A factory-function that, given some SchemeSemantics, creates
+              * A factory-function that, given some SchemeSemantics, creates
               *                                        a ConstantsAnalysisLauncher.
               * @return A four-tuple consisting of the four components mentioned above.
               */
-            def constructComponents(createConstantsAnalysisLauncher: SemanticsTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] => ConstantsAnalysisLauncher[abstLattice.L, SchemeExp]):
+//            def constructComponents(createConstantsAnalysisLauncher: SemanticsTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] => ConstantsAnalysisLauncher[abstLattice.L, SchemeExp]):
+            def constructComponents():
             (SchemeSemanticsTraced[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-             ConstantsAnalysisLauncher[abstLattice.L, SchemeExp],
-             Option[SchemeTraceOptimizer[abstLattice.L]],
-             SchemeExp =>  ConcreteTracingProgramState[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]) = {
-
-              implicit val todo: JoinLattice[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.isSchemeLattice
+//             ConstantsAnalysisLauncher[abstLattice.L, SchemeExp], TODO
+//             Option[SchemeTraceOptimizer[abstLattice.L]],
+             Option[SchemeTraceOptimizer],
+             SchemeExp =>  ConcreteTracingProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]) = {
 
               if (config.amb) {
                 val sem = new AmbSchemeSemanticsTraced[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
-                val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem)
+//                val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem) TODO
                 val injectState = { (exp: SchemeExp) =>
                   val normalState = new ProgramState[SchemeExp](sem, sabs, exp)
-                  new AmbProgramState[SchemeExp](normalState)
+                  AmbProgramState[SchemeExp](normalState, List(HaltFailFrame()))
                 }
-                (sem, constantsAnalysisLauncher, None, injectState)
+//                (sem, constantsAnalysisLauncher, None, injectState) TODO
+                (sem, None, injectState)
               } else {
                 val sem = new SchemeSemanticsTraced[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
-                val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem)
-                implicit val latticeInfoProvider: LatticeInfoProvider[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.lattice.lsetInfoProvider
-                val someOptimizer = Some(new SchemeTraceOptimizer[abstLattice.L](sem, constantsAnalysisLauncher, config.tracingFlags))
+//                val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem) TODO
+//                implicit val latticeInfoProvider: LatticeInfoProvider[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.lattice.lsetInfoProvider TODO
+//                val someOptimizer = Some(new SchemeTraceOptimizer[abstLattice.L](sem, constantsAnalysisLauncher, config.tracingFlags)) TODO
+                val someOptimizer = Some(new SchemeTraceOptimizer(sem, config.tracingFlags)) // TODO [abstLattice.L]
                 val injectState = { (exp: SchemeExp) => new ProgramState[SchemeExp](sem, sabs, exp) }
-                (sem, constantsAnalysisLauncher, someOptimizer, injectState)
+//                (sem, constantsAnalysisLauncher, someOptimizer, injectState) TODO
+                (sem, someOptimizer, injectState)
               }
             }
 
-            val (sem, constantsAnalysisLauncher, someOptimizer, injectState) = constructComponents(new ConstantsAnalysisLauncher[abstLattice.L, SchemeExp](_, abstSem, config.tracingFlags))
-            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[abstLattice.L, SchemeExp](sem, abstSem)
+//            val (sem, constantsAnalysisLauncher, someOptimizer, injectState) = constructComponents(new ConstantsAnalysisLauncher[abstLattice.L, SchemeExp](_, abstSem, config.tracingFlags))
+              val (sem, someOptimizer, injectState) = constructComponents()
+//            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[abstLattice.L, SchemeExp](sem, abstSem)
             val tracerContext = new SchemeTracer[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](sem, config.tracingFlags, someOptimizer)
-            val machine = new HybridMachine[abstLattice.L, SchemeExp](sem, constantsAnalysisLauncher, pointsToAnalysisLauncher, tracerContext, config.tracingFlags, injectState)
+            val machine = new HybridMachine[SchemeExp](sem, tracerContext, config.tracingFlags, injectState) // TODO add analysis launchers
             (program: String) => runTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](machine)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
           }
         }
