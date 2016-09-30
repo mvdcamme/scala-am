@@ -392,9 +392,11 @@ object Main {
           case Config.Machine.Hybrid => {
 
             val abstLattice = new ConstantPropagationLattice(false)
+            implicit val joinLattice1: JoinLattice[abstLattice.L] = abstLattice.isSchemeLattice
+            implicit val joinLattice2: JoinLattice[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.isSchemeLattice
+
             implicit val convertableLattice1: IsConvertableLattice[abstLattice.L] = abstLattice.isSchemeLattice
             implicit val convertableLattice2: IsConvertableLattice[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.isSchemeLattice
-            implicit val isSchemeLattice = ConcreteConcreteLattice.isSchemeLattice
 
             val abstSem = new SchemeSemantics[abstLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, abstLattice.L])
             val sabs = implicitly[IsSchemeLattice[ConcreteConcreteLattice.L]]
@@ -431,6 +433,7 @@ object Main {
               } else {
                 val sem = new SchemeSemanticsTraced[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
                 val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem)
+                implicit val latticeInfoProvider: LatticeInfoProvider[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.lattice.lsetInfoProvider
                 val someOptimizer = Some(new SchemeTraceOptimizer[abstLattice.L](sem, constantsAnalysisLauncher, config.tracingFlags))
                 val injectState = { (exp: SchemeExp) => new ProgramState[SchemeExp](sem, sabs, exp) }
                 (sem, constantsAnalysisLauncher, someOptimizer, injectState)

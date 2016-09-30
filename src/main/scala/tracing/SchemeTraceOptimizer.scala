@@ -18,7 +18,7 @@ class SchemeTraceOptimizer[Abs : IsSchemeLattice]
 
   type HybridValue = ConcreteConcreteLattice.L
 
-  val sabs = implicitly[IsSchemeLattice[HybridValue]]
+  val sabs = implicitly[IsSchemeLattice[ConcreteConcreteLattice.L]] //TODO change back to HybridValue
 
   val basicOptimizations: List[(Boolean, (SpecTraceFull => SpecTraceFull))] =
     List((GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING, optimizeContinuationLoading(_)),
@@ -387,7 +387,8 @@ class SchemeTraceOptimizer[Abs : IsSchemeLattice]
           val nrOfArgs = n - 1
           val operands = vStack.take(nrOfArgs).map(_.getVal)
           val supposedOperator = vStack(nrOfArgs).getVal
-          val operandsTypes = HybridLattice.LatticeConverter.getValuesTypes(operands)
+          val latticeInfoProvider = implicitly[LatticeInfoProvider[ConcreteConcreteLattice.L]]
+          val operandsTypes = latticeInfoProvider.simpleTypes(operands)
           val somePrimitive = sabs.getPrimitives[HybridAddress.A, HybridValue](supposedOperator).headOption
           somePrimitive match {
             case None => throw new Exception(s"Operation being type-specialized is not a primitive: $supposedOperator")
