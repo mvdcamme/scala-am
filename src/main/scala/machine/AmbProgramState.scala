@@ -16,7 +16,7 @@ case class AmbProgramState[Exp : Expression]
   extends ConcreteTracingProgramState[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
   with ConcretableTracingProgramState[Exp] {
 
-  def abs = implicitly[JoinLattice[HybridValue]]
+  def abs = implicitly[JoinLattice[ConcreteConcreteLattice.L]]
   def addr = implicitly[Address[HybridAddress.A]]
   def exp = implicitly[Expression[Exp]]
   def time = implicitly[Timestamp[HybridTimestamp.T]]

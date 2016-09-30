@@ -541,7 +541,11 @@ class ConcreteLattice(counting: Boolean) extends SchemeLattice {
   implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
 }
 
-object ConcreteConcreteLattice extends ConcreteLattice(true)
+object ConcreteConcreteLattice extends SchemeLattice {
+  val concreteLattice = new ConcreteLattice(true)
+  type L = concreteLattice.L
+  implicit val isSchemeLattice: IsConvertableLattice[L] = concreteLattice.isSchemeLattice
+}
 
 class TypeSetLattice(counting: Boolean) extends SchemeLattice {
   import Type._

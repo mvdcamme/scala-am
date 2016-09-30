@@ -392,7 +392,8 @@ object Main {
           case Config.Machine.Hybrid => {
 
             val abstLattice = new ConstantPropagationLattice(false)
-            implicit val convertableLattice: IsConvertableLattice[abstLattice.L] = abstLattice.isSchemeLattice
+            implicit val convertableLattice1: IsConvertableLattice[abstLattice.L] = abstLattice.isSchemeLattice
+            implicit val convertableLattice2: IsConvertableLattice[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.isSchemeLattice
             implicit val isSchemeLattice = ConcreteConcreteLattice.isSchemeLattice
 
             val abstSem = new SchemeSemantics[abstLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, abstLattice.L])
