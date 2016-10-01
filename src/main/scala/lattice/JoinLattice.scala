@@ -19,7 +19,7 @@ trait JoinLattice[L] extends Monoid[L] {
   def counting: Boolean
 
   /** Some elements can be considered as errors */
-  //def isError(x: L): Boolean
+  //def isError(x: L): Booleanac
   /** Some elements may contain addresses in there and are therefore not considered as primitive values */
   def isPrimitiveValue(x: L): Boolean
 }

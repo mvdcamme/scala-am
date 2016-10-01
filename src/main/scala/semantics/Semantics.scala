@@ -95,11 +95,12 @@ trait SemanticsTraced[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Add
 
   def getClosureBody(frame: Frame): Option[List[Exp]]
 
-  def convertToAbsSemanticsFrame(frame: Frame,
-                                 ρ: Environment[Addr],
-                                 vStack: List[Storable[Abs, Addr]],
-                                 convertValue: Abs => Abs):
-  (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr])
+  def convertToAbsSemanticsFrame[OtherAbs](frame: Frame,
+                                           ρ: Environment[Addr],
+                                           vStack: List[Storable[OtherAbs, Addr]],
+                                           convertValue: Abs => OtherAbs,
+                                           absSem: BaseSchemeSemantics[OtherAbs, Addr, Time]):
+  (Option[Frame], List[Storable[OtherAbs, Addr]], Environment[Addr])
 }
 
 /**

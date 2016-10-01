@@ -558,7 +558,7 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(implicit 
 
 }
 
-class ConcreteLattice(counting: Boolean) extends SchemeLatticeInfoProvider {
+class ConcreteLattice(counting: Boolean) extends SchemeLattice {
   import ConcreteString._
   import ConcreteBoolean._
   import ConcreteInteger._
@@ -572,7 +572,7 @@ class ConcreteLattice(counting: Boolean) extends SchemeLatticeInfoProvider {
   val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider
 }
 
-object ConcreteConcreteLattice extends SchemeLatticeInfoProvider {
+object ConcreteConcreteLattice extends SchemeLattice {
   import ConcreteString._
   import ConcreteBoolean._
   import ConcreteInteger._
@@ -584,9 +584,63 @@ object ConcreteConcreteLattice extends SchemeLatticeInfoProvider {
   type L = lattice.LSet
   val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
   val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider
+
+  def convert[Exp: Expression, Abs: IsConvertableLattice, Addr: Address](x: L,
+                                                                         addressConverter: AddressConverter[Addr],
+                                                                         convertEnv: Environment[Addr] => Environment[Addr]): Abs = {
+    val convLat = implicitly[IsConvertableLattice[Abs]]
+    def convertValue(value: lattice.Value): Abs = value match {
+      case lattice.Bot =>
+        convLat.bottom
+      case lattice.Str(s) =>
+        convLat.inject(s.asInstanceOf[ISet[String]].toList.head)
+      case lattice.Bool(b) =>
+        convLat.inject(b.asInstanceOf[ISet[Boolean]].toList.head)
+      case lattice.Int(i) =>
+        convLat.inject(i.asInstanceOf[ISet[Int]].toList.head)
+      case lattice.Float(f) =>
+        convLat.inject(f.asInstanceOf[ISet[Float]].toList.head)
+      case lattice.Char(c) =>
+        convLat.inject(c.asInstanceOf[ISet[Char]].toList.head)
+      case lattice.Symbol(s) =>
+        convLat.injectSymbol(s.asInstanceOf[ISet[String]].toList.head)
+      case lattice.Prim(prim) =>
+        convLat.inject(prim.asInstanceOf[Primitive[Addr, Abs]])
+      case lattice.Closure(lambda, env) =>
+        val convertedEnv = convertEnv(env.asInstanceOf[Environment[Addr]])
+        convLat.inject((lambda, convertedEnv).asInstanceOf[(Exp, Environment[Addr])])
+      case c: lattice.Cons[Addr] =>
+        convLat.cons[Addr](addressConverter.convertAddress(c.car), addressConverter.convertAddress(c.cdr))
+      case lattice.Nil =>
+        convLat.nil
+      case v: lattice.Vec[Addr] =>
+        val actualSize = v.size.toList.head
+        val abstractSize = convLat.inject(actualSize)
+        var abstractElements = collection.immutable.Map[Int, Addr]()
+        v.elements.foreach({ case (i, address: Addr) => {
+          val index = i.asInstanceOf[ISet[Int]].toList.head
+          abstractElements = abstractElements + (index -> address)
+        }
+        })
+        val abstractInit = addressConverter.convertAddress(v.init)
+        convLat.injectVector[Addr](actualSize, abstractElements, abstractInit)
+      case va: lattice.VectorAddress[Addr] =>
+        convLat.injectVectorAddress[Addr](addressConverter.convertAddress(va.a))
+    }
+
+    x match {
+      case e: lattice.Element =>
+        convertValue(e.v)
+      case es: lattice.Elements =>
+        throw new Exception("ConcreteConcreteLattice shouldn't have an Elements value")
+        //TODO es.vs.foldLeft(convLat.bottom)( (acc, e) => lattice.isSchemeLatticeSet.join(acc, e))
+    }
+
+  }
+
 }
 
-class TypeSetLattice(counting: Boolean) extends SchemeLatticeInfoProvider {
+class TypeSetLattice(counting: Boolean) extends SchemeLattice {
   import Type._
   import ConcreteBoolean._
   val lattice = new MakeSchemeLattice[T, B, T, T, T, T](counting)
@@ -595,7 +649,7 @@ class TypeSetLattice(counting: Boolean) extends SchemeLatticeInfoProvider {
   val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider
 }
 
-class BoundedIntLattice(bound: Int, counting: Boolean) extends SchemeLatticeInfoProvider {
+class BoundedIntLattice(bound: Int, counting: Boolean) extends SchemeLattice {
   import Type._
   import ConcreteBoolean._
   val bounded = new BoundedInteger(bound)
@@ -606,7 +660,7 @@ class BoundedIntLattice(bound: Int, counting: Boolean) extends SchemeLatticeInfo
   val latticeInfoProvider: LatticeInfoProvider[L] = lattice.lsetInfoProvider
 }
 
-class ConstantPropagationLattice(counting: Boolean) extends SchemeLatticeInfoProvider {
+class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
   import StringConstantPropagation._
   import ConcreteBoolean._
   import IntegerConstantPropagation._

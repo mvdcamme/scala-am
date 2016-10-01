@@ -125,11 +125,12 @@ trait IsSchemeLattice[L] extends JoinLattice[L] {
 
 trait SchemeLattice {
   type L
-  val isSchemeLattice: IsConvertableLattice[L]
+  val isSchemeLattice: IsSchemeLattice[L]
 }
 
-trait SchemeLatticeInfoProvider extends SchemeLattice {
-  implicit val latticeInfoProvider: LatticeInfoProvider[L]
+trait SchemeConvertableLattice extends SchemeLattice {
+  override val isSchemeLattice: IsConvertableLattice[L]
+  val latticeInfoProvider: LatticeInfoProvider[L]
 }
 
 /** A lattice for Concurrent Scheme */

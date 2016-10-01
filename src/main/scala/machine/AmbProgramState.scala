@@ -54,9 +54,10 @@ case class AmbProgramState[Exp : Expression]
     }
   }
 
-  def convertState[Abs : IsSchemeLattice](free: Free[Exp, Abs, HybridAddress.A, HybridTimestamp.T],
-                   oldSem: SemanticsTraced[Exp, Abs, HybridAddress.A, HybridTimestamp.T]) =
-    normalState.convertState(free, oldSem)
+  def convertState[AbstL : IsConvertableLattice](free: Free[Exp, AbstL, HybridAddress.A, HybridTimestamp.T],
+                                            concSem: SemanticsTraced[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                                            abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T]) =
+    normalState.convertState(free, concSem, abstSem)
 
   def runHeader(sem: SemanticsTraced[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                 assertions: List[ActionT[Exp, ConcreteValue, HybridAddress.A]]): Option[AmbProgramState[Exp]] =

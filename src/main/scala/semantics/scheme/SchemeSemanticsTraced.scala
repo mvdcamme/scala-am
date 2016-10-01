@@ -40,17 +40,18 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
     override def toString() = "FHalt"
   }
 
-  private def popEnvFromVStack(generateFrameFun: Environment[Addr] => Frame,
-                               vStack: List[Storable[Abs, Addr]]):
-  (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = {
+  private def popEnvFromVStack[OtherAbs](generateFrameFun: Environment[Addr] => Frame,
+                               vStack: List[Storable[OtherAbs, Addr]]):
+  (Option[Frame], List[Storable[OtherAbs, Addr]], Environment[Addr]) = {
     val ρ = vStack.head.getEnv
     val frame = generateFrameFun(ρ)
     (Some(frame), vStack.tail, ρ)
   }
 
-  private def popEnvAndValuesFromVStack(generateFrameFun: (Environment[Addr], List[Abs]) => Frame,
-                                        n: Integer,
-                                        vStack: List[Storable[Abs, Addr]]): (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = {
+  private def popEnvAndValuesFromVStack[OtherAbs](generateFrameFun: (Environment[Addr], List[OtherAbs]) => Frame,
+                                                  n: Integer,
+                                                  vStack: List[Storable[OtherAbs, Addr]]):
+  (Option[Frame], List[Storable[OtherAbs, Addr]], Environment[Addr]) = {
     val ρ = vStack.head.getEnv
     val remainingVStack = vStack.tail
     val (values, remainingVStack2) = remainingVStack.splitAt(n)
@@ -61,8 +62,8 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
   /* AAM does not allocate a new FrameBegin if the function's body consists of only one expression,
    * so no new frame should be allocated now either. But we still have to remove the environment
    * from the value stack. */
-  private def popEmptyFrameBeginFromVStack(vStack: List[Storable[Abs, Addr]]):
-  (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = {
+  private def popEmptyFrameBeginFromVStack[OtherAbs](vStack: List[Storable[OtherAbs, Addr]]):
+  (Option[Frame], List[Storable[OtherAbs, Addr]], Environment[Addr]) = {
     val ρ = vStack.head.getEnv
     (None, vStack.tail, ρ)
   }
@@ -79,12 +80,12 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
    * frame, take note of which values and environments are saved on the vstack when the original
    * SchemeSemanticsFrame was generated.
    */
-  def convertToAbsSemanticsFrame(frame: Frame,
+  def convertToAbsSemanticsFrame[OtherAbs](frame: Frame,
                                  ρ: Environment[Addr],
-                                 vStack: List[Storable[Abs, Addr]],
-                                 convertValue: Abs => Abs,
-                                 absSem: BaseSchemeSemantics[Abs, Addr, Time]):
-  (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = frame match {
+                                 vStack: List[Storable[OtherAbs, Addr]],
+                                 convertValue: Abs => OtherAbs,
+                                 absSem: BaseSchemeSemantics[OtherAbs, Addr, Time]):
+  (Option[Frame], List[Storable[OtherAbs, Addr]], Environment[Addr]) = frame match {
       case FrameBeginT(rest) => rest match {
         case Nil =>
           popEmptyFrameBeginFromVStack(vStack)
@@ -106,7 +107,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
       case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
         val convertedF = convertValue(f)
         val n = args.length + 1 /* We have to add 1 because the operator has also been pushed onto the vstack */
-        val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
+        val generateFrameFun = (ρ: Environment[Addr], values: List[OtherAbs]) => {
           val newArgs = args.map(_._1).zip(values)
           absSem.FrameFuncallOperands(convertedF, fexp, cur, newArgs, toeval, ρ)
       }
@@ -121,7 +122,7 @@ abstract class BaseSchemeSemanticsTraced[Abs : IsSchemeLattice, Addr : Address, 
          * The stack should therefore have an environment at the top, followed by n values where n is the number of bindings
          * already evaluated (which equals bindings.length). */
         val n = bindings.length
-        val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
+        val generateFrameFun = (ρ: Environment[Addr], values: List[OtherAbs]) => {
           val newBindings = bindings.map(_._1).zip(values)
           absSem.FrameLet(variable, newBindings, toeval, body, ρ)
         }

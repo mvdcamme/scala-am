@@ -39,7 +39,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
   def startTracingLoop(tc: TracerContext,
                        loopID: List[SchemeExp],
                        boundVariables: List[(String, Addr)],
-                       startState: ConcreteTracingProgramState[SchemeExp, Abs, Addr, Time])
+                       startState: ConcreteTracingProgramState[SchemeExp,  Addr, Time])
                       :SchemeTracerContext = tc match {
     case SchemeTracerContext(labelCounters, traceNodes, _) =>
       val label = NormalLabel(loopID)
@@ -53,7 +53,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
                         guardID: Integer,
                         parentTraceLabel: Label[SchemeExp],
                         boundVariables: List[(String, Addr)],
-                        startState: ConcreteTracingProgramState[SchemeExp, Abs, Addr, Time])
+                        startState: ConcreteTracingProgramState[SchemeExp, Addr, Time])
                       :SchemeTracerContext = tc match {
     case SchemeTracerContext(labelCounters, traceNodes, _) =>
       val parentTraceNode = getLoopTrace(tc, loopID)
@@ -72,7 +72,7 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
 
   def stopTracing(tc: TracerContext, isLooping: Boolean,
                   traceEndedInstruction: Option[TraceInstruction],
-                  state: ConcreteTracingProgramState[SchemeExp, Abs, Addr, Time]): SchemeTracerContext = {
+                  state: ConcreteTracingProgramState[SchemeExp, Addr, Time]): SchemeTracerContext = {
       var finishedTc: SchemeTracerContext = tc
       if (! isLooping) {
         finishedTc = appendTrace(tc, List((traceEndedInstruction.get, TraceInfos.nil[Abs, Addr])))
@@ -194,10 +194,10 @@ class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
    * Adding traces
    */
 
-  private def addTrace(tc: TracerContext, state: ConcreteTracingProgramState[SchemeExp, Abs, Addr, Time]): SchemeTracerContext = tc match {
+  private def addTrace(tc: TracerContext, state: ConcreteTracingProgramState[SchemeExp, Addr, Time]): SchemeTracerContext = tc match {
     case SchemeTracerContext(labelCounters, traceNodes, Some(curTraceNode)) =>
       val curInfo = curTraceNode.info
-      val newTraceInfo = TraceInfo[SchemeExp, Abs, Addr, Time](curInfo.boundVariables, curInfo.startState, curInfo.parentTraceLabel)
+      val newTraceInfo = TraceInfo[SchemeExp, Addr, Time](curInfo.boundVariables, curInfo.startState, curInfo.parentTraceLabel)
       val traceFull = TraceFull[SchemeExp, Abs, Addr, Time](newTraceInfo, List(), curTraceNode.trace.reverse)
       val optimizedTraceFull: TraceFull[SchemeExp, Abs, Addr, Time] = someTraceOptimizer match {
         case Some(traceOptimizer) =>
