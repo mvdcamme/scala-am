@@ -66,12 +66,13 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
 }
 
 // TODO Abs should actually be some kind of ConstantPropagationLattice?
-class ConstantsAnalysisLauncher[Abs : IsConvertableLattice](
+class ConstantsAnalysisLauncher[Abs : IsConvertableLattice : ConstantableLatticeInfoProvider](
      concSem: SemanticsTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
      abstSem: BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
      tracingFlags: TracingFlags) extends AnalysisLauncher[Abs, SchemeExp] {
 
   val abs = implicitly[IsConvertableLattice[Abs]]
+  val lip = implicitly[ConstantableLatticeInfoProvider[Abs]]
 
   final val constantsAnalysis = new ConstantVariableAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
 
@@ -79,14 +80,14 @@ class ConstantsAnalysisLauncher[Abs : IsConvertableLattice](
                               (startStates: free.States, addressedLookedUp: Set[HybridAddress.A])
                               :ConstantAddresses[HybridAddress.A] = {
     val abstractAddressesLookedup = addressedLookedUp.map(new DefaultHybridAddressConverter[SchemeExp]().convertAddress)
-    constantsAnalysis.analyze(free, abstSem, abs.latticeInfoProvider.isConstantValue)(startStates, abstractAddressesLookedup, false)
+    constantsAnalysis.analyze(free, abstSem, lip.isConstantValue)(startStates, abstractAddressesLookedup, false)
   }
 
   protected def launchInitialAnalysis(free: SpecFree)
                                      (startStates: free.States)
                                      :ConstantAddresses[HybridAddress.A] = {
     Logger.log(s"Running initial static constants analysis", Logger.I)
-    val result = constantsAnalysis.initialAnalyze(free, abstSem, abs.latticeInfoProvider.isConstantValue)(startStates)
+    val result = constantsAnalysis.initialAnalyze(free, abstSem, lip.isConstantValue)(startStates)
     Logger.log(s"Finished running initial static constants analysis", Logger.I)
     result
   }

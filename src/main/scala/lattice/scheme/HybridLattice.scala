@@ -13,11 +13,3 @@ trait IsConvertableLattice[L] extends IsSchemeLattice[L] {
   val latticeInfoProvider: LatticeInfoProvider[L]
 
 }
-
-trait LatticeConverter[L] {
-
-  def convert[Exp : Expression, Addr : Address](value: ConcreteConcreteLattice.L,
-                                                addressConverter: AddressConverter[Addr],
-                                                convertEnv: Environment[Addr] => Environment[Addr]): L
-
-}

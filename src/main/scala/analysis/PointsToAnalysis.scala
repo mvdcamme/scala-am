@@ -31,11 +31,12 @@ class PointsToAnalysis[Exp: Expression, L : JoinLattice, Addr : Address, Time : 
   }
 }
 
-class PointsToAnalysisLauncher[Abs : IsConvertableLattice]
+class PointsToAnalysisLauncher[Abs : IsConvertableLattice : PointsToableLatticeInfoProvider]
   (concSem: SemanticsTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
    abstSem: BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T]) extends AnalysisLauncher[Abs, SchemeExp] {
 
   val abs = implicitly[IsConvertableLattice[Abs]]
+  val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]
 
   val pointsToAnalysis = new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
 
@@ -43,7 +44,7 @@ class PointsToAnalysisLauncher[Abs : IsConvertableLattice]
     wrapRunAnalysis(() => {
       val free: SpecFree = new SpecFree()
       val startStates = convertState(free, concSem, abstSem, currentProgramState)
-      val result = pointsToAnalysis.analyze(free, abstSem, abs.latticeInfoProvider.pointsTo)(startStates, false)
+      val result = pointsToAnalysis.analyze(free, abstSem, lip.pointsTo)(startStates, false)
       Logger.log(s"Static points-to analysis result is $result", Logger.U)
       PointsToSet(result)
     })
