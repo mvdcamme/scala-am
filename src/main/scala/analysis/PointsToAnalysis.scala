@@ -32,8 +32,8 @@ class PointsToAnalysis[Exp: Expression, L : JoinLattice, Addr : Address, Time : 
 }
 
 class PointsToAnalysisLauncher[Abs : IsConvertableLattice : PointsToableLatticeInfoProvider]
-  (concSem: SemanticsTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-   abstSem: BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T]) extends AnalysisLauncher[Abs, SchemeExp] {
+  (concSem: SemanticsTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T])
+  extends AnalysisLauncher[Abs] {
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]

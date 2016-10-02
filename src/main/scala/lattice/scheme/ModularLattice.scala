@@ -564,7 +564,7 @@ class ConcreteLattice(counting: Boolean) extends SchemeLattice {
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](counting)
   type L = lattice.LSet
   implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
-  val latticeInfoProvider: LatticeInfoProvider[L] = lattice.isSchemeLatticeSet.latticeInfoProvider
+  val latticeInfoProvider: PointsToableLatticeInfoProvider[L] = lattice.isSchemeLatticeSet.latticeInfoProvider
 }
 
 object ConcreteConcreteLattice extends SchemeLattice {
@@ -578,7 +578,7 @@ object ConcreteConcreteLattice extends SchemeLattice {
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](true)
   type L = lattice.LSet
   val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
-  val latticeInfoProvider: LatticeInfoProvider[L] = lattice.isSchemeLatticeSet.latticeInfoProvider
+  val latticeInfoProvider: PointsToableLatticeInfoProvider[L] = lattice.isSchemeLatticeSet.latticeInfoProvider
 
   def convert[Exp: Expression, Abs: IsConvertableLattice, Addr: Address](x: L,
                                                                          addressConverter: AddressConverter[Addr],
@@ -641,7 +641,7 @@ class TypeSetLattice(counting: Boolean) extends SchemeLattice {
   val lattice = new MakeSchemeLattice[T, B, T, T, T, T](counting)
   type L = lattice.LSet
   implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
-  val latticeInfoProvider: LatticeInfoProvider[L] = lattice.isSchemeLatticeSet.latticeInfoProvider
+  val latticeInfoProvider: PointsToableLatticeInfoProvider[L] = lattice.isSchemeLatticeSet.latticeInfoProvider
 }
 
 class BoundedIntLattice(bound: Int, counting: Boolean) extends SchemeLattice {
@@ -652,7 +652,7 @@ class BoundedIntLattice(bound: Int, counting: Boolean) extends SchemeLattice {
   val lattice = new MakeSchemeLattice[T, B, I, T, T, T](counting)
   type L = lattice.LSet
   implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
-  val latticeInfoProvider: LatticeInfoProvider[L] = lattice.isSchemeLatticeSet.latticeInfoProvider
+  val latticeInfoProvider: PointsToableLatticeInfoProvider[L] = lattice.isSchemeLatticeSet.latticeInfoProvider
 }
 
 import StringConstantPropagation._
@@ -666,7 +666,7 @@ class ConstantMakeSchemeLattice(counting: Boolean)
   extends MakeSchemeLattice[StringConstantPropagation.S, ConcreteBoolean.B, IntegerConstantPropagation.I,
                             FloatConstantPropagation.F, CharConstantPropagation.C, SymbolConstantPropagation.Sym](counting) {
 
-  trait ConstantableLatticeInfoProviderT extends LSetInfoProviderT {
+  trait ConstantableLatticeInfoProviderT extends LSetInfoProviderT with ConstantableLatticeInfoProvider[LSet] {
 
     def isConstantValue(x: LSet): Boolean = x match {
       case Element(e) => e match {
@@ -693,7 +693,7 @@ class ConstantMakeSchemeLattice(counting: Boolean)
   object ConstantableLatticeInfoProvider extends ConstantableLatticeInfoProviderT
 
   val isConstantSchemeLatticeSet = new IsSchemeLatticeSet {
-    val constantLatticeInfoProvider: PointsToableLatticeInfoProvider[LSet]  = ConstantableLatticeInfoProvider
+    val constantLatticeInfoProvider: ConstantableLatticeInfoProviderT = ConstantableLatticeInfoProvider
   }
 
 }
@@ -702,5 +702,5 @@ class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
   val lattice = new ConstantMakeSchemeLattice(counting)
   type L = lattice.LSet
   implicit val isSchemeLattice: IsConvertableLattice[lattice.LSet] = lattice.isConstantSchemeLatticeSet
-  val latticeInfoProvider: PointsToableLatticeInfoProvider[lattice.LSet] = lattice.isConstantSchemeLatticeSet.constantLatticeInfoProvider
+  val latticeInfoProvider: PointsToableLatticeInfoProvider[lattice.LSet] with ConstantableLatticeInfoProvider[L] = lattice.isConstantSchemeLatticeSet.constantLatticeInfoProvider
 }

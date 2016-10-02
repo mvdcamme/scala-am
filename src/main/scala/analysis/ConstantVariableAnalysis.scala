@@ -65,11 +65,9 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
   }
 }
 
-// TODO Abs should actually be some kind of ConstantPropagationLattice?
 class ConstantsAnalysisLauncher[Abs : IsConvertableLattice : ConstantableLatticeInfoProvider](
      concSem: SemanticsTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-     abstSem: BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
-     tracingFlags: TracingFlags) extends AnalysisLauncher[Abs, SchemeExp] {
+     tracingFlags: TracingFlags) extends AnalysisLauncher[Abs] {
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[ConstantableLatticeInfoProvider[Abs]]

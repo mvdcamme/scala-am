@@ -1,11 +1,13 @@
-abstract class AnalysisLauncher[Abs : IsConvertableLattice, Exp : Expression] {
+abstract class AnalysisLauncher[Abs : IsConvertableLattice] {
+
+  protected val abstSem = new SchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, Abs])
 
   /* The concrete program state the static analysis gets as input. This state is then converted to an
    * abstract state and fed to the AAM. */
-  type PS = HybridMachine[Exp]#PS
+  type PS = ConcreteTracingProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
   /* The specific type of AAM used for this analysis: an AAM using the HybridLattice, HybridAddress and ZeroCFA
    * components. */
-  type SpecFree = Free[Exp, Abs, HybridAddress.A, HybridTimestamp.T]
+  type SpecFree = Free[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
   /* The specific environment used in the concrete state: an environment using the HybridAddress components. */
   type SpecEnv = Environment[HybridAddress.A]
 
@@ -34,8 +36,8 @@ abstract class AnalysisLauncher[Abs : IsConvertableLattice, Exp : Expression] {
    * @param abstSem The semantics to be used during the analysis.
    * @param programState The program state to be converted.
    */
-  protected def convertState(free: Free[Exp, Abs, HybridAddress.A, HybridTimestamp.T],
-                             concSem: SemanticsTraced[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
+  protected def convertState(free: Free[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
+                             concSem: SemanticsTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
                              abstSem: BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
                              programState: PS): free.States = {
     val (control, _, store, kstore, a, t) = programState.convertState[Abs](free, concSem, abstSem)
