@@ -69,6 +69,7 @@ class ConstantVariableAnalysis[
     val output = free.kickstartEval(startStates,
                                     sem,
                                     if (isInitial) None else Some(pred),
+                                    None,
                                     None)
     analyzeOutput(free, isConstantValue)(output)
   }
@@ -80,7 +81,7 @@ class ConstantVariableAnalysis[
                      sem: Semantics[Exp, L, Addr, Time],
                      isConstantValue: L => Boolean)(
       startStates: free.States): ConstantAddresses[Addr] = {
-    val output = free.kickstartEval(startStates, sem, None, None)
+    val output = free.kickstartEval(startStates, sem, None, None, None)
     val result = analyzeOutput(free, isConstantValue)(output)
     initialAnalysisResults = Some(result)
     result

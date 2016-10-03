@@ -146,7 +146,8 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                         numberOfStates: Int,
                         time: Double,
                         graph: Option[Graph[State, Unit]],
-                        timedOut: Boolean)
+                        timedOut: Boolean,
+                        stepSwitched: Option[Int] = None)
       extends Output[Abs] {
 
     def finalValues =
@@ -234,7 +235,8 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   def kickstartEval(s: States,
                     sem: Semantics[Exp, Abs, Addr, Time],
                     stopEval: Option[States => Boolean],
-                    timeout: Option[Long]): FreeOutput = {
+                    timeout: Option[Long],
+                    stepSwitched: Option[Int]): FreeOutput = {
 
     val startingTime = System.nanoTime
 
@@ -253,7 +255,8 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
           visited.foldLeft(0)((acc, s) => acc + s.size),
           (System.nanoTime - startingTime) / Math.pow(10, 9),
           None,
-          timeout.map(System.nanoTime - startingTime > _).getOrElse(false))
+          timeout.map(System.nanoTime - startingTime > _).getOrElse(false),
+          stepSwitched)
       } else {
         loop(s2, visited + s, h)
       }
@@ -277,6 +280,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       kickstartEval(States.inject(exp, sem.initialEnv, sem.initialStore),
                     sem,
                     None,
-                    timeout)
+                    timeout,
+                    None)
     }
 }

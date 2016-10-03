@@ -324,7 +324,7 @@ class HybridMachine[
       case InterpreterStep(trace, SignalFalse()) =>
         continueWithProgramState(trace)
       case InterpreterStep(trace, SignalStartAnalysis()) =>
-        pointsToAnalysisLauncher.runStaticAnalysis(ps)
+        pointsToAnalysisLauncher.runStaticAnalysis(ps, stepCount)
         continueWithProgramState(trace)
       case InterpreterStep(trace, signal) =>
         handleSignalRegular(trace, signal)
@@ -336,7 +336,7 @@ class HybridMachine[
       case InterpreterStep(trace, SignalFalse()) =>
         continueWithProgramStateTracing(trace)
       case InterpreterStep(trace, SignalStartAnalysis()) =>
-        pointsToAnalysisLauncher.runStaticAnalysis(ps)
+        pointsToAnalysisLauncher.runStaticAnalysis(ps, stepCount)
         continueWithProgramStateTracing(trace)
       case InterpreterStep(trace, signal) =>
         handleSignalTracing(trace, signal)
@@ -440,10 +440,10 @@ class HybridMachine[
     } else {
       /* Otherwise, compute the successors of this state, update the graph, and push
        * the new successors on the todo list */
-//      if (stepCount % analysis_interval == 0) {
-//        Logger.log(s"stepCount: $stepCount", Logger.U)
-//        pointsToAnalysisLauncher.runStaticAnalysis(s.ps)
-//      }
+      if (stepCount % analysis_interval == 0) {
+        Logger.log(s"stepCount: $stepCount", Logger.U)
+        pointsToAnalysisLauncher.runStaticAnalysis(s.ps, stepCount)
+      }
       val succ = s.stepConcrete()
       val newGraph = graph.map(_.addEdge(s.ps, "", succ.ps))
       loop(succ, nrVisited + 1, startingTime, newGraph, timeout)

@@ -8,6 +8,8 @@ object GlobalFlags {
 
   val PRINT_EXECUTION_TIME = false
 
+  var ANALYSIS_RESULTS_OUTPUT: Option[String] = None
+
   /*
    * The current message level. All messages that are logged must have a level greater than or equal to this level
    * in order to be printed.

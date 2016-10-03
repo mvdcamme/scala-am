@@ -190,6 +190,7 @@ object Config {
                     timeout: Option[Long] = None,
                     amb: Boolean = false,
                     resultsPath: String = "benchmark_times.txt",
+                    analysisPath: Option[String] = None,
                     tracingFlags: TracingFlags = TracingFlags())
 
   val parser = new scopt.OptionParser[Config]("scala-am") {
@@ -212,6 +213,9 @@ object Config {
     opt[String]("result") action { (x, c) =>
       c.copy(resultsPath = x)
     } text ("File to print benchmarks results to")
+    opt[String]("analysis_output") action { (x, c) =>
+      c.copy(analysisPath = Some(x))
+    } text ("File to print analysis results to")
     opt[String]('o', "Optimization") action { (x, c) =>
       {
         val optimization: ShouldApplyOptimization = x match {
@@ -283,8 +287,8 @@ object Main {
   var currentProgram: String = ""
 
   def printExecutionTimes[Abs: JoinLattice](
-      result: Output[Abs],
-      benchmarks_results_file: String): Unit = {
+    result: Output[Abs],
+    benchmarks_results_file: String): Unit = {
     val file = new File(benchmarks_results_file)
     val bw = new BufferedWriter(new FileWriter(file, true))
     bw.write(s"$currentProgram: ${result.time}\n")
@@ -452,6 +456,7 @@ object Main {
               })
           }
 
+        GlobalFlags.ANALYSIS_RESULTS_OUTPUT = config.analysisPath
         handleOptimization()
 
         val lattice: SchemeLattice = config.lattice match {
