@@ -23,10 +23,9 @@ class HybridMachine[CAbs : IsConvertableLattice : ConstantableLatticeInfoProvide
    constantsAnalysisLauncher: ConstantsAnalysisLauncher[CAbs],
    pointsToAnalysisLauncher: PointsToAnalysisLauncher[PAbs],
    val tracer: Tracer[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-   tracingFlags: TracingFlags,
    injectProgramState: (SchemeExp) =>
                         ConcreteTracingProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T])
-  (implicit unused: IsSchemeLattice[ConcreteConcreteLattice.L])
+  (implicit unused: IsSchemeLattice[ConcreteConcreteLattice.L], tracingFlags: TracingFlags)
     extends EvalKontMachineTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](sem) {
 
   type ConcreteValue = ConcreteConcreteLattice.L

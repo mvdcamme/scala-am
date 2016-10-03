@@ -5,9 +5,10 @@ import scala.annotation.tailrec
   */
 class SchemeTraceOptimizer[Abs : ConstantableLatticeInfoProvider]
   (val sem: SchemeSemanticsTraced[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-   constantsAnalysisLauncher: ConstantsAnalysisLauncher[Abs],
+   constantsAnalysisLauncher: ConstantsAnalysisLauncher[Abs])
+  (implicit sabs: IsSchemeLattice[ConcreteConcreteLattice.L], latInfoProv:
+  LatticeInfoProvider[ConcreteConcreteLattice.L],
    tracingFlags: TracingFlags)
-  (implicit sabs: IsSchemeLattice[ConcreteConcreteLattice.L], latInfoProv: LatticeInfoProvider[ConcreteConcreteLattice.L])
   extends TraceOptimizer[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] {
 
   type TraceInstructionInfo = Tracer[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]#TraceInstructionInfo

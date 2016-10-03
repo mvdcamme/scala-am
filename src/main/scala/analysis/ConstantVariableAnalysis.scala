@@ -65,9 +65,9 @@ class ConstantVariableAnalysis[Exp: Expression, L : JoinLattice, Addr : Address,
   }
 }
 
-class ConstantsAnalysisLauncher[Abs : IsConvertableLattice : ConstantableLatticeInfoProvider](
-     concSem: SemanticsTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-     tracingFlags: TracingFlags) extends AnalysisLauncher[Abs] {
+class ConstantsAnalysisLauncher[Abs : IsConvertableLattice : ConstantableLatticeInfoProvider]
+  (concSem: SemanticsTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T])
+  (implicit tracingFlags: TracingFlags) extends AnalysisLauncher[Abs] {
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[ConstantableLatticeInfoProvider[Abs]]

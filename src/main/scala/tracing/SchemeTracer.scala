@@ -3,8 +3,8 @@
   */
 class SchemeTracer[Abs : JoinLattice, Addr : Address, Time : Timestamp]
     (sem: SemanticsTraced[SchemeExp, Abs, Addr, Time],
-     tracingFlags: TracingFlags,
      someTraceOptimizer: Option[TraceOptimizer[SchemeExp, Abs, Addr, Time]])
+    (implicit tracingFlags: TracingFlags)
   extends Tracer[SchemeExp, Abs, Addr, Time] {
 
   val semantics = sem
