@@ -1,7 +1,10 @@
 import org.scalatest._
 import org.scalatest.prop._
 
-class ParserSpec extends PropSpec with TableDrivenPropertyChecks with Matchers {
+class ParserSpec
+    extends PropSpec
+    with TableDrivenPropertyChecks
+    with Matchers {
   val files = Table(
     "file",
     "blur.scm",
@@ -25,10 +28,10 @@ class ParserSpec extends PropSpec with TableDrivenPropertyChecks with Matchers {
     "sq.scm",
     "sym.scm",
     "widen.scm"
-    )
+  )
 
   property("parser should parse without error") {
-    forAll (files) { (file: String) =>
+    forAll(files) { (file: String) =>
       Scheme.parse("test/" + file)
     }
   }

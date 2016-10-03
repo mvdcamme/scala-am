@@ -1,92 +1,120 @@
 /**
- * Implementation of a CESK machine following the AAM approach (Van Horn, David,
- * and Matthew Might. "Abstracting abstract machines." ACM Sigplan
- * Notices. Vol. 45. No. 9. ACM, 2010).
- *
- * A difference with the paper is that we separate the continuation store
- * (KontStore) from the value store (Store). That simplifies the implementation
- * of both stores, and the only change it induces is that we are not able to
- * support first-class continuation as easily (we don't support them at all, but
- * they could be added).
- *
- * Also, in the paper, a CESK state is made of 4 components: Control,
- * Environment, Store, and Kontinuation. Here, we include the environment in the
- * control component, and we distinguish "eval" states from "continuation"
- * states. An eval state has an attached environment, as an expression needs to
- * be evaluated within this environment, whereas a continuation state only
- * contains the value reached.
- */
-class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
+  * Implementation of a CESK machine following the AAM approach (Van Horn, David,
+  * and Matthew Might. "Abstracting abstract machines." ACM Sigplan
+  * Notices. Vol. 45. No. 9. ACM, 2010).
+  *
+  * A difference with the paper is that we separate the continuation store
+  * (KontStore) from the value store (Store). That simplifies the implementation
+  * of both stores, and the only change it induces is that we are not able to
+  * support first-class continuation as easily (we don't support them at all, but
+  * they could be added).
+  *
+  * Also, in the paper, a CESK state is made of 4 components: Control,
+  * Environment, Store, and Kontinuation. Here, we include the environment in the
+  * control component, and we distinguish "eval" states from "continuation"
+  * states. An eval state has an attached environment, as an expression needs to
+  * be evaluated within this environment, whereas a continuation state only
+  * contains the value reached.
+  */
+class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     extends EvalKontMachine[Exp, Abs, Addr, Time] {
   def name = "AAM"
 
   /**
-   * A machine state is made of a control component, a value store, a
-   * continuation store, and an address representing where the current
-   * continuation lives.
-   */
-  case class State(control: Control, store: Store[Addr, Abs], kstore: KontStore[KontAddr], a: KontAddr, t: Time) {
+    * A machine state is made of a control component, a value store, a
+    * continuation store, and an address representing where the current
+    * continuation lives.
+    */
+  case class State(control: Control,
+                   store: Store[Addr, Abs],
+                   kstore: KontStore[KontAddr],
+                   a: KontAddr,
+                   t: Time) {
     override def toString = control.toString
-    /**
-     * Checks whether a states subsumes another, i.e., if it is "bigger". This
-     * is used to perform subsumption checking when exploring the state space,
-     * in order to avoid exploring states for which another state that subsumes
-     * them has already been explored.
-     */
-    def subsumes(that: State): Boolean = control.subsumes(that.control) && store.subsumes(that.store) && a == that.a && kstore.subsumes(that.kstore) && t == that.t
 
     /**
-     * Integrates a set of actions (returned by the semantics, see
-     * Semantics.scala), in order to generate a set of states that succeeds this
-     * one.
-     */
-    private def integrate(a: KontAddr, actions: Set[Action[Exp, Abs, Addr]]): Set[State] =
+      * Checks whether a states subsumes another, i.e., if it is "bigger". This
+      * is used to perform subsumption checking when exploring the state space,
+      * in order to avoid exploring states for which another state that subsumes
+      * them has already been explored.
+      */
+    def subsumes(that: State): Boolean =
+      control.subsumes(that.control) && store.subsumes(that.store) && a == that.a && kstore
+        .subsumes(that.kstore) && t == that.t
+
+    /**
+      * Integrates a set of actions (returned by the semantics, see
+      * Semantics.scala), in order to generate a set of states that succeeds this
+      * one.
+      */
+    private def integrate(a: KontAddr,
+                          actions: Set[Action[Exp, Abs, Addr]]): Set[State] =
       actions.flatMap({
         /* When a value is reached, we go to a continuation state */
-        case ActionReachedValue(v, store, _) => Set(State(ControlKont(v), store, kstore, a, time.tick(t)))
+        case ActionReachedValue(v, store, _) =>
+          Set(State(ControlKont(v), store, kstore, a, time.tick(t)))
         /* When a continuation needs to be pushed, push it in the continuation store */
         case ActionPush(frame, e, env, store, _) => {
           val next = NormalKontAddress[Exp, Time](e, t)
-          Set(State(ControlEval(e, env), store, kstore.extend(next, Kont(frame, a)), next, time.tick(t)))
+          Set(
+            State(ControlEval(e, env),
+                  store,
+                  kstore.extend(next, Kont(frame, a)),
+                  next,
+                  time.tick(t)))
         }
         /* When a value needs to be evaluated, we go to an eval state */
-        case ActionEval(e, env, store, _) => Set(State(ControlEval(e, env), store, kstore, a, time.tick(t)))
+        case ActionEval(e, env, store, _) =>
+          Set(State(ControlEval(e, env), store, kstore, a, time.tick(t)))
         /* When a function is stepped in, we also go to an eval state */
-        case ActionStepIn(fexp, _, e, env, store, _, _) => Set(State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)))
+        case ActionStepIn(fexp, _, e, env, store, _, _) =>
+          Set(State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)))
         /* When an error is reached, we go to an error state */
-        case ActionError(err) => Set(State(ControlError(err), store, kstore, a, time.tick(t)))
+        case ActionError(err) =>
+          Set(State(ControlError(err), store, kstore, a, time.tick(t)))
       })
 
     /**
-     * Computes the set of states that follow the current state
-     */
-    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[State] = control match {
-      /* In a eval state, call the semantic's evaluation method */
-      case ControlEval(e, env) => integrate(a, sem.stepEval(e, env, store, t))
-      /* In a continuation state, call the semantics' continuation method */
-      case ControlKont(v) => kstore.lookup(a).flatMap({
-        case Kont(frame, next) => integrate(next, sem.stepKont(v, frame, store, t))
-      })
-      /* In an error state, the state is not able to make a step */
-      case ControlError(_) => Set()
-    }
+      * Computes the set of states that follow the current state
+      */
+    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[State] =
+      control match {
+        /* In a eval state, call the semantic's evaluation method */
+        case ControlEval(e, env) =>
+          integrate(a, sem.stepEval(e, env, store, t))
+        /* In a continuation state, call the semantics' continuation method */
+        case ControlKont(v) =>
+          kstore
+            .lookup(a)
+            .flatMap({
+              case Kont(frame, next) =>
+                integrate(next, sem.stepKont(v, frame, store, t))
+            })
+        /* In an error state, the state is not able to make a step */
+        case ControlError(_) => Set()
+      }
 
-    def stepAnalysis[L](analysis: Analysis[L, Exp, Abs, Addr, Time], current: L): L = control match {
+    def stepAnalysis[L](analysis: Analysis[L, Exp, Abs, Addr, Time],
+                        current: L): L = control match {
       case ControlEval(e, env) => analysis.stepEval(e, env, store, t, current)
       case ControlKont(v) => {
-        val konts = kstore.lookup(a).map({
-          case Kont(frame, _) => analysis.stepKont(v, frame, store, t, current)
-        })
-        if (konts.isEmpty) { current }
-        else { konts.reduceLeft((x, y) => analysis.join(x, y)) }
+        val konts = kstore
+          .lookup(a)
+          .map({
+            case Kont(frame, _) =>
+              analysis.stepKont(v, frame, store, t, current)
+          })
+        if (konts.isEmpty) { current } else {
+          konts.reduceLeft((x, y) => analysis.join(x, y))
+        }
       }
       case ControlError(err) => analysis.error(err, current)
     }
 
     /**
-     * Checks if the current state is a final state. It is the case if it
-     * reached the end of the computation, or an error
-     */
+      * Checks if the current state is a final state. It is the case if it
+      * reached the end of the computation, or an error
+      */
     def halted: Boolean = control match {
       case ControlEval(_, _) => false
       case ControlKont(v) => a == HaltKontAddress
@@ -94,21 +122,32 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
     }
   }
   object State {
-    def inject(exp: Exp, env: Iterable[(String, Addr)], store: Iterable[(Addr, Abs)]) =
+    def inject(exp: Exp,
+               env: Iterable[(String, Addr)],
+               store: Iterable[(Addr, Abs)]) =
       State(ControlEval(exp, Environment.initial[Addr](env)),
-        Store.initial[Addr, Abs](store), KontStore.empty[KontAddr], HaltKontAddress, time.initial(""))
+            Store.initial[Addr, Abs](store),
+            KontStore.empty[KontAddr],
+            HaltKontAddress,
+            time.initial(""))
   }
 
-  case class AAMOutput(halted: Set[State], numberOfStates: Int, time: Double, graph: Option[Graph[State, Unit]], timedOut: Boolean)
+  case class AAMOutput(halted: Set[State],
+                       numberOfStates: Int,
+                       time: Double,
+                       graph: Option[Graph[State, Unit]],
+                       timedOut: Boolean)
       extends Output[Abs] {
 
     /**
-     * Returns the list of final values that can be reached
-     */
-    def finalValues = halted.flatMap(st => st.control match {
-      case ControlKont(v) => Set[Abs](v)
-      case _ => Set[Abs]()
-    })
+      * Returns the list of final values that can be reached
+      */
+    def finalValues =
+      halted.flatMap(st =>
+        st.control match {
+          case ControlKont(v) => Set[Abs](v)
+          case _ => Set[Abs]()
+      })
 
     /**
       * Returns the set of stores of the final states
@@ -116,31 +155,48 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
     def finalStores: Set[Store[Addr, Abs]] = halted.map(st => st.store)
 
     /**
-     * Checks if a halted state contains a value that subsumes @param v
-     */
-    def containsFinalValue(v: Abs) = finalValues.exists(v2 => abs.subsumes(v2, v))
+      * Checks if a halted state contains a value that subsumes @param v
+      */
+    def containsFinalValue(v: Abs) =
+      finalValues.exists(v2 => abs.subsumes(v2, v))
 
     /**
-     * Outputs the graph in a dot file
-     */
+      * Outputs the graph in a dot file
+      */
     def toDotFile(path: String) = graph match {
-      case Some(g) => g.toDotFile(path, node => List(scala.xml.Text(node.toString.take(40))),
-        (s) => if (halted.contains(s)) { Colors.Yellow } else { s.control match {
-          case ControlEval(_, _) => Colors.Green
-          case ControlKont(_) => Colors.Pink
-          case ControlError(_) => Colors.Red
-        }}, _ => List())
+      case Some(g) =>
+        g.toDotFile(path,
+                    node => List(scala.xml.Text(node.toString.take(40))),
+                    (s) =>
+                      if (halted.contains(s)) { Colors.Yellow } else {
+                        s.control match {
+                          case ControlEval(_, _) => Colors.Green
+                          case ControlKont(_) => Colors.Pink
+                          case ControlError(_) => Colors.Red
+                        }
+                    },
+                    _ => List())
       case None =>
         println("Not generating graph because no graph was computed")
     }
   }
 
-  def kickstartEval(initialState: State, sem: Semantics[Exp, Abs, Addr, Time], stopEval: Option[State => Boolean],
-                    timeout: Option[Long], graph: Boolean): AAMOutput = {
-    def loop(todo: Set[State], visited: Set[State], halted: Set[State],
-             startingTime: Long, graph: Option[Graph[State, Unit]]): AAMOutput = {
+  def kickstartEval(initialState: State,
+                    sem: Semantics[Exp, Abs, Addr, Time],
+                    stopEval: Option[State => Boolean],
+                    timeout: Option[Long],
+                    graph: Boolean): AAMOutput = {
+    def loop(todo: Set[State],
+             visited: Set[State],
+             halted: Set[State],
+             startingTime: Long,
+             graph: Option[Graph[State, Unit]]): AAMOutput = {
       if (timeout.map(System.nanoTime - startingTime > _).getOrElse(false)) {
-        AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9), graph, true)
+        AAMOutput(halted,
+                  visited.size,
+                  (System.nanoTime - startingTime) / Math.pow(10, 9),
+                  graph,
+                  true)
       } else {
         todo.headOption match {
           case Some(s) =>
@@ -158,37 +214,58 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
               /* Otherwise, compute the successors of this state, update the graph, and push
                * the new successors on the todo list */
               val succs = s.step(sem)
-              val newGraph = graph.map(_.addEdges(succs.map(s2 => (s, (), s2))))
-              loop(todo.tail ++ succs, visited + s, halted, startingTime, newGraph)
+              val newGraph =
+                graph.map(_.addEdges(succs.map(s2 => (s, (), s2))))
+              loop(todo.tail ++ succs,
+                   visited + s,
+                   halted,
+                   startingTime,
+                   newGraph)
             }
-          case None => AAMOutput(halted, visited.size,
-            (System.nanoTime - startingTime) / Math.pow(10, 9), graph, false)
+          case None =>
+            AAMOutput(halted,
+                      visited.size,
+                      (System.nanoTime - startingTime) / Math.pow(10, 9),
+                      graph,
+                      false)
         }
       }
     }
     val startingTime = System.nanoTime
-    loop(Set(initialState), Set(), Set(), startingTime, if (graph) { Some(new Graph[State, Unit]()) } else { None })
+    loop(Set(initialState), Set(), Set(), startingTime, if (graph) {
+      Some(new Graph[State, Unit]())
+    } else { None })
   }
 
-  def kickstartAnalysis[L](analysis: Analysis[L, Exp, Abs, Addr, Time], initialState: State,
-                           sem: Semantics[Exp, Abs, Addr, Time], timeout: Option[Long]): Option[L] = {
-    def loop(todo: Set[(State, L)], visited: Set[(State, L)], finalValue: Option[L], startingTime: Long): Option[L] =
+  def kickstartAnalysis[L](analysis: Analysis[L, Exp, Abs, Addr, Time],
+                           initialState: State,
+                           sem: Semantics[Exp, Abs, Addr, Time],
+                           timeout: Option[Long]): Option[L] = {
+    def loop(todo: Set[(State, L)],
+             visited: Set[(State, L)],
+             finalValue: Option[L],
+             startingTime: Long): Option[L] =
       if (timeout.map(System.nanoTime - startingTime > _).getOrElse(false)) {
         None
       } else {
         todo.headOption match {
           case Some((s, l)) =>
-            if (visited.contains((s, l)) || visited.exists({ case (s2, _) => s2.subsumes(s) })) {
+            if (visited.contains((s, l)) || visited
+                  .exists({ case (s2, _) => s2.subsumes(s) })) {
               loop(todo.tail, visited, finalValue, startingTime)
             } else if (s.halted) {
               loop(todo.tail, visited + ((s, l)), finalValue match {
                 case None => Some(s.stepAnalysis(analysis, l))
-                case Some(l2) => Some(analysis.join(l2, s.stepAnalysis(analysis, l)))
+                case Some(l2) =>
+                  Some(analysis.join(l2, s.stepAnalysis(analysis, l)))
               }, startingTime)
             } else {
               val succs = s.step(sem)
               val l2 = s.stepAnalysis(analysis, l)
-              loop(todo.tail ++ succs.map(s2 => (s2, l2)), visited + ((s, l)), finalValue, startingTime)
+              loop(todo.tail ++ succs.map(s2 => (s2, l2)),
+                   visited + ((s, l)),
+                   finalValue,
+                   startingTime)
             }
           case None => finalValue
         }
@@ -197,17 +274,29 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
     loop(Set((initialState, analysis.init)), Set(), None, startingTime)
   }
 
-
   /**
-   * Performs the evaluation of an expression, possibly writing the output graph
-   * in a file, and returns the set of final states reached
-   */
-  def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Option[Long]): Output[Abs] = {
-    kickstartEval(State.inject(exp, sem.initialEnv, sem.initialStore), sem, None, timeout, graph)
+    * Performs the evaluation of an expression, possibly writing the output graph
+    * in a file, and returns the set of final states reached
+    */
+  def eval(exp: Exp,
+           sem: Semantics[Exp, Abs, Addr, Time],
+           graph: Boolean,
+           timeout: Option[Long]): Output[Abs] = {
+    kickstartEval(State.inject(exp, sem.initialEnv, sem.initialStore),
+                  sem,
+                  None,
+                  timeout,
+                  graph)
   }
 
-  override def analyze[L](exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], analysis: Analysis[L, Exp, Abs, Addr, Time], timeout: Option[Long]) = {
+  override def analyze[L](exp: Exp,
+                          sem: Semantics[Exp, Abs, Addr, Time],
+                          analysis: Analysis[L, Exp, Abs, Addr, Time],
+                          timeout: Option[Long]) = {
     val startingTime = System.nanoTime
-    kickstartAnalysis[L](analysis, State.inject(exp, sem.initialEnv, sem.initialStore), sem, timeout)
+    kickstartAnalysis[L](analysis,
+                         State.inject(exp, sem.initialEnv, sem.initialStore),
+                         sem,
+                         timeout)
   }
 }

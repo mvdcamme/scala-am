@@ -10,7 +10,9 @@ object IdKontAddrConverter extends KontAddrConverter {
 
 }
 
-class ConvertTimestampKontAddrConverter[Exp : Expression, Time : Timestamp](timeSwitcher: TimestampConverter[Time]) extends KontAddrConverter {
+class ConvertTimestampKontAddrConverter[Exp: Expression, Time: Timestamp](
+    timeSwitcher: TimestampConverter[Time])
+    extends KontAddrConverter {
 
   def convertKontAddr(k: KontAddr): KontAddr = k match {
     case a: NoExpKontAddress[Time] =>
@@ -23,15 +25,17 @@ class ConvertTimestampKontAddrConverter[Exp : Expression, Time : Timestamp](time
 
 }
 
-
 /*
  * To be used for converting continuation addresses: delegates to the proper conversion strategy.
  */
-class DefaultKontAddrConverter[Exp : Expression] extends KontAddrConverter {
+class DefaultKontAddrConverter[Exp: Expression] extends KontAddrConverter {
 
   val timestampConverter = IdHybridTimestampConverter
-  val kontAddressConverter = new ConvertTimestampKontAddrConverter[Exp, HybridTimestamp.T](timestampConverter)
+  val kontAddressConverter =
+    new ConvertTimestampKontAddrConverter[Exp, HybridTimestamp.T](
+      timestampConverter)
 
-  def convertKontAddr(k: KontAddr): KontAddr = kontAddressConverter.convertKontAddr(k)
+  def convertKontAddr(k: KontAddr): KontAddr =
+    kontAddressConverter.convertKontAddr(k)
 
 }

@@ -598,11 +598,10 @@ object Main {
               new PointsToAnalysisLauncher[pointsLattice.L](sem)(
                 pointsConvLattice,
                 pointsLatInfoProv)
-            val tracerContext = new SchemeTracer[ConcreteConcreteLattice.L,
-                                                 HybridAddress.A,
-                                                 HybridTimestamp.T](
-              sem,
-              someOptimizer)
+            val tracerContext =
+              new SchemeTracer[ConcreteConcreteLattice.L,
+                               HybridAddress.A,
+                               HybridTimestamp.T](sem, someOptimizer)
             val machine = new HybridMachine[constLattice.L, pointsLattice.L](
               sem,
               constantsAnalysisLauncher,

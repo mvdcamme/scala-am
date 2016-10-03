@@ -21,7 +21,7 @@ trait IsTaintLattice[L] extends IsSchemeLattice[L] {
   def taintStatus(x: L): TaintStatus
 }
 
-class TaintLattice[Abs : IsSchemeLattice] extends SchemeLattice {
+class TaintLattice[Abs: IsSchemeLattice] extends SchemeLattice {
   type L = (TaintStatus, Abs)
   val abs = implicitly[IsSchemeLattice[Abs]]
   implicit val isTaintLattice: IsTaintLattice[L] = new IsTaintLattice[L] {
@@ -53,20 +53,28 @@ class TaintLattice[Abs : IsSchemeLattice] extends SchemeLattice {
     }
     def bottom = (BottomTaint, abs.bottom)
     def join(x: L, y: L) = (joinTaint(x._1, y._1), abs.join(x._2, y._2))
-    def subsumes(x: L, y: L) = abs.subsumes(x._2, y._2) && (if (x._1 == y._1) { true } else {
-      (x._1, y._1) match {
-        case (_, BottomTaint) => true
-        case (BottomTaint, _) => false
-        case (MaybeTainted(s), MaybeTainted(s2)) => s2.subsetOf(s)
-        case (Tainted(s), Tainted(s2)) => s2.subsetOf(s)
-        case (MaybeTainted(s), Tainted(s2)) => s2.subsetOf(s)
-        case (Tainted(_), MaybeTainted(_)) => false
-        case (MaybeTainted(_), Untainted) => true
-        case (Untainted, MaybeTainted(_)) => false
-        case (Untainted, Tainted(_)) => false
-        case (Tainted(_), Untainted) => false
-      }
-    })
+    def subsumes(x: L, y: L) =
+      abs.subsumes(x._2, y._2) && (if (x._1 == y._1) { true } else {
+                                     (x._1, y._1) match {
+                                       case (_, BottomTaint) => true
+                                       case (BottomTaint, _) => false
+                                       case (MaybeTainted(s),
+                                             MaybeTainted(s2)) =>
+                                         s2.subsetOf(s)
+                                       case (Tainted(s), Tainted(s2)) =>
+                                         s2.subsetOf(s)
+                                       case (MaybeTainted(s), Tainted(s2)) =>
+                                         s2.subsetOf(s)
+                                       case (Tainted(_), MaybeTainted(_)) =>
+                                         false
+                                       case (MaybeTainted(_), Untainted) =>
+                                         true
+                                       case (Untainted, MaybeTainted(_)) =>
+                                         false
+                                       case (Untainted, Tainted(_)) => false
+                                       case (Tainted(_), Untainted) => false
+                                     }
+                                   })
     val name = "Taint(${abs.name})"
     val counting = abs.counting
 
@@ -79,88 +87,139 @@ class TaintLattice[Abs : IsSchemeLattice] extends SchemeLattice {
       abs.binaryOp(op)(x._2, y._2).map(res => (joinTaint(x._1, y._1), res))
     def and(x: L, y: => L): L = (joinTaint(x._1, y._1), abs.and(x._2, y._2))
     def or(x: L, y: => L): L = (joinTaint(x._1, y._1), abs.or(x._2, y._2))
-    def car[Addr : Address](x: L) = abs.car[Addr](x._2)
-    def cdr[Addr : Address](x: L) = abs.cdr[Addr](x._2)
-    def vectorRef[Addr : Address](vector: L, index: L): MayFail[Set[Addr]] = abs.vectorRef(vector._2, index._2)
-    def vectorSet[Addr : Address](vector: L, index: L, addr: Addr): MayFail[(L, Set[Addr])] = abs.vectorSet(vector._2, index._2, addr).map({
-      case (res, addrs) => ((Untainted, res), addrs) })
+    def car[Addr: Address](x: L) = abs.car[Addr](x._2)
+    def cdr[Addr: Address](x: L) = abs.cdr[Addr](x._2)
+    def vectorRef[Addr: Address](vector: L, index: L): MayFail[Set[Addr]] =
+      abs.vectorRef(vector._2, index._2)
+    def vectorSet[Addr: Address](vector: L,
+                                 index: L,
+                                 addr: Addr): MayFail[(L, Set[Addr])] =
+      abs
+        .vectorSet(vector._2, index._2, addr)
+        .map({
+          case (res, addrs) => ((Untainted, res), addrs)
+        })
     def inject(x: Int): L = (Untainted, abs.inject(x))
     def inject(x: Float): L = (Untainted, abs.inject(x))
     def inject(x: String): L = (Untainted, abs.inject(x))
     def inject(x: Char): L = (Untainted, abs.inject(x))
     def inject(x: Boolean): L = (Untainted, abs.inject(x))
-    def inject[Addr : Address, Abs : JoinLattice](x: Primitive[Addr, Abs]): L = (Untainted, abs.inject[Addr, Abs](x))
-    def inject[Exp : Expression, Addr : Address](x: (Exp, Environment[Addr])): L = (Untainted, abs.inject[Exp, Addr](x))
+    def inject[Addr: Address, Abs: JoinLattice](x: Primitive[Addr, Abs]): L =
+      (Untainted, abs.inject[Addr, Abs](x))
+    def inject[Exp: Expression, Addr: Address](
+        x: (Exp, Environment[Addr])): L = (Untainted, abs.inject[Exp, Addr](x))
     def injectSymbol(x: String): L = (Untainted, abs.injectSymbol(x))
-    def cons[Addr : Address](car: Addr, cdr: Addr): L = (Untainted, abs.cons[Addr](car, cdr))
-    def vector[Addr : Address](addr: Addr, size: L, init: Addr): MayFail[(L, L)] = abs.vector(addr, size._2, init).map({
-      case (v, va) => ((Untainted, v), (Untainted, va)) })
+    def cons[Addr: Address](car: Addr, cdr: Addr): L =
+      (Untainted, abs.cons[Addr](car, cdr))
+    def vector[Addr: Address](addr: Addr,
+                              size: L,
+                              init: Addr): MayFail[(L, L)] =
+      abs
+        .vector(addr, size._2, init)
+        .map({
+          case (v, va) => ((Untainted, v), (Untainted, va))
+        })
     def nil: L = (Untainted, abs.nil)
 
-    def getClosures[Exp : Expression, Addr : Address](x: L): Set[(Exp, Environment[Addr])] = abs.getClosures(x._2)
-    def getPrimitives[Addr : Address, Abs : JoinLattice](x: L): Set[Primitive[Addr, Abs]] = abs.getPrimitives(x._2)
-    def getVectors[Addr : Address](x: L): Set[Addr] = abs.getVectors(x._2)
+    def getClosures[Exp: Expression, Addr: Address](
+        x: L): Set[(Exp, Environment[Addr])] = abs.getClosures(x._2)
+    def getPrimitives[Addr: Address, Abs: JoinLattice](
+        x: L): Set[Primitive[Addr, Abs]] = abs.getPrimitives(x._2)
+    def getVectors[Addr: Address](x: L): Set[Addr] = abs.getVectors(x._2)
   }
   val isSchemeLattice: IsSchemeLattice[L] = isTaintLattice
 }
 
-case class TaintError(sources: Set[Position], sink: Position) extends SemanticError
+case class TaintError(sources: Set[Position], sink: Position)
+    extends SemanticError
 
 /* We need to extend the language with primitives representing sources, sinks, and sanitizers */
-class TSchemePrimitives[Addr : Address, Abs : IsTaintLattice] extends SchemePrimitives[Addr, Abs] {
+class TSchemePrimitives[Addr: Address, Abs: IsTaintLattice]
+    extends SchemePrimitives[Addr, Abs] {
   val tabs = implicitly[IsTaintLattice[Abs]]
   object Taint extends Primitive[Addr, Abs] {
     val name = "taint"
-    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time) = args match {
-      case (_, x) :: Nil => MayFailSuccess((tabs.taint(x, implicitly[Expression[Exp]].pos(fexp)), store, Set()))
+    def call[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                               args: List[(Exp, Abs)],
+                                               store: Store[Addr, Abs],
+                                               t: Time) = args match {
+      case (_, x) :: Nil =>
+        MayFailSuccess(
+          (tabs.taint(x, implicitly[Expression[Exp]].pos(fexp)), store, Set()))
       case l => MayFailError(List(ArityError(name, 1, l.size)))
     }
-    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+    def convert[Addr: Address, Abs: IsConvertableLattice](
+        prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.asInstanceOf[TSchemePrimitives[Addr, Abs]].Taint
   }
   object Sink extends Primitive[Addr, Abs] {
     val name = "sink"
-    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time) = args match {
-      case (_, x) :: Nil => tabs.taintStatus(x) match {
-        case Untainted => MayFailSuccess((x, store, Set()))
-        case MaybeTainted(sources) => MayFailBoth((x, store, Set()), List(TaintError(sources, implicitly[Expression[Exp]].pos(fexp))))
-        case Tainted(sources) => MayFailError(List(TaintError(sources, implicitly[Expression[Exp]].pos(fexp))))
-        case BottomTaint => MayFailSuccess(x, store, Set())
-      }
+    def call[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                               args: List[(Exp, Abs)],
+                                               store: Store[Addr, Abs],
+                                               t: Time) = args match {
+      case (_, x) :: Nil =>
+        tabs.taintStatus(x) match {
+          case Untainted => MayFailSuccess((x, store, Set()))
+          case MaybeTainted(sources) =>
+            MayFailBoth(
+              (x, store, Set()),
+              List(TaintError(sources, implicitly[Expression[Exp]].pos(fexp))))
+          case Tainted(sources) =>
+            MayFailError(
+              List(TaintError(sources, implicitly[Expression[Exp]].pos(fexp))))
+          case BottomTaint => MayFailSuccess(x, store, Set())
+        }
       case l => MayFailError(List(ArityError(name, 1, l.size)))
     }
-    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+    def convert[Addr: Address, Abs: IsConvertableLattice](
+        prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.asInstanceOf[TSchemePrimitives[Addr, Abs]].Sink
   }
   object Sanitize extends Primitive[Addr, Abs] {
     val name = "sanitize"
-    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time) = args match {
+    def call[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                               args: List[(Exp, Abs)],
+                                               store: Store[Addr, Abs],
+                                               t: Time) = args match {
       case (_, x) :: Nil => MayFailSuccess((tabs.sanitize(x), store, Set()))
       case l => MayFailError(List(ArityError(name, 1, l.size)))
     }
-    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+    def convert[Addr: Address, Abs: IsConvertableLattice](
+        prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.asInstanceOf[TSchemePrimitives[Addr, Abs]].Sanitize
   }
   override def all = super.all ++ List(Taint, Sink, Sanitize)
 }
 
 /* The analysis itself only collects the error strings starting with "sink: " */
-case class TaintAnalysis[Abs : JoinLattice, Addr : Address, Time : Timestamp]()
+case class TaintAnalysis[Abs: JoinLattice, Addr: Address, Time: Timestamp]()
     extends BaseAnalysis[Set[(Position, Position)], SchemeExp, Abs, Addr, Time] {
-  def stepEval(e: SchemeExp, env: Environment[Addr], store: Store[Addr, Abs], t: Time, current: Set[(Position, Position)]) = current
-  def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time, current: Set[(Position, Position)]) = current
-  def error(error: SemanticError, current: Set[(Position, Position)]) = error match {
-    case TaintError(sources, sink) => current ++ sources.map(source => (source, sink))
-    case _ => current
-  }
+  def stepEval(e: SchemeExp,
+               env: Environment[Addr],
+               store: Store[Addr, Abs],
+               t: Time,
+               current: Set[(Position, Position)]) = current
+  def stepKont(v: Abs,
+               frame: Frame,
+               store: Store[Addr, Abs],
+               t: Time,
+               current: Set[(Position, Position)]) = current
+  def error(error: SemanticError, current: Set[(Position, Position)]) =
+    error match {
+      case TaintError(sources, sink) =>
+        current ++ sources.map(source => (source, sink))
+      case _ => current
+    }
   def join(x: Set[(Position, Position)], y: Set[(Position, Position)]) = x ++ y
   def init = Set[(Position, Position)]()
 }
 
 /* We can finally run the analysis and detect when a tanted value flows to a sink */
 object TaintAnalysis {
-  def analyze[L : IsTaintLattice](program: String): Set[(Position, Position)] = {
-    val sem = new SchemeSemantics[L, ClassicalAddress.A, ZeroCFA.T](new TSchemePrimitives[ClassicalAddress.A, L])
+  def analyze[L: IsTaintLattice](program: String): Set[(Position, Position)] = {
+    val sem = new SchemeSemantics[L, ClassicalAddress.A, ZeroCFA.T](
+      new TSchemePrimitives[ClassicalAddress.A, L])
     val machine = new AAM[SchemeExp, L, ClassicalAddress.A, ZeroCFA.T]
     val analysis = TaintAnalysis[L, ClassicalAddress.A, ZeroCFA.T]
     machine.analyze(sem.parse(program), sem, analysis, None) match {
@@ -178,7 +237,11 @@ object TaintAnalysis {
       if (errors.isEmpty) {
         println("No taint errors detected")
       } else {
-        errors.foreach({ case (source, sink) => println(s"tainted value flows from source at position $source to sink at position $sink") })
+        errors.foreach({
+          case (source, sink) =>
+            println(
+              s"tainted value flows from source at position $source to sink at position $sink")
+        })
       }
     } else {
       println("Please provide input program as argument")

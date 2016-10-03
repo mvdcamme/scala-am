@@ -1,10 +1,18 @@
 object BenchmarkGeneratorConfig {
-  case class Configuration(name: String = "indexer", threads: Int = 2, output: Option[String] = None)
+  case class Configuration(name: String = "indexer",
+                           threads: Int = 2,
+                           output: Option[String] = None)
   val parser = new scopt.OptionParser[Configuration]("scala-am") {
     head("scala-am", "0.0")
-    opt[Int]('t', "threads") action { (x, c) => c.copy(threads = x) } text("Number of threads (2 by default)")
-    opt[String]('n', "name") action { (x, c) => c.copy(name = x) } text("Name of the benchmark (indexer by default)")
-    opt[String]('f', "file") action { (x, c) => c.copy(output = Some(x)) } text("Output file (stdout by default)")
+    opt[Int]('t', "threads") action { (x, c) =>
+      c.copy(threads = x)
+    } text ("Number of threads (2 by default)")
+    opt[String]('n', "name") action { (x, c) =>
+      c.copy(name = x)
+    } text ("Name of the benchmark (indexer by default)")
+    opt[String]('f', "file") action { (x, c) =>
+      c.copy(output = Some(x))
+    } text ("Output file (stdout by default)")
   }
 }
 
@@ -13,15 +21,23 @@ object BenchmarkGenerator {
     val name: String
     def generate(threads: Int): String
   }
-  abstract class SimpleGenerator(val name: String, val threadName: String, val definitions: String) extends Generator {
+  abstract class SimpleGenerator(val name: String,
+                                 val threadName: String,
+                                 val definitions: String)
+      extends Generator {
     def generate(threads: Int) = {
       definitions +
-        (1 to threads).map(i => s"(t$i (spawn ($threadName $i)))").mkString("\n") + ")\n" +
+        (1 to threads)
+          .map(i => s"(t$i (spawn ($threadName $i)))")
+          .mkString("\n") + ")\n" +
         (1 to threads).map(i => s"(join t$i)").mkString("\n") + ")"
     }
   }
-  object Indexer extends SimpleGenerator("indexer", "thread",
-    """(let* ((size 128)
+  object Indexer
+      extends SimpleGenerator(
+        "indexer",
+        "thread",
+        """(let* ((size 128)
        (max 4)
        (table (make-vector size 0))
        (thread (lambda (tid)
@@ -39,8 +55,11 @@ object BenchmarkGenerator {
                    (process 0))))
 """)
 
-  object Fs extends SimpleGenerator("fs", "thread",
-    """(let* ((numblocks 26)
+  object Fs
+      extends SimpleGenerator(
+        "fs",
+        "thread",
+        """(let* ((numblocks 26)
        (numinode 32)
        (locki (vector (new-lock) (new-lock) (new-lock) (new-lock) (new-lock)
                       (new-lock) (new-lock) (new-lock) (new-lock) (new-lock)
@@ -74,15 +93,17 @@ object BenchmarkGenerator {
                        (process (modulo (* i 2) numblocks)))
                    (release (vector-ref locki i)))))
 """)
-  object Count extends SimpleGenerator("count", "thread",
-    """(letrec ((i 100)
+  object Count
+      extends SimpleGenerator("count",
+                              "thread",
+                              """(letrec ((i 100)
          (thread (lambda (n)
                  (if (<= i 0)
                      #t
                      (begin (set! i (- i 1)) (thread n)))))
 """)
-  object PCounter extends SimpleGenerator("pcounter", "thread",
-    """(letrec ((counter 0)
+  object PCounter
+      extends SimpleGenerator("pcounter", "thread", """(letrec ((counter 0)
          (thread (lambda (n)
                    (letrec ((old counter)
                             (new (+ old 1)))
@@ -91,19 +112,21 @@ object BenchmarkGenerator {
                          (thread n)))))
 """)
 
-
   val generators: Set[Generator] = Set(Fs, Indexer, Count, PCounter)
-  val benchmarks: Map[String, Generator] = generators.map(g => (g.name, g)).toMap
+  val benchmarks: Map[String, Generator] =
+    generators.map(g => (g.name, g)).toMap
 
   def main(args: Array[String]) {
-    BenchmarkGeneratorConfig.parser.parse(args, BenchmarkGeneratorConfig.Configuration()) match {
+    BenchmarkGeneratorConfig.parser
+      .parse(args, BenchmarkGeneratorConfig.Configuration()) match {
       case Some(config) =>
         benchmarks.get(config.name) match {
           case Some(gen) =>
             val out = gen.generate(config.threads)
             config.output match {
               case Some(name) => {
-                val f = new java.io.BufferedWriter(new java.io.FileWriter(new java.io.File(name)))
+                val f = new java.io.BufferedWriter(
+                  new java.io.FileWriter(new java.io.File(name)))
                 f.write(out)
                 f.close()
               }

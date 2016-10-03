@@ -85,7 +85,7 @@ class ConcurrentAAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
       case ControlEval(e, ρ) => integrate(tid, a, sem.stepEval(e, ρ, store, t), threads, store, results)
       case ControlKont(v) if halted && tid != thread.initial =>
         /* TODO: we could avoid distinguishing the initial thread, and just get the
-         * final results at its location in results */
+ * final results at its location in results */
         Set((threads.remove(tid), results.add(tid, v), store, noEffect))
       case ControlKont(v) => kstore.lookup(a).flatMap({
         case Kont(frame, next) => integrate(tid, next, sem.stepKont(v, frame, store, t), threads, store, results)
@@ -546,7 +546,7 @@ class ConcurrentAAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
 
   class ThreadPickMap(m: Map[State, Set[TID]]) {
     /** Pick a new tid to explore. If no more tid can be explored, return None (in
-      * which case, either the program is halted, or in a deadlock). */
+ * which case, either the program is halted, or in a deadlock). */
     def pick(s: State): Option[TID] = {
       m.get(s) match {
         case None => s.threads.tids.headOption
@@ -716,8 +716,8 @@ class ConcurrentAAM[Exp : Expression, Abs : AbstractValue, Addr : Address, Time 
                             g = g.map(_.addEdge(s, (p, effs), next))
                             /* DPOR: let S' = S.t */
                             /* in our case, a transition is described by the predecessor state (s), the tid
-                             * (p), and the effects (effs). 'next' is needed to
-                             * compute last(S) */
+ * (p), and the effects (effs). 'next' is needed to
+ * compute last(S) */
                             val stack2: Stack = append(stack, s, p, effs, next)
                             /* DPOR: let cv = max{C(i) | i \in 1..|S| and S_i dependent with t}; */
                             val cv: ClockVector = (0 to size(stack)).filter(i => isDependent(t, stack, i)).map(i => clocks(Right(i))).foldLeft(emptyClockVector)((l, r) => maxClockVector(l, r))

@@ -3,40 +3,38 @@
   * Scheme-like constructs. It however doesn't fully support any RnRS standard
   * syntax.
   */
-
 /** NOTE: How the lexer/parser works and how to debug it
- *
- * The SExpTokens trait defines the tokens of the language. The chars field of
- * each token is the textual representation of the token.
- *
+  *
+  * The SExpTokens trait defines the tokens of the language. The chars field of
+  * each token is the textual representation of the token.
+  *
 
- * The SExpLexer class defines a bunch of lexers. Some of them are helper
- * lexers, used in other ones. Lexers of type Parser[Token] will lex one of our
- * token. All these lexers are then assembled into the 'token' function, which
- * will parse either one of them, ignoring whitespace and comments.
+  * The SExpLexer class defines a bunch of lexers. Some of them are helper
+  * lexers, used in other ones. Lexers of type Parser[Token] will lex one of our
+  * token. All these lexers are then assembled into the 'token' function, which
+  * will parse either one of them, ignoring whitespace and comments.
 
- * To test a lexer, one just has to apply it, providing a Reader[Char] as
- * argument. For example, to test the character lexer:
- *   val lexical = new SExpLexer
- *   println(lexical.character(new scala.util.parsing.input.CharArrayReader("#\c".toCharArray))
+  * To test a lexer, one just has to apply it, providing a Reader[Char] as
+  * argument. For example, to test the character lexer:
+  *   val lexical = new SExpLexer
+  *   println(lexical.character(new scala.util.parsing.input.CharArrayReader("#\c".toCharArray))
 
- * The SExpParser class defines parsers, similarly as SExpLexer. The difference
- * is that the parser works by assembling a bunch of tokens into grammar items,
- * whereas the lexer works by assembling a bunch of characters to tokens.
+  * The SExpParser class defines parsers, similarly as SExpLexer. The difference
+  * is that the parser works by assembling a bunch of tokens into grammar items,
+  * whereas the lexer works by assembling a bunch of characters to tokens.
 
- * To test a parser, similarly to the lexers, one just has to apply it,
- * providing a Reader[Token] as argument (given by the Scanner class of the
- * lexer). For example, to test the 'nil' parser:
- *   val lexical = new SExpLexer
- *   println(SExpParser.nil(new SExpParser.lexical.Scanner("()"))
+  * To test a parser, similarly to the lexers, one just has to apply it,
+  * providing a Reader[Token] as argument (given by the Scanner class of the
+  * lexer). For example, to test the 'nil' parser:
+  *   val lexical = new SExpLexer
+  *   println(SExpParser.nil(new SExpParser.lexical.Scanner("()"))
 
- * You may ask why is SExpLexer defined as a class, and SExpParser as an
- * object. The answer is simple: I don't know, but that's apparently the idiom
- * to use. SExpParser's lexical variable *needs* to be set to the lexer
- * used. Also, having SExpLexer as a separate class seems the only way to be
- * able to import it and test it outside this file.
- */
-
+  * You may ask why is SExpLexer defined as a class, and SExpParser as an
+  * object. The answer is simple: I don't know, but that's apparently the idiom
+  * to use. SExpParser's lexical variable *needs* to be set to the lexer
+  * used. Also, having SExpLexer as a separate class seems the only way to be
+  * able to import it and test it outside this file.
+  */
 import scala.util.parsing.combinator.token._
 import scala.util.parsing.combinator.lexical._
 import scala.util.parsing.combinator.syntactical._
@@ -81,51 +79,64 @@ class SExpLexer extends Lexical with SExpTokens {
   def eol: Parser[Any] = acceptIf(n => n == '\n')(n => "")
   def notEol: Parser[Char] = acceptIf(n => n != '\n')(n => "")
   def comment: Parser[String] = ';' ~> rep(notEol) <~ eol ^^ (_.mkString)
-  def nonRelevant: Parser[Unit] = rep(comment | whitespaceChar | eol) ^^ (_ => ())
+  def nonRelevant: Parser[Unit] =
+    rep(comment | whitespaceChar | eol) ^^ (_ => ())
 
   def any: Parser[Char] = chrExcept()
   def chr(c: Char): Parser[Char] = elem(s"character $c", _ == c)
   def sign: Parser[Option[Char]] = opt(chr('+') | chr('-'))
   def stringContent: Parser[String] = {
-    ('\\' ~ any ~ stringContent ^^ { case '\\' ~ c ~ s => "\\$c$s" } ) |
-    (rep(chrExcept('\"', '\n')) ^^ (_.mkString))
+    ('\\' ~ any ~ stringContent ^^ { case '\\' ~ c ~ s => "\\$c$s" }) |
+      (rep(chrExcept('\"', '\n')) ^^ (_.mkString))
   }
 
   def bool: Parser[SExpToken] =
     '#' ~> ('t' ^^ (_ => TBoolean(true)) | 'f' ^^ (_ => TBoolean(false)))
   def integer: Parser[SExpToken] =
-    sign ~ rep1(digit) ^^ { case s ~ n =>
-                            s match {
-                              case Some('+') => TInteger(n.mkString.toInt)
-                              case Some('-') => TInteger(- n.mkString.toInt)
-                              case _ => TInteger(n.mkString.toInt)
-                            }
-                          }
+    sign ~ rep1(digit) ^^ {
+      case s ~ n =>
+        s match {
+          case Some('+') => TInteger(n.mkString.toInt)
+          case Some('-') => TInteger(-n.mkString.toInt)
+          case _ => TInteger(n.mkString.toInt)
+        }
+    }
   def character: Parser[SExpToken] =
     '#' ~> '\\' ~> any ^^ (c => TCharacter(c))
   def stringEnding: Parser[String] = chrExcept('\\', '\n') ^^ (_.toString)
   def string: Parser[SExpToken] = {
-    ('\"' ~> stringContent ~ chrExcept('\\', '\n') <~ '\"' ^^ { case s ~ ending => TString(s + ending) }) |
-    ('\"' ~> stringContent <~ '\"' ^^ (s => TString(s)))
+    ('\"' ~> stringContent ~ chrExcept('\\', '\n') <~ '\"' ^^ {
+      case s ~ ending => TString(s + ending)
+    }) |
+      ('\"' ~> stringContent <~ '\"' ^^ (s => TString(s)))
   }
   def identifier: Parser[SExpToken] =
-    rep1(chrExcept('#', '\'', '\"', '(', ')', ' ', ';', '\n', '\t')) ^^ (s => TIdentifier(s.mkString))
-  def quote: Parser[SExpToken] = chr('\'') ^^ { _ => TQuote() }
-  def leftParen: Parser[SExpToken] = chr('(') ^^ { _ => TLeftParen() }
-  def rightParen: Parser[SExpToken] = chr(')') ^^ { _ => TRightParen() }
+    rep1(chrExcept('#', '\'', '\"', '(', ')', ' ', ';', '\n', '\t')) ^^ (s =>
+                                                                           TIdentifier(
+                                                                             s.mkString))
+  def quote: Parser[SExpToken] = chr('\'') ^^ { _ =>
+    TQuote()
+  }
+  def leftParen: Parser[SExpToken] = chr('(') ^^ { _ =>
+    TLeftParen()
+  }
+  def rightParen: Parser[SExpToken] = chr(')') ^^ { _ =>
+    TRightParen()
+  }
   def float: Parser[SExpToken] =
-    sign ~ rep(digit) ~ '.' ~ rep(digit) ^^ { case s ~ pre ~ _ ~ post =>
-                                              val n = (pre.mkString + "." + post.mkString).toFloat
-                                              s match {
-                                                case Some('+') => TFloat(n)
-                                                case Some('-') => TFloat(-n)
-                                                case _ => TFloat(n)
-                                              }
-                                            }
+    sign ~ rep(digit) ~ '.' ~ rep(digit) ^^ {
+      case s ~ pre ~ _ ~ post =>
+        val n = (pre.mkString + "." + post.mkString).toFloat
+        s match {
+          case Some('+') => TFloat(n)
+          case Some('-') => TFloat(-n)
+          case _ => TFloat(n)
+        }
+    }
   def token: Parser[SExpToken] =
-    nonRelevant ~> positioned ({
+    nonRelevant ~> positioned({
       bool | float | integer | character | string | identifier |
-      quote | leftParen | rightParen
+        quote | leftParen | rightParen
     }) <~ nonRelevant
 }
 
@@ -143,9 +154,10 @@ object SExpParser extends TokenParsers {
   def float: Parser[Value] = elem("float", _.isInstanceOf[TFloat]) ^^ {
     case TFloat(n) => ValueFloat(n)
   }
-  def character: Parser[Value] = elem("character", _.isInstanceOf[TCharacter]) ^^ {
-    case TCharacter(c) => ValueCharacter(c)
-  }
+  def character: Parser[Value] =
+    elem("character", _.isInstanceOf[TCharacter]) ^^ {
+      case TCharacter(c) => ValueCharacter(c)
+    }
   def string: Parser[Value] = elem("string", _.isInstanceOf[TString]) ^^ {
     case TString(s) => ValueString(s)
   }
@@ -160,7 +172,8 @@ object SExpParser extends TokenParsers {
 
   def identifier: Parser[SExp] = Parser { in =>
     elem("identifier", _.isInstanceOf[TIdentifier])(in) match {
-      case Success(TIdentifier(s), in1) => Success(SExpIdentifier(s, in.pos), in1)
+      case Success(TIdentifier(s), in1) =>
+        Success(SExpIdentifier(s, in.pos), in1)
       case Success(v, in1) => Failure(s"Expected identifier, got $v", in1)
       case ns: NoSuccess => ns
     }
@@ -187,7 +200,8 @@ object SExpParser extends TokenParsers {
 
   def parse(s: String): List[SExp] = expList(new lexical.Scanner(s)) match {
     case Success(res, _) => res
-    case Failure(msg, _) => throw new Exception(s"cannot parse expression: $msg")
+    case Failure(msg, _) =>
+      throw new Exception(s"cannot parse expression: $msg")
     case Error(msg, _) => throw new Exception(s"cannot parse expression: $msg")
   }
 }

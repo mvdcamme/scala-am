@@ -1,12 +1,13 @@
-case class TraceInfo[Exp : Expression, Addr : Address, Time : Timestamp]
-  (boundVariables: List[(String, Addr)],
-   startState: ConcreteTracingProgramState[Exp, Addr, Time],
-   parentTraceLabel: Option[Label[Exp]])
+case class TraceInfo[Exp: Expression, Addr: Address, Time: Timestamp](
+    boundVariables: List[(String, Addr)],
+    startState: ConcreteTracingProgramState[Exp, Addr, Time],
+    parentTraceLabel: Option[Label[Exp]])
 
 trait Label[Exp]
 
-case class NormalLabel[Exp : Expression](loopID: List[Exp]) extends Label[Exp]
-case class GuardLabel[Exp : Expression](loopID: List[Exp], guardID: Integer) extends Label[Exp]
+case class NormalLabel[Exp: Expression](loopID: List[Exp]) extends Label[Exp]
+case class GuardLabel[Exp: Expression](loopID: List[Exp], guardID: Integer)
+    extends Label[Exp]
 
 trait Tracer[Exp, Abs, Addr, Time] {
 
@@ -20,8 +21,9 @@ trait Tracer[Exp, Abs, Addr, Time] {
 
   type Trace = TraceWithInfos
 
-  case class TraceNode[Trace](label: Label[Exp], trace: Trace, info: TraceInfo[Exp, Addr, Time])
-
+  case class TraceNode[Trace](label: Label[Exp],
+                              trace: Trace,
+                              info: TraceInfo[Exp, Addr, Time])
 
   def getLoopID(label: Label[Exp]): List[Exp]
 
@@ -35,33 +37,41 @@ trait Tracer[Exp, Abs, Addr, Time] {
    * Start tracing
    */
 
-  def startTracingLoop(tc: TracerContext,
-                       loopID: List[Exp],
-                       boundVariables: List[(String, Addr)],
-                       startState: ConcreteTracingProgramState[Exp, Addr, Time]): TracerContext
+  def startTracingLoop(
+      tc: TracerContext,
+      loopID: List[Exp],
+      boundVariables: List[(String, Addr)],
+      startState: ConcreteTracingProgramState[Exp, Addr, Time]): TracerContext
 
-  def startTracingGuard(tc: TracerContext,
-                        loopID: List[Exp],
-                        guardID: Integer,
-                        parentTraceLabel: Label[Exp],
-                        boundVariables: List[(String, Addr)],
-                        startState: ConcreteTracingProgramState[Exp, Addr, Time]): TracerContext
+  def startTracingGuard(
+      tc: TracerContext,
+      loopID: List[Exp],
+      guardID: Integer,
+      parentTraceLabel: Label[Exp],
+      boundVariables: List[(String, Addr)],
+      startState: ConcreteTracingProgramState[Exp, Addr, Time]): TracerContext
 
   /*
    * Stop tracing
    */
 
-  def stopTracing(tc: TracerContext, isLooping: Boolean,
-                  traceEndedInstruction: Option[TraceInstruction],
-                  state: ConcreteTracingProgramState[Exp, Addr, Time]): TracerContext
+  def stopTracing(
+      tc: TracerContext,
+      isLooping: Boolean,
+      traceEndedInstruction: Option[TraceInstruction],
+      state: ConcreteTracingProgramState[Exp, Addr, Time]): TracerContext
 
   /*
    * Finding traces
    */
 
-  def getLoopTrace(tc: TracerContext, loopID: List[Exp]): TraceNode[TraceFull[Exp, Abs, Addr, Time]]
+  def getLoopTrace(
+      tc: TracerContext,
+      loopID: List[Exp]): TraceNode[TraceFull[Exp, Abs, Addr, Time]]
 
-  def getGuardTrace(tc: TracerContext, guardID: Integer): TraceNode[TraceFull[Exp, Abs, Addr, Time]]
+  def getGuardTrace(
+      tc: TracerContext,
+      guardID: Integer): TraceNode[TraceFull[Exp, Abs, Addr, Time]]
 
   def loopTraceExists(tc: TracerContext, loopID: List[Exp]): Boolean
 
@@ -80,7 +90,8 @@ trait Tracer[Exp, Abs, Addr, Time] {
    */
 
   def stepTrace(traceNode: TraceNode[TraceFull[Exp, Abs, Addr, Time]],
-                tc: TracerContext): (TraceInstruction, TraceNode[TraceFull[Exp, Abs, Addr, Time]], Boolean)
+                tc: TracerContext)
+    : (TraceInstruction, TraceNode[TraceFull[Exp, Abs, Addr, Time]], Boolean)
 
   /*
    * Hotness counter
@@ -92,7 +103,10 @@ trait Tracer[Exp, Abs, Addr, Time] {
 
 }
 
-case class TraceFull[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
-  (info: TraceInfo[Exp, Addr, Time],
-   assertions: List[ActionT[Exp, Abs, Addr]],
-   trace: List[(ActionT[Exp, Abs, Addr], CombinedInfos[Abs, Addr])])
+case class TraceFull[Exp: Expression,
+                     Abs: JoinLattice,
+                     Addr: Address,
+                     Time: Timestamp](
+    info: TraceInfo[Exp, Addr, Time],
+    assertions: List[ActionT[Exp, Abs, Addr]],
+    trace: List[(ActionT[Exp, Abs, Addr], CombinedInfos[Abs, Addr])])
