@@ -3,9 +3,9 @@ import scala.annotation.tailrec
 /**
   * Created by mvdcamme on 24/02/16.
   */
-class SchemeTraceOptimizer//[Abs : IsSchemeLattice] TODO
+class SchemeTraceOptimizer[Abs : ConstantableLatticeInfoProvider]
   (val sem: SchemeSemanticsTraced[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-//   constantsAnalysisLauncher: ConstantsAnalysisLauncher[Abs, SchemeExp],
+   constantsAnalysisLauncher: ConstantsAnalysisLauncher[Abs],
    tracingFlags: TracingFlags)
   (implicit sabs: IsSchemeLattice[ConcreteConcreteLattice.L], latInfoProv: LatticeInfoProvider[ConcreteConcreteLattice.L])
   extends TraceOptimizer[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] {
@@ -42,31 +42,31 @@ class SchemeTraceOptimizer//[Abs : IsSchemeLattice] TODO
     Logger.log(s"Size of basic optimized trace = ${basicAssertedOptimizedTrace.trace.length}", Logger.V)
     val tier2AssertedOptimizedTrace = foldOptimisations(basicAssertedOptimizedTrace, detailedOptimizations)
     Logger.log(s"Size of advanced optimized trace = ${tier2AssertedOptimizedTrace.trace.length}", Logger.V)
-    val tier3AssertedOptimizedTrace = tier2AssertedOptimizedTrace
-//      if (tracingFlags.SWITCH_ABSTRACT) {
-//        /* Runtime analyses (+ an initial analysis) performed. */
-//        val addressesLookedUp = TraceAnalyzer.collectAddressesLookedUp[SchemeExp, HybridTimestamp.T](trace.trace)
-//        val analysisOutput = constantsAnalysisLauncher.runStaticAnalysis(state, addressesLookedUp)
-//        analysisOutput match {
-//          case ConstantAddresses(_, nonConstants) =>
-//            val staticallyOptimizedTrace = applyConstantVariablesOptimizations(tier2AssertedOptimizedTrace, nonConstants.asInstanceOf[Set[HybridAddress.A]])
-//            Logger.log(s"Size of statically optimized trace = ${staticallyOptimizedTrace.trace.length}", Logger.V)
-//            staticallyOptimizedTrace
-//          case NoStaticisAnalysisResult =>
-//            possiblyOptimizeVariableFolding(tier2AssertedOptimizedTrace)
-//        }
-//      } else if (tracingFlags.DO_INITIAL_ANALYSIS) {
-//        /* Only an initial analysis performed. */
-//        constantsAnalysisLauncher.constantsAnalysis.initialAnalysisResults.get match {
-//          case ConstantAddresses(_, nonConstants) =>
-//            val staticallyOptimizedTrace = applyConstantVariablesOptimizations(tier2AssertedOptimizedTrace, nonConstants.asInstanceOf[Set[HybridAddress.A]])
-//            Logger.log(s"Size of statically optimized trace = ${staticallyOptimizedTrace.trace.length}", Logger.V)
-//            staticallyOptimizedTrace
-//        }
-//      } else {
-//        /* No analyses performed at all. */
-//        possiblyOptimizeVariableFolding(tier2AssertedOptimizedTrace)
-//      }
+    val tier3AssertedOptimizedTrace =
+      if (tracingFlags.SWITCH_ABSTRACT) {
+        /* Runtime analyses (+ an initial analysis) performed. */
+        val addressesLookedUp = TraceAnalyzer.collectAddressesLookedUp[SchemeExp, HybridTimestamp.T](trace.trace)
+        val analysisOutput = constantsAnalysisLauncher.runStaticAnalysis(state, addressesLookedUp)
+        analysisOutput match {
+          case ConstantAddresses(_, nonConstants) =>
+            val staticallyOptimizedTrace = applyConstantVariablesOptimizations(tier2AssertedOptimizedTrace, nonConstants.asInstanceOf[Set[HybridAddress.A]])
+            Logger.log(s"Size of statically optimized trace = ${staticallyOptimizedTrace.trace.length}", Logger.V)
+            staticallyOptimizedTrace
+          case NoStaticisAnalysisResult =>
+            possiblyOptimizeVariableFolding(tier2AssertedOptimizedTrace)
+        }
+      } else if (tracingFlags.DO_INITIAL_ANALYSIS) {
+        /* Only an initial analysis performed. */
+        constantsAnalysisLauncher.constantsAnalysis.initialAnalysisResults.get match {
+          case ConstantAddresses(_, nonConstants) =>
+            val staticallyOptimizedTrace = applyConstantVariablesOptimizations(tier2AssertedOptimizedTrace, nonConstants.asInstanceOf[Set[HybridAddress.A]])
+            Logger.log(s"Size of statically optimized trace = ${staticallyOptimizedTrace.trace.length}", Logger.V)
+            staticallyOptimizedTrace
+        }
+      } else {
+        /* No analyses performed at all. */
+        possiblyOptimizeVariableFolding(tier2AssertedOptimizedTrace)
+      }
     val finalAssertedOptimizedTrace = removeFunCallBlockActions(tier3AssertedOptimizedTrace)
     Logger.log(s"Size of final optimized trace = ${finalAssertedOptimizedTrace.trace.length}", Logger.V)
     finalAssertedOptimizedTrace
@@ -375,34 +375,28 @@ class SchemeTraceOptimizer//[Abs : IsSchemeLattice] TODO
   }
 
   private def optimizeTypeSpecialization(traceFull: SpecTraceFull): SpecTraceFull = {
+
     def loop(trace: Trace, acc: Trace): Trace = trace match {
       case Nil => acc.reverse
       case (actionState1@(_, infos)) :: (actionState2@(ActionPrimCallT(n, fExp, argsExps), _)) :: rest =>
         infos.find[Trace](
-          { case PrimitiveAppliedInfo(_, _) => true; case _ => false},
-          { case PrimitiveAppliedInfo(_, vStack) =>
-          val nrOfArgs = n - 1
-          val operands = vStack.take(nrOfArgs).map(_.getVal)
-          val supposedOperator = vStack(nrOfArgs).getVal
-//          val latticeInfoProvider = implicitly[LatticeInfoProvider[ConcreteConcreteLattice.L]] TODO
-//          val operandsTypes = latticeInfoProvider.simpleTypes(operands)
-          val somePrimitive = sabs.getPrimitives[HybridAddress.A, ConcreteValue](supposedOperator).headOption
-          somePrimitive match {
-            case None => throw new Exception(s"Operation being type-specialized is not a primitive: $supposedOperator")
-            case primitive => primitive match {
-//              case None => TODO
-              case _ =>
-                /* Primitive application could not be type-specialized, so we do not replace this part of the trace. */
-                loop(rest, actionState2 :: actionState1 :: acc)
-//              case Some(primitive) => TODO
-//                val specializedPrim = typeSpecializePrimitive(primitive, operandsTypes)
-//                val restartPoint = RestartSpecializedPrimitive(primitive, n, fExp, argsExps)
-//                val specializedPrimGuard = ActionGuardSpecializedPrimitive[SchemeExp, HybridValue, HybridAddress.A](operandsTypes, nrOfArgs, restartPoint, GuardIDCounter.incCounter())
-//                val specializedPrimCallAction = ActionSpecializePrimitive[SchemeExp, HybridValue, HybridAddress.A](operandsTypes, specializedPrim, n, fExp, argsExps)
-//                loop(rest, (specializedPrimCallAction, actionState2._2) ::(specializedPrimGuard, infos) :: actionState1 :: acc)
+          { case PrimitiveAppliedInfo(_, _) => true; case _ => false }, { case PrimitiveAppliedInfo(_, vStack) =>
+            val nrOfArgs = n - 1
+            val operands = vStack.take(nrOfArgs).map(_.getVal)
+            val supposedOperator = vStack(nrOfArgs).getVal
+            val latticeInfoProvider = implicitly[LatticeInfoProvider[ConcreteConcreteLattice.L]]
+            val operandsTypes = latticeInfoProvider.simpleTypes(operands)
+            val somePrimitive = sabs.getPrimitives[HybridAddress.A, ConcreteValue](supposedOperator).headOption
+            somePrimitive match {
+              case None => throw new Exception(s"Operation being type-specialized is not a primitive: $supposedOperator")
+              case Some(primitive) =>
+                val specializedPrim = typeSpecializePrimitive(primitive, operandsTypes)
+                val restartPoint = RestartSpecializedPrimitive(primitive, n, fExp, argsExps)
+                val specializedPrimGuard = ActionGuardSpecializedPrimitive[SchemeExp, ConcreteValue, HybridAddress.A](operandsTypes, nrOfArgs, restartPoint, GuardIDCounter.incCounter())
+                val specializedPrimCallAction = ActionSpecializePrimitive[SchemeExp, ConcreteValue, HybridAddress.A](operandsTypes, specializedPrim, n, fExp, argsExps)
+                loop(rest, (specializedPrimCallAction, actionState2._2) ::(specializedPrimGuard, infos) :: actionState1 :: acc)
             }
-          }
-        }) match {
+          }) match {
           case Some(result) => result
           /* Since the state before applying the function was not recorded, we cannot know what the types of the operands were */
           case None => loop(rest, actionState2 :: actionState1 :: acc)
@@ -410,6 +404,7 @@ class SchemeTraceOptimizer//[Abs : IsSchemeLattice] TODO
       case action :: rest =>
         loop(rest, action :: acc)
     }
+
     val optimizedTrace = loop(traceFull.trace, Nil)
     createFullTrace(traceFull, optimizedTrace)
   }

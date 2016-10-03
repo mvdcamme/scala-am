@@ -391,23 +391,14 @@ object Main {
           case Config.Machine.Free => genNonTracingMachineStartFun(new Free[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Hybrid => {
 
-            val constAbstLattice = new ConstantPropagationLattice(false)
-            implicit val constConvertableLattice = constAbstLattice.isSchemeLattice
-            implicit val constLatInfoProv = constAbstLattice.latticeInfoProvider
+            val constLattice = new ConstantPropagationLattice(false)
+            implicit val constConvLattice = constLattice.isSchemeLattice
+            implicit val constLatInfoProv = constLattice.latticeInfoProvider
 
-            val pointsAbsLattice = new ConstantPropagationLattice(false)
-            implicit val pointsConvertableLattice = pointsAbsLattice.isSchemeLattice
-            implicit val pointsLatInfoProv = pointsAbsLattice.latticeInfoProvider
+            val pointsLattice = new ConstantPropagationLattice(false)
+            implicit val pointsConvLattice = pointsLattice.isSchemeLattice
+            implicit val pointsLatInfoProv = pointsLattice.latticeInfoProvider
 
-
-
-//            implicit val joinLattice1: JoinLattice[abstLattice.L] = abstLattice.isSchemeLattice
-//            implicit val joinLattice2: JoinLattice[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.isSchemeLattice
-
-//            implicit val convertableLattice1: IsConvertableLattice[abstLattice.L] = abstLattice.isSchemeLattice
-//            implicit val convertableLattice2: IsConvertableLattice[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.isSchemeLattice
-
-//            val abstSem = new SchemeSemantics[abstLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, abstLattice.L]) TODO
             implicit val sabsCCLattice = ConcreteConcreteLattice.isSchemeLattice
             implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
 
@@ -420,45 +411,36 @@ object Main {
               * Construction of these components depends on whether the machine will execute regular Scheme programs
               * or Amb-Scheme programs (in which case other semantics and another injection function should be used,
               * and no optimizer can be created).
-              * A factory-function that, given some SchemeSemantics, creates
-              *                                        a ConstantsAnalysisLauncher.
+              * @param createConstantsAnalysisLauncher A factory-function that, given some SchemeSemantics, creates a ConstantsAnalysisLauncher.
               * @return A four-tuple consisting of the four components mentioned above.
               */
-//            def constructComponents(createConstantsAnalysisLauncher: SemanticsTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] => ConstantsAnalysisLauncher[abstLattice.L, SchemeExp]):
-            def constructComponents():
+            def constructComponents(createConstantsAnalysisLauncher: SemanticsTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] => ConstantsAnalysisLauncher[constLattice.L]):
             (SchemeSemanticsTraced[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-//             ConstantsAnalysisLauncher[abstLattice.L, SchemeExp], TODO
-//             Option[SchemeTraceOptimizer[abstLattice.L]],
-             Option[SchemeTraceOptimizer],
+             ConstantsAnalysisLauncher[constLattice.L],
+             Option[SchemeTraceOptimizer[constLattice.L]],
              SchemeExp =>  ConcreteTracingProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]) = {
 
               if (config.amb) {
                 val sem = new AmbSchemeSemanticsTraced[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
-//                val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem) TODO
+                val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem)
                 val injectState = { (exp: SchemeExp) =>
                   val normalState = new ProgramState[SchemeExp](sem, exp)
                   AmbProgramState[SchemeExp](normalState, List(HaltFailFrame()))
                 }
-//                (sem, constantsAnalysisLauncher, None, injectState) TODO
-                (sem, None, injectState)
+                (sem, constantsAnalysisLauncher, None, injectState)
               } else {
                 val sem = new SchemeSemanticsTraced[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
-//                val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem) TODO
-//                implicit val latticeInfoProvider: LatticeInfoProvider[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.lattice.lsetInfoProvider TODO
-//                val someOptimizer = Some(new SchemeTraceOptimizer[abstLattice.L](sem, constantsAnalysisLauncher, config.tracingFlags)) TODO
-                val someOptimizer = Some(new SchemeTraceOptimizer(sem, config.tracingFlags)) // TODO [abstLattice.L]
+                val constantsAnalysisLauncher = createConstantsAnalysisLauncher(sem)
+                val someOptimizer = Some(new SchemeTraceOptimizer[constLattice.L](sem, constantsAnalysisLauncher, config.tracingFlags))
                 val injectState = { (exp: SchemeExp) => new ProgramState[SchemeExp](sem, exp) }
-//                (sem, constantsAnalysisLauncher, someOptimizer, injectState) TODO
-                (sem, someOptimizer, injectState)
+                (sem, constantsAnalysisLauncher, someOptimizer, injectState)
               }
             }
 
-//            val (sem, constantsAnalysisLauncher, someOptimizer, injectState) = constructComponents(new ConstantsAnalysisLauncher[abstLattice.L, SchemeExp](_, abstSem, config.tracingFlags))
-              val (sem, someOptimizer, injectState) = constructComponents()
-            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsAbsLattice.L](sem)(pointsConvertableLattice, pointsLatInfoProv)
-            val constantsAnalysisLauncher = new ConstantsAnalysisLauncher[constAbstLattice.L](sem, config.tracingFlags)
+            val (sem, constantsAnalysisLauncher, someOptimizer, injectState) = constructComponents(new ConstantsAnalysisLauncher[constLattice.L](_, config.tracingFlags))
+            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsLattice.L](sem)(pointsConvLattice, pointsLatInfoProv)
             val tracerContext = new SchemeTracer[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](sem, config.tracingFlags, someOptimizer)
-            val machine = new HybridMachine[constAbstLattice.L, pointsAbsLattice.L](sem, constantsAnalysisLauncher, pointsToAnalysisLauncher, tracerContext, config.tracingFlags, injectState)
+            val machine = new HybridMachine[constLattice.L, pointsLattice.L](sem, constantsAnalysisLauncher, pointsToAnalysisLauncher, tracerContext, config.tracingFlags, injectState)
             (program: String) => runTraced[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](machine)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
           }
         }

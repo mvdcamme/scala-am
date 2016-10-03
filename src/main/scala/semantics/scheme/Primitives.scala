@@ -431,22 +431,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       prims.Error
   }
 
-  def convertPrimitive[OtherAbs : IsConvertableLattice](otherPrims: SchemePrimitives[Addr, OtherAbs], x: Primitive[Addr, Abs]): Primitive[Addr, OtherAbs] = x.convert(otherPrims)  // x match {
-//    case Div => otherPrims.Div
-//    case Eq => otherPrims.Eq
-//    case LessThan => otherPrims.LessThan
-//    case Minus => otherPrims.Minus
-//    case MinusFloat => otherPrims.MinusFloat
-//    case MinusInteger => otherPrims.MinusInteger
-//    case Modulo => otherPrims.Modulo
-//    case NumEq => otherPrims.NumEq
-//    case Plus => otherPrims.Plus
-//    case PlusFloat => otherPrims.PlusFloat
-//    case PlusInteger => otherPrims.PlusInteger
-//    case Quotient => otherPrims.Quotient
-//    case Times => otherPrims.Times
-//    case _ => x.asInstanceOf[Primitive[Addr, OtherAbs]] //TODO
-//  }
+  def convertPrimitive[OtherAbs : IsConvertableLattice](otherPrims: SchemePrimitives[Addr, OtherAbs],
+                                                        x: Primitive[Addr, Abs]): Primitive[Addr, OtherAbs] = x.convert(otherPrims)
 
   val mfmon = MayFail.monoid[(Abs, Set[Effect[Addr]])]
   def err(e: SemanticError): MayFail[(Abs, Set[Effect[Addr]])] = MayFailError(List(e))
