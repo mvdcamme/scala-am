@@ -577,12 +577,14 @@ object ConcreteConcreteLattice extends SchemeLattice {
 
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](true)
   type L = lattice.LSet
-  val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
+  implicit val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
   val latticeInfoProvider: PointsToableLatticeInfoProvider[L] = lattice.isSchemeLatticeSet.latticeInfoProvider
 
   def convert[Exp: Expression, Abs: IsConvertableLattice, Addr: Address](x: L,
                                                                          addressConverter: AddressConverter[Addr],
-                                                                         convertEnv: Environment[Addr] => Environment[Addr]): Abs = {
+                                                                         convertEnv: Environment[Addr] => Environment[Addr],
+                                                                         concPrims: Primitives[Addr, L],
+                                                                         abstPrims: SchemePrimitives[Addr, Abs]): Abs = {
     val convLat = implicitly[IsConvertableLattice[Abs]]
     def convertValue(value: lattice.Value): Abs = value match {
       case lattice.Bot =>
@@ -599,8 +601,8 @@ object ConcreteConcreteLattice extends SchemeLattice {
         convLat.inject(c.asInstanceOf[ISet[Char]].toList.head)
       case lattice.Symbol(s) =>
         convLat.injectSymbol(s.asInstanceOf[ISet[String]].toList.head)
-      case lattice.Prim(prim) =>
-        convLat.inject(prim.asInstanceOf[Primitive[Addr, Abs]])
+      case p: lattice.Prim[Addr, L] =>
+        convLat.inject(concPrims.convertPrimitive(abstPrims, p.prim))
       case lattice.Closure(lambda, env) =>
         val convertedEnv = convertEnv(env.asInstanceOf[Environment[Addr]])
         convLat.inject((lambda, convertedEnv).asInstanceOf[(Exp, Environment[Addr])])
@@ -663,8 +665,7 @@ import CharConstantPropagation._
 import SymbolConstantPropagation._
 
 class ConstantMakeSchemeLattice(counting: Boolean)
-  extends MakeSchemeLattice[StringConstantPropagation.S, ConcreteBoolean.B, IntegerConstantPropagation.I,
-                            FloatConstantPropagation.F, CharConstantPropagation.C, SymbolConstantPropagation.Sym](counting) {
+  extends MakeSchemeLattice[S, B, I, F, C, Sym](counting) {
 
   trait ConstantableLatticeInfoProviderT extends LSetInfoProviderT with ConstantableLatticeInfoProvider[LSet] {
 

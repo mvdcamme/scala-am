@@ -3,7 +3,7 @@ import SchemeOps._
 /**
  * Basic Scheme semantics, without any optimization
  */
-class BaseSchemeSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](primitives: Primitives[Addr, Abs])
+class BaseSchemeSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](val primitives: SchemePrimitives[Addr, Abs])
     extends BaseSemantics[SchemeExp, Abs, Addr, Time] {
   def sabs = implicitly[IsSchemeLattice[Abs]]
 
@@ -82,7 +82,7 @@ class BaseSchemeSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestam
         } else { ActionError[SchemeExp, Abs, Addr](ArityError(fexp.toString, args.length, argsv.length)) }
       case (lambda, _) => ActionError[SchemeExp, Abs, Addr](TypeError(lambda.toString, "operator", "closure", "not a closure"))
     })
-    val fromPrim = sabs.getPrimitives(function).flatMap(prim =>
+    val fromPrim = sabs.getPrimitives[Addr, Abs](function).flatMap(prim =>
       prim.call(fexp, argsv, store, t).collect({
         case (res, store2, effects) => Set[Action[SchemeExp, Abs, Addr]](ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects))
       }, err => Set[Action[SchemeExp, Abs, Addr]](ActionError[SchemeExp, Abs, Addr](err))))
@@ -258,7 +258,7 @@ class BaseSchemeSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestam
  *     to evaluate (+ 1 (f)), we can directly push the continuation and jump to
  *     the evaluation of (f), instead of evaluating +, and 1 in separate states.
  */
-class SchemeSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](primitives: Primitives[Addr, Abs])
+class SchemeSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](primitives: SchemePrimitives[Addr, Abs])
     extends BaseSchemeSemantics[Abs, Addr, Time](primitives) {
 
   /** Tries to perform atomic evaluation of an expression. Returns the result of

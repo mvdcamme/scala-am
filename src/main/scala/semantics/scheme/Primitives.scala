@@ -15,6 +15,9 @@ trait Primitive[Addr, Abs] {
    * @return either an error, or the value returned by the primitive along with the updated store
    */
   def call[Exp : Expression, Time : Timestamp](fexp : Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]
+
+  def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs]
+
 }
 
 abstract class Primitives[Addr : Address, Abs : JoinLattice] {
@@ -39,7 +42,11 @@ abstract class Primitives[Addr : Address, Abs : JoinLattice] {
       }
       res
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.traced(prim.convert(prims))
   }
+
+  def convertPrimitive[OtherAbs : IsConvertableLattice](prims: SchemePrimitives[Addr, OtherAbs], x: Primitive[Addr, Abs]): Primitive[Addr, OtherAbs]
 
   lazy val bindings = ("bottom", addr.primitive("__bottom__"), lat.bottom) :: all.map({ prim => (prim.name, addr.primitive(prim.name), toVal(prim)) })
 }
@@ -122,14 +129,20 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
 
   object Plus extends NoStoreOperation("+") {
     override def call(args: List[Abs]) = applyGenericPlusOperation(args, plus)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Plus
   }
 
   object PlusFloat extends NoStoreOperation("+f") {
     override def call(args: List[Abs]) = applyGenericPlusOperation(args, plusF)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.PlusFloat
   }
 
   object PlusInteger extends NoStoreOperation("+i") {
     override def call(args: List[Abs]) = applyGenericPlusOperation(args, plusI)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.PlusInteger
   }
 
   private def applyGenericMinusOperations(args: List[Abs], name: String, reduce: (Abs, Abs) => MayFail[Abs]): MayFail[Abs] = args match {
@@ -140,14 +153,20 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
 
   object Minus extends NoStoreOperation("-") {
     override def call(args: List[Abs]) = applyGenericMinusOperations(args, name, minus)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Minus
   }
 
   object MinusFloat extends NoStoreOperation("-f") {
     override def call(args: List[Abs]) = applyGenericMinusOperations(args, name, minusF)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.MinusFloat
   }
 
   object MinusInteger extends NoStoreOperation("-i") {
     override def call(args: List[Abs]) = applyGenericMinusOperations(args, name, minusI)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.MinusInteger
   }
 
   object Times extends NoStoreOperation("*") {
@@ -155,62 +174,96 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       case Nil => MayFailSuccess(abs.inject(1))
       case x :: rest => call(rest).bind(y => times(x, y))
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Times
   }
   object Div extends NoStoreOperation("/") {
     override def call(args: List[Abs]) = args match {
       case Nil => MayFailError(List(VariadicArityError(name, 1, 0)))
       case x :: rest => Times.call(rest).bind(y => div(x, y))
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Div
   }
   object Quotient extends NoStoreOperation("quotient", Some(2)) {
     override def call(x: Abs, y: Abs) = div(x, y)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Quotient
   }
   object LessThan extends NoStoreOperation("<", Some(2)) {
     override def call(x: Abs, y: Abs) = lt(x, y) /* TODO: < should accept any number of arguments (same for <= etc.) */
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.LessThan
   }
   object LessOrEqual extends NoStoreOperation("<=", Some(2)) {
     override def call(x: Abs, y: Abs) = lt(x, y).bind(ltres => numEq(x, y).map(eqres => abs.or(ltres, eqres)))
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.LessOrEqual
   }
   object NumEq extends NoStoreOperation("=", Some(2)) {
     override def call(x: Abs, y: Abs) = numEq(x, y)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.NumEq
   }
   object GreaterThan extends NoStoreOperation(">", Some(2)) {
     override def call(x: Abs, y: Abs) = LessOrEqual.call(x, y).bind(leres => not(leres))
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.GreaterThan
   }
   object GreaterOrEqual extends NoStoreOperation(">=", Some(2)) {
     override def call(x: Abs, y: Abs) = LessThan.call(x, y).bind(ltres => not(ltres))
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.GreaterOrEqual
   }
   object Modulo extends NoStoreOperation("modulo", Some(2)) {
     override def call(x: Abs, y: Abs) = modulo(x, y)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Modulo
   }
   object Random extends NoStoreOperation("random", Some(1)) {
     override def call(x: Abs) = random(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Random
   }
   object Ceiling extends NoStoreOperation("ceiling", Some(1)) {
     override def call(x: Abs) = ceiling(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Ceiling
   }
   object Log extends NoStoreOperation("log", Some(1)) {
     override def call(x: Abs) = log(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Log
   }
   /** (define (zero? x) (= x 0)) */
   object Zerop extends NoStoreOperation("zero?", Some(1)) {
     override def call(x: Abs) = numEq(abs.inject(0), x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Zerop
   }
   /** (define (positive? x) (< x 0)) */
   object Positivep extends NoStoreOperation("positive?", Some(1)) {
     override def call(x: Abs) = lt(abs.inject(0), x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Positivep
   }
   /** (define (positive? x) (< 0 x)) */
   object Negativep extends NoStoreOperation("negative?", Some(1)) {
     override def call(x: Abs) = lt(x, abs.inject(0))
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Negativep
   }
   /** (define (odd? x) (= 1 (modulo x 2))) */
   object Oddp extends NoStoreOperation("odd?", Some(1)) {
     override def call(x: Abs) = modulo(x, abs.inject(2)).bind(mod => numEq(abs.inject(1), mod))
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Oddp
   }
   /** (define (even? x) (= 0 (modulo x 2))) */
   object Evenp extends NoStoreOperation("even?", Some(1)) {
     override def call(x: Abs) = modulo(x, abs.inject(2)).bind(mod => numEq(abs.inject(0), mod))
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Evenp
   }
   object Max extends NoStoreOperation("max") {
     /* TODO: In Scheme, max casts numbers to inexact as soon as one of them is inexact, but we don't support that */
@@ -226,6 +279,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       case Nil => MayFailError(List(VariadicArityError(name, 1, 0)))
       case x :: rest => call(rest, x)
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Max
   }
   object Min extends NoStoreOperation("min") {
     /* TODO: same remark as max */
@@ -241,6 +296,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       case Nil => MayFailError(List(VariadicArityError(name, 1, 0)))
       case x :: rest => call(rest, x)
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Min
   }
   /** (define (abs x) (if (< x 0) (- 0 x) x)) */
   object Abs extends NoStoreOperation("abs", Some(1)) {
@@ -249,6 +306,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       val f = if (abs.isFalse(ltres)) { MayFailSuccess(x) } else { MayFailSuccess(abs.bottom) }
       MayFail.monoid[Abs].append(t, f)
     })
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Abs
   }
   /** (define (gcd a b) (if (= b 0) a (gcd b (modulo a b)))) */
   object Gcd extends NoStoreOperation("gcd", Some(2)) {
@@ -268,58 +327,93 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       }
     }
     override def call(x: Abs, y: Abs) = gcd(x, y, Set())
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Gcd
   }
 
   object Nullp extends NoStoreOperation("null?", Some(1)) {
     override def call(x: Abs) = isNull(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Nullp
   }
   object Pairp extends NoStoreOperation("pair?", Some(1)) {
     override def call(x: Abs) = isCons(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Pairp
   }
   object Charp extends NoStoreOperation("char?", Some(1)) {
     override def call(x: Abs) = isChar(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Charp
   }
   object Symbolp extends NoStoreOperation("symbol?", Some(1)) {
     override def call(x: Abs) = isSymbol(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Symbolp
   }
   object Stringp extends NoStoreOperation("string?", Some(1)) {
     override def call(x: Abs) = isString(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Stringp
   }
   object Integerp extends NoStoreOperation("integer?", Some(1)) {
     override def call(x: Abs) = isInteger(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Integerp
   }
   object Realp extends NoStoreOperation("real?", Some(1)) {
     override def call(x: Abs) = isInteger(x).bind(isint => isFloat(x).map(isfloat => abs.or(isint, isfloat)))
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Realp
   }
   object Numberp extends NoStoreOperation("number?", Some(1)) {
     override def call(x: Abs) = Realp.call(x) /* No support for complex number, so number? is equivalent as real? */
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Numberp
   }
   object Booleanp extends NoStoreOperation("boolean?", Some(1)) {
     override def call(x: Abs) = isBoolean(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Booleanp
   }
   object Vectorp extends NoStoreOperation("vector?", Some(1)) {
     override def call(x: Abs) = isVector(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Vectorp
   }
   object Eq extends NoStoreOperation("eq?", Some(2)) {
     override def call(x: Abs, y: Abs) = abs.binaryOp(SchemeOps.Eq)(x, y)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Eq
   }
   object Not extends NoStoreOperation("not", Some(1)) {
     override def call(x: Abs) = not(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Not
   }
   object NumberToString extends NoStoreOperation("number->string", Some(1)) {
     override def call(x: Abs) = numberToString(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.NumberToString
   }
   object StringAppend extends NoStoreOperation("string-append") {
     override def call(args: List[Abs]) = args match {
       case Nil => MayFailSuccess(abs.inject(""))
       case x :: rest => call(rest).bind(y => stringAppend(x, y))
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.StringAppend
   }
   object StringLength extends NoStoreOperation("string-length", Some(1)) {
+
     override def call(x: Abs) = stringLength(x)
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.StringLength
   }
   object Newline extends NoStoreOperation("newline", Some(0)) {
     override def call() = { println(""); MayFailSuccess(abs.inject(false)) }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Newline
   }
   object Display extends NoStoreOperation("display", Some(1)) {
     override def call(x: Abs) = {
@@ -327,11 +421,32 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       print(if (str.startsWith("\"")) { str.substring(1, str.size-1) } else { str })
       MayFailSuccess(x) /* Undefined behavior in R5RS */
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Display
   }
   object Error extends NoStoreOperation("error", Some(1)) {
     override def call[Exp : Expression](fexp: Exp, x: (Exp, Abs)) =
       MayFailError(List(UserError(x._2.toString, implicitly[Expression[Exp]].pos(fexp))))
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Error
   }
+
+  def convertPrimitive[OtherAbs : IsConvertableLattice](otherPrims: SchemePrimitives[Addr, OtherAbs], x: Primitive[Addr, Abs]): Primitive[Addr, OtherAbs] = x.convert(otherPrims)  // x match {
+//    case Div => otherPrims.Div
+//    case Eq => otherPrims.Eq
+//    case LessThan => otherPrims.LessThan
+//    case Minus => otherPrims.Minus
+//    case MinusFloat => otherPrims.MinusFloat
+//    case MinusInteger => otherPrims.MinusInteger
+//    case Modulo => otherPrims.Modulo
+//    case NumEq => otherPrims.NumEq
+//    case Plus => otherPrims.Plus
+//    case PlusFloat => otherPrims.PlusFloat
+//    case PlusInteger => otherPrims.PlusInteger
+//    case Quotient => otherPrims.Quotient
+//    case Times => otherPrims.Times
+//    case _ => x.asInstanceOf[Primitive[Addr, OtherAbs]] //TODO
+//  }
 
   val mfmon = MayFail.monoid[(Abs, Set[Effect[Addr]])]
   def err(e: SemanticError): MayFail[(Abs, Set[Effect[Addr]])] = MayFailError(List(e))
@@ -346,6 +461,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       }
       case l => MayFailError(List(ArityError(name, 2, l.size)))
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Cons
   }
   private def car(v: Abs, store: Store[Addr, Abs]): MayFail[(Abs, Set[Effect[Addr]])] = {
     val addrs = abs.car(v)
@@ -386,6 +503,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
           case Car => car(v, store)
           case Cdr => cdr(v, store)
         }})).map({ case (v, effs) => (v, store, effs) })
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      new prims.CarCdrOperation(name)
   }
   object Car extends CarCdrOperation("car")
   object Cdr extends CarCdrOperation("cdr")
@@ -429,6 +548,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
         MayFailSuccess((abs.inject(false) /* undefined */, store2, effects))
       }
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.SetCar
   }
   object SetCdr extends StoreOperation("set-cdr!", Some(2)) {
     override def call(cell: Abs, value: Abs, store: Store[Addr, Abs]) = {
@@ -441,6 +562,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
         MayFailSuccess((abs.inject(false) /* undefined */, store2, effects))
       }
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.SetCdr
   }
   object Length extends StoreOperation("length", Some(1)) {
     override def call(l: Abs, store: Store[Addr, Abs]) = {
@@ -470,6 +593,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       }
       length(l, Set()).map({ case (v, effs) => (v, store, effs) })
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Length
   }
   /** (define (list? l) (or (and (pair? l) (list? (cdr l))) (null? l))) */
   object Listp extends StoreOperation("list?", Some(1)) {
@@ -502,6 +627,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       }
       listp(l, Set()).map({ case (v, effs) => (v, store, effs) })
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Listp
   }
 
   object MakeVector extends Primitive[Addr, Abs] {
@@ -519,6 +646,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
           })
       case l => MayFailError(List(ArityError(name, 2, l.size)))
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.MakeVector
   }
   object VectorSet extends Primitive[Addr, Abs] {
     val name = "vector-set!"
@@ -548,6 +677,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       }
       case l => MayFailError(List((ArityError(name, 3, l.size))))
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.VectorSet
   }
   object Vector extends Primitive[Addr, Abs] {
     val name = "vector"
@@ -567,6 +698,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
           }})).map({ case (vector, store) => (va, store.extend(a, vector), Set[Effect[Addr]]()) })
       })
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Vector
   }
   object VectorLength extends StoreOperation("vector-length", Some(1)) {
     def length(v: Abs, store: Store[Addr, Abs]): MayFail[(Abs, Set[Effect[Addr]])] = {
@@ -585,6 +718,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
     override def call(v: Abs, store: Store[Addr, Abs]) = {
       length(v, store).map({ case (v, effs) => (v, store, effs) })
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.VectorLength
   }
   object VectorRef extends StoreOperation("vector-ref", Some(2)) {
     def vectorRef(v: Abs, index: Abs, store: Store[Addr, Abs]): MayFail[(Abs, Set[Effect[Addr]])] = {
@@ -607,6 +742,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
     }
     override def call(v: Abs, index: Abs, store: Store[Addr, Abs]) =
       vectorRef(v, index, store).map({ case (v, effs) => (v, store, effs) })
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.VectorRef
   }
 
   /** (define (equal? a b)
@@ -712,6 +849,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       }
       equalp(a, b, Set()).map({ case (v, effs) => (v, store, effs) })
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Equal
   }
 
 /*  object Lock extends Primitive[Addr, Abs] {

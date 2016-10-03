@@ -115,6 +115,8 @@ class TSchemePrimitives[Addr : Address, Abs : IsTaintLattice] extends SchemePrim
       case (_, x) :: Nil => MayFailSuccess((tabs.taint(x, implicitly[Expression[Exp]].pos(fexp)), store, Set()))
       case l => MayFailError(List(ArityError(name, 1, l.size)))
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.asInstanceOf[TSchemePrimitives[Addr, Abs]].Taint
   }
   object Sink extends Primitive[Addr, Abs] {
     val name = "sink"
@@ -127,6 +129,8 @@ class TSchemePrimitives[Addr : Address, Abs : IsTaintLattice] extends SchemePrim
       }
       case l => MayFailError(List(ArityError(name, 1, l.size)))
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.asInstanceOf[TSchemePrimitives[Addr, Abs]].Sink
   }
   object Sanitize extends Primitive[Addr, Abs] {
     val name = "sanitize"
@@ -134,6 +138,8 @@ class TSchemePrimitives[Addr : Address, Abs : IsTaintLattice] extends SchemePrim
       case (_, x) :: Nil => MayFailSuccess((tabs.sanitize(x), store, Set()))
       case l => MayFailError(List(ArityError(name, 1, l.size)))
     }
+    def convert[Addr : Address, Abs : IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.asInstanceOf[TSchemePrimitives[Addr, Abs]].Sanitize
   }
   override def all = super.all ++ List(Taint, Sink, Sanitize)
 }

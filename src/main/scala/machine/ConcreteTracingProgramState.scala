@@ -438,8 +438,10 @@ case class ProgramState[Exp : Expression]
     case _ => control.toString()
   }
 
-  private def convertValue[AbstL : IsConvertableLattice](value: ConcreteValue): AbstL =
-    ConcreteConcreteLattice.convert[Exp, AbstL, HybridAddress.A](value, new DefaultHybridAddressConverter[Exp], convertEnv)
+  private def convertValue[AbstL : IsConvertableLattice](value: ConcreteValue,
+                                                         concPrims: Primitives[HybridAddress.A, ConcreteValue],
+                                                         abstPrims: SchemePrimitives[HybridAddress.A, AbstL]): AbstL =
+    ConcreteConcreteLattice.convert[Exp, AbstL, HybridAddress.A](value, new DefaultHybridAddressConverter[Exp], convertEnv, concPrims, abstPrims)
 
   /**
     * Converts all addresses in the environment.
@@ -499,7 +501,7 @@ case class ProgramState[Exp : Expression]
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
         val addressConverter = new DefaultHybridAddressConverter[Exp]
-        val convertValueFun: ConcreteValue => AbstL = ConcreteConcreteLattice.convert[Exp, AbstL, HybridAddress.A](_, addressConverter, convertEnv)
+        val convertValueFun: ConcreteValue => AbstL = ConcreteConcreteLattice.convert[Exp, AbstL, HybridAddress.A](_, addressConverter, convertEnv, concSem.primitives, abstSem.primitives)
         val (someNewSemFrame, newVStack, newρ) = concSem.convertToAbsSemanticsFrame[AbstL](frame, ρ, vStack, convertValueFun, abstSem)
         loop(next, newVStack, newρ, (a, someNewSemFrame, newVStack, newρ) :: stack)
     }
@@ -516,7 +518,7 @@ case class ProgramState[Exp : Expression]
     var valuesConvertedσ = Store.empty[HybridAddress.A, AbstL]
     def addToNewStore(tuple: (HybridAddress.A, ConcreteValue)): Boolean = {
       val convertedAddress = new DefaultHybridAddressConverter().convertAddress(tuple._1)
-      val convertedValue = convertValue[AbstL](tuple._2)
+      val convertedValue = convertValue[AbstL](tuple._2, concSem.primitives, abstSem.primitives)
       valuesConvertedσ = valuesConvertedσ.extend(convertedAddress, convertedValue)
       true
     }
@@ -524,9 +526,9 @@ case class ProgramState[Exp : Expression]
     val convertedρ = convertEnv(ρ)
     val convertedσ = convertSto(valuesConvertedσ)
     //val newA: KontAddr = a
-    val newV = convertValue[AbstL](v)
+    val newV = convertValue[AbstL](v, concSem.primitives, abstSem.primitives)
     val newVStack = vStack.map({
-      case StoreVal(v) => StoreVal[AbstL, HybridAddress.A](convertValue[AbstL](v))
+      case StoreVal(v) => StoreVal[AbstL, HybridAddress.A](convertValue[AbstL](v, concSem.primitives, abstSem.primitives))
       case StoreEnv(ρ) => StoreEnv[AbstL, HybridAddress.A](convertEnv(ρ))
     })
     val startKontAddress = control match {
