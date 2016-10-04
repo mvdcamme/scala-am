@@ -33,14 +33,14 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
   case class FrameFuncallOperandsT(f: Abs,
                                    fexp: SchemeExp,
                                    cur: SchemeExp,
-                                   args: List[(SchemeExp, Abs)],
+                                   args: List[SchemeExp],
                                    toeval: List[SchemeExp])
       extends SchemeFrameT
   case class FrameFuncallOperatorT(fexp: SchemeExp, args: List[SchemeExp])
       extends SchemeFrameT
   case class FrameIfT(cons: SchemeExp, alt: SchemeExp) extends SchemeFrameT
   case class FrameLetT(variable: String,
-                       bindings: List[(String, Abs)],
+                       bindings: List[String],
                        toeval: List[(String, SchemeExp)],
                        body: List[SchemeExp])
       extends SchemeFrameT
@@ -138,7 +138,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
         val n = args.length + 1 /* We have to add 1 because the operator has also been pushed onto the vstack */
         val generateFrameFun = (ρ: Environment[Addr],
                                 values: List[OtherAbs]) => {
-          val newArgs = args.map(_._1).zip(values)
+          val newArgs = args.zip(values)
           absSem
             .FrameFuncallOperands(convertedF, fexp, cur, newArgs, toeval, ρ)
         }
@@ -155,7 +155,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
         val n = bindings.length
         val generateFrameFun = (ρ: Environment[Addr],
                                 values: List[OtherAbs]) => {
-          val newBindings = bindings.map(_._1).zip(values)
+          val newBindings = bindings.zip(values)
           absSem.FrameLet(variable, newBindings, toeval, body, ρ)
         }
         popEnvAndValuesFromVStack(generateFrameFun, n, vStack)
@@ -227,18 +227,18 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
        } else Set[InterpreterStep[SchemeExp, Abs, Addr]]())
 
   /**
-    * @param argsv are the Scheme-expressions of the operands of the call
+    * @param actualPars are the Scheme-expressions of the operands of the call
     */
   def evalCall(function: Abs,
                fexp: SchemeExp,
-               argsv: List[(SchemeExp, Abs)],
+               actualPars: List[SchemeExp],
                σ: Store[Addr, Abs],
                t: Time): Set[InterpreterStep[SchemeExp, Abs, Addr]] = {
 
     /*
      * The number of values to pop: the number of operands + the operator.
      */
-    val valsToPop = argsv.length + 1
+    val valsToPop = actualPars.length + 1
 
     val commonActions: List[ActionT[SchemeExp, Abs, Addr]] =
       List(actionRestoreEnv, actionPushVal)
@@ -246,11 +246,11 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
     val fromClo: Set[InterpreterStep[SchemeExp, Abs, Addr]] = sabs
       .getClosures[SchemeExp, Addr](function)
       .map({
-        case (SchemeLambda(args, body, _), ρ1) =>
+        case (SchemeLambda(formalPars, body, _), ρ1) =>
           val stepInAction = ActionStepInT(fexp,
                                            body.head,
-                                           args,
-                                           argsv.map(_._1),
+                                           formalPars,
+                                           actualPars,
                                            valsToPop,
                                            FrameFunBodyT(body, Nil))
           val rp = RestartGuardDifferentClosure(stepInAction)
@@ -269,7 +269,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
     val fromPrim = sabs
       .getPrimitives(function)
       .map((prim) => {
-        val primCallAction = ActionPrimCallT(valsToPop, fexp, argsv.map(_._1))
+        val primCallAction = ActionPrimCallT(valsToPop, fexp, actualPars)
         val allActions = commonActions :+ primCallAction :+ actionEndPrimCall :+ actionPopKont
         InterpreterStep[SchemeExp, Abs, Addr](
           allActions,
@@ -301,7 +301,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
   protected def funcallArgs(
       f: Abs,
       fexp: SchemeExp,
-      args: List[(SchemeExp, Abs)],
+      args: List[SchemeExp],
       toeval: List[SchemeExp],
       σ: Store[Addr, Abs],
       t: Time): Set[InterpreterStep[SchemeExp, Abs, Addr]] = toeval match {
@@ -504,7 +504,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
           interpreterStep(
             actionRestoreEnv :: evalBody(toeval, FrameFunBodyT(body, _))))
       case FrameFuncallOperandsT(f, fexp, exp, args, toeval) =>
-        funcallArgs(f, fexp, (exp, v) :: args, toeval, σ, t)
+        funcallArgs(f, fexp, exp :: args, toeval, σ, t)
       case FrameFuncallOperatorT(fexp, args) =>
         funcallArgs(v, fexp, args, σ, t)
       case FrameIfT(cons, alt) =>
@@ -514,7 +514,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
                       List(ActionEvalT(alt)),
                       RestartFromControl(alt))
       case FrameLetT(name, bindings, Nil, body) => {
-        val variables = name :: bindings.map(_._1)
+        val variables = name :: bindings
         val actions = actionRestoreEnv ::
             actionPushVal ::
               variables.map({ variable =>
@@ -531,7 +531,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
                  actionSaveEnv,
                  ActionEvalPushT(
                    e,
-                   FrameLetT(variable, (name, v) :: bindings, toeval, body)))))
+                   FrameLetT(variable, name :: bindings, toeval, body)))))
       case FrameLetrecT(a, Nil, body) =>
         val actions: List[ActionT[SchemeExp, Abs, Addr]] = List(
             actionRestoreEnv,
