@@ -440,10 +440,10 @@ class HybridMachine[
     } else {
       /* Otherwise, compute the successors of this state, update the graph, and push
        * the new successors on the todo list */
-      if (stepCount % analysis_interval == 0) {
-        Logger.log(s"stepCount: $stepCount", Logger.U)
-        pointsToAnalysisLauncher.runStaticAnalysis(s.ps, stepCount)
-      }
+//      if (stepCount % analysis_interval == 0) {
+//        Logger.log(s"stepCount: $stepCount", Logger.U)
+//        pointsToAnalysisLauncher.runStaticAnalysis(s.ps, stepCount)
+//      }
       val succ = s.stepConcrete()
       val newGraph = graph.map(_.addEdge(s.ps, "", succ.ps))
       loop(succ, nrVisited + 1, startingTime, newGraph, timeout)

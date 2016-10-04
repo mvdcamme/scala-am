@@ -663,9 +663,9 @@ case class ProgramState[Exp: Expression](
   }
 
   private def convertValue[AbstL: IsConvertableLattice](
-      value: ConcreteValue,
       concPrims: Primitives[HybridAddress.A, ConcreteValue],
-      abstPrims: SchemePrimitives[HybridAddress.A, AbstL]): AbstL =
+      abstPrims: SchemePrimitives[HybridAddress.A, AbstL]
+  )(value: ConcreteValue): AbstL =
     ConcreteConcreteLattice.convert[Exp, AbstL, HybridAddress.A](
       value,
       new DefaultHybridAddressConverter[Exp],
@@ -708,26 +708,27 @@ case class ProgramState[Exp: Expression](
       case HaltKontAddress => FreeHaltKontAddress
     }
 
-  private def convertKStore[AbstL: IsConvertableLattice](
-      free: Free[Exp, AbstL, HybridAddress.A, HybridTimestamp.T],
+  private def convertKStoreToFreeFrames(
       concSem: SemanticsTraced[Exp,
                                ConcreteValue,
                                HybridAddress.A,
                                HybridTimestamp.T],
-      abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
+      abstSem: BaseSchemeSemantics[ConcreteValue,
+                                   HybridAddress.A,
+                                   HybridTimestamp.T],
       kontStore: KontStore[KontAddr],
       ρ: Environment[HybridAddress.A],
       a: KontAddr,
-      vStack: List[Storable[AbstL, HybridAddress.A]])
+      vStack: List[Storable[ConcreteValue, HybridAddress.A]])
     : (FreeKontAddr, KontStore[FreeKontAddr]) = {
 
     @tailrec
     def loop(a: KontAddr,
-             vStack: List[Storable[AbstL, HybridAddress.A]],
+             vStack: List[Storable[ConcreteValue, HybridAddress.A]],
              ρ: Environment[HybridAddress.A],
              stack: List[(KontAddr,
                           Option[Frame],
-                          List[Storable[AbstL, HybridAddress.A]],
+                          List[Storable[ConcreteValue, HybridAddress.A]],
                           Environment[HybridAddress.A])])
       : (FreeKontAddr, KontStore[FreeKontAddr]) = a match {
       case HaltKontAddress =>
@@ -748,20 +749,8 @@ case class ProgramState[Exp: Expression](
         })
       case _ =>
         val Kont(frame, next) = kontStore.lookup(a).head
-        val addressConverter = new DefaultHybridAddressConverter[Exp]
-        val convertValueFun: ConcreteValue => AbstL =
-          ConcreteConcreteLattice.convert[Exp, AbstL, HybridAddress.A](
-            _,
-            addressConverter,
-            convertEnv,
-            concSem.primitives,
-            abstSem.primitives)
         val (someNewSemFrame, newVStack, newρ) =
-          concSem.convertToAbsSemanticsFrame[AbstL](frame,
-                                                    ρ,
-                                                    vStack,
-                                                    convertValueFun,
-                                                    abstSem)
+          concSem.convertToAbsSemanticsFrame(frame, ρ, vStack, abstSem)
         loop(next,
              newVStack,
              newρ,
@@ -769,6 +758,25 @@ case class ProgramState[Exp: Expression](
     }
     loop(a, vStack, ρ, Nil)
   }
+
+  private def convertKStoreAbsValuesInFrames[AbstL: IsConvertableLattice](
+      kontStore: KontStore[FreeKontAddr],
+      convertValue: ConcreteValue => AbstL,
+      concBaseSem: BaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+      abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T])
+    : KontStore[FreeKontAddr] = {
+    kontStore.map( (kontAddr) => kontAddr, //TODO used the identity function, should use the DefaultKontAddrConverter
+                  (frame: Frame) =>
+                    concBaseSem.convertAbsInFrame[AbstL](
+                      frame.asInstanceOf[SchemeFrame[ConcreteValue,
+                                                     HybridAddress.A,
+                                                     HybridTimestamp.T]],
+                      convertValue,
+                      convertEnv,
+                      abstSem))
+  }
+
+//  private def reaches TODO
 
   def convertState[AbstL: IsConvertableLattice](
       free: Free[Exp, AbstL, HybridAddress.A, HybridTimestamp.T],
@@ -784,13 +792,17 @@ case class ProgramState[Exp: Expression](
        FreeKontAddr,
        HybridTimestamp.T) = {
 
+    val concBaseSem = new SchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T](new
+        SchemePrimitives[HybridAddress.A, ConcreteValue])
+
+    val convertValueFun = convertValue[AbstL](concSem.primitives, abstSem.primitives) _
+
     val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
     var valuesConvertedσ = Store.empty[HybridAddress.A, AbstL]
     def addToNewStore(tuple: (HybridAddress.A, ConcreteValue)): Boolean = {
       val convertedAddress =
         new DefaultHybridAddressConverter().convertAddress(tuple._1)
-      val convertedValue =
-        convertValue[AbstL](tuple._2, concSem.primitives, abstSem.primitives)
+      val convertedValue = convertValueFun(tuple._2)
       valuesConvertedσ =
         valuesConvertedσ.extend(convertedAddress, convertedValue)
       true
@@ -798,32 +810,32 @@ case class ProgramState[Exp: Expression](
     σ.forall(addToNewStore)
     val convertedρ = convertEnv(ρ)
     val convertedσ = convertSto(valuesConvertedσ)
-    //val newA: KontAddr = a
-    val newV = convertValue[AbstL](v, concSem.primitives, abstSem.primitives)
-    val newVStack = vStack.map({
-      case StoreVal(v) =>
-        StoreVal[AbstL, HybridAddress.A](
-          convertValue[AbstL](v, concSem.primitives, abstSem.primitives))
-      case StoreEnv(ρ) => StoreEnv[AbstL, HybridAddress.A](convertEnv(ρ))
-    })
+    val newV = convertValueFun(v)
+//    val newVStack = vStack.map({
+//      case StoreVal(v) =>
+//        StoreVal[AbstL, HybridAddress.A](
+//          convertValue[AbstL](v, concSem.primitives, abstSem.primitives))
+//      case StoreEnv(ρ) => StoreEnv[AbstL, HybridAddress.A](convertEnv(ρ))
+//    })
     val startKontAddress = control match {
       case TracingControlEval(_) | TracingControlError(_) => a
       case TracingControlKont(ka) => ka
     }
-    val (convertedA, convertedKontStore) = convertKStore(free,
-                                                         concSem,
-                                                         abstSem,
-                                                         kstore,
-                                                         convertedρ,
-                                                         startKontAddress,
-                                                         newVStack)
+    val (convertedA, mappedKStore) = convertKStoreToFreeFrames(
+      concSem,
+      concBaseSem,
+      kstore,
+      convertedρ,
+      startKontAddress,
+      vStack)
+    val convertedKStore = convertKStoreAbsValuesInFrames[AbstL](mappedKStore, convertValueFun, concBaseSem, abstSem)
     val newControl = control match {
       case TracingControlEval(exp) =>
         ConvertedControlEval[Exp, AbstL, HybridAddress.A](exp, convertedρ)
       case TracingControlKont(ka) =>
         ConvertedControlKont[Exp, AbstL, HybridAddress.A](newV)
     }
-    (newControl, convertedρ, convertedσ, convertedKontStore, convertedA, newT)
+    (newControl, convertedρ, convertedσ, mappedKStore, convertedA, newT)
   }
 
   def generateTraceInformation(

@@ -1,4 +1,4 @@
-sealed trait FreeKontAddr
+sealed trait FreeKontAddr extends KontAddr
 object FreeKontAddr {
   implicit object KontAddrKontAddress extends KontAddress[FreeKontAddr]
 }

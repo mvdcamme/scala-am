@@ -63,6 +63,33 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
     override def toString() = "FHalt"
   }
 
+  def convertAbsInFrame[OtherAbs: IsConvertableLattice](
+      frame: Frame,
+      concBaseSem: BaseSchemeSemantics[Abs,
+                                       HybridAddress.A,
+                                       HybridTimestamp.T],
+      abstSem: BaseSchemeSemantics[OtherAbs,
+                                   HybridAddress.A,
+                                   HybridTimestamp.T],
+      convertValue: (Abs) => (OtherAbs)): Frame = frame match {
+    case concBaseSem.FrameFuncallOperands(f, fexp, cur, args, toeval, env) =>
+      abstSem.FrameFuncallOperands(
+        convertValue(f),
+        fexp,
+        cur,
+        args.map((tuple) => (tuple._1, convertValue(tuple._2))),
+        toeval,
+        env)
+    case concBaseSem.FrameLet(variable, bindings, toeval, body, env) =>
+      abstSem.FrameLet(
+        variable,
+        bindings.map((tuple) => (tuple._1, convertValue(tuple._2))),
+        toeval,
+        body,
+        env)
+    case _ => frame
+  }
+
   private def popEnvFromVStack[OtherAbs](
       generateFrameFun: Environment[Addr] => Frame,
       vStack: List[Storable[OtherAbs, Addr]])
@@ -106,13 +133,11 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
    * frame, take note of which values and environments are saved on the vstack when the original
    * SchemeSemanticsFrame was generated.
    */
-  def convertToAbsSemanticsFrame[OtherAbs](
-      frame: Frame,
-      ρ: Environment[Addr],
-      vStack: List[Storable[OtherAbs, Addr]],
-      convertValue: Abs => OtherAbs,
-      absSem: BaseSchemeSemantics[OtherAbs, Addr, Time])
-    : (Option[Frame], List[Storable[OtherAbs, Addr]], Environment[Addr]) =
+  def convertToAbsSemanticsFrame(frame: Frame,
+                                 ρ: Environment[Addr],
+                                 vStack: List[Storable[Abs, Addr]],
+                                 absSem: BaseSchemeSemantics[Abs, Addr, Time])
+    : (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) =
     frame match {
       case FrameBeginT(rest) =>
         rest match {
@@ -134,13 +159,10 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
           popEnvFromVStack(absSem.FrameBegin(toeval, _), vStack)
         }
       case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
-        val convertedF = convertValue(f)
         val n = args.length + 1 /* We have to add 1 because the operator has also been pushed onto the vstack */
-        val generateFrameFun = (ρ: Environment[Addr],
-                                values: List[OtherAbs]) => {
+        val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
           val newArgs = args.zip(values)
-          absSem
-            .FrameFuncallOperands(convertedF, fexp, cur, newArgs, toeval, ρ)
+          absSem.FrameFuncallOperands(f, fexp, cur, newArgs, toeval, ρ)
         }
         popEnvAndValuesFromVStack(generateFrameFun, n, vStack)
       case FrameFuncallOperatorT(fexp, args) =>
@@ -153,8 +175,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
          * The stack should therefore have an environment at the top, followed by n values where n is the number of bindings
          * already evaluated (which equals bindings.length). */
         val n = bindings.length
-        val generateFrameFun = (ρ: Environment[Addr],
-                                values: List[OtherAbs]) => {
+        val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
           val newBindings = bindings.zip(values)
           absSem.FrameLet(variable, newBindings, toeval, body, ρ)
         }

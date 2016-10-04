@@ -1,12 +1,19 @@
 import scalaz.Scalaz._
 
 trait Frame {
+  type AbstractValue
   type Address
+  type Timestamp
 
   def subsumes(that: Frame): Boolean
   def writeEffectsFor(): Set[Address] = Set()
 
   def savesEnv: Option[Environment[Address]] = None
+
+//  def convert[OtherAbs: IsSchemeLattice](convertValue: (AbstractValue) => OtherAbs,
+//                                          convertEnv: Environment[Address] => Environment[Address],
+//                                          abstSem: BaseSchemeSemantics[OtherAbs, Address, Timestamp])
+//  : Frame
 }
 trait KontAddress[A]
 
@@ -26,12 +33,13 @@ abstract class KontStore[KontAddr: KontAddress] {
   def fastEq(that: KontStore[KontAddr]): Boolean = this == that
 
   /**
-    * Maps all KontAddr variables, i.e., both the KontAddr keys as well as the KontAddr pointers to next frames,
-    * in the store via the given function f.
+    * Maps all frames AND all KontAddr variables, i.e., both the KontAddr keys as well as the KontAddr pointers to next
+    * frames, in the store via the given function f.
     * @param f Maps one KontAddr value to another.
+    * @param g Maps one Frame to another.
     * @return A new KontStore in which all KontAddr keys have been mapped.
     */
-  def map(f: KontAddr => KontAddr): KontStore[KontAddr]
+  def map(f: KontAddr => KontAddr, g: Frame => Frame): KontStore[KontAddr]
 
   /**
     * Removes the Kont value k associated with the KontAddr a.
@@ -71,11 +79,12 @@ case class BasicKontStore[KontAddr: KontAddress](
         ks.forall((k1) => lookup(a).exists(k2 => k2.subsumes(k1)))
     })
 
-  def map(f: KontAddr => KontAddr): KontStore[KontAddr] = {
+  def map(f: KontAddr => KontAddr, g: Frame => Frame): KontStore[KontAddr] = {
     val mappedContent = content.foldLeft[Map[KontAddr, Set[Kont[KontAddr]]]](
       Map[KontAddr, Set[Kont[KontAddr]]]())({
       case (kstore, (a, ks)) =>
-        kstore + (f(a) -> ks.map(kont => kont.copy(next = f(kont.next))))
+        kstore + (f(a) -> ks.map(kont =>
+          kont.copy(frame = g(kont.frame), next = f(kont.next))))
     })
     BasicKontStore(mappedContent)
   }
@@ -146,11 +155,12 @@ case class TimestampedKontStore[KontAddr: KontAddress](
       false
     }
 
-  def map(f: KontAddr => KontAddr): KontStore[KontAddr] = {
+  def map(f: KontAddr => KontAddr, g: Frame => Frame): KontStore[KontAddr] = {
     val mappedContent = content.foldLeft[Map[KontAddr, Set[Kont[KontAddr]]]](
       Map[KontAddr, Set[Kont[KontAddr]]]())({
       case (kstore, (a, ks)) =>
-        kstore + (a -> ks.map(kont => kont.copy(next = f(kont.next))))
+        kstore + (a -> ks.map(kont =>
+          kont.copy(frame = g(kont.frame), next = f(kont.next))))
     })
     TimestampedKontStore(mappedContent, timestamp)
   }

@@ -62,6 +62,7 @@ trait Semantics[Exp, Abs, Addr, Time]
     initialBindings.map({ case (name, a, _) => (name, a) })
   def initialStore: Iterable[(Addr, Abs)] =
     initialBindings.map({ case (_, a, v) => (a, v) })
+
 }
 
 trait SemanticsTraced[Exp, Abs, Addr, Time]
@@ -130,13 +131,11 @@ trait SemanticsTraced[Exp, Abs, Addr, Time]
 
   def getClosureBody(frame: Frame): Option[List[Exp]]
 
-  def convertToAbsSemanticsFrame[OtherAbs](
-      frame: Frame,
-      ρ: Environment[Addr],
-      vStack: List[Storable[OtherAbs, Addr]],
-      convertValue: Abs => OtherAbs,
-      absSem: BaseSchemeSemantics[OtherAbs, Addr, Time])
-    : (Option[Frame], List[Storable[OtherAbs, Addr]], Environment[Addr])
+  def convertToAbsSemanticsFrame(frame: Frame,
+                                 ρ: Environment[Addr],
+                                 vStack: List[Storable[Abs, Addr]],
+                                 absSem: BaseSchemeSemantics[Abs, Addr, Time])
+    : (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr])
 }
 
 /**
