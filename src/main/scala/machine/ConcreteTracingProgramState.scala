@@ -835,7 +835,7 @@ case class ProgramState[Exp: Expression](
       case TracingControlKont(ka) =>
         ConvertedControlKont[Exp, AbstL, HybridAddress.A](newV)
     }
-    (newControl, convertedρ, convertedσ, mappedKStore, convertedA, newT)
+    (newControl, convertedρ, convertedσ, convertedKStore, convertedA, newT)
   }
 
   def generateTraceInformation(
