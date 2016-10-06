@@ -908,7 +908,6 @@ case class ProgramState[Exp: Expression](
 
 
     val convertedρ = convertEnv(ρ)
-    val newV = convertValueFun(v)
     val startKontAddress = control match {
       case TracingControlEval(_) | TracingControlError(_) => a
       case TracingControlKont(ka) => ka
@@ -936,8 +935,8 @@ case class ProgramState[Exp: Expression](
     val convertedControl = mappedControl match {
       case c: ConvertedControlEval[Exp, ConcreteValue, HybridAddress.A] =>
         ConvertedControlEval[Exp, AbstL, HybridAddress.A](c.e, c.ρ)
-      case c: TracingControlKont[Exp, ConcreteValue, HybridAddress.A] =>
-        ConvertedControlKont[Exp, AbstL, HybridAddress.A](newV)
+      case c: ConvertedControlKont[Exp, ConcreteValue, HybridAddress.A] =>
+        ConvertedControlKont[Exp, AbstL, HybridAddress.A](convertValueFun(c.v))
     }
 
     val storeAddressReachable = reachesStoreAddresses(concBaseSem, σ)(mappedControl, ρ, mappedKStore, v, convertedA)
