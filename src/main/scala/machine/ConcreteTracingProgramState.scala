@@ -899,31 +899,16 @@ case class ProgramState[Exp: Expression](
        FreeKontAddr,
        HybridTimestamp.T) = {
 
-    val concBaseSem = new SchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T](new
-        SchemePrimitives[HybridAddress.A, ConcreteValue])
+    val concBaseSem =
+      new SchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T](
+        new SchemePrimitives[HybridAddress.A, ConcreteValue])
 
-    val convertValueFun = convertValue[AbstL](concSem.primitives, abstSem.primitives) _
+    val convertValueFun =
+      convertValue[AbstL](concSem.primitives, abstSem.primitives) _
 
-    val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
-    var valuesConvertedσ = Store.empty[HybridAddress.A, AbstL]
-    def addToNewStore(tuple: (HybridAddress.A, ConcreteValue)): Boolean = {
-      val convertedAddress =
-        new DefaultHybridAddressConverter().convertAddress(tuple._1)
-      val convertedValue = convertValueFun(tuple._2)
-      valuesConvertedσ =
-        valuesConvertedσ.extend(convertedAddress, convertedValue)
-      true
-    }
-    σ.forall(addToNewStore)
+
     val convertedρ = convertEnv(ρ)
-    val convertedσ = convertSto(valuesConvertedσ)
     val newV = convertValueFun(v)
-//    val newVStack = vStack.map({
-//      case StoreVal(v) =>
-//        StoreVal[AbstL, HybridAddress.A](
-//          convertValue[AbstL](v, concSem.primitives, abstSem.primitives))
-//      case StoreEnv(ρ) => StoreEnv[AbstL, HybridAddress.A](convertEnv(ρ))
-//    })
     val startKontAddress = control match {
       case TracingControlEval(_) | TracingControlError(_) => a
       case TracingControlKont(ka) => ka
@@ -935,14 +920,32 @@ case class ProgramState[Exp: Expression](
       convertedρ,
       startKontAddress,
       vStack)
-    val convertedKStore = convertKStoreAbsValuesInFrames[AbstL](mappedKStore, convertValueFun, concBaseSem, abstSem)
-    val newControl = control match {
+    val convertedKStore = convertKStoreAbsValuesInFrames[AbstL](
+      mappedKStore,
+      convertValueFun,
+      concBaseSem,
+      abstSem)
+
+    val mappedControl: ConvertedControl[Exp, ConcreteValue, HybridAddress.A] = control match {
       case TracingControlEval(exp) =>
-        ConvertedControlEval[Exp, AbstL, HybridAddress.A](exp, convertedρ)
+        ConvertedControlEval[Exp, ConcreteValue, HybridAddress.A](exp, convertedρ)
       case TracingControlKont(ka) =>
+        ConvertedControlKont[Exp, ConcreteValue, HybridAddress.A](v)
+    }
+
+    val convertedControl = mappedControl match {
+      case c: ConvertedControlEval[Exp, ConcreteValue, HybridAddress.A] =>
+        ConvertedControlEval[Exp, AbstL, HybridAddress.A](c.e, c.ρ)
+      case c: TracingControlKont[Exp, ConcreteValue, HybridAddress.A] =>
         ConvertedControlKont[Exp, AbstL, HybridAddress.A](newV)
     }
-    (newControl, convertedρ, convertedσ, convertedKStore, convertedA, newT)
+
+    val storeAddressReachable = reachesStoreAddresses(concBaseSem, σ)(mappedControl, ρ, mappedKStore, v, convertedA)
+    val GCedStore = σ.gc(storeAddressReachable)
+    Logger.log(s"Size of original store ${σ.toSet.size}; size of gc-ed store: ${GCedStore.toSet.size}", Logger.U)
+    val convertedStore = convertStore(GCedStore, convertValueFun)
+    val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
+    (convertedControl, convertedρ, convertedStore, convertedKStore, convertedA, newT)
   }
 
   def generateTraceInformation(
