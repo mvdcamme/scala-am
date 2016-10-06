@@ -762,21 +762,128 @@ case class ProgramState[Exp: Expression](
   private def convertKStoreAbsValuesInFrames[AbstL: IsConvertableLattice](
       kontStore: KontStore[FreeKontAddr],
       convertValue: ConcreteValue => AbstL,
-      concBaseSem: BaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+      concBaseSem: BaseSchemeSemantics[ConcreteValue,
+                                       HybridAddress.A,
+                                       HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T])
     : KontStore[FreeKontAddr] = {
-    kontStore.map( (kontAddr) => kontAddr, //TODO used the identity function, should use the DefaultKontAddrConverter
-                  (frame: Frame) =>
-                    concBaseSem.convertAbsInFrame[AbstL](
-                      frame.asInstanceOf[SchemeFrame[ConcreteValue,
-                                                     HybridAddress.A,
-                                                     HybridTimestamp.T]],
-                      convertValue,
-                      convertEnv,
-                      abstSem))
+    kontStore.map(
+      (kontAddr) =>
+        kontAddr, //TODO used the identity function, should use the DefaultKontAddrConverter
+      (frame: Frame) =>
+        concBaseSem.convertAbsInFrame[AbstL](
+          frame.asInstanceOf[SchemeFrame[ConcreteValue,
+                                         HybridAddress.A,
+                                         HybridTimestamp.T]],
+          convertValue,
+          convertEnv,
+          abstSem))
   }
 
-//  private def reaches TODO
+  private def convertStore[AbstL : IsConvertableLattice](store: Store[HybridAddress.A, ConcreteValue],
+                                                        convertValue: ConcreteValue => AbstL):
+  Store[HybridAddress.A, AbstL] = {
+    var valuesConvertedStore = Store.empty[HybridAddress.A, AbstL]
+    def addToNewStore(tuple: (HybridAddress.A, ConcreteValue)): Boolean = {
+      val convertedAddress =
+        new DefaultHybridAddressConverter().convertAddress(tuple._1)
+      val convertedValue = convertValue(tuple._2)
+      valuesConvertedStore =
+        valuesConvertedStore.extend(convertedAddress, convertedValue)
+      true
+    }
+    store.forall(addToNewStore)
+    valuesConvertedStore
+  }
+
+  private def reachesValue(concBaseSem: BaseSchemeSemantics[ConcreteValue,
+                                                            HybridAddress.A,
+                                                            HybridTimestamp.T],
+                           env: Environment[HybridAddress.A],
+                           sto: Store[HybridAddress.A, ConcreteValue])(
+      value: ConcreteValue): Set[HybridAddress.A] =
+    latInfoProv
+      .reaches[HybridAddress.A](value, reachesEnvironment(concBaseSem, sto))
+
+  private def reachesAddress(
+      concBaseSem: BaseSchemeSemantics[ConcreteValue,
+                                       HybridAddress.A,
+                                       HybridTimestamp.T],
+      env: Environment[HybridAddress.A],
+      sto: Store[HybridAddress.A, ConcreteValue])(
+      address: HybridAddress.A): Set[HybridAddress.A] =
+    sto
+      .lookup(address)
+      .foldLeft[Set[HybridAddress.A]](Set())((_, value) =>
+        reachesValue(concBaseSem, env, sto)(value))
+
+  private def reachesEnvironment(
+      concBaseSem: BaseSchemeSemantics[ConcreteValue,
+                                       HybridAddress.A,
+                                       HybridTimestamp.T],
+      sto: Store[HybridAddress.A, ConcreteValue])(
+      env: Environment[HybridAddress.A]): Set[HybridAddress.A] = {
+    var reached: Set[HybridAddress.A] = Set()
+    env.forall((tuple) => {
+      reached = (reached + tuple._2) ++ reachesAddress(concBaseSem, env, sto)(
+          tuple._2)
+      true
+    })
+    reached
+  }
+
+  private def reachesKontAddr(
+      concBaseSem: BaseSchemeSemantics[ConcreteValue,
+                                       HybridAddress.A,
+                                       HybridTimestamp.T],
+      env: Environment[HybridAddress.A],
+      sto: Store[HybridAddress.A, ConcreteValue],
+      kstore: KontStore[FreeKontAddr])(ka: FreeKontAddr): Set[HybridAddress.A] = {
+    kstore
+      .lookup(ka)
+      .foldLeft[Set[HybridAddress.A]](Set())(
+        (acc, kont) =>
+          acc ++ concBaseSem.frameReaches(
+            kont.frame.asInstanceOf[SchemeFrame[ConcreteValue,
+                                                HybridAddress.A,
+                                                HybridTimestamp.T]],
+            reachesValue(concBaseSem, env, sto),
+            reachesEnvironment(concBaseSem, sto),
+            reachesAddress(concBaseSem, env, sto)))
+  }
+
+  private def reachesControl(
+      concBaseSem: BaseSchemeSemantics[ConcreteValue,
+                                       HybridAddress.A,
+                                       HybridTimestamp.T],
+      env: Environment[HybridAddress.A],
+      sto: Store[HybridAddress.A, ConcreteValue],
+      kstore: KontStore[FreeKontAddr])(
+      control: ConvertedControl[Exp, ConcreteValue, HybridAddress.A])
+    : Set[HybridAddress.A] =
+    control match {
+      case ConvertedControlEval(_, env) => reachesEnvironment(concBaseSem, sto)(env)
+      case ConvertedControlKont(value) =>
+        reachesValue(concBaseSem, env, sto)(value)
+      case ConvertedControlError(_) => Set()
+    }
+
+  private def reachesStoreAddresses(
+      concBaseSem: BaseSchemeSemantics[ConcreteValue,
+                                       HybridAddress.A,
+                                       HybridTimestamp.T],
+      sto: Store[HybridAddress.A, ConcreteValue])(
+      control: ConvertedControl[Exp, ConcreteValue, HybridAddress.A],
+      env: Environment[HybridAddress.A],
+      kstore: KontStore[FreeKontAddr],
+      value: ConcreteValue,
+      ka: FreeKontAddr): Set[HybridAddress.A] = {
+    reachesControl(concBaseSem, env, sto, kstore)(control) ++
+      reachesEnvironment(concBaseSem, sto)(env) ++ reachesValue(
+      concBaseSem,
+      env,
+      sto)(value) ++ reachesKontAddr(concBaseSem, env, sto, kstore)(ka)
+  }
 
   def convertState[AbstL: IsConvertableLattice](
       free: Free[Exp, AbstL, HybridAddress.A, HybridTimestamp.T],
