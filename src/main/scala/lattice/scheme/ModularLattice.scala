@@ -18,6 +18,8 @@ trait LatticeInfoProvider[L] {
     })
   }
 
+  def reaches[Addr: Address](x: L, reachesEnv: Environment[Addr] => Set[Addr]): Set[Addr]
+
 }
 
 trait ConstantableLatticeInfoProvider[L] extends LatticeInfoProvider[L] {
@@ -713,6 +715,13 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
           values.foldLeft[scala.Int](0)((acc, value) =>
             acc + (if (pointsTo(value)) 1 else 0))
       }
+    }
+
+    def reaches[Addr: Address](
+        x: LSet,
+        reachesEnv: Environment[Addr] => Set[Addr]): Set[Addr] = x match {
+      case c: Closure[_, Addr] => reachesEnv(c.env)
+      case _ => Set[Addr]()
     }
 
   }
