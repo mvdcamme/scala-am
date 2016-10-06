@@ -84,6 +84,9 @@ abstract class Store[Addr: Address, Abs: JoinLattice] {
 
   /** Converts the store to a set of address-value tuples */
   def toSet: Set[(Addr, Abs)]
+
+  /** Removes all addresses that are not in the given set of reachable addresses from the store  */
+  def gc(reachables: Set[Addr]): Store[Addr, Abs]
 }
 
 /** Basic store with no fancy feature, just a map from addresses to values */
@@ -118,6 +121,9 @@ case class BasicStore[Addr: Address, Abs: JoinLattice](content: Map[Addr, Abs])
       case (a, v) => that.lookupBot(a) != v
     }))
   def toSet = content.toSet
+
+  def gc(reachables: Set[Addr]): Store[Addr, Abs] =
+    this.copy(content = content -- reachables)
 }
 
 /** Store that combines a default read-only store with a writable store */
@@ -152,6 +158,9 @@ case class CombinedStore[Addr: Address, Abs: JoinLattice](ro: Store[Addr, Abs],
   def diff(that: Store[Addr, Abs]) =
     throw new Exception("CombinedStore does not support diff")
   def toSet = ro.toSet ++ w.toSet
+
+  def gc(reachables: Set[Addr]): Store[Addr, Abs] =
+    this.copy(ro = ro.gc(reachables), w = w.gc(reachables))
 }
 
 /** A store that supports store deltas. Many operations are not implemented because they are not needed. */
@@ -198,6 +207,9 @@ case class DeltaStore[Addr: Address, Abs: JoinLattice](content: Map[Addr, Abs],
   override def addDelta(delta: Map[Addr, Abs]) =
     this.copy(content = content |+| delta, d = Map())
   def toSet = content.toSet
+
+  def gc(reachables: Set[Addr]): Store[Addr, Abs] =
+    this.copy(content = content -- reachables, d = d -- reachables)
 }
 
 /* Count values for counting store */
@@ -274,6 +286,9 @@ case class CountingStore[Addr: Address, Abs: JoinLattice](
     }
   def toSet =
     content.toSet.map((tuple: (Addr, (Count, Abs))) => (tuple._1, tuple._2._2))
+
+  def gc(reachables: Set[Addr]): Store[Addr, Abs] =
+    this.copy(content = content -- reachables)
 }
 
 object Store {
