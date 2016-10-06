@@ -123,7 +123,7 @@ case class BasicStore[Addr: Address, Abs: JoinLattice](content: Map[Addr, Abs])
   def toSet = content.toSet
 
   def gc(reachables: Set[Addr]): Store[Addr, Abs] =
-    this.copy(content = content -- reachables)
+    this.copy(content = content.filterKeys(reachables.contains(_)))
 }
 
 /** Store that combines a default read-only store with a writable store */
@@ -209,7 +209,7 @@ case class DeltaStore[Addr: Address, Abs: JoinLattice](content: Map[Addr, Abs],
   def toSet = content.toSet
 
   def gc(reachables: Set[Addr]): Store[Addr, Abs] =
-    this.copy(content = content -- reachables, d = d -- reachables)
+    this.copy(content = content.filterKeys(reachables.contains(_)), d = d.filterKeys(reachables.contains(_)))
 }
 
 /* Count values for counting store */
@@ -288,7 +288,7 @@ case class CountingStore[Addr: Address, Abs: JoinLattice](
     content.toSet.map((tuple: (Addr, (Count, Abs))) => (tuple._1, tuple._2._2))
 
   def gc(reachables: Set[Addr]): Store[Addr, Abs] =
-    this.copy(content = content -- reachables)
+    this.copy(content = content.filterKeys(reachables.contains(_)))
 }
 
 object Store {
