@@ -18,7 +18,9 @@ trait LatticeInfoProvider[L] {
     })
   }
 
-  def reaches[Addr: Address](x: L, reachesEnv: Environment[Addr] => Set[Addr]): Set[Addr]
+  def reaches[Addr: Address](x: L,
+                             reachesEnv: Environment[Addr] => Set[Addr],
+                             reachesAddress: Addr => Set[Addr]): Set[Addr]
 
 }
 
@@ -703,7 +705,7 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
 
       def pointsTo(value: Value): Boolean = value match {
         case Symbol(_) | Prim(_) | Closure(_, _) | Cons(_, _) | Vec(_, _, _) |
-            VectorAddress(_) =>
+             VectorAddress(_) =>
           true
         case _ => false
       }
@@ -717,13 +719,29 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
       }
     }
 
-    def reaches[Addr: Address](
-        x: LSet,
-        reachesEnv: Environment[Addr] => Set[Addr]): Set[Addr] = x match {
-      case c: Closure[_, Addr] => reachesEnv(c.env)
-      case _ => Set[Addr]()
-    }
+    def reaches[Addr: Address](x: LSet,
+                               reachesEnv: Environment[Addr] => Set[Addr],
+                               reachesAddress: Addr => Set[Addr]): Set[Addr] = {
+      def reachesValue(v: Value): Set[Addr] = v match {
+        case Closure(_, env) => reachesEnv(env.asInstanceOf[Environment[Addr]])
+        case Cons(car, cdr) =>
+//          Logger.log(s"Reached cons-cell with car $car and cdr $cdr", Logger.U)
+          reachesAddress(car.asInstanceOf[Addr]) ++ reachesAddress(cdr.asInstanceOf[Addr])
+        case v: Vec[Addr] =>
+          reachesAddress(v.init) ++ v.elements.foldLeft[Set[Addr]](Set())(
+            (acc, pair) =>
+              acc ++
+                reachesAddress(pair._2))
+        case v: VectorAddress[Addr] => reachesAddress(v.a)
+        case _ =>
+          Set[Addr]()
+      }
 
+      x match {
+        case Element(v) => reachesValue(v)
+        case Elements(vs) => vs.foldLeft(Set[Addr]())( (acc, v) => acc ++ reachesValue(v) )
+      }
+    }
   }
 
   object LSetInfoProvider extends LSetInfoProviderT

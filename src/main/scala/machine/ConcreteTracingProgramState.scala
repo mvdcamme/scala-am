@@ -802,8 +802,9 @@ case class ProgramState[Exp: Expression](
                            env: Environment[HybridAddress.A],
                            sto: Store[HybridAddress.A, ConcreteValue])(
       value: ConcreteValue): Set[HybridAddress.A] =
-    latInfoProv
-      .reaches[HybridAddress.A](value, reachesEnvironment(concBaseSem, sto))
+    latInfoProv.reaches[HybridAddress.A](value,
+                                         reachesEnvironment(concBaseSem, sto),
+                                         reachesAddress(concBaseSem, env, sto))
 
   private def reachesAddress(
       concBaseSem: BaseSchemeSemantics[ConcreteValue,
