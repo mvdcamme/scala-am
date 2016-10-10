@@ -859,7 +859,7 @@ case class ProgramState[Exp: Expression](
                                                 HybridTimestamp.T]],
             reachesValue(concBaseSem, env, sto),
             reachesEnvironment(concBaseSem, sto),
-            reachesAddress(concBaseSem, env, sto)))
+            reachesAddress(concBaseSem, env, sto)) ++ reachesKontAddr(concBaseSem, env, sto, kstore)(kont.next))
   }
 
   private def reachesControl(
