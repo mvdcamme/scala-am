@@ -11,30 +11,37 @@ class PointsToAnalysis[
     joinedStore.toSet
   }
 
-  case class MetricsToWrite(max: Double, median: Double, average: Double)
+  case class MetricsToWrite(max: Int,
+                            median: Double,
+                            average: Double,
+                            sum: Int)
 
   private def calculateMetrics(result: List[(Addr, Int)]): MetricsToWrite = {
-    val numberValues = result.map(_._2.toDouble)
+    val integerValues = result.map(_._2)
+    val numberValues = integerValues.map(_.toDouble).sortWith(_ < _)
     val length = numberValues.length
     if (length == 0) {
-      MetricsToWrite(-1, -1, -1)
+      MetricsToWrite(0, 0, 0, 0)
     } else {
-      val max = numberValues.max
+      val max = integerValues.max
+      val sum = integerValues.sum
       val median = if (length % 2 == 0) {
         (numberValues((length / 2) - 1) + numberValues(length / 2)) / 2
       } else {
         numberValues(length / 2)
       }
       val average = numberValues.sum / length
-      MetricsToWrite(max, median, average)
+      MetricsToWrite(max, median, average, sum)
     }
   }
 
-  private def possiblyWriteMetrics(stepSwitched: Int, metrics: MetricsToWrite): Unit = {
+  private def possiblyWriteMetrics(stepSwitched: Int,
+                                   metrics: MetricsToWrite): Unit = {
     if (GlobalFlags.ANALYSIS_RESULTS_OUTPUT.isDefined) {
       val file = new File(GlobalFlags.ANALYSIS_RESULTS_OUTPUT.get)
       val bw = new BufferedWriter(new FileWriter(file, true))
-      bw.write(s"$stepSwitched;${metrics.max};${metrics.median};${metrics.average}\n")
+      bw.write(
+        s"$stepSwitched;${metrics.max};${metrics.median};${metrics.average};${metrics.sum}\n")
       bw.close()
     }
   }
