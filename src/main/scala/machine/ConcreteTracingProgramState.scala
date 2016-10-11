@@ -801,18 +801,16 @@ case class ProgramState[Exp: Expression](
   private def reachesValue(concBaseSem: BaseSchemeSemantics[ConcreteValue,
                                                             HybridAddress.A,
                                                             HybridTimestamp.T],
-                           env: Environment[HybridAddress.A],
                            sto: Store[HybridAddress.A, ConcreteValue])(
       value: ConcreteValue): Set[HybridAddress.A] =
     latInfoProv.reaches[HybridAddress.A](value,
                                          reachesEnvironment(concBaseSem, sto),
-                                         reachesAddress(concBaseSem, env, sto))
+                                         reachesAddress(concBaseSem, sto))
 
   private def reachesAddress(
       concBaseSem: BaseSchemeSemantics[ConcreteValue,
                                        HybridAddress.A,
                                        HybridTimestamp.T],
-      env: Environment[HybridAddress.A],
       sto: Store[HybridAddress.A, ConcreteValue])(
       address: HybridAddress.A): Set[HybridAddress.A] = {
     if (! reached.contains(address)) {
@@ -820,7 +818,7 @@ case class ProgramState[Exp: Expression](
       Set(address) ++ sto
         .lookup(address)
         .foldLeft[Set[HybridAddress.A]](Set())((_, value) =>
-        reachesValue(concBaseSem, env, sto)(value))
+        reachesValue(concBaseSem, sto)(value))
     } else {
       Set()
     }
@@ -834,7 +832,7 @@ case class ProgramState[Exp: Expression](
       env: Environment[HybridAddress.A]): Set[HybridAddress.A] = {
     var reached: Set[HybridAddress.A] = Set()
     env.forall((tuple) => {
-      reached = (reached + tuple._2) ++ reachesAddress(concBaseSem, env, sto)(
+      reached = (reached + tuple._2) ++ reachesAddress(concBaseSem, sto)(
           tuple._2)
       true
     })
@@ -845,7 +843,6 @@ case class ProgramState[Exp: Expression](
       concBaseSem: BaseSchemeSemantics[ConcreteValue,
                                        HybridAddress.A,
                                        HybridTimestamp.T],
-      env: Environment[HybridAddress.A],
       sto: Store[HybridAddress.A, ConcreteValue],
       kstore: KontStore[FreeKontAddr])(
       ka: FreeKontAddr): Set[HybridAddress.A] = {
@@ -857,16 +854,15 @@ case class ProgramState[Exp: Expression](
             kont.frame.asInstanceOf[SchemeFrame[ConcreteValue,
                                                 HybridAddress.A,
                                                 HybridTimestamp.T]],
-            reachesValue(concBaseSem, env, sto),
+            reachesValue(concBaseSem, sto),
             reachesEnvironment(concBaseSem, sto),
-            reachesAddress(concBaseSem, env, sto)) ++ reachesKontAddr(concBaseSem, env, sto, kstore)(kont.next))
+            reachesAddress(concBaseSem, sto)) ++ reachesKontAddr(concBaseSem, sto, kstore)(kont.next))
   }
 
   private def reachesControl(
       concBaseSem: BaseSchemeSemantics[ConcreteValue,
                                        HybridAddress.A,
                                        HybridTimestamp.T],
-      env: Environment[HybridAddress.A],
       sto: Store[HybridAddress.A, ConcreteValue],
       kstore: KontStore[FreeKontAddr])(
       control: ConvertedControl[Exp, ConcreteValue, HybridAddress.A])
@@ -875,7 +871,7 @@ case class ProgramState[Exp: Expression](
       case ConvertedControlEval(_, env) =>
         reachesEnvironment(concBaseSem, sto)(env)
       case ConvertedControlKont(value) =>
-        reachesValue(concBaseSem, env, sto)(value)
+        reachesValue(concBaseSem, sto)(value)
       case ConvertedControlError(_) => Set()
     }
 
@@ -889,11 +885,10 @@ case class ProgramState[Exp: Expression](
       kstore: KontStore[FreeKontAddr],
       value: ConcreteValue,
       ka: FreeKontAddr): Set[HybridAddress.A] = {
-    reachesControl(concBaseSem, env, sto, kstore)(control) ++
+    reachesControl(concBaseSem, sto, kstore)(control) ++
       reachesEnvironment(concBaseSem, sto)(env) ++ reachesValue(
       concBaseSem,
-      env,
-      sto)(value) ++ reachesKontAddr(concBaseSem, env, sto, kstore)(ka)
+      sto)(value) ++ reachesKontAddr(concBaseSem, sto, kstore)(ka)
   }
 
   def convertState[AbstL: IsConvertableLattice](
