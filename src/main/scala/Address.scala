@@ -118,4 +118,9 @@ object HybridAddress extends AddressWrapper {
     def cell[Exp: Expression, Time: Timestamp](exp: Exp, t: Time) =
       HybridAddr(cellAbstract[Exp, Time](exp, t))
   }
+
+  def isPrimitiveAddress(address: A): Boolean = address match {
+    case PrimitiveAddress(_) => true
+    case _ => false
+  }
 }

@@ -46,15 +46,16 @@ class PointsToAnalysis[
     }
   }
 
-  private def analyzeOutput(
-      free: Free[Exp, L, Addr, Time],
-      pointsTo: L => Int)(output: free.FreeOutput): List[(Addr, Int)] = {
+  private def analyzeOutput(free: Free[Exp, L, Addr, Time],
+                            pointsTo: L => Int,
+                            relevantAddress: Addr => Boolean)(
+      output: free.FreeOutput): List[(Addr, Int)] = {
     val storeValues = joinStores(free)(output.finalStores)
     val initial: List[(Addr, Int)] = Nil
     val result: List[(Addr, Int)] = storeValues.foldLeft(initial)({
       case (result, (address, value)) =>
         val numberOfObjectsPointedTo: Int = pointsTo(value)
-        if (numberOfObjectsPointedTo > 1) {
+        if (relevantAddress(address) && numberOfObjectsPointedTo > 0) {
           /* List all addresses pointing to more than one value */
           ((address, numberOfObjectsPointedTo)) :: result
         } else {
@@ -65,21 +66,22 @@ class PointsToAnalysis[
       s"Static points-to analysis completed, resulting set equals $result",
       Logger.D)
     val metrics = calculateMetrics(result)
-    Logger.log(
-      s"Static points-to analysis completed, metrics equals $metrics",
-      Logger.D)
+    Logger.log(s"Static points-to analysis completed, metrics equals $metrics",
+               Logger.D)
     possiblyWriteMetrics(output.stepSwitched.get, metrics)
     result
   }
 
   def analyze(free: Free[Exp, L, Addr, Time],
               sem: Semantics[Exp, L, Addr, Time],
-              pointsTo: L => Int)(startState: free.States,
+              pointsTo: L => Int,
+              relevantAddress: Addr => Boolean)(startState: free.States,
                                   isInitial: Boolean,
                                   stepSwitched: Int): List[(Addr, Int)] = {
     Logger.log(s"Starting static points-to analysis", Logger.I)
-    val output = free.kickstartEval(startState, sem, None, None, Some(stepSwitched))
-    analyzeOutput(free, pointsTo)(output)
+    val output =
+      free.kickstartEval(startState, sem, None, None, Some(stepSwitched))
+    analyzeOutput(free, pointsTo, relevantAddress)(output)
   }
 }
 
@@ -97,13 +99,15 @@ class PointsToAnalysisLauncher[
   val pointsToAnalysis =
     new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
 
-  def runStaticAnalysis(currentProgramState: PS, stepSwitched: Int): StaticAnalysisResult =
+  def runStaticAnalysis(currentProgramState: PS,
+                        stepSwitched: Int): StaticAnalysisResult =
     wrapRunAnalysis(() => {
       val free: SpecFree = new SpecFree()
       val startStates =
         convertState(free, concSem, abstSem, currentProgramState)
       val result = pointsToAnalysis
-        .analyze(free, abstSem, lip.pointsTo)(startStates, false, stepSwitched)
+        .analyze(free, abstSem, lip.pointsTo, (addr) => ! HybridAddress.isPrimitiveAddress(addr))(startStates, false,
+          stepSwitched)
       Logger.log(s"Static points-to analysis result is $result", Logger.U)
       PointsToSet(result)
     })
