@@ -12,3 +12,5 @@ results
 benchmark results
 *.log
 benchmark_times.txt
+.Rproj.user
+Analysis
