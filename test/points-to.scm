@@ -1,8 +1,8 @@
-(define (id x)
-  x)
+(define (id y)
+  y)
 
 (define (loop n x)
-  (cond ((< n 1) (start-analysis) x)
+  (cond ((< n 1) x)
         ((= (modulo n 2) 0)
          (let ((a (cons 1 2)))
            (loop (- n 1) (id a))))

@@ -789,6 +789,6 @@ Value __numEqual ;
   (emit compiled-program))
 
 
-(define the-program 3)
+(define the-program '(begin (define (fac x) (if (< x 2) 1 (* x (fac (- x 1))))) (fac 5)))
 
 (c-compile-and-emit emit the-program)
