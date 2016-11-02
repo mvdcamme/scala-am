@@ -37,11 +37,11 @@ class PointsToAnalysis[
 
   private def possiblyWriteMetrics(stepSwitched: Int,
                                    metrics: MetricsToWrite): Unit = {
+    val output = s"$stepSwitched;${metrics.max};${metrics.median};${metrics.average};${metrics.sum}"
     if (GlobalFlags.ANALYSIS_RESULTS_OUTPUT.isDefined) {
       val file = new File(GlobalFlags.ANALYSIS_RESULTS_OUTPUT.get)
       val bw = new BufferedWriter(new FileWriter(file, true))
-      bw.write(
-        s"$stepSwitched;${metrics.max};${metrics.median};${metrics.average};${metrics.sum}\n")
+      bw.write(output ++ "\n")
       bw.close()
     }
   }
@@ -57,7 +57,7 @@ class PointsToAnalysis[
         val numberOfObjectsPointedTo: Int = pointsTo(value)
         if (relevantAddress(address) && numberOfObjectsPointedTo > 0) {
           /* List all addresses pointing to more than one value */
-          ((address, numberOfObjectsPointedTo)) :: result
+          (address, numberOfObjectsPointedTo) :: result
         } else {
           result
         }
@@ -106,7 +106,8 @@ class PointsToAnalysisLauncher[
       val startStates =
         convertState(free, concSem, abstSem, currentProgramState)
       val result = pointsToAnalysis
-        .analyze(free, abstSem, lip.pointsTo, (addr) => ! HybridAddress.isPrimitiveAddress(addr))(startStates, false,
+        .analyze(free, abstSem, lip.pointsTo, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startStates,
+          false,
           stepSwitched)
       Logger.log(s"Static points-to analysis result is $result", Logger.U)
       PointsToSet(result)
