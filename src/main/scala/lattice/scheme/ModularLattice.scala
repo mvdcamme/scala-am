@@ -682,7 +682,7 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
 
   val isSchemeLatticeSet = IsSchemeLatticeSet
 
-  trait LSetInfoProviderT extends PointsToableLatticeInfoProvider[LSet] {
+  trait  LSetInfoProviderT extends PointsToableLatticeInfoProvider[LSet] {
 
     def simpleType(x: LSet): SimpleTypes.Value = x match {
       case Element(Bool(_)) => SimpleTypes.Boolean
@@ -774,7 +774,7 @@ object ConcreteConcreteLattice extends SchemeLattice {
 
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](true)
   type L = lattice.LSet
-  implicit val isSchemeLattice: IsConvertableLattice[L] =
+  val isSchemeLattice: IsConvertableLattice[L] =
     lattice.isSchemeLatticeSet
   val latticeInfoProvider: PointsToableLatticeInfoProvider[L] =
     lattice.isSchemeLatticeSet.latticeInfoProvider
@@ -868,12 +868,11 @@ class BoundedIntLattice(bound: Int, counting: Boolean) extends SchemeLattice {
 
 import StringConstantPropagation._
 import ConcreteBoolean._
-import IntegerConstantPropagation._
 import FloatConstantPropagation._
 import CharConstantPropagation._
 import SymbolConstantPropagation._
 
-class ConstantMakeSchemeLattice(counting: Boolean)
+class ConstantMakeSchemeLattice[I : IsInteger](counting: Boolean)
     extends MakeSchemeLattice[S, B, I, F, C, Sym](counting) {
 
   trait ConstantableLatticeInfoProviderT
@@ -914,10 +913,43 @@ class ConstantMakeSchemeLattice(counting: Boolean)
 }
 
 class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
-  val lattice = new ConstantMakeSchemeLattice(counting)
+  import IntegerConstantPropagation._
+  val lattice = new ConstantMakeSchemeLattice[I](counting)
   type L = lattice.LSet
   implicit val isSchemeLattice: IsConvertableLattice[lattice.LSet] =
     lattice.isConstantSchemeLatticeSet
   val latticeInfoProvider: PointsToableLatticeInfoProvider[lattice.LSet] with ConstantableLatticeInfoProvider[
     L] = lattice.isConstantSchemeLatticeSet.constantLatticeInfoProvider
+}
+
+class PointsToLattice(counting: Boolean) extends SchemeLattice {
+  import PointsToInteger._
+  val lattice = new ConstantMakeSchemeLattice[I](counting)
+  type L = lattice.LSet
+  implicit val isSchemeLattice: IsConvertableLattice[lattice.LSet] =
+    lattice.isConstantSchemeLatticeSet
+  val latticeInfoProvider: PointsToableLatticeInfoProvider[lattice.LSet] with ConstantableLatticeInfoProvider[
+    L] = new lattice.ConstantableLatticeInfoProviderT {
+
+    override def pointsTo(x: lattice.LSet): scala.Int = {
+
+      def pointsTo(value: lattice.Value): scala.Int = value match {
+        case lattice.Symbol(_) | lattice.Prim(_) | lattice.Closure(_, _) | lattice.Cons(_, _) | lattice.Vec(_, _, _) |
+             lattice.VectorAddress(_) =>
+          1
+        case lattice.Int(i) =>
+          PointsToInteger.pointsTo(i)
+        case _ => 0
+      }
+
+      x match {
+        case lattice.Element(value) =>
+          pointsTo(value)
+        case lattice.Elements(values) =>
+          values.map(pointsTo).foldLeft(0)(_ + _)
+//          values.foldLeft[scala.Int](0)((acc, value) =>
+//            acc + pointsTo(value))
+      }
+    }
+  }
 }

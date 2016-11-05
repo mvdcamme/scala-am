@@ -155,7 +155,8 @@ object ConcreteBoolean {
 
 object ConcreteInteger {
   type I = ISet[Int]
-  implicit val isInteger = new IsInteger[I] {
+  implicit val isInteger = new ConcreteIsInteger
+  class ConcreteIsInteger extends IsInteger[I] {
     def name = "ConcreteInteger"
     override def shows(x: I): String =
       if (x.size == 1) { x.elems.head.toString } else {
@@ -345,6 +346,120 @@ class BoundedInteger(bound: Int) {
       case (Top, _: Set) => Ordering.GT
       case (_: Set, Top) => Ordering.LT
       case (Top, Top) => Ordering.EQ
+    }
+  }
+}
+
+abstract class PointsToValue {
+  val maxSize = 1
+}
+
+object PointsToInteger extends PointsToValue {
+  val concreteIsInteger = new ConcreteInteger.ConcreteIsInteger
+  type CI = ConcreteInteger.I
+  sealed trait I
+  case class PreciseI(v: CI) extends I
+  case object Top extends I
+  def pointsTo(i: I): Int = i match {
+    case Top => 100 //Int.MaxValue
+    case PreciseI(v) => v.size
+  }
+  implicit val isInteger = new IsInteger[I] {
+    def name = "PointsToInteger"
+    override def shows(x: I): String = x match {
+      case PreciseI(v) =>
+        concreteIsInteger.shows(v)
+      case Top => "PointsToInteger"
+    }
+    val bottom: I = PreciseI(concreteIsInteger.bottom)
+    def top: I = Top
+
+    private def applyAndCheckSize(x: CI): I =
+      if (x.size > maxSize) {
+        Top
+      } else {
+        PreciseI(x)
+      }
+
+    private def applyAndCheckOtherUnary[L](
+        x: I,
+        f: (CI) => L)(implicit l: IsLatticeElement[L]): L =
+      x match {
+        case Top => l.top
+        case PreciseI(vX) =>
+          f(vX)
+      }
+
+    private def applyAndCheckOtherBinary[L](
+        x: I,
+        y: I,
+        f: (CI,
+            CI) => L)(implicit l: IsLatticeElement[L]): L =
+      (x, y) match {
+        case (Top, _) | (_, Top) => l.top
+        case (PreciseI(vX), PreciseI(vY)) =>
+          f(vX, vY)
+      }
+
+    private def applyAndCheckUnary(
+        x: I,
+        f: (CI) => CI) = x match {
+      case Top => Top
+      case PreciseI(v) =>
+        applyAndCheckSize(f(v))
+    }
+    private def applyAndCheckBinary(
+        x: I,
+        y: I,
+        f: (CI, CI) => CI): I =
+      (x, y) match {
+        case (Top, _) => Top
+        case (_, Top) => Top
+        case (PreciseI(vX), PreciseI(vY)) =>
+          applyAndCheckSize(f(vX, vY))
+
+      }
+    def join(x: I, y: => I) = x match {
+      case Top => Top
+      case PreciseI(vX) => y match {
+        case Top => Top
+        case PreciseI(vY) => applyAndCheckSize(concreteIsInteger.join(vX, vY))
+      }
+    }
+    def subsumes(x: I, y: => I) = (x, y) match {
+      case (Top, _) => true
+      case (_, Top) => false
+      case (PreciseI(vX), PreciseI(vY)) => concreteIsInteger.subsumes(vX, vY)
+    }
+    def inject(x: Int): I = PreciseI(concreteIsInteger.inject(x))
+    def ceiling(n: I): I = n
+    def toFloat[F](n: I)(implicit float: IsFloat[F]): F = n match {
+      case Top => float.top
+      case PreciseI(v) => concreteIsInteger.toFloat(v)(float)
+    }
+    def random(n: I): I = applyAndCheckUnary(n, concreteIsInteger.random)
+    def plus(n1: I, n2: I): I =
+      applyAndCheckBinary(n1, n2, concreteIsInteger.plus)
+    def minus(n1: I, n2: I): I =
+      applyAndCheckBinary(n1, n2, concreteIsInteger.minus)
+    def times(n1: I, n2: I): I =
+      applyAndCheckBinary(n1, n2, concreteIsInteger.times)
+    def div(n1: I, n2: I): I =
+      applyAndCheckBinary(n1, n2, concreteIsInteger.div)
+    def modulo(n1: I, n2: I): I =
+      applyAndCheckBinary(n1, n2, concreteIsInteger.modulo)
+    def lt[B](n1: I, n2: I)(implicit bool: IsBoolean[B]): B =
+      applyAndCheckOtherBinary(n1, n2, (vX, vY) => concreteIsInteger.lt(vX, vY)(bool))
+    def eql[B](n1: I, n2: I)(implicit bool: IsBoolean[B]): B =
+      applyAndCheckOtherBinary(n1, n2, (vX, vY) => concreteIsInteger.eql(vX, vY)(bool))
+    def toString[S](n: I)(implicit str: IsString[S]): S =
+      applyAndCheckOtherUnary(n, (v) => concreteIsInteger.toString(v)(str))
+
+    def order(x: I, y: I): Ordering = (x, y) match {
+      case (Top, Top) => Ordering.EQ
+      case (Top, _) => Ordering.GT
+      case (PreciseI(vX), PreciseI(vY)) =>
+        concreteIsInteger.order(vX, vY)
     }
   }
 }

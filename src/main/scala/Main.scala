@@ -523,7 +523,7 @@ object Main {
             implicit val constConvLattice = constLattice.isSchemeLattice
             implicit val constLatInfoProv = constLattice.latticeInfoProvider
 
-            val pointsLattice = new ConstantPropagationLattice(false)
+            val pointsLattice = new PointsToLattice(false)
             implicit val pointsConvLattice = pointsLattice.isSchemeLattice
             implicit val pointsLatInfoProv = pointsLattice.latticeInfoProvider
 
