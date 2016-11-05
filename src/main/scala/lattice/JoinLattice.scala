@@ -155,8 +155,7 @@ object ConcreteBoolean {
 
 object ConcreteInteger {
   type I = ISet[Int]
-  implicit val isInteger = new ConcreteIsInteger
-  class ConcreteIsInteger extends IsInteger[I] {
+  implicit val isInteger = new IsInteger[I] {
     def name = "ConcreteInteger"
     override def shows(x: I): String =
       if (x.size == 1) { x.elems.head.toString } else {
@@ -350,117 +349,183 @@ class BoundedInteger(bound: Int) {
   }
 }
 
-abstract class PointsToValue {
-  val maxSize = 1
-}
-
-object PointsToInteger extends PointsToValue {
-  val concreteIsInteger = new ConcreteInteger.ConcreteIsInteger
-  type CI = ConcreteInteger.I
-  sealed trait I
-  case class PreciseI(v: CI) extends I
-  case object Top extends I
-  def pointsTo(i: I): Int = i match {
+abstract class PointsToValue[PT <: { def size: Int }](val maxSize: Int) {
+  sealed trait L
+  case object Top extends L
+  case class Precise(v: PT) extends L
+  def pointsTo(i: L): Int = i match {
     case Top => 100 //Int.MaxValue
-    case PreciseI(v) => v.size
+    case Precise(v) => v.size
   }
-  implicit val isInteger = new IsInteger[I] {
-    def name = "PointsToInteger"
-    override def shows(x: I): String = x match {
-      case PreciseI(v) =>
-        concreteIsInteger.shows(v)
-      case Top => "PointsToInteger"
-    }
-    val bottom: I = PreciseI(concreteIsInteger.bottom)
-    def top: I = Top
 
-    private def applyAndCheckSize(x: CI): I =
+  abstract class IsBaseInstance(val name: String, val le: IsLatticeElement[PT]) extends IsLatticeElement[L] {
+    override def shows(f: L): String = f match {
+      case Precise(v) =>
+        le.shows(v)
+      case Top => name
+    }
+    val bottom: L = Precise(le.bottom)
+    def top: L = Top
+    def join(x: L, y: => L) = x match {
+      case Top => Top
+      case Precise(vX) => y match {
+        case Top => Top
+        case Precise(vY) => checkSize(le.join(vX, vY))
+      }
+    }
+    def subsumes(x: L, y: => L) = (x, y) match {
+      case (Top, _) => true
+      case (_, Top) => false
+      case (Precise(vX), Precise(vY)) => le.subsumes(vX, vY)
+    }
+
+    def order(x: L, y: L): Ordering = (x, y) match {
+      case (Top, Top) => Ordering.EQ
+      case (Top, _) => Ordering.GT
+      case (Precise(vX), Precise(vY)) =>
+        le.order(vX, vY)
+    }
+
+    def eql[B: IsBoolean](s1: L, s2: L): B =
+      applyAndCheckOtherBinary(s1, s2, (vX, vY) => le.eql(vX, vY)(implicitly[IsBoolean[B]]))
+
+    protected def checkSize(x: PT): L =
       if (x.size > maxSize) {
         Top
       } else {
-        PreciseI(x)
+        Precise(x)
       }
 
-    private def applyAndCheckOtherUnary[L](
-        x: I,
-        f: (CI) => L)(implicit l: IsLatticeElement[L]): L =
+    protected def applyAndCheckOtherUnary[OL](
+                                              x: L,
+                                              f: (PT) => OL)(implicit l: IsLatticeElement[OL]): OL =
       x match {
         case Top => l.top
-        case PreciseI(vX) =>
+        case Precise(vX) =>
           f(vX)
       }
 
-    private def applyAndCheckOtherBinary[L](
-        x: I,
-        y: I,
-        f: (CI,
-            CI) => L)(implicit l: IsLatticeElement[L]): L =
+    protected def applyAndCheckOtherBinary[OL](
+                                               x: L,
+                                               y: L,
+                                               f: (PT,
+                                                 PT) => OL)(implicit l: IsLatticeElement[OL]): OL =
       (x, y) match {
         case (Top, _) | (_, Top) => l.top
-        case (PreciseI(vX), PreciseI(vY)) =>
+        case (Precise(vX), Precise(vY)) =>
           f(vX, vY)
       }
 
-    private def applyAndCheckUnary(
-        x: I,
-        f: (CI) => CI) = x match {
+    protected def applyAndCheckUnary(
+                                      x: L,
+                                      f: (PT) => PT) = x match {
       case Top => Top
-      case PreciseI(v) =>
-        applyAndCheckSize(f(v))
+      case Precise(v) =>
+        checkSize(f(v))
     }
-    private def applyAndCheckBinary(
-        x: I,
-        y: I,
-        f: (CI, CI) => CI): I =
+    protected def applyAndCheckBinary(
+                                       x: L,
+                                       y: L,
+                                       f: (PT, PT) => PT): L =
       (x, y) match {
         case (Top, _) => Top
         case (_, Top) => Top
-        case (PreciseI(vX), PreciseI(vY)) =>
-          applyAndCheckSize(f(vX, vY))
+        case (Precise(vX), Precise(vY)) =>
+          checkSize(f(vX, vY))
 
       }
-    def join(x: I, y: => I) = x match {
-      case Top => Top
-      case PreciseI(vX) => y match {
-        case Top => Top
-        case PreciseI(vY) => applyAndCheckSize(concreteIsInteger.join(vX, vY))
-      }
+  }
+}
+
+object PointsToString extends PointsToValue[ConcreteString.S](1) {
+  type S = L
+  val concreteIsString = ConcreteString.isString
+  implicit val isString = new IsBaseInstance("PointsToString", concreteIsString) with IsString[S] {
+    def inject(s: String) = checkSize(concreteIsString.inject(s))
+    def length[I](s: S)(implicit int: IsInteger[I]): I = applyAndCheckOtherUnary(s, (s) => concreteIsString.length(s)
+    (int))
+    def append(s1: S, s2: S) = applyAndCheckBinary(s1, s2, concreteIsString.append)
+  }
+}
+
+object PointsToBoolean extends PointsToValue[ConcreteBoolean.B](1) {
+  type B = L
+  val concreteIsBoolean = ConcreteBoolean.isBoolean
+  implicit val isBoolean = new IsBaseInstance("PointsToBoolean", concreteIsBoolean) with IsBoolean[B] {
+    def inject(b: Boolean) = checkSize(concreteIsBoolean.inject(b))
+    def isTrue(b: B) = b match {
+      case Top => true
+      case Precise(vs) => concreteIsBoolean.isTrue(vs)
     }
-    def subsumes(x: I, y: => I) = (x, y) match {
-      case (Top, _) => true
-      case (_, Top) => false
-      case (PreciseI(vX), PreciseI(vY)) => concreteIsInteger.subsumes(vX, vY)
+    def isFalse(b: B) = b match {
+      case Top => true
+      case Precise(vs) => concreteIsBoolean.isFalse(vs)
     }
-    def inject(x: Int): I = PreciseI(concreteIsInteger.inject(x))
-    def ceiling(n: I): I = n
-    def toFloat[F](n: I)(implicit float: IsFloat[F]): F = n match {
+    def not(b: B) = applyAndCheckUnary(b, concreteIsBoolean.not)
+  }
+}
+
+object PointsToInteger extends PointsToValue[ConcreteInteger.I](1) {
+  type I = L
+  val concreteIsInteger = ConcreteInteger.isInteger
+  implicit val isInteger = new IsBaseInstance("PointsToInteger", concreteIsInteger) with IsInteger[I] {
+    override def shows(x: L) = super.shows(x)
+    def inject(x: Int): L = Precise(concreteIsInteger.inject(x))
+    def ceiling(n: L): L = n
+    def toFloat[F](n: L)(implicit float: IsFloat[F]): F = n match {
       case Top => float.top
-      case PreciseI(v) => concreteIsInteger.toFloat(v)(float)
+      case Precise(v) => concreteIsInteger.toFloat(v)(float)
     }
-    def random(n: I): I = applyAndCheckUnary(n, concreteIsInteger.random)
-    def plus(n1: I, n2: I): I =
+    def random(n: L): L = applyAndCheckUnary(n, concreteIsInteger.random)
+    def plus(n1: L, n2: L): L =
       applyAndCheckBinary(n1, n2, concreteIsInteger.plus)
-    def minus(n1: I, n2: I): I =
+    def minus(n1: L, n2: L): L =
       applyAndCheckBinary(n1, n2, concreteIsInteger.minus)
-    def times(n1: I, n2: I): I =
+    def times(n1: L, n2: L): L =
       applyAndCheckBinary(n1, n2, concreteIsInteger.times)
-    def div(n1: I, n2: I): I =
+    def div(n1: L, n2: L): L =
       applyAndCheckBinary(n1, n2, concreteIsInteger.div)
-    def modulo(n1: I, n2: I): I =
+    def modulo(n1: L, n2: L): L =
       applyAndCheckBinary(n1, n2, concreteIsInteger.modulo)
-    def lt[B](n1: I, n2: I)(implicit bool: IsBoolean[B]): B =
+    def lt[B](n1: L, n2: L)(implicit bool: IsBoolean[B]): B =
       applyAndCheckOtherBinary(n1, n2, (vX, vY) => concreteIsInteger.lt(vX, vY)(bool))
-    def eql[B](n1: I, n2: I)(implicit bool: IsBoolean[B]): B =
-      applyAndCheckOtherBinary(n1, n2, (vX, vY) => concreteIsInteger.eql(vX, vY)(bool))
-    def toString[S](n: I)(implicit str: IsString[S]): S =
+    def toString[S](n: L)(implicit str: IsString[S]): S =
       applyAndCheckOtherUnary(n, (v) => concreteIsInteger.toString(v)(str))
+  }
+}
 
-    def order(x: I, y: I): Ordering = (x, y) match {
-      case (Top, Top) => Ordering.EQ
-      case (Top, _) => Ordering.GT
-      case (PreciseI(vX), PreciseI(vY)) =>
-        concreteIsInteger.order(vX, vY)
-    }
+object PointsToFloat extends PointsToValue[ConcreteFloat.F](1) {
+  type F = L
+  val concreteIsFloat = ConcreteFloat.isFloat
+  implicit val isFloat = new IsBaseInstance("PointsToFloat", concreteIsFloat) {
+    def inject(n: Float) = checkSize(concreteIsFloat.inject(n))
+    def ceiling(n: F) = applyAndCheckUnary(n, concreteIsFloat.ceiling)
+    def log(n: F) = applyAndCheckUnary(n, concreteIsFloat.log)
+    def random(n: F) = applyAndCheckUnary(n, concreteIsFloat.random)
+    def plus(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteIsFloat.plus)
+    def minus(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteIsFloat.minus)
+    def times(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteIsFloat.times)
+    def div(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteIsFloat.div)
+    def lt[B](n1: F, n2: F)(implicit bool: IsBoolean[B]) = applyAndCheckOtherBinary(n1, n2, (n1, n2) => concreteIsFloat
+      .lt(n1, n2)(bool))
+    def toString[Str](n: F)(implicit str: IsString[Str]) = applyAndCheckOtherUnary(n, (v) => concreteIsFloat.toString
+    (v)(str))
+  }
+}
+
+object PointsToChar extends PointsToValue[ConcreteChar.C](1) {
+  type C = L
+  val concreteIsChar = ConcreteChar.isChar
+  implicit val isChar = new IsBaseInstance("PointsToChar", concreteIsChar) with IsChar[C] {
+    def inject(c: Char) = checkSize(concreteIsChar.inject(c))
+  }
+}
+
+object PointsToSymbol extends PointsToValue[ConcreteSymbol.Sym](1) {
+  type Sym = L
+  val concreteIsSymbol = ConcreteSymbol.isSymbol
+  implicit val isSymbol = new IsBaseInstance("PointsToSymbol", concreteIsSymbol) with IsSymbol[Sym] {
+    def inject(sym: String) = checkSize(concreteIsSymbol.inject(sym))
   }
 }
 
@@ -583,6 +648,88 @@ object Type {
     def inject(sym: String): T = Top
   }
 }
+
+//class PointsTo[A](maxSize: Int)(implicit ordering: Order[A]) {
+//  sealed trait L
+//  case object Top extends L
+//  case class Precise(s: ISet[A]) extends L
+//  case object Bottom extends L
+//
+//  implicit val preciseIsMonoid = new Monoid[L] {
+//    def zero: L = Bottom
+//    def append(x: L, y: => L): L = x match {
+//      case Top => Top
+//      case Precise(vsX) =>
+//        y match {
+//          case Top => Top
+//          case Precise(vsY) =>
+//            val merged = vsX.union(vsY)
+//            if (merged.size > maxSize) Top else Precise(merged)
+//          case Bottom => x
+//        }
+//      case Bottom => y
+//    }
+//  }
+//
+//  abstract class BaseInstance(typeName: String) extends IsLatticeElement[L] {
+//    def name = s"PointsTo$typeName"
+//    override def shows(x: L): String = x match {
+//      case Top => typeName
+//      case Precise(x) => if (x.size == 1) { x.elems.head.toString } else {
+//        "{" + x.elems.mkString(",") + "}"
+//      }
+//      case Bottom => "⊥"
+//    }
+//    val bottom: L = Bottom
+//    val top: L = Top
+//    def join(x: L, y: => L) = preciseIsMonoid.append(x, y)
+//    def meet(x: L, y: => L): L = x match {
+//      case Bottom => Bottom
+//      case Precise(_) =>
+//        y match {
+//          case Top => x
+//          case Precise(vsX) =>
+//            val intersect = vsX.intersection(vsY)
+//            if (intersect.empty) Bottom else Precise(intersect)
+//          case Bottom => Bottom
+//        }
+//      case Top => y
+//    }
+//    def subsumes(x: L, y: => L) = x match {
+//      case Top => true
+//      case Precise(vsX) =>
+//        y match {
+//          case Top => false
+//          case Precise(vsY) => vsY.isSubsetOf(vsX)
+//          case Bottom => true
+//        }
+//      case Bottom =>
+//        y match {
+//          case Top => false
+//          case Precise(_) => false
+//          case Bottom => true
+//        }
+//    }
+//    def eql[B](n1: L, n2: L)(implicit bool: IsBoolean[B]): B = (n1, n2) match {
+//      case (Top, Top) => bool.top
+//      case (Top, Precise(_)) => bool.top
+//      case (Precise(_), Top) => bool.top
+//      case (Precise(x), Precise(y)) =>
+//        if (x == y) { bool.inject(true) } else { bool.inject(false) }
+//      case (Bottom, _) => bool.bottom
+//      case (_, Bottom) => bool.bottom
+//    }
+//    def order(x: L, y: L): Ordering = (x, y) match {
+//      case (Top, Top) => Ordering.EQ
+//      case (Top, _) => Ordering.GT
+//      case (Precise(_), Top) => Ordering.LT
+//      case (Precise(x), Precise(y)) => ordering.order(x, y)
+//      case (Precise(_), Bottom) => Ordering.GT
+//      case (Bottom, Bottom) => Ordering.EQ
+//      case (Bottom, _) => Ordering.LT
+//    }
+//  }
+//}
 
 class ConstantPropagation[A](implicit ordering: Order[A]) {
   sealed trait L
