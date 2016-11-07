@@ -349,7 +349,7 @@ class BoundedInteger(bound: Int) {
   }
 }
 
-abstract class PointsToValue[PT <: { def size: Int }](val maxSize: Int) {
+abstract class PointsTo[PT <: { def size: Int }](val maxSize: Int) {
   sealed trait L
   case object Top extends L
   case class Precise(v: PT) extends L
@@ -437,7 +437,7 @@ abstract class PointsToValue[PT <: { def size: Int }](val maxSize: Int) {
   }
 }
 
-object PointsToString extends PointsToValue[ConcreteString.S](1) {
+object PointsToString extends PointsTo[ConcreteString.S](1) {
   type S = L
   val concreteIsString = ConcreteString.isString
   implicit val isString = new BaseInstance("PointsToString", concreteIsString) with IsString[S] {
@@ -448,7 +448,7 @@ object PointsToString extends PointsToValue[ConcreteString.S](1) {
   }
 }
 
-object PointsToBoolean extends PointsToValue[ConcreteBoolean.B](1) {
+object PointsToBoolean extends PointsTo[ConcreteBoolean.B](1) {
   type B = L
   val concreteIsBoolean = ConcreteBoolean.isBoolean
   implicit val isBoolean = new BaseInstance("PointsToBoolean", concreteIsBoolean) with IsBoolean[B] {
@@ -465,7 +465,7 @@ object PointsToBoolean extends PointsToValue[ConcreteBoolean.B](1) {
   }
 }
 
-object PointsToInteger extends PointsToValue[ConcreteInteger.I](1) {
+object PointsToInteger extends PointsTo[ConcreteInteger.I](1) {
   type I = L
   val concreteIsInteger = ConcreteInteger.isInteger
   implicit val isInteger = new BaseInstance("PointsToInteger", concreteIsInteger) with IsInteger[I] {
@@ -494,7 +494,7 @@ object PointsToInteger extends PointsToValue[ConcreteInteger.I](1) {
   }
 }
 
-object PointsToFloat extends PointsToValue[ConcreteFloat.F](1) {
+object PointsToFloat extends PointsTo[ConcreteFloat.F](1) {
   type F = L
   val concreteIsFloat = ConcreteFloat.isFloat
   implicit val isFloat = new BaseInstance("PointsToFloat", concreteIsFloat) with IsFloat[F] {
@@ -513,7 +513,7 @@ object PointsToFloat extends PointsToValue[ConcreteFloat.F](1) {
   }
 }
 
-object PointsToChar extends PointsToValue[ConcreteChar.C](1) {
+object PointsToChar extends PointsTo[ConcreteChar.C](1) {
   type C = L
   val concreteIsChar = ConcreteChar.isChar
   implicit val isChar = new BaseInstance("PointsToChar", concreteIsChar) with IsChar[C] {
@@ -521,7 +521,7 @@ object PointsToChar extends PointsToValue[ConcreteChar.C](1) {
   }
 }
 
-object PointsToSymbol extends PointsToValue[ConcreteSymbol.Sym](1) {
+object PointsToSymbol extends PointsTo[ConcreteSymbol.Sym](1) {
   type Sym = L
   val concreteIsSymbol = ConcreteSymbol.isSymbol
   implicit val isSymbol = new BaseInstance("PointsToSymbol", concreteIsSymbol) with IsSymbol[Sym] {
