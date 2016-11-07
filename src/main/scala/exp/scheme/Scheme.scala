@@ -836,7 +836,7 @@ object SchemeDesugarer {
     case Nil => SchemeBegin(Nil, scala.util.parsing.input.NoPosition)
     case SchemeDefineFunction(name, args, body, pos) :: rest =>
       undefine(SchemeDefineVariable(name,
-                                    SchemeLambda(args, body, exps.head.pos),
+                                    SchemeLambda(args, undefineBody(body), exps.head.pos),
                                     pos) :: rest,
                defs)
     case SchemeDefineVariable(name, value, _) :: rest =>
