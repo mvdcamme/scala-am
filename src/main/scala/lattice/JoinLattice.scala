@@ -497,7 +497,7 @@ object PointsToInteger extends PointsToValue[ConcreteInteger.I](1) {
 object PointsToFloat extends PointsToValue[ConcreteFloat.F](1) {
   type F = L
   val concreteIsFloat = ConcreteFloat.isFloat
-  implicit val isFloat = new IsBaseInstance("PointsToFloat", concreteIsFloat) {
+  implicit val isFloat = new IsBaseInstance("PointsToFloat", concreteIsFloat) with IsFloat[F] {
     def inject(n: Float) = checkSize(concreteIsFloat.inject(n))
     def ceiling(n: F) = applyAndCheckUnary(n, concreteIsFloat.ceiling)
     def log(n: F) = applyAndCheckUnary(n, concreteIsFloat.log)
