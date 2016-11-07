@@ -358,7 +358,7 @@ abstract class PointsToValue[PT <: { def size: Int }](val maxSize: Int) {
     case Precise(v) => v.size
   }
 
-  abstract class IsBaseInstance(val name: String, val le: IsLatticeElement[PT]) extends IsLatticeElement[L] {
+  abstract class BaseInstance(val name: String, val le: IsLatticeElement[PT]) extends IsLatticeElement[L] {
     override def shows(f: L): String = f match {
       case Precise(v) =>
         le.shows(v)
@@ -440,7 +440,7 @@ abstract class PointsToValue[PT <: { def size: Int }](val maxSize: Int) {
 object PointsToString extends PointsToValue[ConcreteString.S](1) {
   type S = L
   val concreteIsString = ConcreteString.isString
-  implicit val isString = new IsBaseInstance("PointsToString", concreteIsString) with IsString[S] {
+  implicit val isString = new BaseInstance("PointsToString", concreteIsString) with IsString[S] {
     def inject(s: String) = checkSize(concreteIsString.inject(s))
     def length[I](s: S)(implicit int: IsInteger[I]): I = applyAndCheckOtherUnary(s, (s) => concreteIsString.length(s)
     (int))
@@ -451,7 +451,7 @@ object PointsToString extends PointsToValue[ConcreteString.S](1) {
 object PointsToBoolean extends PointsToValue[ConcreteBoolean.B](1) {
   type B = L
   val concreteIsBoolean = ConcreteBoolean.isBoolean
-  implicit val isBoolean = new IsBaseInstance("PointsToBoolean", concreteIsBoolean) with IsBoolean[B] {
+  implicit val isBoolean = new BaseInstance("PointsToBoolean", concreteIsBoolean) with IsBoolean[B] {
     def inject(b: Boolean) = checkSize(concreteIsBoolean.inject(b))
     def isTrue(b: B) = b match {
       case Top => true
@@ -468,7 +468,7 @@ object PointsToBoolean extends PointsToValue[ConcreteBoolean.B](1) {
 object PointsToInteger extends PointsToValue[ConcreteInteger.I](1) {
   type I = L
   val concreteIsInteger = ConcreteInteger.isInteger
-  implicit val isInteger = new IsBaseInstance("PointsToInteger", concreteIsInteger) with IsInteger[I] {
+  implicit val isInteger = new BaseInstance("PointsToInteger", concreteIsInteger) with IsInteger[I] {
     override def shows(x: L) = super.shows(x)
     def inject(x: Int): L = Precise(concreteIsInteger.inject(x))
     def ceiling(n: L): L = n
@@ -497,7 +497,7 @@ object PointsToInteger extends PointsToValue[ConcreteInteger.I](1) {
 object PointsToFloat extends PointsToValue[ConcreteFloat.F](1) {
   type F = L
   val concreteIsFloat = ConcreteFloat.isFloat
-  implicit val isFloat = new IsBaseInstance("PointsToFloat", concreteIsFloat) with IsFloat[F] {
+  implicit val isFloat = new BaseInstance("PointsToFloat", concreteIsFloat) with IsFloat[F] {
     def inject(n: Float) = checkSize(concreteIsFloat.inject(n))
     def ceiling(n: F) = applyAndCheckUnary(n, concreteIsFloat.ceiling)
     def log(n: F) = applyAndCheckUnary(n, concreteIsFloat.log)
@@ -516,7 +516,7 @@ object PointsToFloat extends PointsToValue[ConcreteFloat.F](1) {
 object PointsToChar extends PointsToValue[ConcreteChar.C](1) {
   type C = L
   val concreteIsChar = ConcreteChar.isChar
-  implicit val isChar = new IsBaseInstance("PointsToChar", concreteIsChar) with IsChar[C] {
+  implicit val isChar = new BaseInstance("PointsToChar", concreteIsChar) with IsChar[C] {
     def inject(c: Char) = checkSize(concreteIsChar.inject(c))
   }
 }
@@ -524,7 +524,7 @@ object PointsToChar extends PointsToValue[ConcreteChar.C](1) {
 object PointsToSymbol extends PointsToValue[ConcreteSymbol.Sym](1) {
   type Sym = L
   val concreteIsSymbol = ConcreteSymbol.isSymbol
-  implicit val isSymbol = new IsBaseInstance("PointsToSymbol", concreteIsSymbol) with IsSymbol[Sym] {
+  implicit val isSymbol = new BaseInstance("PointsToSymbol", concreteIsSymbol) with IsSymbol[Sym] {
     def inject(sym: String) = checkSize(concreteIsSymbol.inject(sym))
   }
 }
