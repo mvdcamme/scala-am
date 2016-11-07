@@ -354,7 +354,7 @@ abstract class PointsToValue[PT <: { def size: Int }](val maxSize: Int) {
   case object Top extends L
   case class Precise(v: PT) extends L
   def pointsTo(i: L): Int = i match {
-    case Top => 100 //Int.MaxValue
+    case Top => Int.MaxValue
     case Precise(v) => v.size
   }
 
