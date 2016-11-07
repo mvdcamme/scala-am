@@ -230,6 +230,16 @@ object Config {
         c.copy(tracingFlags = c.tracingFlags.copy(OPTIMIZATION = optimization))
       }
     } text ("Apply (dynamic) optimizations")
+    opt[String]("rt_analysis_interval") action { (s, c) =>
+      {
+        val rtAnalysisInterval = s match {
+          case "N" | "n" | "None" | "none" => NoRunTimeAnalysis
+          case _ => RunTimeAnalysisEvery(Integer.parseInt(s))
+        }
+        c.copy(tracingFlags =
+          c.tracingFlags.copy(RUNTIME_ANALYSIS_INTERVAL = rtAnalysisInterval))
+      }
+    } text ("Launch a run-time analysis every x execution steps")
     opt[String]("tracing") action { (b, c) =>
       readBoolStringForTraceFlag(
         c,
@@ -287,8 +297,8 @@ object Main {
   var currentProgram: String = ""
 
   def printExecutionTimes[Abs: JoinLattice](
-    result: Output[Abs],
-    benchmarks_results_file: String): Unit = {
+      result: Output[Abs],
+      benchmarks_results_file: String): Unit = {
     val file = new File(benchmarks_results_file)
     val bw = new BufferedWriter(new FileWriter(file, true))
     bw.write(s"$currentProgram: ${result.time}\n")

@@ -418,7 +418,6 @@ class HybridMachine[
                    startingTime: Long,
                    graph: Option[Graph[PS, String]],
                    timeout: Option[Long]): HybridOutput[PS, String] = {
-    val analysis_interval = 20
     def endEvalLoop(timeout: Boolean): HybridOutput[PS, String] = {
       if (GlobalFlags.PRINT_ACTIONS_EXECUTED) {
         ActionLogger.printActions()
@@ -440,9 +439,13 @@ class HybridMachine[
     } else {
       /* Otherwise, compute the successors of this state, update the graph, and push
        * the new successors on the todo list */
-      if (stepCount % analysis_interval == 0) {
-        Logger.log(s"stepCount: $stepCount", Logger.U)
-        pointsToAnalysisLauncher.runStaticAnalysis(s.ps, stepCount)
+      tracingFlags.RUNTIME_ANALYSIS_INTERVAL match {
+        case NoRunTimeAnalysis =>
+        case RunTimeAnalysisEvery(analysis_interval) =>
+          if (stepCount % analysis_interval == 0) {
+            Logger.log(s"stepCount: $stepCount", Logger.U)
+            pointsToAnalysisLauncher.runStaticAnalysis(s.ps, stepCount)
+          }
       }
       val succ = s.stepConcrete()
       val newGraph = graph.map(_.addEdge(s.ps, "", succ.ps))
