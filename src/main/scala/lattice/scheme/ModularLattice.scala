@@ -682,7 +682,7 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
 
   val isSchemeLatticeSet = IsSchemeLatticeSet
 
-  trait  LSetInfoProviderT extends PointsToableLatticeInfoProvider[LSet] {
+  trait LSetInfoProviderT extends PointsToableLatticeInfoProvider[LSet] {
 
     def simpleType(x: LSet): SimpleTypes.Value = x match {
       case Element(Bool(_)) => SimpleTypes.Boolean
@@ -705,7 +705,7 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
 
       def pointsTo(value: Value): Boolean = value match {
         case Symbol(_) | Prim(_) | Closure(_, _) | Cons(_, _) | Vec(_, _, _) |
-             VectorAddress(_) =>
+            VectorAddress(_) =>
           true
         case _ => false
       }
@@ -719,14 +719,16 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
       }
     }
 
-    def reaches[Addr: Address](x: LSet,
-                               reachesEnv: Environment[Addr] => Set[Addr],
-                               reachesAddress: Addr => Set[Addr]): Set[Addr] = {
+    def reaches[Addr: Address](
+        x: LSet,
+        reachesEnv: Environment[Addr] => Set[Addr],
+        reachesAddress: Addr => Set[Addr]): Set[Addr] = {
       def reachesValue(v: Value): Set[Addr] = v match {
         case Closure(_, env) => reachesEnv(env.asInstanceOf[Environment[Addr]])
         case Cons(car, cdr) =>
 //          Logger.log(s"Reached cons-cell with car $car and cdr $cdr", Logger.U)
-          reachesAddress(car.asInstanceOf[Addr]) ++ reachesAddress(cdr.asInstanceOf[Addr])
+          reachesAddress(car.asInstanceOf[Addr]) ++ reachesAddress(
+            cdr.asInstanceOf[Addr])
         case v: Vec[Addr] =>
           reachesAddress(v.init) ++ v.elements.foldLeft[Set[Addr]](Set())(
             (acc, pair) =>
@@ -739,7 +741,8 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
 
       x match {
         case Element(v) => reachesValue(v)
-        case Elements(vs) => vs.foldLeft(Set[Addr]())( (acc, v) => acc ++ reachesValue(v) )
+        case Elements(vs) =>
+          vs.foldLeft(Set[Addr]())((acc, v) => acc ++ reachesValue(v))
       }
     }
   }
@@ -866,13 +869,8 @@ class BoundedIntLattice(bound: Int, counting: Boolean) extends SchemeLattice {
     lattice.isSchemeLatticeSet.latticeInfoProvider
 }
 
-import StringConstantPropagation._
-import ConcreteBoolean._
-import FloatConstantPropagation._
-import CharConstantPropagation._
-import SymbolConstantPropagation._
-
-class ConstantMakeSchemeLattice[I : IsInteger](counting: Boolean)
+class ConstantMakeSchemeLattice[S: IsString, B: IsBoolean, I: IsInteger,
+F: IsFloat, C: IsChar, Sym: IsSymbol](counting: Boolean)
     extends MakeSchemeLattice[S, B, I, F, C, Sym](counting) {
 
   trait ConstantableLatticeInfoProviderT
@@ -913,8 +911,13 @@ class ConstantMakeSchemeLattice[I : IsInteger](counting: Boolean)
 }
 
 class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
+  import StringConstantPropagation._
+  import ConcreteBoolean._
   import IntegerConstantPropagation._
-  val lattice = new ConstantMakeSchemeLattice[I](counting)
+  import FloatConstantPropagation._
+  import CharConstantPropagation._
+  import SymbolConstantPropagation._
+  val lattice = new ConstantMakeSchemeLattice[S, B, I, F, C, Sym](counting)
   type L = lattice.LSet
   implicit val isSchemeLattice: IsConvertableLattice[lattice.LSet] =
     lattice.isConstantSchemeLatticeSet
@@ -923,33 +926,46 @@ class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
 }
 
 class PointsToLattice(counting: Boolean) extends SchemeLattice {
+  import PointsToString._
+  import ConcreteBoolean._
   import PointsToInteger._
-  val lattice = new ConstantMakeSchemeLattice[I](counting)
+  import PointsToFloat._
+  import PointsToChar._
+  import PointsToSymbol._
+  val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](counting)
   type L = lattice.LSet
   implicit val isSchemeLattice: IsConvertableLattice[lattice.LSet] =
-    lattice.isConstantSchemeLatticeSet
-  val latticeInfoProvider: PointsToableLatticeInfoProvider[lattice.LSet] with ConstantableLatticeInfoProvider[
-    L] = new lattice.ConstantableLatticeInfoProviderT {
+    lattice.isSchemeLatticeSet
+  val latticeInfoProvider: PointsToableLatticeInfoProvider[lattice.LSet] =
+    new lattice.LSetInfoProviderT with PointsToableLatticeInfoProvider[L] {
 
-    override def pointsTo(x: lattice.LSet): scala.Int = {
+      override def pointsTo(x: lattice.LSet): scala.Int = {
 
-      def pointsTo(value: lattice.Value): scala.Int = value match {
-        case lattice.Symbol(_) | lattice.Prim(_) | lattice.Closure(_, _) | lattice.Cons(_, _) | lattice.Vec(_, _, _) |
-             lattice.VectorAddress(_) =>
-          1
-        case lattice.Int(i) =>
-          PointsToInteger.pointsTo(i)
-        case _ => 0
-      }
+        def pointsTo(value: lattice.Value): scala.Int = value match {
+          case lattice.Prim(_) | lattice.Closure(_, _) | lattice.Cons(_, _) |
+              lattice.Vec(_, _, _) | lattice.VectorAddress(_) =>
+            1
+          case lattice.Str(s) =>
+            PointsToString.pointsTo(s)
+          case lattice.Int(i) =>
+            PointsToInteger.pointsTo(i)
+          case lattice.Float(f) =>
+            PointsToFloat.pointsTo(f)
+          case lattice.Char(c) =>
+            PointsToChar.pointsTo(c)
+          case lattice.Symbol(sym) =>
+            val res = PointsToSymbol.pointsTo(sym)
+            println(res)
+            res
+          case _ => 0
+        }
 
-      x match {
-        case lattice.Element(value) =>
-          pointsTo(value)
-        case lattice.Elements(values) =>
-          values.map(pointsTo).foldLeft(0)(_ + _)
-//          values.foldLeft[scala.Int](0)((acc, value) =>
-//            acc + pointsTo(value))
+        x match {
+          case lattice.Element(value) =>
+            pointsTo(value)
+          case lattice.Elements(values) =>
+            values.toList.map(pointsTo).sum
+        }
       }
     }
-  }
 }
