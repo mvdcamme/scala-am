@@ -7,6 +7,22 @@ trait SchemeExp {
   val pos: Position
 }
 
+case class SchemeDo(bindings: List[(String, SchemeExp, SchemeExp)],
+                    test: (SchemeExp, List[SchemeExp]),
+                    commands: List[SchemeExp],
+                    pos: Position)
+    extends SchemeExp {
+  override def toString(): String = {
+    val bi =
+      bindings
+        .map({ case (name, init, step) => s"($name $init $step)" })
+        .mkString(" ")
+    val te = s"(${test._1} ${test._2.mkString(" ")})"
+    val co = commands.mkString(" ")
+    s"(do $bi $te $co)"
+  }
+}
+
 /**
   * An amb expression: (amb exp1 ...).
   * Used by the non-deterministic, ambiguous, Scheme interpreter. See SICP chapter 4.3.
@@ -315,9 +331,17 @@ trait SchemeCompiler {
                                     "cas-vector")
 
   def compile(exp: SExp): SchemeExp = exp match {
-    case SExpPair(SExpIdentifier("amb", pos), body, _) =>
+    case SExpPair(
+        SExpIdentifier("do", _),
+        SExpPair(bindings, SExpPair(SExpPair(cond, exps, _), commands, _), _),
+        _) =>
+      SchemeDo(compileDoBindings(bindings),
+               (compile(cond), compileBody(exps)),
+               compileBody(commands),
+               exp.pos)
+    case SExpPair(SExpIdentifier("amb", _), body, _) =>
       SchemeAmb(compileBody(body), exp.pos)
-    case SExpPair(SExpIdentifier("start-analysis", pos),
+    case SExpPair(SExpIdentifier("start-analysis", _),
                   SExpValue(ValueNil, _),
                   _) =>
       SchemeStartAnalysis(exp.pos)
@@ -484,6 +508,30 @@ trait SchemeCompiler {
     case _ => throw new Exception(s"Invalid Scheme body: $body")
   }
 
+  def compileDoBindings(bindings: SExp): List[(String, SchemeExp, SchemeExp)] =
+    bindings match {
+      case SExpPair(
+          SExpPair(
+          SExpIdentifier(name, _),
+          SExpPair(init, restOfBinding, _),
+          _),
+          rest,
+          _) =>
+        if (reserved.contains(name)) {
+          throw new Exception(s"Invalid Scheme identifier (reserved): $name")
+        } else {
+          val step = restOfBinding match {
+            case SExpPair(step, SExpValue(ValueNil, _), _) =>
+              compile(step)
+            case SExpValue(ValueNil, pos) =>
+              SchemeIdentifier(name, pos)
+          }
+          (name, compile(init), step) :: compileDoBindings(rest)
+        }
+      case SExpValue(ValueNil, _) => Nil
+      case _ => throw new Exception(s"Invalid Scheme bindings: $bindings")
+    }
+
   def compileBindings(bindings: SExp): List[(String, SchemeExp)] =
     bindings match {
       case SExpPair(SExpPair(SExpIdentifier(name, _),
@@ -605,6 +653,16 @@ object SchemeRenamer {
   def rename(exp: SchemeExp,
              names: NameMap,
              count: CountMap): (SchemeExp, CountMap) = exp match {
+
+    case SchemeDo(bindings, test, commands, pos) =>
+      countl(bindings.map(_._1), names, count) match {
+        case (variables, names1, count1) =>
+          (exp, count1) //TODO
+//          renameList(bindings.map(_._2). names, count1) match {
+//            case (bindingsInits, count2) =>
+//              rename
+//          }
+      }
 
     case SchemeLambda(args, body, pos) =>
       countl(args, names, count) match {
@@ -822,6 +880,11 @@ object SchemeDesugarer {
 
   var id = 0
 
+  def newVarName(): String = {
+    id += 1
+    s"#<genvar_$id>"
+  }
+
   def desugar(exps: List[SchemeExp]): SchemeExp = {
     val undefineExp = undefine(exps)
     desugarExp(undefineExp)
@@ -835,9 +898,10 @@ object SchemeDesugarer {
                defs: List[(String, SchemeExp)]): SchemeExp = exps match {
     case Nil => SchemeBegin(Nil, scala.util.parsing.input.NoPosition)
     case SchemeDefineFunction(name, args, body, pos) :: rest =>
-      undefine(SchemeDefineVariable(name,
-                                    SchemeLambda(args, undefineBody(body), exps.head.pos),
-                                    pos) :: rest,
+      undefine(SchemeDefineVariable(
+                 name,
+                 SchemeLambda(args, undefineBody(body), exps.head.pos),
+                 pos) :: rest,
                defs)
     case SchemeDefineVariable(name, value, _) :: rest =>
       undefine(rest, (name, value) :: defs)
@@ -861,6 +925,13 @@ object SchemeDesugarer {
     case SchemeDefineVariable(_, _, _) :: _ => List(undefine(exps, List()))
     case exp :: rest => {
       val exp2 = exp match {
+        case SchemeDo(bindings, test, commands, pos) =>
+          SchemeDo(
+            bindings.map(binding =>
+              (binding._1, undefine1(binding._2), undefine1(binding._3))),
+            (undefine1(test._1), undefineBody(test._2)),
+            undefineBody(commands),
+            pos)
         case SchemeAmb(exps, pos) => SchemeAmb(exps.map(undefine1), pos)
         case SchemeStartAnalysis(pos) => SchemeStartAnalysis(pos)
         case SchemeLambda(args, body, pos) =>
@@ -961,8 +1032,7 @@ object SchemeDesugarer {
              * Generate a unique variable name by combining characters (#<>) that can't be used inside Scheme identifiers
              * by users with a unique id.
              */
-            val tempVarName = s"#<genvar$id>"
-            id += 1
+            val tempVarName = newVarName()
             val body: SchemeExp = SchemeIf(SchemeIdentifier(tempVarName, pos),
                                            SchemeIdentifier(tempVarName, pos),
                                            desugarExp(SchemeOr(rest, exp.pos)),
@@ -991,6 +1061,27 @@ object SchemeDesugarer {
             }
         }
 
+      case SchemeDo(bindings, test, commands, pos) =>
+        val uniqueName = newVarName()
+        val vars = bindings.map(_._1)
+        val inits = bindings.map(_._2)
+        val steps = bindings.map(_._3)
+        val endExpressions =
+          if (test._2.size == 1) test._2.head else SchemeBegin(test._2, pos)
+        val recursiveCall =
+          SchemeFuncall(SchemeIdentifier(uniqueName, pos), steps, pos)
+        val lambda = SchemeLambda(
+          vars,
+          List(
+            SchemeIf(test._1,
+                     endExpressions,
+                     SchemeBegin(commands :+ recursiveCall, pos),
+                     pos)),
+          pos)
+        SchemeLetrec(
+          List((uniqueName, lambda)),
+          List(SchemeFuncall(SchemeIdentifier(uniqueName, pos), inits, pos)),
+          pos)
       case SchemeAmb(exps, pos) => SchemeAmb(exps.map(desugarExp), pos)
       case SchemeStartAnalysis(pos) => SchemeStartAnalysis(pos)
       case SchemeLambda(args, body, pos) =>
