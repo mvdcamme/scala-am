@@ -64,7 +64,7 @@ class PointsToAnalysis[
     })
     Logger.log(
       s"Static points-to analysis completed, resulting set equals $result",
-      Logger.D)
+      Logger.U)
     val metrics = calculateMetrics(result)
     Logger.log(s"Static points-to analysis completed, metrics equals $metrics",
                Logger.D)
