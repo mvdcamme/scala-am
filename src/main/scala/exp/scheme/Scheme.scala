@@ -19,7 +19,7 @@ case class SchemeDo(bindings: List[(String, SchemeExp, SchemeExp)],
         .mkString(" ")
     val te = s"(${test._1} ${test._2.mkString(" ")})"
     val co = commands.mkString(" ")
-    s"(do $bi $te $co)"
+    s"(do ($bi) $te $co)"
   }
 }
 
@@ -314,7 +314,8 @@ trait SchemeCompiler {
   /**
     * Reserved keywords
     */
-  val reserved: List[String] = List("amb",
+  val reserved: List[String] = List("do",
+                                    "amb",
                                     "lambda",
                                     "if",
                                     "let",
@@ -333,10 +334,10 @@ trait SchemeCompiler {
   def compile(exp: SExp): SchemeExp = exp match {
     case SExpPair(
         SExpIdentifier("do", _),
-        SExpPair(bindings, SExpPair(SExpPair(cond, exps, _), commands, _), _),
+        SExpPair(bindings, SExpPair(cond, commands, _), _),
         _) =>
       SchemeDo(compileDoBindings(bindings),
-               (compile(cond), compileBody(exps)),
+               compileDoCond(cond),
                compileBody(commands),
                exp.pos)
     case SExpPair(SExpIdentifier("amb", _), body, _) =>
@@ -506,6 +507,13 @@ trait SchemeCompiler {
     case SExpPair(exp, rest, _) => compile(exp) :: compileBody(rest)
     case SExpValue(ValueNil, _) => Nil
     case _ => throw new Exception(s"Invalid Scheme body: $body")
+  }
+
+  def compileDoCond(cond: SExp): (SchemeExp, List[SchemeExp]) = cond match {
+    case SExpPair(cond, exps, _) =>
+      (compile(cond), compileBody(exps))
+    case _ =>
+      throw new Exception(s"Invalid Scheme do-condition: $cond")
   }
 
   def compileDoBindings(bindings: SExp): List[(String, SchemeExp, SchemeExp)] =
@@ -1064,10 +1072,10 @@ object SchemeDesugarer {
       case SchemeDo(bindings, test, commands, pos) =>
         val uniqueName = newVarName()
         val vars = bindings.map(_._1)
-        val inits = bindings.map(_._2)
-        val steps = bindings.map(_._3)
+        val inits = bindings.map(_._2).map(desugarExp)
+        val steps = bindings.map(_._3).map(desugarExp)
         val endExpressions =
-          if (test._2.size == 1) test._2.head else SchemeBegin(test._2, pos)
+          if (test._2.size == 1) desugarExp(test._2.head) else SchemeBegin(test._2.map(desugarExp), pos)
         val recursiveCall =
           SchemeFuncall(SchemeIdentifier(uniqueName, pos), steps, pos)
         val lambda = SchemeLambda(
@@ -1075,7 +1083,7 @@ object SchemeDesugarer {
           List(
             SchemeIf(test._1,
                      endExpressions,
-                     SchemeBegin(commands :+ recursiveCall, pos),
+                     SchemeBegin(commands.map(desugarExp) :+ recursiveCall, pos),
                      pos)),
           pos)
         SchemeLetrec(
