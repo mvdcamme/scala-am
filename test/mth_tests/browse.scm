@@ -32,7 +32,7 @@
           (set-cdr! y val)
           (set-cdr! x (cons (cons key2 val) (cdr x)))))
       (set! properties
-        (cons (list key1 (cons key2 val)) properties)))))
+        (cons (cons key1 (cons (cons key2 val) '())) properties)))))
 
 (define *current-gensym* 0)
 
@@ -88,13 +88,13 @@
             (put name (generate-symbol) #f)))))
 
 (define (browse-random)
-  (set! *rand* (remainder (* *rand* 17) 251))
+  (set! *rand* (modulo (* *rand* 17) 251))
   *rand*)
 
 (define (randomize l)
   (do ((a '()))
       ((null? l) a)
-      (let ((n (remainder (browse-random) (length l))))
+      (let ((n (modulo (browse-random) (length l))))
         (cond ((zero? n)
                (set! a (cons (car l) a))
                (set! l (cdr l))
