@@ -49,6 +49,7 @@ trait IsString[S] extends IsLatticeElement[S] {
   def inject(s: String): S
   def length[I: IsInteger](s: S): I
   def append(s1: S, s2: S): S
+  def stringToSymbol[Sym: IsSymbol](sym: S): Sym
 }
 
 /** A lattice for booleans */
@@ -96,6 +97,7 @@ trait IsChar[C] extends IsLatticeElement[C] {
 /** A lattice for symbols */
 trait IsSymbol[Sym] extends IsLatticeElement[Sym] {
   def inject(sym: String): Sym
+  def symbolToString[S: IsString](sym: Sym): S
 }
 
 /**
@@ -119,6 +121,7 @@ object ConcreteString {
     def length[I](s: S)(implicit int: IsInteger[I]): I =
       s.foldMap(s => int.inject(s.size))
     def append(s1: S, s2: S): S = s1.foldMap(s1 => s2.map(s2 => s1 + s2))
+    def stringToSymbol[Sym](s: S)(implicit sym: IsSymbol[Sym]) = s.foldMap(s => sym.inject(s))
     def eql[B](s1: S, s2: S)(implicit bool: IsBoolean[B]): B =
       s1.foldMap(s1 => s2.foldMap(s2 => bool.inject(s1 == s2)))
 
@@ -260,6 +263,7 @@ object ConcreteSymbol {
     def subsumes(x: Sym, y: => Sym) = y.isSubsetOf(x)
 
     def inject(x: String): Sym = ISet.singleton(x)
+    def symbolToString[S](sym: Sym)(implicit s: IsString[S]) = sym.foldMap(sym => s.inject(sym))
     def eql[B](s1: Sym, s2: Sym)(implicit bool: IsBoolean[B]): B =
       s1.foldMap(s1 => s2.foldMap(s2 => bool.inject(s1 == s2)))
 
@@ -445,6 +449,8 @@ object PointsToString extends PointsTo[ConcreteString.S](1) {
     def length[I](s: S)(implicit int: IsInteger[I]): I = applyAndCheckOtherUnary(s, (s) => concreteIsString.length(s)
     (int))
     def append(s1: S, s2: S) = applyAndCheckBinary(s1, s2, concreteIsString.append)
+    def stringToSymbol[Sym](s: S)(implicit sym: IsSymbol[Sym]) =
+      applyAndCheckOtherUnary(s, (s) => concreteIsString.stringToSymbol(s)(sym))
   }
 }
 
@@ -526,6 +532,8 @@ object PointsToSymbol extends PointsTo[ConcreteSymbol.Sym](1) {
   val concreteIsSymbol = ConcreteSymbol.isSymbol
   implicit val isSymbol = new BaseInstance("PointsToSymbol", concreteIsSymbol) with IsSymbol[Sym] {
     def inject(sym: String) = checkSize(concreteIsSymbol.inject(sym))
+    def symbolToString[S](sym: Sym)(implicit str: IsString[S]): S = applyAndCheckOtherUnary(sym, (sym) =>
+      concreteIsSymbol.symbolToString(sym)(str))
   }
 }
 
@@ -589,6 +597,10 @@ object Type {
       case (Top, _) => Top
       case (_, Top) => Top
     }
+    def stringToSymbol[Sym](s: T)(implicit sym: IsSymbol[Sym]) = s match {
+      case Bottom => sym.bottom
+      case Top => sym.top
+    }
   }
   implicit val typeIsBoolean: IsBoolean[T] = new BaseInstance("Bool")
   with IsBoolean[T] {
@@ -646,6 +658,10 @@ object Type {
   implicit val typeIsSymbol: IsSymbol[T] = new BaseInstance("Sym")
   with IsSymbol[T] {
     def inject(sym: String): T = Top
+    def symbolToString[S](sym: T)(implicit str: IsString[S]) = sym match {
+      case Bottom => str.bottom
+      case Top => str.top
+    }
   }
 }
 
@@ -741,6 +757,11 @@ object StringConstantPropagation extends ConstantPropagation[String] {
       case (Top, _) => Top
       case (_, Top) => Top
       case (Constant(x), Constant(y)) => Constant(x ++ y)
+    }
+    def stringToSymbol[Sym](s: S)(implicit sym: IsSymbol[Sym]): Sym = s match {
+      case Bottom => sym.bottom
+      case Top => sym.top
+      case Constant(x) => sym.inject(x)
     }
   }
 }
@@ -844,5 +865,10 @@ object SymbolConstantPropagation extends ConstantPropagation[String] {
   implicit val isSymbol: IsSymbol[Sym] = new BaseInstance("Sym")
   with IsSymbol[Sym] {
     def inject(x: String) = Constant(x)
+    def symbolToString[S](sym: Sym)(implicit str: IsString[S]): S = sym match {
+      case Bottom => str.bottom
+      case Top => str.top
+      case Constant(x) => str.inject(x)
+    }
   }
 }

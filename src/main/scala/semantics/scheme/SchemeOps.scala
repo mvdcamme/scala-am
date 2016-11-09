@@ -23,6 +23,8 @@ object SchemeOps {
   case object StringLength extends UnaryOperator
   /* Conversions */
   case object NumberToString extends UnaryOperator
+  case object StringToSymbol extends UnaryOperator
+  case object SymbolToString extends UnaryOperator
 
   /** Binary operations thatt should be supported by lattices */
   trait BinaryOperator

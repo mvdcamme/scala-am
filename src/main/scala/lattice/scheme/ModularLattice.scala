@@ -244,6 +244,18 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
               case _ =>
                 OperatorNotApplicable("number->string", List(x.toString))
             }
+          case StringToSymbol =>
+            x match {
+              case Str(s) => Symbol(str.stringToSymbol(s))
+              case _ =>
+                OperatorNotApplicable("string->symbol", List(x.toString))
+            }
+          case SymbolToString =>
+            x match {
+              case Symbol(s) => Str(sym.symbolToString(s))
+              case _ =>
+                OperatorNotApplicable("symbol->string", List(x.toString))
+            }
         }
       }
 
