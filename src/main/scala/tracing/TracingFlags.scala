@@ -2,7 +2,7 @@ case class TracingFlags(
     DO_TRACING: Boolean = true,
     TRACING_THRESHOLD: Integer = 5,
     OPTIMIZATION: ShouldApplyOptimization = ApplyAllOptimizations,
-    RUNTIME_ANALYSIS_INTERVAL: RunTimeAnalysisInterval = RunTimeAnalysisEvery(20),
+    RUNTIME_ANALYSIS_INTERVAL: RunTimeAnalysisInterval = NoRunTimeAnalysis,
     DO_INITIAL_ANALYSIS: Boolean = false,
     SWITCH_ABSTRACT: Boolean = false,
     DO_GUARD_TRACING: Boolean = true)
