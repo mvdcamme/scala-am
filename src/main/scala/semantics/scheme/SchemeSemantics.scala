@@ -137,8 +137,16 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
         convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-      abstSem.FrameLetrec(addr, bindings, body, convertEnv(env))
+        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) = {
+      val addressConverter = new DefaultHybridAddressConverter[SchemeExp]()
+      abstSem.FrameLetrec(
+        addressConverter.convertAddress(addr.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr],
+        bindings.map(
+          (binding) =>
+            (addressConverter.convertAddress(binding._1.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr], binding._2)),
+        body,
+        convertEnv(env))
+    }
 
     def reaches(valueReaches: Abs => Set[Addr],
                 envReaches: Environment[Addr] => Set[Addr],
