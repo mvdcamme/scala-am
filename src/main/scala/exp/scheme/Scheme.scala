@@ -7,6 +7,31 @@ trait SchemeExp {
   val pos: Position
 }
 
+/**
+  * Bindings must be of the form ([(varname initExp [stepExp])] ...)
+  * Test must be of the form: (exp [exp ...])
+  * Commands must be of the form [exp ...]
+  *
+  * Example of a valid do-expression:
+  *
+  * (do ((a 1 (+ a 1)
+  *      (b 1 (+ b 2))
+  *     ((= a 10) 'stop)
+  *     (displayln a) (displayln b))
+  *
+  * Iteration then stops when a becomes 10
+  *
+  * Also valid:
+  *
+  * (do ()
+  *     (#t))
+  *
+  * Also valid:
+  *
+  * (do ((a 1))
+  *     ((= a 10))
+  *     (set! a (+ a 1)))
+  */
 case class SchemeDo(bindings: List[(String, SchemeExp, SchemeExp)],
                     test: (SchemeExp, List[SchemeExp]),
                     commands: List[SchemeExp],
