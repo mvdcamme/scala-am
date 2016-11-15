@@ -665,11 +665,15 @@ object SchemeRenamer {
     case SchemeDo(bindings, test, commands, pos) =>
       countl(bindings.map(_._1), names, count) match {
         case (variables, names1, count1) =>
-          (exp, count1) //TODO
-//          renameList(bindings.map(_._2). names, count1) match {
-//            case (bindingsInits, count2) =>
-//              rename
-//          }
+          val (newBindingsInits, count2) = renameList(bindings.map(_._2), names1, count1)
+          val (newBindingsSteps, count3) = renameList(bindings.map(_._3), names1, count2)
+          val newBindings = (variables, newBindingsInits, newBindingsSteps).zipped.toList
+          val (testCondExp, count4) = rename(test._1, names1, count3)
+          val (testExps, count5) = renameList(test._2, names1, count4)
+          val newTest = (testCondExp, testExps)
+          val (commandsExps, count6) = renameList(commands, names1, count5)
+          val newDoExp = SchemeDo(newBindings, newTest, commandsExps, pos)
+          (newDoExp, count6)
       }
 
     case SchemeLambda(args, body, pos) =>
