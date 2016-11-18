@@ -32,7 +32,7 @@ trait ConstantableLatticeInfoProvider[L] extends LatticeInfoProvider[L] {
 
 trait PointsToableLatticeInfoProvider[L] extends LatticeInfoProvider[L] {
 
-  def pointsTo(x: L): Int
+  def pointsTo(x: L): Option[Int]
 
 }
 
@@ -713,7 +713,7 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
       case _ => SimpleTypes.Top
     }
 
-    def pointsTo(x: LSet): scala.Int = {
+    def pointsTo(x: LSet): Option[scala.Int] = {
 
       def pointsTo(value: Value): Boolean = value match {
         case Symbol(_) | Prim(_) | Closure(_, _) | Cons(_, _) | Vec(_, _, _) |
@@ -724,10 +724,14 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
 
       x match {
         case Element(value) =>
-          if (pointsTo(value)) 1 else 0
+          if (pointsTo(value)) Some(1) else Some(0)
         case Elements(values) =>
-          values.foldLeft[scala.Int](0)((acc, value) =>
-            acc + (if (pointsTo(value)) 1 else 0))
+          values.foldLeft[Option[scala.Int]](Some(0))((acc, value) => acc.flatMap( (res) =>
+            Some(if
+          (pointsTo
+          (value))
+            1
+          else 0) ))
       }
     }
 
@@ -951,12 +955,12 @@ class PointsToLattice(counting: Boolean) extends SchemeLattice {
   val latticeInfoProvider: PointsToableLatticeInfoProvider[lattice.LSet] =
     new lattice.LSetInfoProviderT with PointsToableLatticeInfoProvider[L] {
 
-      override def pointsTo(x: lattice.LSet): scala.Int = {
+      override def pointsTo(x: lattice.LSet): Option[scala.Int] = {
 
-        def pointsTo(value: lattice.Value): scala.Int = value match {
+        def pointsTo(value: lattice.Value): Option[scala.Int] = value match {
           case lattice.Prim(_) | lattice.Closure(_, _) | lattice.Cons(_, _) |
               lattice.Vec(_, _, _) | lattice.VectorAddress(_) =>
-            1
+            Some(1)
           case lattice.Str(s) =>
             PointsToString.pointsTo(s)
           case lattice.Int(i) =>
@@ -969,14 +973,17 @@ class PointsToLattice(counting: Boolean) extends SchemeLattice {
             val res = PointsToSymbol.pointsTo(sym)
             println(res)
             res
-          case _ => 0
+          case _ => Some(0)
         }
 
         x match {
           case lattice.Element(value) =>
             pointsTo(value)
           case lattice.Elements(values) =>
-            values.toList.map(pointsTo).sum
+            values.toList.foldLeft[Option[Int]](Some(0))( (acc, v) => acc.flatMap( (x) => pointsTo(v).flatMap( (y: Int)
+            =>
+              Some(y
+              + x)) ))
         }
       }
     }

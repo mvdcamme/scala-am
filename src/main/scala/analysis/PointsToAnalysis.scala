@@ -14,14 +14,15 @@ class PointsToAnalysis[
   case class MetricsToWrite(max: Int,
                             median: Double,
                             average: Double,
-                            sum: Int)
+                            sum: Int,
+                            nrOfTops: Int)
 
-  private def calculateMetrics(result: List[(Addr, Int)]): MetricsToWrite = {
-    val integerValues = result.map(_._2)
+  private def calculateMetrics(result: List[(Addr, Option[Int])]): MetricsToWrite = {
+    val integerValues = result.map(_._2).filter(_.isDefined).map(_.get)
     val numberValues = integerValues.map(_.toDouble).sortWith(_ < _)
     val length = numberValues.length
     if (length == 0) {
-      MetricsToWrite(0, 0, 0, 0)
+      MetricsToWrite(0, 0, 0, 0, 0)
     } else {
       val max = integerValues.max
       val sum = integerValues.sum
@@ -31,13 +32,14 @@ class PointsToAnalysis[
         numberValues(length / 2)
       }
       val average = numberValues.sum / length
-      MetricsToWrite(max, median, average, sum)
+      val nrOfTops = result.map(_._2).count(_.isEmpty)
+      MetricsToWrite(max, median, average, sum, nrOfTops)
     }
   }
 
   private def possiblyWriteMetrics(stepSwitched: Int,
                                    metrics: MetricsToWrite): Unit = {
-    val output = s"$stepSwitched;${metrics.max};${metrics.median};${metrics.average};${metrics.sum}"
+    val output = s"$stepSwitched;${metrics.max};${metrics.median};${metrics.average};${metrics.sum};${metrics.nrOfTops}"
     if (GlobalFlags.ANALYSIS_RESULTS_OUTPUT.isDefined) {
       val file = new File(GlobalFlags.ANALYSIS_RESULTS_OUTPUT.get)
       val bw = new BufferedWriter(new FileWriter(file, true))
@@ -47,15 +49,15 @@ class PointsToAnalysis[
   }
 
   private def analyzeOutput(free: Free[Exp, L, Addr, Time],
-                            pointsTo: L => Int,
+                            pointsTo: L => Option[Int],
                             relevantAddress: Addr => Boolean)(
-      output: free.FreeOutput): List[(Addr, Int)] = {
+      output: free.FreeOutput): List[(Addr, Option[Int])] = {
     val storeValues = joinStores(free)(output.finalStores)
-    val initial: List[(Addr, Int)] = Nil
-    val result: List[(Addr, Int)] = storeValues.foldLeft(initial)({
+    val initial: List[(Addr, Option[Int])] = Nil
+    val result: List[(Addr, Option[Int])] = storeValues.foldLeft(initial)({
       case (result, (address, value)) =>
-        val numberOfObjectsPointedTo: Int = pointsTo(value)
-        if (relevantAddress(address) && numberOfObjectsPointedTo > 0) {
+        val numberOfObjectsPointedTo = pointsTo(value)
+        if (relevantAddress(address) && numberOfObjectsPointedTo.getOrElse(1) > 0) {
           /* List all addresses pointing to more than one value */
           (address, numberOfObjectsPointedTo) :: result
         } else {
@@ -74,10 +76,10 @@ class PointsToAnalysis[
 
   def analyze(free: Free[Exp, L, Addr, Time],
               sem: Semantics[Exp, L, Addr, Time],
-              pointsTo: L => Int,
+              pointsTo: L => Option[Int],
               relevantAddress: Addr => Boolean)(startState: free.States,
                                   isInitial: Boolean,
-                                  stepSwitched: Int): List[(Addr, Int)] = {
+                                  stepSwitched: Int): List[(Addr, Option[Int])] = {
     Logger.log(s"Starting static points-to analysis", Logger.I)
     val output =
       free.kickstartEval(startState, sem, None, None, Some(stepSwitched))

@@ -357,9 +357,9 @@ abstract class PointsTo[PT <: { def size: Int }](val maxSize: Int) {
   sealed trait L
   case object Top extends L
   case class Precise(v: PT) extends L
-  def pointsTo(i: L): Int = i match {
-    case Top => Int.MaxValue
-    case Precise(v) => v.size
+  def pointsTo(i: L): Option[Int] = i match {
+    case Top => None //Int.MaxValue
+    case Precise(v) => Some(v.size)
   }
 
   abstract class BaseInstance(val name: String, val le: IsLatticeElement[PT]) extends IsLatticeElement[L] {
