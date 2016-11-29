@@ -74,16 +74,17 @@ class PointsToAnalysis[
     result
   }
 
-  def analyze(free: Free[Exp, L, Addr, Time],
-              sem: Semantics[Exp, L, Addr, Time],
-              pointsTo: L => Option[Int],
-              relevantAddress: Addr => Boolean)(startState: free.States,
-                                  isInitial: Boolean,
-                                  stepSwitched: Int): List[(Addr, Option[Int])] = {
+  def analyze[Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](machine: Machine,
+                                                       sem: Semantics[Exp, L, Addr, Time],
+                                                       pointsTo: L => Option[Int],
+                                                       relevantAddress: Addr => Boolean)(startState: machine
+  .MachineState,
+                                                                                         isInitial: Boolean,
+                                                                                         stepSwitched: Int): StaticAnalysisResult = {
     Logger.log(s"Starting static points-to analysis", Logger.I)
-    val output =
-      free.kickstartEval(startState, sem, None, None, Some(stepSwitched))
-    analyzeOutput(free, pointsTo, relevantAddress)(output)
+    val result = machine.kickstartEval(startState, sem, None, None, Some(stepSwitched))
+    AnalysisGraph[machine.GraphNode](result.graph.get)
+    //analyzeOutput(free, pointsTo, relevantAddress)(output)
   }
 }
 
@@ -104,15 +105,15 @@ class PointsToAnalysisLauncher[
   def runStaticAnalysis(currentProgramState: PS,
                         stepSwitched: Int): StaticAnalysisResult =
     wrapRunAnalysis(() => {
-      val free: SpecFree = new SpecFree()
+      val aam: SpecAAM = new SpecAAM()
       val startStates =
-        convertState(free, concSem, abstSem, currentProgramState)
+        convertStateAAM(aam, concSem, abstSem, currentProgramState)
       val result = pointsToAnalysis
-        .analyze(free, abstSem, lip.pointsTo, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startStates,
+        .analyze(aam, abstSem, lip.pointsTo, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startStates,
           false,
           stepSwitched)
-      Logger.log(s"Static points-to analysis result is $result", Logger.U)
-      PointsToSet(result)
+//      Logger.log(s"Static points-to analysis result is $result", Logger.U)
+      result
     })
 
 }

@@ -10,6 +10,9 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
     ConcreteTracingProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
   /* The specific type of AAM used for this analysis: an AAM using the HybridLattice, HybridAddress and ZeroCFA
    * components. */
+  type SpecAAM = AAM[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
+  /* The specific type of P4F used for this analysis: a P4F using the HybridLattice, HybridAddress and ZeroCFA
+   * components. */
   type SpecFree = Free[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
   /* The specific environment used in the concrete state: an environment using the HybridAddress components. */
   type SpecEnv = Environment[HybridAddress.A]
@@ -34,13 +37,27 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
   }
 
   /**
+    * Maps a KontAddr to a FreeKontAddr.
+    * @param address The KontAddr to be converted.
+    * @param env The environment to used to allocate the FreeKontAddr.
+    * @return The converted FreeKontAddr.
+    */
+  private def mapKontAddressToFree(address: KontAddr,
+                             env: Environment[HybridAddress.A]): FreeKontAddr =
+    address match {
+      case address: NormalKontAddress[SchemeExp, HybridTimestamp.T] =>
+        FreeNormalKontAddress(address.exp, env)
+      case HaltKontAddress => FreeHaltKontAddress
+    }
+
+  /**
     * Converts the given state to a new state corresponding to the state employed by the given P4F machine.
     * @param free The P4F machine for which a new, converted, state must be generated.
     * @param concSem The semantics currently being used.
     * @param abstSem The semantics to be used during the analysis.
     * @param programState The program state to be converted.
     */
-  protected def convertState(
+  protected def convertStateFree(
       free: Free[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
       concSem: SemanticsTraced[SchemeExp,
                                ConcreteConcreteLattice.L,
@@ -49,13 +66,37 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
       abstSem: BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
       programState: PS): free.States = {
     val (control, _, store, kstore, a, t) =
-      programState.convertState[Abs](free, concSem, abstSem)
+      programState.convertState[Abs, FreeKontAddr](concSem, abstSem, FreeHaltKontAddress, mapKontAddressToFree)
     val convertedControl = control match {
       case ConvertedControlError(reason) => free.ControlError(reason)
       case ConvertedControlEval(exp, env) => free.ControlEval(exp, env)
       case ConvertedControlKont(v) => free.ControlKont(v)
     }
     free.States(Set(free.Configuration(convertedControl, a, t)), store, kstore)
+  }
+  /**
+    * Converts the given state to a new state corresponding to the state employed by the given AAM.
+    * @param aam The AAM for which a new, converted, state must be generated.
+    * @param concSem The semantics currently being used.
+    * @param abstSem The semantics to be used during the analysis.
+    * @param programState The program state to be converted.
+    */
+  protected def convertStateAAM(
+      aam: AAM[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
+  concSem: SemanticsTraced[SchemeExp,
+    ConcreteConcreteLattice.L,
+    HybridAddress.A,
+    HybridTimestamp.T],
+  abstSem: BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
+  programState: PS): aam.State = {
+    val (control, _, store, kstore, a, t) =
+      programState.convertState[Abs, KontAddr](concSem, abstSem, HaltKontAddress, (x, env) => x)
+    val convertedControl = control match {
+      case ConvertedControlError(reason) => aam.ControlError(reason)
+      case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
+      case ConvertedControlKont(v) => aam.ControlKont(v)
+    }
+    aam.State(convertedControl, store, kstore, a, t)
   }
 
 }

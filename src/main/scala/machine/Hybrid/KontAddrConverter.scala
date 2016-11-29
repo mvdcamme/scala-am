@@ -1,27 +1,12 @@
 trait KontAddrConverter {
 
-  def convertKontAddr(k: KontAddr): KontAddr
+  def convertKontAddr[KAddr <: KontAddr](k: KAddr): KAddr
 
 }
 
 object IdKontAddrConverter extends KontAddrConverter {
 
-  def convertKontAddr(k: KontAddr): KontAddr = k
-
-}
-
-class ConvertTimestampKontAddrConverter[Exp: Expression, Time: Timestamp](
-    timeSwitcher: TimestampConverter[Time])
-    extends KontAddrConverter {
-
-  def convertKontAddr(k: KontAddr): KontAddr = k match {
-    case a: NoExpKontAddress[Time] =>
-      NoExpKontAddress(timeSwitcher.convertTimestamp(a.time))
-    case a: NormalKontAddress[Exp, Time] =>
-      NormalKontAddress(a.exp, timeSwitcher.convertTimestamp(a.time))
-    case HaltKontAddress =>
-      HaltKontAddress
-  }
+  def convertKontAddr[KAddr <: KontAddr](k: KAddr): KAddr = k
 
 }
 
@@ -31,11 +16,9 @@ class ConvertTimestampKontAddrConverter[Exp: Expression, Time: Timestamp](
 class DefaultKontAddrConverter[Exp: Expression] extends KontAddrConverter {
 
   val timestampConverter = IdHybridTimestampConverter
-  val kontAddressConverter =
-    new ConvertTimestampKontAddrConverter[Exp, HybridTimestamp.T](
-      timestampConverter)
+  val kontAddressConverter = IdKontAddrConverter
 
-  def convertKontAddr(k: KontAddr): KontAddr =
+  def convertKontAddr[KAddr <: KontAddr](k: KAddr): KAddr =
     kontAddressConverter.convertKontAddr(k)
 
 }

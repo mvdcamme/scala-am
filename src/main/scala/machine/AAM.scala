@@ -17,7 +17,13 @@
   * contains the value reached.
   */
 class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
-    extends EvalKontMachine[Exp, Abs, Addr, Time] {
+    extends EvalKontMachine[Exp, Abs, Addr, Time]
+    with KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
+
+  type MachineState = State
+  type GraphNode = State
+  override type MachineOutput = AAMOutput
+
   def name = "AAM"
 
   /**
@@ -137,7 +143,9 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                        time: Double,
                        graph: Option[Graph[State, Unit]],
                        timedOut: Boolean)
-      extends Output[Abs] {
+      extends Output[Abs] with MayHaveGraph[State] {
+
+    def g: Option[Graph[State, Unit]] = graph
 
     /**
       * Returns the list of final values that can be reached
@@ -185,17 +193,17 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                     sem: Semantics[Exp, Abs, Addr, Time],
                     stopEval: Option[State => Boolean],
                     timeout: Option[Long],
-                    graph: Boolean): AAMOutput = {
+                    stepSwitched: Option[Int]): AAMOutput = {
     def loop(todo: Set[State],
              visited: Set[State],
              halted: Set[State],
              startingTime: Long,
-             graph: Option[Graph[State, Unit]]): AAMOutput = {
+             graph: Graph[State, Unit]): AAMOutput = {
       if (timeout.map(System.nanoTime - startingTime > _).getOrElse(false)) {
         AAMOutput(halted,
                   visited.size,
                   (System.nanoTime - startingTime) / Math.pow(10, 9),
-                  graph,
+                  Some(graph),
                   true)
       } else {
         todo.headOption match {
@@ -215,7 +223,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                * the new successors on the todo list */
               val succs = s.step(sem)
               val newGraph =
-                graph.map(_.addEdges(succs.map(s2 => (s, (), s2))))
+                graph.addEdges(succs.map(s2 => (s, (), s2)))
               loop(todo.tail ++ succs,
                    visited + s,
                    halted,
@@ -226,15 +234,13 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             AAMOutput(halted,
                       visited.size,
                       (System.nanoTime - startingTime) / Math.pow(10, 9),
-                      graph,
+                      Some(graph),
                       false)
         }
       }
     }
     val startingTime = System.nanoTime
-    loop(Set(initialState), Set(), Set(), startingTime, if (graph) {
-      Some(new Graph[State, Unit]())
-    } else { None })
+    loop(Set(initialState), Set(), Set(), startingTime, new Graph[State, Unit]().addNode(initialState))
   }
 
   def kickstartAnalysis[L](analysis: Analysis[L, Exp, Abs, Addr, Time],
@@ -286,7 +292,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                   sem,
                   None,
                   timeout,
-                  graph)
+                  None)
   }
 
   override def analyze[L](exp: Exp,
