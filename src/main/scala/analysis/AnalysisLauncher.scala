@@ -1,8 +1,9 @@
 abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
 
   protected val abstSem =
-    new SchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T](
+    new BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T](
       new SchemePrimitives[HybridAddress.A, Abs])
+//  Previously, this was SchemeSemantics, but switched back to BaseSchemeSemantics for now to avoid atomic optimisations
 
   /* The concrete program state the static analysis gets as input. This state is then converted to an
    * abstract state and fed to the AAM. */
