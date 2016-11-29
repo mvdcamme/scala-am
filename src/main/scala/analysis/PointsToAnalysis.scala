@@ -17,7 +17,8 @@ class PointsToAnalysis[
                             sum: Int,
                             nrOfTops: Int)
 
-  private def calculateMetrics(result: List[(Addr, Option[Int])]): MetricsToWrite = {
+  private def calculateMetrics(
+      result: List[(Addr, Option[Int])]): MetricsToWrite = {
     val integerValues = result.map(_._2).filter(_.isDefined).map(_.get)
     val numberValues = integerValues.map(_.toDouble).sortWith(_ < _)
     val length = numberValues.length
@@ -39,7 +40,8 @@ class PointsToAnalysis[
 
   private def possiblyWriteMetrics(stepSwitched: Int,
                                    metrics: MetricsToWrite): Unit = {
-    val output = s"$stepSwitched;${metrics.max};${metrics.median};${metrics.average};${metrics.sum};${metrics.nrOfTops}"
+    val output =
+      s"$stepSwitched;${metrics.max};${metrics.median};${metrics.average};${metrics.sum};${metrics.nrOfTops}"
     if (GlobalFlags.ANALYSIS_RESULTS_OUTPUT.isDefined) {
       val file = new File(GlobalFlags.ANALYSIS_RESULTS_OUTPUT.get)
       val bw = new BufferedWriter(new FileWriter(file, true))
@@ -57,7 +59,8 @@ class PointsToAnalysis[
     val result: List[(Addr, Option[Int])] = storeValues.foldLeft(initial)({
       case (result, (address, value)) =>
         val numberOfObjectsPointedTo = pointsTo(value)
-        if (relevantAddress(address) && numberOfObjectsPointedTo.getOrElse(1) > 0) {
+        if (relevantAddress(address) && numberOfObjectsPointedTo
+              .getOrElse(1) > 0) {
           /* List all addresses pointing to more than one value */
           (address, numberOfObjectsPointedTo) :: result
         } else {

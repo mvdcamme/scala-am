@@ -456,13 +456,7 @@ class HybridMachine[
   def injectExecutionState(exp: SchemeExp): TracerState =
     new TracerState(NI, injectProgramState(exp))(tracer.newTracerContext, None)
 
-  /**
-    * Performs the evaluation of an expression, possibly writing the output graph
-    * in a file, and returns the set of final states reached
-    */
-  def eval(exp: SchemeExp,
-           graph: Boolean,
-           timeout: Option[Long]): Output[ConcreteValue] = {
+  def initialize(exp: SchemeExp): Unit = {
     val initialState = injectProgramState(exp)
     if (tracingFlags.DO_INITIAL_ANALYSIS) {
       val analysisResult =
@@ -474,6 +468,17 @@ class HybridMachine[
         case _ =>
       }
     }
+    pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState)
+  }
+
+  /**
+    * Performs the evaluation of an expression, possibly writing the output graph
+    * in a file, and returns the set of final states reached
+    */
+  def eval(exp: SchemeExp,
+           graph: Boolean,
+           timeout: Option[Long]): Output[ConcreteValue] = {
+    initialize(exp)
     loop(injectExecutionState(exp), 0, System.nanoTime, if (graph) {
       Some(new Graph[PS, String]())
     } else {
