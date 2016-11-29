@@ -324,7 +324,7 @@ class HybridMachine[
       case InterpreterStep(trace, SignalFalse()) =>
         continueWithProgramState(trace)
       case InterpreterStep(trace, SignalStartAnalysis()) =>
-        pointsToAnalysisLauncher.runStaticAnalysis(ps, stepCount)
+        pointsToAnalysisLauncher.runStaticAnalysis(ps, Some(stepCount))
         continueWithProgramState(trace)
       case InterpreterStep(trace, signal) =>
         handleSignalRegular(trace, signal)
@@ -336,7 +336,7 @@ class HybridMachine[
       case InterpreterStep(trace, SignalFalse()) =>
         continueWithProgramStateTracing(trace)
       case InterpreterStep(trace, SignalStartAnalysis()) =>
-        pointsToAnalysisLauncher.runStaticAnalysis(ps, stepCount)
+        pointsToAnalysisLauncher.runStaticAnalysis(ps, Some(stepCount))
         continueWithProgramStateTracing(trace)
       case InterpreterStep(trace, signal) =>
         handleSignalTracing(trace, signal)
@@ -444,7 +444,7 @@ class HybridMachine[
         case RunTimeAnalysisEvery(analysis_interval) =>
           if (stepCount % analysis_interval == 0) {
             Logger.log(s"stepCount: $stepCount", Logger.U)
-            pointsToAnalysisLauncher.runStaticAnalysis(s.ps, stepCount)
+            pointsToAnalysisLauncher.runStaticAnalysis(s.ps, Some(stepCount))
           }
       }
       val succ = s.stepConcrete()

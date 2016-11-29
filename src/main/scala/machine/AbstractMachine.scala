@@ -173,6 +173,7 @@ Addr: Address, Time: Timestamp](sem: SemanticsTraced[Exp, Abs, Addr, Time])
 
 trait MayHaveGraph[Node] {
   def graph: Option[Graph[Node, Unit]]
+  def toDotFile(path: String): Unit
 }
 
 trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {

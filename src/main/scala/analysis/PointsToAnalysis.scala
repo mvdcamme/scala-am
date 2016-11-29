@@ -77,15 +77,19 @@ class PointsToAnalysis[
     result
   }
 
-  def analyze[Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](machine: Machine,
-                                                       sem: Semantics[Exp, L, Addr, Time],
-                                                       pointsTo: L => Option[Int],
-                                                       relevantAddress: Addr => Boolean)(startState: machine
-  .MachineState,
-                                                                                         isInitial: Boolean,
-                                                                                         stepSwitched: Int): StaticAnalysisResult = {
+  def analyze[Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](
+      toDot: Option[String],
+      machine: Machine,
+      sem: Semantics[Exp, L, Addr, Time],
+      pointsTo: L => Option[Int],
+      relevantAddress: Addr => Boolean)(
+      startState: machine.MachineState,
+      isInitial: Boolean,
+      stepSwitched: Option[Int]): StaticAnalysisResult = {
     Logger.log(s"Starting static points-to analysis", Logger.I)
-    val result = machine.kickstartEval(startState, sem, None, None, Some(stepSwitched))
+    val result =
+      machine.kickstartEval(startState, sem, None, None, stepSwitched)
+    toDot.map(result.toDotFile(_))
     AnalysisGraph[machine.GraphNode](result.graph.get)
     //analyzeOutput(free, pointsTo, relevantAddress)(output)
   }
@@ -99,24 +103,50 @@ class PointsToAnalysisLauncher[
                              HybridTimestamp.T])
     extends AnalysisLauncher[Abs] {
 
+  val aam: SpecAAM = new SpecAAM()
+
+  var initialGraph: Option[Graph[aam.GraphNode, Unit]] = None
+
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]
 
   val pointsToAnalysis =
     new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
 
+  def runStaticAnalysisGeneric(currentProgramState: PS,
+                               stepSwitched: Option[Int],
+                               toDotFile: Option[String]): StaticAnalysisResult = {
+    wrapRunAnalysis(
+      () => {
+        val startStates =
+          convertStateAAM(aam, concSem, abstSem, currentProgramState)
+        val result =
+          pointsToAnalysis.analyze(toDotFile,
+            aam,
+            abstSem,
+            lip.pointsTo,
+            (addr) =>
+              !HybridAddress.isAddress.isPrimitive(
+                addr))(startStates, false, stepSwitched)
+        Logger.log(s"Static points-to analysis result is $result", Logger.D)
+        result
+      })
+  }
+
   def runStaticAnalysis(currentProgramState: PS,
-                        stepSwitched: Int): StaticAnalysisResult =
-    wrapRunAnalysis(() => {
-      val aam: SpecAAM = new SpecAAM()
-      val startStates =
-        convertStateAAM(aam, concSem, abstSem, currentProgramState)
-      val result = pointsToAnalysis
-        .analyze(aam, abstSem, lip.pointsTo, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startStates,
-          false,
-          stepSwitched)
-//      Logger.log(s"Static points-to analysis result is $result", Logger.U)
-      result
-    })
+                        stepSwitched: Option[Int]): StaticAnalysisResult = {
+    assert(initialGraph.isDefined)
+    runStaticAnalysisGeneric(currentProgramState, stepSwitched, None)
+  }
+
+  def runInitialStaticAnalysis(currentProgramState: PS): Unit =
+    runStaticAnalysisGeneric(currentProgramState, None, Some("initial_graph.dot")) match {
+      case result: AnalysisGraph[aam.GraphNode] =>
+        initialGraph = Some(result.graph)
+        println("Got here")
+      case other =>
+        throw new Exception(
+          s"Expected initial analysis to produce a graph, got $other instead")
+    }
 
 }
