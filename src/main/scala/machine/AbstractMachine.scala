@@ -170,3 +170,19 @@ Addr: Address, Time: Timestamp](sem: SemanticsTraced[Exp, Abs, Addr, Time])
   def exp = implicitly[Expression[Exp]]
   def time = implicitly[Timestamp[Time]]
 }
+
+trait MayHaveGraph[Node] {
+  def graph: Option[Graph[Node, Unit]]
+}
+
+trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
+  type MachineState
+  type GraphNode
+  type MachineOutput <: MayHaveGraph[GraphNode]
+
+  def kickstartEval(initialState: MachineState,
+                    sem: Semantics[Exp, Abs, Addr, Time],
+                    stopEval: Option[MachineState => Boolean],
+                    timeout: Option[Long],
+                    stepSwitched: Option[Int]): MachineOutput
+}

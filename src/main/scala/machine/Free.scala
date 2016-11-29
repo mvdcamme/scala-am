@@ -27,7 +27,13 @@ object FreeHaltKontAddress extends FreeKontAddr {
   * arXiv:1507.03137 (2015)).
   */
 class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
-    extends EvalKontMachine[Exp, Abs, Addr, Time] {
+    extends EvalKontMachine[Exp, Abs, Addr, Time]
+    with KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
+
+  type MachineState = States
+  type GraphNode = State
+  override type MachineOutput = FreeOutput
+
   def name = "Free"
 
   /**
@@ -147,8 +153,8 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                         time: Double,
                         graph: Option[Graph[State, Unit]],
                         timedOut: Boolean,
-                        stepSwitched: Option[Int] = None)
-      extends Output[Abs] {
+                        stepSwitched: Option[Int])
+      extends Output[Abs] with MayHaveGraph[State] {
 
     def finalValues =
       halted.flatMap(st =>
@@ -219,7 +225,8 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         visited.foldLeft(0)((acc, s) => acc + s.size),
         (System.nanoTime - startingTime) / Math.pow(10, 9),
         Some(graph),
-        timeout.map(System.nanoTime - startingTime > _).getOrElse(false))
+        timeout.map(System.nanoTime - startingTime > _).getOrElse(false),
+        None)
     } else {
       loopWithLocalGraph(s2,
                          visited + s,
@@ -239,29 +246,43 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                     stepSwitched: Option[Int]): FreeOutput = {
 
     val startingTime = System.nanoTime
+    val initStateSet = s.toStateSet
+    assert(initStateSet.size == 1)
 
     /**
-      * Performs state space exploration without building the graph
+      * Performs state space exploration and builds the state graph at the same
+      * time. We lose the "for free" part of this approach by constructing the
+      * graph, since we have to take every possible combination of configurations
+      * and draw edges between them.
       */
-    def loop(s: States, visited: Set[States], halted: Set[State]): FreeOutput = {
+    @scala.annotation.tailrec
+    def loop(s: States,
+             visited: Set[States],
+             halted: Set[State],
+             graph: Graph[State, Unit]): FreeOutput = {
       val s2 = s.step(sem)
       val h = halted ++ s.toStateSet.filter(_.halted)
-      if (s2.isEmpty || visited.contains(s2) ||
-          timeout
+      if (s2.isEmpty || visited.contains(s2) || timeout
             .map(System.nanoTime - startingTime > _)
-            .getOrElse(false) || stopEval.fold(false)(pred => pred(s2))) {
-        FreeOutput(
-          h,
-          visited.foldLeft(0)((acc, s) => acc + s.size),
-          (System.nanoTime - startingTime) / Math.pow(10, 9),
-          None,
-          timeout.map(System.nanoTime - startingTime > _).getOrElse(false),
-          stepSwitched)
+            .getOrElse(false)) {
+        FreeOutput(h,
+                   visited.foldLeft(0)((acc, s) => acc + s.size),
+                   (System.nanoTime - startingTime) / Math.pow(10, 9),
+                   Some(graph),
+                   timeout
+                     .map(System.nanoTime - startingTime > _)
+                     .getOrElse(false) || stopEval.map(_(s2)).getOrElse(false),
+                   stepSwitched)
       } else {
-        loop(s2, visited + s, h)
+        loop(s2,
+             visited + s,
+             h,
+             graph.addEdges(s.toStateSet.flatMap(state1 =>
+               s2.toStateSet.map(state2 => (state1, (), state2)))))
       }
     }
-    loop(s, Set(), Set())
+
+    loop(s, Set(), Set(), new Graph[State, Unit]().addNode(initStateSet.head))
   }
 
   def eval(exp: Exp,

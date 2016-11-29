@@ -137,7 +137,7 @@ class ConstantsAnalysisLauncher[
       launchAnalysis: (SpecFree, Any) => ConstantAddresses[HybridAddress.A])
     : ConstantAddresses[HybridAddress.A] = {
     val free = new Free[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
-    val startState = convertState(free, concSem, abstSem, currentProgramState)
+    val startState = convertStateFree(free, concSem, abstSem, currentProgramState)
     val result = launchAnalysis(free, startState)
     Logger.log(s"Static constants analysis result is $result", Logger.I)
     result
