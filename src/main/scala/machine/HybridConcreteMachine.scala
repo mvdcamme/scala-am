@@ -34,17 +34,29 @@
 //    def timedOut = false
 //  }
 //
-//  case class State(control: Control, store: Store[Addr, Abs], stack: List[Frame], t: Time) extends
-//  ConcreteTracingProgramState[Exp, Addr, Time] {
-//
-//    implicit val abs = implicitly[Abs]
-//    implicit val addr = implicitly[Addr]
-//    implicit val time = implicitly[Time]
+//  case class State(control: Control, store: Store[Addr, Abs], stack: List[Frame], t: Time)
+//    extends ConcreteTracingProgramState[Exp, Addr, Time] {
 //
 //    def halted = control match {
 //      case ControlError(_) => true
 //      case ControlKont(_) => stack.isEmpty
 //      case _ => false
+//    }
+//
+//    def convertState[AbstL: IsConvertableLattice, KAddr <: KontAddr : KontAddress](concSem: ConvertableSemantics[Exp,
+//                                                                                      ConcreteValue,
+//                                                                                      HybridAddress.A,
+//                                                                                      HybridTimestamp.T],
+//                                                                                    abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
+//                                                                                    initialKontAddress: KAddr,
+//                                                                                    mapKontAddress: (KontAddr, Environment[HybridAddress.A]) => KAddr)
+//    : (ConvertedControl[Exp, AbstL, Addr],
+//      Environment[Addr],
+//      Store[Addr, AbstL],
+//      KontStore[KAddr],
+//      KAddr,
+//      HybridTimestamp.T) = {
+//
 //    }
 //  }
 //
