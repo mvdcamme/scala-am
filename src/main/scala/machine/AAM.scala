@@ -54,36 +54,38 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       * one.
       */
     private def integrate(a: KontAddr,
-                          actions: Set[Action[Exp, Abs, Addr]]): Set[State] =
-      actions.flatMap({
-        /* When a value is reached, we go to a continuation state */
-        case ActionReachedValue(v, store, _) =>
-          Set(State(ControlKont(v), store, kstore, a, time.tick(t)))
-        /* When a continuation needs to be pushed, push it in the continuation store */
-        case ActionPush(frame, e, env, store, _) => {
-          val next = NormalKontAddress[Exp, Time](e, t)
-          Set(
+                          edges: Set[(Action[Exp, Abs, Addr], EdgeInformation)]): Set[(State, EdgeInformation)] =
+      edges.map({ case (action, edgeInfo) =>
+        val newState = action match {
+          /* When a value is reached, we go to a continuation state */
+          case ActionReachedValue(v, store, _) =>
+            State(ControlKont(v), store, kstore, a, time.tick(t))
+          /* When a continuation needs to be pushed, push it in the continuation store */
+          case ActionPush(frame, e, env, store, _) => {
+            val next = NormalKontAddress[Exp, Time](e, t)
             State(ControlEval(e, env),
-                  store,
-                  kstore.extend(next, Kont(frame, a)),
-                  next,
-                  time.tick(t)))
+              store,
+              kstore.extend(next, Kont(frame, a)),
+              next,
+              time.tick(t))
+          }
+          /* When a value needs to be evaluated, we go to an eval state */
+          case ActionEval(e, env, store, _) =>
+            State(ControlEval(e, env), store, kstore, a, time.tick(t))
+          /* When a function is stepped in, we also go to an eval state */
+          case ActionStepIn(fexp, _, e, env, store, _, _) =>
+            State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp))
+          /* When an error is reached, we go to an error state */
+          case ActionError(err) =>
+            State(ControlError(err), store, kstore, a, time.tick(t))
         }
-        /* When a value needs to be evaluated, we go to an eval state */
-        case ActionEval(e, env, store, _) =>
-          Set(State(ControlEval(e, env), store, kstore, a, time.tick(t)))
-        /* When a function is stepped in, we also go to an eval state */
-        case ActionStepIn(fexp, _, e, env, store, _, _) =>
-          Set(State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)))
-        /* When an error is reached, we go to an error state */
-        case ActionError(err) =>
-          Set(State(ControlError(err), store, kstore, a, time.tick(t)))
+        (newState, edgeInfo)
       })
 
     /**
       * Computes the set of states that follow the current state
       */
-    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[State] =
+    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[(State, EdgeInformation)] =
       control match {
         /* In a eval state, call the semantic's evaluation method */
         case ControlEval(e, env) =>
@@ -141,11 +143,10 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   case class AAMOutput(halted: Set[State],
                        numberOfStates: Int,
                        time: Double,
-                       graph: Option[Graph[State, Unit]],
-                       timedOut: Boolean)
-      extends Output[Abs] with MayHaveGraph[State] {
-
-    def g: Option[Graph[State, Unit]] = graph
+                       graph: Option[Graph[State, EdgeInformation]],
+                       timedOut: Boolean,
+                       stepSwitched: Option[Int])
+      extends Output[Abs] with MayHaveGraph[State] with HasFinalStores[Addr, Abs] {
 
     /**
       * Returns the list of final values that can be reached
@@ -198,13 +199,14 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
              visited: Set[State],
              halted: Set[State],
              startingTime: Long,
-             graph: Graph[State, Unit]): AAMOutput = {
+             graph: Graph[State, EdgeInformation]): AAMOutput = {
       if (timeout.map(System.nanoTime - startingTime > _).getOrElse(false)) {
         AAMOutput(halted,
                   visited.size,
                   (System.nanoTime - startingTime) / Math.pow(10, 9),
                   Some(graph),
-                  true)
+                  true,
+                  stepSwitched)
       } else {
         todo.headOption match {
           case Some(s) =>
@@ -219,12 +221,12 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                * this state, add it to the list of final states and continue exploring the graph */
               loop(todo.tail, visited + s, halted + s, startingTime, graph)
             } else {
-              /* Otherwise, compute the successors of this state, update the graph, and push
-               * the new successors on the todo list */
-              val succs = s.step(sem)
+              /* Otherwise, compute the successors (and edges to these successors) of this state,
+              update the graph, and push the new successors on the todo list */
+              val succsEdges = s.step(sem)
               val newGraph =
-                graph.addEdges(succs.map(s2 => (s, (), s2)))
-              loop(todo.tail ++ succs,
+                graph.addEdges(succsEdges.map(s2 => (s, s2._2, s2._1)))
+              loop(todo.tail ++ succsEdges.map(_._1),
                    visited + s,
                    halted,
                    startingTime,
@@ -235,12 +237,13 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                       visited.size,
                       (System.nanoTime - startingTime) / Math.pow(10, 9),
                       Some(graph),
-                      false)
+                      false,
+                      stepSwitched)
         }
       }
     }
     val startingTime = System.nanoTime
-    loop(Set(initialState), Set(), Set(), startingTime, new Graph[State, Unit]().addNode(initialState))
+    loop(Set(initialState), Set(), Set(), startingTime, new Graph[State, EdgeInformation]().addNode(initialState))
   }
 
   def kickstartAnalysis[L](analysis: Analysis[L, Exp, Abs, Addr, Time],
@@ -266,9 +269,9 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                   Some(analysis.join(l2, s.stepAnalysis(analysis, l)))
               }, startingTime)
             } else {
-              val succs = s.step(sem)
+              val succsEdges = s.step(sem)
               val l2 = s.stepAnalysis(analysis, l)
-              loop(todo.tail ++ succs.map(s2 => (s2, l2)),
+              loop(todo.tail ++ succsEdges.map(s2 => (s2._1, l2)),
                    visited + ((s, l)),
                    finalValue,
                    startingTime)

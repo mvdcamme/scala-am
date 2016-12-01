@@ -60,9 +60,9 @@ class ConcreteMachine[
       } else {
         control match {
           case ControlEval(e, env) =>
-            val actions = sem.stepEval(e, env, store, t)
-            if (actions.size == 1) {
-              actions.head match {
+            val edges = sem.stepEval(e, env, store, t)
+            if (edges.size == 1) {
+              edges.head._1 match {
                 case ActionReachedValue(v, store2, _) =>
                   loop(ControlKont(v),
                        store2,
@@ -101,15 +101,15 @@ class ConcreteMachine[
               ConcreteMachineOutputError(
                 (System.nanoTime - start) / Math.pow(10, 9),
                 count,
-                s"execution was not concrete (got ${actions.size} actions instead of 1)")
+                s"execution was not concrete (got ${edges.size} actions instead of 1)")
             }
           case ControlKont(v) =>
             /* pop a continuation */
             stack match {
               case frame :: tl =>
-                val actions = sem.stepKont(v, frame, store, t)
-                if (actions.size == 1) {
-                  actions.head match {
+                val edges = sem.stepKont(v, frame, store, t)
+                if (edges.size == 1) {
+                  edges.head._1 match {
                     case ActionReachedValue(v, store2, _) =>
                       loop(ControlKont(v),
                            store2,
@@ -148,7 +148,7 @@ class ConcreteMachine[
                   ConcreteMachineOutputError(
                     (System.nanoTime - start) / Math.pow(10, 9),
                     count,
-                    s"execution was not concrete (got ${actions.size} actions instead of 1)")
+                    s"execution was not concrete (got ${edges.size} actions instead of 1)")
                 }
               case Nil =>
                 ConcreteMachineOutputValue(

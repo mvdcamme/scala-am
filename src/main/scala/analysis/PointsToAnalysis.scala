@@ -3,8 +3,8 @@ import java.io.{FileWriter, BufferedWriter, File}
 class PointsToAnalysis[
     Exp: Expression, L: JoinLattice, Addr: Address, Time: Timestamp] {
 
-  private def joinStores(free: Free[Exp, L, Addr, Time])(
-      stores: Set[Store[Addr, L]]): Set[(Addr, L)] = {
+  private def joinStores[Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](machine: Machine)(
+    stores: Set[Store[Addr, L]]): Set[(Addr, L)] = {
     val joinedStore = stores.foldLeft(Store.initial(Set()): Store[Addr, L]) {
       case (joinedStore, store) => joinedStore.join(store)
     }
@@ -50,11 +50,12 @@ class PointsToAnalysis[
     }
   }
 
-  private def analyzeOutput(free: Free[Exp, L, Addr, Time],
+  private def analyzeOutput[Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](
+                                                                                  machine: Machine,
                             pointsTo: L => Option[Int],
                             relevantAddress: Addr => Boolean)(
-      output: free.FreeOutput): List[(Addr, Option[Int])] = {
-    val storeValues = joinStores(free)(output.finalStores)
+      output: Machine#MachineOutput): List[(Addr, Option[Int])] = {
+    val storeValues = joinStores(machine)(output.finalStores)
     val initial: List[(Addr, Option[Int])] = Nil
     val result: List[(Addr, Option[Int])] = storeValues.foldLeft(initial)({
       case (result, (address, value)) =>
@@ -73,7 +74,7 @@ class PointsToAnalysis[
     val metrics = calculateMetrics(result)
     Logger.log(s"Static points-to analysis completed, metrics equals $metrics",
                Logger.D)
-    possiblyWriteMetrics(output.stepSwitched.get, metrics)
+    possiblyWriteMetrics(output.stepSwitched.getOrElse(-1), metrics)
     result
   }
 
@@ -90,8 +91,20 @@ class PointsToAnalysis[
     val result =
       machine.kickstartEval(startState, sem, None, None, stepSwitched)
     toDot.map(result.toDotFile(_))
+    analyzeOutput(machine, pointsTo, relevantAddress)(result)
     AnalysisGraph[machine.GraphNode](result.graph.get)
-    //analyzeOutput(free, pointsTo, relevantAddress)(output)
+  }
+}
+
+class IncrementalAnalysisChecker[GraphNode](val aam: AAM[_, _, _, _]) {
+
+  var initialGraph: Option[Graph[GraphNode, EdgeInformation]] = None
+
+  def hasInitialGraph: Boolean = initialGraph.isDefined
+  def initializeGraph(graph: Graph[GraphNode, EdgeInformation]) = initialGraph = Some(graph)
+
+  def containsNode(node: GraphNode): Boolean = {
+    initialGraph.get.nodeId(node) != -1
   }
 }
 
@@ -105,7 +118,7 @@ class PointsToAnalysisLauncher[
 
   val aam: SpecAAM = new SpecAAM()
 
-  var initialGraph: Option[Graph[aam.GraphNode, Unit]] = None
+  val incrementalAnalysis = new IncrementalAnalysisChecker[aam.GraphNode](aam)
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]
@@ -135,15 +148,16 @@ class PointsToAnalysisLauncher[
 
   def runStaticAnalysis(currentProgramState: PS,
                         stepSwitched: Option[Int]): StaticAnalysisResult = {
-    assert(initialGraph.isDefined)
+    assert(incrementalAnalysis.hasInitialGraph)
+    val convertedState: aam.State = convertStateAAM(aam, concSem, abstSem, currentProgramState)
+    Logger.log(s"Already contains current node: ${incrementalAnalysis.containsNode(convertedState)}", Logger.U)
     runStaticAnalysisGeneric(currentProgramState, stepSwitched, None)
   }
 
   def runInitialStaticAnalysis(currentProgramState: PS): Unit =
     runStaticAnalysisGeneric(currentProgramState, None, Some("initial_graph.dot")) match {
       case result: AnalysisGraph[aam.GraphNode] =>
-        initialGraph = Some(result.graph)
-        println("Got here")
+        incrementalAnalysis.initializeGraph(result.graph)
       case other =>
         throw new Exception(
           s"Expected initial analysis to produce a graph, got $other instead")

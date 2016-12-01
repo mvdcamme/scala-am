@@ -172,14 +172,21 @@ Addr: Address, Time: Timestamp](sem: SemanticsTraced[Exp, Abs, Addr, Time])
 }
 
 trait MayHaveGraph[Node] {
-  def graph: Option[Graph[Node, Unit]]
+  def graph: Option[Graph[Node, EdgeInformation]]
   def toDotFile(path: String): Unit
+}
+
+trait HasFinalStores[Addr, Abs] {
+
+  def finalStores: Set[Store[Addr, Abs]]
+  def stepSwitched: Option[Int]
+
 }
 
 trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
   type MachineState
   type GraphNode
-  type MachineOutput <: MayHaveGraph[GraphNode]
+  type MachineOutput <: MayHaveGraph[GraphNode] with HasFinalStores[Addr, Abs]
 
   def kickstartEval(initialState: MachineState,
                     sem: Semantics[Exp, Abs, Addr, Time],

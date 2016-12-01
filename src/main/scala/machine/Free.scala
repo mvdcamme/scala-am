@@ -54,35 +54,36 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
 
     /** Integrate a set of action to compute the successor states */
     private def integrate(k: FreeKontAddr,
-                          actions: Set[Action[Exp, Abs, Addr]]): Set[State] =
-      actions.map({
-        case ActionReachedValue(v, store, _) =>
-          State(ControlKont(v), store, kstore, k, time.tick(t))
-        case ActionPush(frame, e, env, store, _) => {
-          val next = new FreeNormalKontAddress(e, env)
-          State(ControlEval(e, env),
-                store,
-                kstore.extend(next, Kont(frame, k)),
-                next,
-                time.tick(t))
+                          edges: Set[(Action[Exp, Abs, Addr], EdgeInformation)]): Set[(State, EdgeInformation)] =
+      edges.map({ case (action, edgeInfo) =>
+        val newState = action match {
+          case ActionReachedValue(v, store, _) =>
+            State(ControlKont(v), store, kstore, k, time.tick(t))
+          case ActionPush(frame, e, env, store, _) =>
+            val next = new FreeNormalKontAddress(e, env)
+            State(ControlEval(e, env),
+              store,
+              kstore.extend(next, Kont(frame, k)),
+              next,
+              time.tick(t))
+          case ActionEval(e, env, store, _) =>
+            State(ControlEval(e, env), store, kstore, k, time.tick(t))
+          case ActionStepIn(fexp, _, e, env, store, _, _) =>
+            State(ControlEval(e, env), store, kstore, k, time.tick(t, fexp))
+          case ActionError(err) =>
+            State(ControlError(err), store, kstore, k, time.tick(t))
         }
-        case ActionEval(e, env, store, _) =>
-          State(ControlEval(e, env), store, kstore, k, time.tick(t))
-        case ActionStepIn(fexp, _, e, env, store, _, _) =>
-          State(ControlEval(e, env), store, kstore, k, time.tick(t, fexp))
-        case ActionError(err) =>
-          State(ControlError(err), store, kstore, k, time.tick(t))
-      })
+        (newState, edgeInfo)})
 
     /** Computes the successors states of this one relying on the given semantics */
-    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[State] =
+    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[(State, EdgeInformation)] =
       control match {
         case ControlEval(e, env) =>
           integrate(k, sem.stepEval(e, env, store, t))
         case ControlKont(v) =>
           kstore
             .lookup(k)
-            .foldLeft(Set[State]())((acc, k) =>
+            .foldLeft(Set[(State, EdgeInformation)]())((acc, k) =>
               k match {
                 case Kont(frame, next) =>
                   acc ++ integrate(next, sem.stepKont(v, frame, store, t))
@@ -129,12 +130,12 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     def step(sem: Semantics[Exp, Abs, Addr, Time]): States = {
       val states =
         R.map(conf => State(conf.control, store, kstore, conf.k, conf.t))
-      val succs = states.flatMap(state => state.step(sem))
-      val (store1, kstore1) = succs.foldLeft(
+      val succsEdges = states.flatMap(state => state.step(sem))
+      val (store1, kstore1) = succsEdges.map(_._1).foldLeft(
         (Store.empty[Addr, Abs], KontStore.empty[FreeKontAddr]))(
         (acc, state) => (acc._1.join(state.store), acc._2.join(state.kstore)))
       States(
-        succs.map(state => Configuration(state.control, state.k, state.t)),
+        succsEdges.map(stateEdge => Configuration(stateEdge._1.control, stateEdge._1.k, stateEdge._1.t)),
         store1,
         kstore1)
     }
@@ -151,7 +152,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   case class FreeOutput(halted: Set[State],
                         numberOfStates: Int,
                         time: Double,
-                        graph: Option[Graph[State, Unit]],
+                        graph: Option[Graph[State, EdgeInformation]],
                         timedOut: Boolean,
                         stepSwitched: Option[Int])
       extends Output[Abs] with MayHaveGraph[State] {
@@ -213,11 +214,11 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       halted: Set[State],
       startingTime: Long,
       timeout: Option[Long],
-      graph: Graph[State, Unit],
+      graph: Graph[State, EdgeInformation],
       sem: Semantics[Exp, Abs, Addr, Time]): Output[Abs] = {
-    val s2 = s.step(sem)
+    val s2Edge = s.step(sem)
     val h = halted ++ s.toStateSet.filter(_.halted)
-    if (s2.isEmpty || visited.contains(s2) || timeout
+    if (s2Edge.isEmpty || visited.contains(s2Edge) || timeout
           .map(System.nanoTime - startingTime > _)
           .getOrElse(false)) {
       FreeOutput(
@@ -228,13 +229,13 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         timeout.map(System.nanoTime - startingTime > _).getOrElse(false),
         None)
     } else {
-      loopWithLocalGraph(s2,
+      loopWithLocalGraph(s2Edge,
                          visited + s,
                          h,
                          startingTime,
                          timeout,
                          graph.addEdges(s.toStateSet.flatMap(state1 =>
-                           s2.toStateSet.map(state2 => (state1, (), state2)))),
+                           s2Edge.toStateSet.map(state2 => (state1, TODOEdgeInformation, state2)))),
                          sem)
     }
   }
@@ -259,7 +260,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     def loop(s: States,
              visited: Set[States],
              halted: Set[State],
-             graph: Graph[State, Unit]): FreeOutput = {
+             graph: Graph[State, EdgeInformation]): FreeOutput = {
       val s2 = s.step(sem)
       val h = halted ++ s.toStateSet.filter(_.halted)
       if (s2.isEmpty || visited.contains(s2) || timeout
@@ -278,11 +279,11 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
              visited + s,
              h,
              graph.addEdges(s.toStateSet.flatMap(state1 =>
-               s2.toStateSet.map(state2 => (state1, (), state2)))))
+               s2.toStateSet.map(state2 => (state1, TODOEdgeInformation, state2)))))
       }
     }
 
-    loop(s, Set(), Set(), new Graph[State, Unit]().addNode(initStateSet.head))
+    loop(s, Set(), Set(), new Graph[State, EdgeInformation]().addNode(initStateSet.head))
   }
 
   def eval(exp: Exp,
@@ -295,7 +296,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                          Set(),
                          System.nanoTime,
                          timeout,
-                         new Graph[State, Unit](),
+                         new Graph[State, EdgeInformation](),
                          sem)
     } else {
       kickstartEval(States.inject(exp, sem.initialEnv, sem.initialStore),

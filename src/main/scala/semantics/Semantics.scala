@@ -35,6 +35,13 @@ trait BasicSemantics[Exp, Abs, Addr, Time] {
   def parse(program: String): Exp
 }
 
+trait ComputingEdgeInformation[Exp,Abs, Addr] {
+
+  def addNoEdgeInfo(set: Set[Action[Exp, Abs, Addr]]): Set[(Action[Exp, Abs, Addr], EdgeInformation)] =
+    set.flatMap( (action) => Set((action, NoEdgeInformation)) )
+
+}
+
 trait Semantics[Exp, Abs, Addr, Time]
     extends BasicSemantics[Exp, Abs, Addr, Time] {
 
@@ -45,7 +52,7 @@ trait Semantics[Exp, Abs, Addr, Time]
   def stepEval(e: Exp,
                env: Environment[Addr],
                store: Store[Addr, Abs],
-               t: Time): Set[Action[Exp, Abs, Addr]]
+               t: Time): Set[(Action[Exp, Abs, Addr], EdgeInformation)]
 
   /**
     * Defines what actions should be taken when a value v has been reached, and
@@ -54,7 +61,7 @@ trait Semantics[Exp, Abs, Addr, Time]
   def stepKont(v: Abs,
                frame: Frame,
                store: Store[Addr, Abs],
-               t: Time): Set[Action[Exp, Abs, Addr]]
+               t: Time): Set[(Action[Exp, Abs, Addr], EdgeInformation)]
 
   /** Defines the elements in the initial environment/store */
   def initialBindings: Iterable[(String, Addr, Abs)] = List()

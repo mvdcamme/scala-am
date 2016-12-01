@@ -49,7 +49,8 @@ case class Graph[Node, Annotation](ids: Map[Node, Int],
   def foldNodes[B](init: B)(f: (B, Node) => B) = nodes.foldLeft(init)(f)
   def getNode(id: Int): Option[Node] =
     ids.find({ case (_, v) => id == v }).map(_._1)
-  def nodeId(node: Node): Int = ids.getOrElse(node, -1)
+  def nodeId(node: Node): Int =
+    ids.getOrElse(node, -1)
   def toDot(label: Node => List[scala.xml.Node],
             color: Node => String,
             annotLabel: Annotation => List[scala.xml.Node]): String = {
