@@ -300,41 +300,36 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                t: Time): Set[(Action[SchemeExp, Abs, Addr], EdgeInformation)] = {
     val fromClo: Set[(Action[SchemeExp, Abs, Addr], EdgeInformation)] = sabs
       .getClosures[SchemeExp, Addr](function)
-      .map(x => (ActionError[SchemeExp, Abs, Addr](ArityError(fexp.toString, 99, argsv.length)), NoEdgeInformation))
-
-
-
-//
-//      {
-//        case (SchemeLambda(args, body, pos), env1) =>
-//          if (args.length == argsv.length) {
-//            bindArgs(args.zip(argsv), env1, store, t) match {
-//              case (env2, store) =>
-//                if (body.length == 1)
-//                  (ActionStepIn[SchemeExp, Abs, Addr](
-//                    fexp,
-//                    (SchemeLambda(args, body, pos), env1),
-//                    body.head,
-//                    env2,
-//                    store,
-//                    argsv), NoEdgeInformation)
-//                else
-//                  (ActionStepIn[SchemeExp, Abs, Addr](
-//                    fexp,
-//                    (SchemeLambda(args, body, pos), env1),
-//                    SchemeBegin(body, pos),
-//                    env2,
-//                    store,
-//                    argsv), NoEdgeInformation)
-//            }
-//          } else {
-//            (ActionError[SchemeExp, Abs, Addr](
-//              ArityError(fexp.toString, args.length, argsv.length)), NoEdgeInformation)
-//          }
-//        case (lambda, _) =>
-//          (ActionError[SchemeExp, Abs, Addr](
-//            TypeError(lambda.toString, "operator", "closure", "not a closure")), NoEdgeInformation)
-//      })
+      .map({
+        case (SchemeLambda(args, body, pos), env1) =>
+          if (args.length == argsv.length) {
+            bindArgs(args.zip(argsv), env1, store, t) match {
+              case (env2, store) =>
+                if (body.length == 1)
+                  (ActionStepIn[SchemeExp, Abs, Addr](
+                    fexp,
+                    (SchemeLambda(args, body, pos), env1),
+                    body.head,
+                    env2,
+                    store,
+                    argsv), NoEdgeInformation)
+                else
+                  (ActionStepIn[SchemeExp, Abs, Addr](
+                    fexp,
+                    (SchemeLambda(args, body, pos), env1),
+                    SchemeBegin(body, pos),
+                    env2,
+                    store,
+                    argsv), NoEdgeInformation)
+            }
+          } else {
+            (ActionError[SchemeExp, Abs, Addr](
+              ArityError(fexp.toString, args.length, argsv.length)), NoEdgeInformation)
+          }
+        case (lambda, _) =>
+          (ActionError[SchemeExp, Abs, Addr](
+            TypeError(lambda.toString, "operator", "closure", "not a closure")), NoEdgeInformation)
+      })
     val fromPrim = sabs
       .getPrimitives[Addr, Abs](function)
       .flatMap(
