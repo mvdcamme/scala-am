@@ -14,9 +14,9 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
                                             failStack: List[Frame])(
     implicit sabs: IsSchemeLattice[ConcreteConcreteLattice.L],
     latInfoProv: LatticeInfoProvider[ConcreteConcreteLattice.L])
-    extends ConcreteTracingProgramState[Exp,
-                                        HybridAddress.A,
-                                        HybridTimestamp.T]
+    extends TracingProgramState[Exp,
+                                HybridAddress.A,
+                                HybridTimestamp.T]
     with ConcretableTracingProgramState[Exp] {
 
   def abs = implicitly[JoinLattice[ConcreteValue]]
@@ -111,10 +111,10 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
   }
 
   def convertState[AbstL: IsConvertableLattice, KAddr <: KontAddr : KontAddress](
-      concSem: SemanticsTraced[Exp,
-                               ConcreteValue,
-                               HybridAddress.A,
-                               HybridTimestamp.T],
+      concSem: ConvertableSemantics[Exp,
+                                    ConcreteValue,
+                                    HybridAddress.A,
+                                    HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
       initialKontAddress: KAddr,
       mapKontAddress: (KontAddr, Environment[HybridAddress.A]) => KAddr) =
@@ -326,10 +326,7 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
   def concretableState = normalState
 
   def subsumes(
-      that: TracingProgramState[Exp,
-                                ConcreteValue,
-                                HybridAddress.A,
-                                HybridTimestamp.T]): Boolean = that match {
+      that: TracingProgramState[Exp, HybridAddress.A, HybridTimestamp.T]): Boolean = that match {
     case that: AmbProgramState[Exp] =>
       concreteSubsumes(that)
     case _ => false

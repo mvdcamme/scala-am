@@ -24,7 +24,9 @@ trait SchemeFrame[Abs, Addr, Time] extends Frame {
 class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     val primitives: SchemePrimitives[Addr, Abs])
     extends BaseSemantics[SchemeExp, Abs, Addr, Time]
+    with ConvertableSemantics[SchemeExp, Abs, Addr, Time]
     with ComputingEdgeInformation[SchemeExp, Abs, Addr] {
+
   def sabs = implicitly[IsSchemeLattice[Abs]]
   case class FrameFuncallOperator(fexp: SchemeExp,
                                   args: List[SchemeExp],
@@ -262,6 +264,12 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                 envReaches: Environment[Addr] => Set[Addr],
                 addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
   }
+
+  def convertToAbsSemanticsFrame(frame: Frame,
+                                 ρ: Environment[Addr],
+                                 vStack: List[Storable[Abs, Addr]],
+                                 absSem: BaseSchemeSemantics[Abs, Addr, Time])
+  : (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr]) = (Some(frame), vStack, ρ)
 
   protected def evalBody(
       body: List[SchemeExp],

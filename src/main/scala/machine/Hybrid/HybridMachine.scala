@@ -29,7 +29,7 @@ class HybridMachine[
                        ConcreteConcreteLattice.L,
                        HybridAddress.A,
                        HybridTimestamp.T],
-    injectProgramState: (SchemeExp) => ConcreteTracingProgramState[
+    injectProgramState: (SchemeExp) => TracingProgramState[
       SchemeExp,
       HybridAddress.A,
       HybridTimestamp.T])(
@@ -43,7 +43,7 @@ class HybridMachine[
   type ConcreteValue = ConcreteConcreteLattice.L
 
   type PS =
-    ConcreteTracingProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
+    TracingProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
 
   def name = "HybridMachine"
 
@@ -353,10 +353,7 @@ class HybridMachine[
 
   }
 
-  case class HybridOutput[State <: TracingProgramState[SchemeExp,
-                                                       ConcreteValue,
-                                                       HybridAddress.A,
-                                                       HybridTimestamp.T],
+  case class HybridOutput[State <: TracingProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T],
                           Annotation](halted: Set[State],
                                       count: Int,
                                       t: Double,

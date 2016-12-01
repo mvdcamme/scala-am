@@ -560,14 +560,16 @@ object Main {
                   SchemeExp,
                   ConcreteConcreteLattice.L,
                   HybridAddress.A,
-                  HybridTimestamp.T] => ConstantsAnalysisLauncher[
+                  HybridTimestamp.T] with ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A,
+                  HybridTimestamp.T] =>
+                  ConstantsAnalysisLauncher[
                   constLattice.L])
               : (SchemeSemanticsTraced[ConcreteConcreteLattice.L,
                                        HybridAddress.A,
                                        HybridTimestamp.T],
                  ConstantsAnalysisLauncher[constLattice.L],
                  Option[SchemeTraceOptimizer[constLattice.L]],
-                 SchemeExp => ConcreteTracingProgramState[
+                 SchemeExp => TracingProgramState[
                    SchemeExp,
                    HybridAddress.A,
                    HybridTimestamp.T]) = {

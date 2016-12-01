@@ -9,7 +9,7 @@ trait ActionReturn[Exp, Abs, Addr, Time, +State] {
 case class ActionStep[Exp: Expression,
                       Addr: Address,
                       Time: Timestamp,
-                      State <: ConcreteTracingProgramState[Exp, Addr, Time]](
+                      State <: TracingProgramState[Exp, Addr, Time]](
     newState: State,
     action: ActionT[Exp, ConcreteConcreteLattice.L, Addr])
     extends ActionReturn[Exp, ConcreteConcreteLattice.L, Addr, Time, State] {
@@ -81,43 +81,15 @@ trait ConcretableTracingProgramState[Exp] {
 
 }
 
-trait ConcreteTracingProgramState[Exp, Addr, Time]
-    extends TracingProgramState[Exp, ConcreteConcreteLattice.L, Addr, Time] {
+trait ConcreteTracingProgramState[Exp, Addr, Time] {
 
   type ConcreteValue = ConcreteConcreteLattice.L
 
-  def control: TracingControl[Exp, ConcreteValue, Addr]
-  def ρ: Environment[Addr]
-  def σ: Store[Addr, ConcreteValue]
-  def kstore: KontStore[KontAddr]
-  def a: KontAddr
-  def t: Time
-  def v: ConcreteValue
-  def vStack: List[Storable[ConcreteValue, Addr]]
-
-  def step(sem: SemanticsTraced[Exp, ConcreteValue, Addr, Time])
-    : Option[InterpreterStep[Exp, ConcreteValue, Addr]]
-  def applyAction(sem: SemanticsTraced[Exp, ConcreteValue, Addr, Time],
-                  action: ActionT[Exp, ConcreteValue, Addr])
-    : ActionReturn[Exp,
-                   ConcreteValue,
-                   Addr,
-                   Time,
-                   ConcreteTracingProgramState[Exp, Addr, Time]]
-  def restart(sem: SemanticsTraced[Exp, ConcreteValue, Addr, Time],
-              restartPoint: RestartPoint[Exp, ConcreteValue, Addr])
-    : ConcreteTracingProgramState[Exp, Addr, Time]
-
-  def runHeader(
-      sem: SemanticsTraced[Exp, ConcreteValue, HybridAddress.A, Time],
-      assertions: List[ActionT[Exp, ConcreteValue, Addr]])
-    : Option[ConcreteTracingProgramState[Exp, Addr, Time]]
-
   def convertState[AbstL: IsConvertableLattice, KAddr <: KontAddr : KontAddress](
-      concSem: SemanticsTraced[Exp,
-                               ConcreteValue,
-                               HybridAddress.A,
-                               HybridTimestamp.T],
+      concSem: ConvertableSemantics[Exp,
+                                    ConcreteValue,
+                                    HybridAddress.A,
+                                    HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
       initialKontAddress: KAddr,
       mapKontAddress: (KontAddr, Environment[HybridAddress.A]) => KAddr)
@@ -127,9 +99,6 @@ trait ConcreteTracingProgramState[Exp, Addr, Time]
        KontStore[KAddr],
        KAddr,
        HybridTimestamp.T)
-
-  def generateTraceInformation(action: ActionT[Exp, ConcreteValue, Addr])
-    : CombinedInfos[ConcreteValue, HybridAddress.A]
 }
 
 /**
@@ -151,9 +120,9 @@ case class ProgramState[Exp: Expression](
       Storable[ConcreteConcreteLattice.L, HybridAddress.A]])(
     implicit sabs: IsSchemeLattice[ConcreteConcreteLattice.L],
     latInfoProv: LatticeInfoProvider[ConcreteConcreteLattice.L])
-    extends ConcreteTracingProgramState[Exp,
-                                        HybridAddress.A,
-                                        HybridTimestamp.T]
+    extends TracingProgramState[Exp,
+                                HybridAddress.A,
+                                HybridTimestamp.T]
     with ConcretableTracingProgramState[Exp] {
 
   def abs = implicitly[JoinLattice[ConcreteConcreteLattice.L]]
@@ -697,10 +666,10 @@ case class ProgramState[Exp: Expression](
 
   // TODO change name to drop the Free
   private def convertKStoreToFreeFrames[KAddr <: KontAddr : KontAddress](
-      concSem: SemanticsTraced[Exp,
-                               ConcreteValue,
-                               HybridAddress.A,
-                               HybridTimestamp.T],
+      concSem: ConvertableSemantics[Exp,
+                                    ConcreteValue,
+                                    HybridAddress.A,
+                                    HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[ConcreteValue,
                                    HybridAddress.A,
                                    HybridTimestamp.T],
@@ -882,10 +851,10 @@ case class ProgramState[Exp: Expression](
   }
 
   def convertState[AbstL: IsConvertableLattice, KAddr <: KontAddr : KontAddress](
-      concSem: SemanticsTraced[Exp,
-                               ConcreteValue,
-                               HybridAddress.A,
-                               HybridTimestamp.T],
+      concSem: ConvertableSemantics[Exp,
+                              ConcreteValue,
+                              HybridAddress.A,
+                              HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
       initialKontAddress: KAddr,
       mapKontAddress: (KontAddr, Environment[HybridAddress.A]) => KAddr)
@@ -987,7 +956,6 @@ case class ProgramState[Exp: Expression](
 
   def subsumes(
       that: TracingProgramState[Exp,
-                                ConcreteValue,
                                 HybridAddress.A,
                                 HybridTimestamp.T]): Boolean = that match {
     case that: ProgramState[Exp] =>

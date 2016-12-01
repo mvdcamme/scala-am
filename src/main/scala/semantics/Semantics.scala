@@ -72,10 +72,20 @@ trait Semantics[Exp, Abs, Addr, Time]
 
 }
 
-trait SemanticsTraced[Exp, Abs, Addr, Time]
-    extends BasicSemantics[Exp, Abs, Addr, Time] {
+trait ConvertableSemantics[Exp, Abs, Addr, Time]
+  extends BasicSemantics[Exp, Abs, Addr, Time] {
 
   def primitives: Primitives[Addr, Abs]
+
+  def convertToAbsSemanticsFrame(frame: Frame,
+                                 ρ: Environment[Addr],
+                                 vStack: List[Storable[Abs, Addr]],
+                                 absSem: BaseSchemeSemantics[Abs, Addr, Time])
+  : (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr])
+}
+
+trait SemanticsTraced[Exp, Abs, Addr, Time]
+    extends BasicSemantics[Exp, Abs, Addr, Time] {
 
   class InvalidArityException extends Exception
 
@@ -137,12 +147,6 @@ trait SemanticsTraced[Exp, Abs, Addr, Time]
     initialBindings.map({ case (_, a, v) => (a, v) })
 
   def getClosureBody(frame: Frame): Option[List[Exp]]
-
-  def convertToAbsSemanticsFrame(frame: Frame,
-                                 ρ: Environment[Addr],
-                                 vStack: List[Storable[Abs, Addr]],
-                                 absSem: BaseSchemeSemantics[Abs, Addr, Time])
-    : (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr])
 }
 
 /**

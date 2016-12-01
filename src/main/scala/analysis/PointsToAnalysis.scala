@@ -110,10 +110,10 @@ class IncrementalAnalysisChecker[GraphNode](val aam: AAM[_, _, _, _]) {
 
 class PointsToAnalysisLauncher[
     Abs: IsConvertableLattice: PointsToableLatticeInfoProvider](
-    concSem: SemanticsTraced[SchemeExp,
-                             ConcreteConcreteLattice.L,
-                             HybridAddress.A,
-                             HybridTimestamp.T])
+    concSem: ConvertableSemantics[SchemeExp,
+                                  ConcreteConcreteLattice.L,
+                                  HybridAddress.A,
+                                  HybridTimestamp.T])
     extends AnalysisLauncher[Abs] {
 
   val aam: SpecAAM = new SpecAAM()

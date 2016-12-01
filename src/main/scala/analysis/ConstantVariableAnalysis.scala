@@ -90,10 +90,10 @@ class ConstantVariableAnalysis[
 
 class ConstantsAnalysisLauncher[
     Abs: IsConvertableLattice: ConstantableLatticeInfoProvider](
-    concSem: SemanticsTraced[SchemeExp,
-                             ConcreteConcreteLattice.L,
-                             HybridAddress.A,
-                             HybridTimestamp.T])(
+    concSem: ConvertableSemantics[SchemeExp,
+                                  ConcreteConcreteLattice.L,
+                                  HybridAddress.A,
+                                  HybridTimestamp.T])(
     implicit tracingFlags: TracingFlags)
     extends AnalysisLauncher[Abs] {
 
