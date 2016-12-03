@@ -530,7 +530,7 @@ object Main {
             implicit val sabsCCLattice =
               ConcreteConcreteLattice.isSchemeLattice
 
-            val sem = new SchemeSemantics[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](
+            val sem = new BaseSchemeSemantics[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](
               new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
 
             val pointsLattice = new PointsToLattice(false)
