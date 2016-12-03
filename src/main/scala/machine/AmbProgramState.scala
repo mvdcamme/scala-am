@@ -117,7 +117,7 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
                                     HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
       initialKontAddress: KAddr,
-      mapKontAddress: (KontAddr, Environment[HybridAddress.A]) => KAddr) =
+      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr) =
     normalState.convertState[AbstL, KAddr](concSem, abstSem, initialKontAddress, mapKontAddress)
 
   def runHeader(sem: SemanticsTraced[Exp,

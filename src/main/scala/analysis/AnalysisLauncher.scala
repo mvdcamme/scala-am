@@ -40,14 +40,14 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
   /**
     * Maps a KontAddr to a FreeKontAddr.
     * @param address The KontAddr to be converted.
-    * @param env The environment to used to allocate the FreeKontAddr.
+    * @param someEnv Possible an environment to used to allocate the FreeKontAddr.
     * @return The converted FreeKontAddr.
     */
   private def mapKontAddressToFree(address: KontAddr,
-                             env: Environment[HybridAddress.A]): FreeKontAddr =
+                             someEnv: Option[Environment[HybridAddress.A]]): FreeKontAddr =
     address match {
       case address: NormalKontAddress[SchemeExp, HybridTimestamp.T] =>
-        FreeNormalKontAddress(address.exp, env)
+        FreeNormalKontAddress(address.exp, someEnv.get)
       case HaltKontAddress => FreeHaltKontAddress
     }
 
@@ -66,7 +66,7 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
                                     HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
       programState: PS): free.States = {
-    val (control, _, store, kstore, a, t) =
+    val (control, store, kstore, a, t) =
       programState.convertState[Abs, FreeKontAddr](concSem, abstSem, FreeHaltKontAddress, mapKontAddressToFree)
     val convertedControl = control match {
       case ConvertedControlError(reason) => free.ControlError(reason)
@@ -90,8 +90,8 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
                                 HybridTimestamp.T],
   abstSem: BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
   programState: PS): aam.State = {
-    val (control, _, store, kstore, a, t) =
-      programState.convertState[Abs, KontAddr](concSem, abstSem, HaltKontAddress, (x, env) => x)
+    val (control, store, kstore, a, t) =
+      programState.convertState[Abs, KontAddr](concSem, abstSem, HaltKontAddress, (x, _) => x)
     val convertedControl = control match {
       case ConvertedControlError(reason) => aam.ControlError(reason)
       case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)

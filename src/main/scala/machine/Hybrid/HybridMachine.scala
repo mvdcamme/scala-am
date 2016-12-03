@@ -17,8 +17,8 @@
   * contains the value reached.
   */
 class HybridMachine[
-    CAbs: IsConvertableLattice: ConstantableLatticeInfoProvider,
-    PAbs: IsConvertableLattice: PointsToableLatticeInfoProvider](
+    CAbs : IsConvertableLattice : ConstantableLatticeInfoProvider,
+    PAbs : IsConvertableLattice : PointsToableLatticeInfoProvider](
     override val sem: SemanticsTraced[SchemeExp,
                                       ConcreteConcreteLattice.L,
                                       HybridAddress.A,
@@ -419,12 +419,14 @@ class HybridMachine[
       if (GlobalFlags.PRINT_ACTIONS_EXECUTED) {
         ActionLogger.printActions()
       }
-      HybridOutput[PS, String](
+      val output = HybridOutput[PS, String](
         Set(s.ps),
         nrVisited,
         (System.nanoTime - startingTime) / Math.pow(10, 9),
         graph,
         timeout)
+      output.toDotFile("concrete.dot")
+      output
     }
 
     if (timeout.map(System.nanoTime - startingTime > _).getOrElse(false)) {
@@ -476,10 +478,12 @@ class HybridMachine[
            graph: Boolean,
            timeout: Option[Long]): Output[ConcreteValue] = {
     initialize(exp)
-    loop(injectExecutionState(exp), 0, System.nanoTime, if (graph) {
-      Some(new Graph[PS, String]())
-    } else {
-      None
-    }, timeout)
+    loop(injectExecutionState(exp), 0, System.nanoTime, Some(new Graph[PS, String]())
+//      if (graph) {
+//      Some(new Graph[PS, String]())
+//    } else {
+//      None
+//    }
+  , timeout)
   }
 }

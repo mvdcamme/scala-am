@@ -92,9 +92,8 @@ trait ConcreteTracingProgramState[Exp, Addr, Time] {
                                     HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
       initialKontAddress: KAddr,
-      mapKontAddress: (KontAddr, Environment[HybridAddress.A]) => KAddr)
+      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr)
     : (ConvertedControl[Exp, AbstL, Addr],
-       Environment[Addr],
        Store[Addr, AbstL],
        KontStore[KAddr],
        KAddr,
@@ -664,8 +663,7 @@ case class ProgramState[Exp: Expression](
   private def convertSto[AbstL: IsConvertableLattice](
       σ: Store[HybridAddress.A, AbstL]): Store[HybridAddress.A, AbstL] = σ
 
-  // TODO change name to drop the Free
-  private def convertKStoreToFreeFrames[KAddr <: KontAddr : KontAddress](
+  private def convertKStoreToFrames[KAddr <: KontAddr : KontAddress](
       concSem: ConvertableSemantics[Exp,
                                     ConcreteValue,
                                     HybridAddress.A,
@@ -674,7 +672,7 @@ case class ProgramState[Exp: Expression](
                                    HybridAddress.A,
                                    HybridTimestamp.T],
       initialKontAddress: KAddr,
-      mapKontAddress: (KontAddr, Environment[HybridAddress.A]) => KAddr,
+      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr,
       kontStore: KontStore[KontAddr],
       ρ: Environment[HybridAddress.A],
       a: KontAddr,
@@ -697,7 +695,7 @@ case class ProgramState[Exp: Expression](
                 (a, someNewSemFrame, newVStack, newρ)) =>
             someNewSemFrame match {
               case Some(newSemFrame) =>
-                val convertedA = mapKontAddress(a, newρ)
+                val convertedA = mapKontAddress(a, Some(newρ))
                 (convertedA,
                  extendedKontStore.extend(convertedA,
                                           Kont(newSemFrame, actualNext)))
@@ -718,7 +716,7 @@ case class ProgramState[Exp: Expression](
     loop(a, vStack, ρ, Nil)
   }
 
-  private def convertKStoreAbsValuesInFrames[AbstL: IsConvertableLattice, KAddr <: KontAddr](
+  private def convertKStoreAbsValuesInFrames[AbstL: IsConvertableLattice, KAddr <: KontAddr : KontAddress](
       kontStore: KontStore[KAddr],
       convertValue: ConcreteValue => AbstL,
       concBaseSem: BaseSchemeSemantics[ConcreteValue,
@@ -728,7 +726,7 @@ case class ProgramState[Exp: Expression](
     : KontStore[KAddr] = {
     val kontAddrConverter = new DefaultKontAddrConverter[Exp]
     kontStore.map(
-      kontAddrConverter.convertKontAddr, //TODO used the identity function, should use the DefaultKontAddrConverter
+      kontAddrConverter.convertKontAddr,
       (frame: Frame) =>
         concBaseSem.convertAbsInFrame[AbstL](
           frame.asInstanceOf[SchemeFrame[ConcreteValue,
@@ -857,9 +855,8 @@ case class ProgramState[Exp: Expression](
                               HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
       initialKontAddress: KAddr,
-      mapKontAddress: (KontAddr, Environment[HybridAddress.A]) => KAddr)
+      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr)
     : (ConvertedControl[Exp, AbstL, HybridAddress.A],
-       Environment[HybridAddress.A],
        Store[HybridAddress.A, AbstL],
        KontStore[KAddr],
        KAddr,
@@ -877,7 +874,7 @@ case class ProgramState[Exp: Expression](
       case TracingControlEval(_) | TracingControlError(_) => a
       case TracingControlKont(ka) => ka
     }
-    val (convertedA, mappedKStore) = convertKStoreToFreeFrames(
+    val (convertedA, mappedKStore) = convertKStoreToFrames(
       concSem,
       concBaseSem,
       initialKontAddress,
@@ -920,7 +917,6 @@ case class ProgramState[Exp: Expression](
     val convertedStore = convertStore(GCedStore, convertValueFun)
     val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
     (convertedControl,
-     convertedρ,
      convertedStore,
      convertedKStore,
      convertedA,

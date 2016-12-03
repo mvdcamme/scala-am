@@ -39,7 +39,7 @@ abstract class KontStore[KontAddr: KontAddress] {
     * @param g Maps one Frame to another.
     * @return A new KontStore in which all KontAddr keys have been mapped.
     */
-  def map(f: KontAddr => KontAddr, g: Frame => Frame): KontStore[KontAddr]
+  def map[KAddr <: KontAddr : KontAddress](f: KontAddr => KAddr, g: Frame => Frame): KontStore[KAddr]
 
   /**
     * Removes the Kont value k associated with the KontAddr a.
@@ -79,14 +79,14 @@ case class BasicKontStore[KontAddr: KontAddress](
         ks.forall((k1) => lookup(a).exists(k2 => k2.subsumes(k1)))
     })
 
-  def map(f: KontAddr => KontAddr, g: Frame => Frame): KontStore[KontAddr] = {
-    val mappedContent = content.foldLeft[Map[KontAddr, Set[Kont[KontAddr]]]](
-      Map[KontAddr, Set[Kont[KontAddr]]]())({
+  def map[KAddr <: KontAddr : KontAddress](f: KontAddr => KAddr, g: Frame => Frame): KontStore[KAddr] = {
+    val mappedContent = content.foldLeft[Map[KAddr, Set[Kont[KAddr]]]](
+      Map[KAddr, Set[Kont[KAddr]]]())({
       case (kstore, (a, ks)) =>
         kstore + (f(a) -> ks.map(kont =>
           kont.copy(frame = g(kont.frame), next = f(kont.next))))
     })
-    BasicKontStore(mappedContent)
+    BasicKontStore[KAddr](mappedContent)
   }
 
   def remove(a: KontAddr, k: Kont[KontAddr]): KontStore[KontAddr] =
@@ -155,14 +155,14 @@ case class TimestampedKontStore[KontAddr: KontAddress](
       false
     }
 
-  def map(f: KontAddr => KontAddr, g: Frame => Frame): KontStore[KontAddr] = {
-    val mappedContent = content.foldLeft[Map[KontAddr, Set[Kont[KontAddr]]]](
-      Map[KontAddr, Set[Kont[KontAddr]]]())({
+  def map[KAddr <: KontAddr : KontAddress](f: KontAddr => KAddr, g: Frame => Frame): KontStore[KAddr] = {
+    val mappedContent = content.foldLeft[Map[KAddr, Set[Kont[KAddr]]]](
+      Map[KAddr, Set[Kont[KAddr]]]())({
       case (kstore, (a, ks)) =>
-        kstore + (a -> ks.map(kont =>
+        kstore + (f(a) -> ks.map(kont =>
           kont.copy(frame = g(kont.frame), next = f(kont.next))))
     })
-    TimestampedKontStore(mappedContent, timestamp)
+    TimestampedKontStore[KAddr](mappedContent, timestamp)
   }
 
   def remove(a: KontAddr, k: Kont[KontAddr]): KontStore[KontAddr] =
