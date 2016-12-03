@@ -44,11 +44,18 @@ class HybridConcreteMachine[
   }
   case class ConcreteMachineOutputValue(time: Double,
                                         numberOfStates: Int,
-                                        v: ConcreteConcreteLattice.L)
+                                        v: ConcreteConcreteLattice.L,
+                                        graph: Graph[State, EdgeInformation])
       extends ConcreteMachineOutput {
     def finalValues = Set(v)
     def containsFinalValue(v2: ConcreteConcreteLattice.L) = v == v2
     def timedOut = false
+    override def toDotFile(path: String) = {
+      graph.toDotFile(path,
+        node => List(scala.xml.Text(node.toString.take(40))),
+        (s) => s.graphNodeColor,
+        _ => List())
+    }
   }
 
   case class State(control: Control,
@@ -64,6 +71,12 @@ class HybridConcreteMachine[
       case ControlError(_) => true
       case ControlKont(_) => a == HaltKontAddress
       case _ => false
+    }
+
+    def graphNodeColor = control match {
+      case ControlEval(_, _) => Colors.Green
+      case ControlKont(_) => Colors.Pink
+      case ControlError(_) => Colors.Red
     }
 
     private def convertValue[AbstL: IsConvertableLattice](
@@ -281,7 +294,7 @@ class HybridConcreteMachine[
                           HybridTimestamp.T],
            graph: Boolean,
            timeout: Option[Long]): Output[ConcreteConcreteLattice.L] = {
-    def loop(state: State, start: Long, count: Int): ConcreteMachineOutput = {
+    def loop(state: State, start: Long, count: Int, graph: Graph[State, EdgeInformation]): ConcreteMachineOutput = {
 
       tracingFlags.RUNTIME_ANALYSIS_INTERVAL match {
         case NoRunTimeAnalysis =>
@@ -304,60 +317,58 @@ class HybridConcreteMachine[
         val kstore = state.kstore
         val a = state.a
         val t = state.t
-        control match {
+
+        def step(control: Control): Either[ConcreteMachineOutput, (State, EdgeInformation)] = control match {
           case ControlEval(e, env) =>
             val edges = sem.stepEval(e, env, store, t)
             if (edges.size == 1) {
+              val edge = edges.head._2
               edges.head._1 match {
                 case ActionReachedValue(v, store2, _) =>
-                  loop(State(ControlKont(v), store2, kstore, a, time.tick(t)),
-                       start,
-                       count + 1)
+                  Right(State(ControlKont(v), store2, kstore, a, time.tick(t)), edge)
                 case ActionPush(frame, e, env, store2, _) =>
                   val next =
                     NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
-                  loop(State(ControlEval(e, env),
-                             store2,
-                             kstore.extend(next, Kont(frame, a)),
-                             next,
-                             time.tick(t)),
-                       start,
-                       count + 1)
+                  Right(State(ControlEval(e, env),
+                    store2,
+                    kstore.extend(next, Kont(frame, a)),
+                    next,
+                    time.tick(t)),
+                    edge)
                 case ActionEval(e, env, store2, _) =>
-                  loop(State(ControlEval(e, env),
-                             store2,
-                             kstore,
-                             a,
-                             time.tick(t)),
-                       start,
-                       count + 1)
+                  Right(State(ControlEval(e, env),
+                    store2,
+                    kstore,
+                    a,
+                    time.tick(t)),
+                    edge)
                 case ActionStepIn(fexp, _, e, env, store2, _, _) =>
-                  loop(State(ControlEval(e, env),
-                             store2,
-                             kstore,
-                             a,
-                             time.tick(t, fexp)),
-                       start,
-                       count + 1)
+                  Right(State(ControlEval(e, env),
+                    store2,
+                    kstore,
+                    a,
+                    time.tick(t, fexp)),
+                    edge)
                 case ActionError(err) =>
-                  ConcreteMachineOutputError(
+                  Left(ConcreteMachineOutputError(
                     (System.nanoTime - start) / Math.pow(10, 9),
                     count,
-                    err.toString)
+                    err.toString))
               }
             } else {
-              ConcreteMachineOutputError(
+              Left(ConcreteMachineOutputError(
                 (System.nanoTime - start) / Math.pow(10, 9),
                 count,
-                s"execution was not concrete (got ${edges.size} actions instead of 1)")
+                s"execution was not concrete (got ${edges.size} actions instead of 1)"))
             }
+
           case ControlKont(v) =>
             /* pop a continuation */
             if (a == HaltKontAddress) {
-              ConcreteMachineOutputValue(
+              Left(ConcreteMachineOutputValue(
                 (System.nanoTime - start) / Math.pow(10, 9),
                 count,
-                v)
+                v, graph))
             } else {
               val frames = kstore.lookup(a)
               if (frames.size == 1) {
@@ -365,64 +376,67 @@ class HybridConcreteMachine[
                 val a = frames.head.next
                 val edges = sem.stepKont(v, frame, store, t)
                 if (edges.size == 1) {
+                  val edge = edges.head._2
                   edges.head._1 match {
                     case ActionReachedValue(v, store2, _) =>
-                      loop(
-                        State(ControlKont(v), store2, kstore, a, time.tick(t)),
-                        start,
-                        count + 1)
+                      Right(State(ControlKont(v), store2, kstore, a, time.tick(t)), edge)
                     case ActionPush(frame, e, env, store2, _) =>
                       val next =
                         NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
-                      loop(State(ControlEval(e, env),
-                                 store2,
-                                 kstore.extend(next, Kont(frame, a)),
-                                 next,
-                                 time.tick(t)),
-                           start,
-                           count + 1)
+                      Right(State(ControlEval(e, env),
+                        store2,
+                        kstore.extend(next, Kont(frame, a)),
+                        next,
+                        time.tick(t)), edge)
                     case ActionEval(e, env, store2, _) =>
-                      loop(State(ControlEval(e, env),
-                                 store2,
-                                 kstore,
-                                 a,
-                                 time.tick(t)),
-                           start,
-                           count + 1)
+                      Right(State(ControlEval(e, env),
+                        store2,
+                        kstore,
+                        a,
+                        time.tick(t)), edge)
                     case ActionStepIn(fexp, _, e, env, store2, _, _) =>
-                      loop(State(ControlEval(e, env),
-                                 store2,
-                                 kstore,
-                                 a,
-                                 time.tick(t, fexp)),
-                           start,
-                           count + 1)
+                      Right(State(ControlEval(e, env),
+                        store2,
+                        kstore,
+                        a,
+                        time.tick(t, fexp)), edge)
                     case ActionError(err) =>
-                      ConcreteMachineOutputError(
+                      Left(ConcreteMachineOutputError(
                         (System.nanoTime - start) / Math.pow(10, 9),
                         count,
-                        err.toString)
+                        err.toString))
                   }
                 } else {
-                  ConcreteMachineOutputError(
+                  Left(ConcreteMachineOutputError(
                     (System.nanoTime - start) / Math.pow(10, 9),
                     count,
-                    s"execution was not concrete (got ${edges.size} actions instead of 1)")
+                    s"execution was not concrete (got ${edges.size} actions instead of 1)"))
                 }
               } else {
-                ConcreteMachineOutputError(
+                Left(ConcreteMachineOutputError(
                   (System.nanoTime - start) / Math.pow(10, 9),
                   count,
-                  s"execution was not concrete (got ${frames.size} frames instead of 1)")
+                  s"execution was not concrete (got ${frames.size} frames instead of 1)"))
               }
             }
+
           case ControlError(err) =>
-            ConcreteMachineOutputError(
+            Left(ConcreteMachineOutputError(
               (System.nanoTime - start) / Math.pow(10, 9),
               count,
-              err.toString)
+              err.toString))
+        }
+
+        val stepped = step(state.control)
+        stepped match {
+          case Left(output) =>
+            output.toDotFile("concrete.dot")
+            output
+          case Right((succState, edgeInfo)) =>
+            loop(succState, start, count + 1, graph.addEdge(state, edgeInfo, succState))
         }
       }
+
     }
 
     def inject(exp: SchemeExp,
@@ -441,6 +455,6 @@ class HybridConcreteMachine[
         sem.initialStore))
     pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState)
 
-    loop(initialState, System.nanoTime, 0)
+    loop(initialState, System.nanoTime, 0, new Graph[State, EdgeInformation]())
   }
 }
