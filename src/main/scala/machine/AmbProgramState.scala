@@ -17,7 +17,7 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
     extends TracingProgramState[Exp,
                                 HybridAddress.A,
                                 HybridTimestamp.T]
-    with ConcretableTracingProgramState[Exp] {
+    with ConcretableProgramState[Exp] {
 
   def abs = implicitly[JoinLattice[ConcreteValue]]
   def addr = implicitly[Address[HybridAddress.A]]

@@ -1,9 +1,20 @@
 import scala.annotation.tailrec
 
-class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcreteLattice.L],
-                                          unused2: Expression[Exp])
-    extends EvalKontMachine[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] {
-  def name = "ConcreteMachine"
+class HybridConcreteMachine[
+    PAbs: IsConvertableLattice: PointsToableLatticeInfoProvider](
+    pointsToAnalysisLauncher: PointsToAnalysisLauncher[PAbs],
+    tracingFlags: TracingFlags)(
+    implicit unused1: IsSchemeLattice[ConcreteConcreteLattice.L],
+    unused2: IsConvertableLattice[PAbs],
+    unused3: PointsToableLatticeInfoProvider[PAbs])
+    extends EvalKontMachine[SchemeExp,
+                            ConcreteConcreteLattice.L,
+                            HybridAddress.A,
+                            HybridTimestamp.T] {
+
+  def name = "HybridConcreteMachine"
+
+  var stepCount: Integer = 0
 
 //  implicit val isSchemeLattice: IsSchemeLattice[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.isSchemeLattice
 //  implicit val isAddress: Address[HybridAddress.A] = HybridAddress.isAddress
@@ -45,7 +56,9 @@ class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcr
                    kstore: KontStore[KontAddr],
                    a: KontAddr,
                    t: HybridTimestamp.T)
-      extends ConcreteTracingProgramState[Exp, HybridAddress.A, HybridTimestamp.T] {
+      extends ConcreteTracingProgramState[SchemeExp,
+                                          HybridAddress.A,
+                                          HybridTimestamp.T] {
 
     def halted = control match {
       case ControlError(_) => true
@@ -54,12 +67,12 @@ class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcr
     }
 
     private def convertValue[AbstL: IsConvertableLattice](
-                                                           concPrims: Primitives[HybridAddress.A, ConcreteValue],
-                                                           abstPrims: SchemePrimitives[HybridAddress.A, AbstL]
-                                                         )(value: ConcreteValue): AbstL =
-      ConcreteConcreteLattice.convert[Exp, AbstL, HybridAddress.A](
+        concPrims: Primitives[HybridAddress.A, ConcreteValue],
+        abstPrims: SchemePrimitives[HybridAddress.A, AbstL]
+    )(value: ConcreteValue): AbstL =
+      ConcreteConcreteLattice.convert[SchemeExp, AbstL, HybridAddress.A](
         value,
-        new DefaultHybridAddressConverter[Exp],
+        new DefaultHybridAddressConverter[SchemeExp],
         convertEnv,
         concPrims,
         abstPrims)
@@ -70,9 +83,11 @@ class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcr
       * @return A new environment with all addresses converted.
       */
     private def convertEnv(
-                            env: Environment[HybridAddress.A]): Environment[HybridAddress.A] = {
-      val addressConverter = new DefaultHybridAddressConverter()
-      env.map { (address) => addressConverter.convertAddress(address) }
+        env: Environment[HybridAddress.A]): Environment[HybridAddress.A] = {
+      val addressConverter = new DefaultHybridAddressConverter[SchemeExp]()
+      env.map { (address) =>
+        addressConverter.convertAddress(address)
+      }
     }
 
     /**
@@ -83,89 +98,94 @@ class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcr
     /* Currently, we don't actually convert addresses in the environment or store, so at the moment,
      * this function is just the identity function. */
     private def convertSto[AbstL: IsConvertableLattice](
-                                                         σ: Store[HybridAddress.A, AbstL]): Store[HybridAddress.A, AbstL] = σ
+        σ: Store[HybridAddress.A, AbstL]): Store[HybridAddress.A, AbstL] = σ
 
-    private def convertKStoreToFrames[KAddr <: KontAddr : KontAddress](
-                                                                        concSem: ConvertableSemantics[Exp,
-                                                                          ConcreteValue,
-                                                                          HybridAddress.A,
-                                                                          HybridTimestamp.T],
-                                                                        abstSem: BaseSchemeSemantics[ConcreteValue,
-                                                                          HybridAddress.A,
-                                                                          HybridTimestamp.T],
-                                                                        initialKontAddress: KAddr,
-                                                                        mapKontAddress: (KontAddr, Environment[HybridAddress.A]) => KAddr,
-                                                                        kontStore: KontStore[KontAddr],
-                                                                        ρ: Environment[HybridAddress.A],
-                                                                        a: KontAddr,
-                                                                        vStack: List[Storable[ConcreteValue, HybridAddress.A]])
-    : (KAddr, KontStore[KAddr]) = {
+    private def convertKStoreToFrames[KAddr <: KontAddr: KontAddress](
+        concSem: ConvertableSemantics[SchemeExp,
+                                      ConcreteValue,
+                                      HybridAddress.A,
+                                      HybridTimestamp.T],
+        abstSem: BaseSchemeSemantics[ConcreteValue,
+                                     HybridAddress.A,
+                                     HybridTimestamp.T],
+        initialKontAddress: KAddr,
+        mapKontAddress: (KontAddr, Environment[HybridAddress.A]) => KAddr,
+        kontStore: KontStore[KontAddr],
+        ρ: Environment[HybridAddress.A],
+        a: KontAddr,
+        vStack: List[Storable[ConcreteValue, HybridAddress.A]])
+      : (KAddr, KontStore[KAddr]) = {
 
       @tailrec
       def loop(a: KontAddr,
                vStack: List[Storable[ConcreteValue, HybridAddress.A]],
                ρ: Environment[HybridAddress.A],
-               stack: List[(KontAddr,
-                 Option[Frame],
-                 List[Storable[ConcreteValue, HybridAddress.A]],
-                 Environment[HybridAddress.A])])
-      : (KAddr, KontStore[KAddr]) = a match {
-        case HaltKontAddress =>
-          stack.foldLeft[(KAddr, KontStore[KAddr])](
-            (initialKontAddress, KontStore.empty[KAddr]))({
-            case ((actualNext, extendedKontStore),
-            (a, someNewSemFrame, newVStack, newρ)) =>
-              someNewSemFrame match {
-                case Some(newSemFrame) =>
-                  val convertedA = mapKontAddress(a, newρ)
-                  (convertedA,
-                    extendedKontStore.extend(convertedA,
-                      Kont(newSemFrame, actualNext)))
-                case None =>
-                  (actualNext, extendedKontStore)
-              }
+               stack: List[
+                 (KontAddr,
+                  Option[Frame],
+                  List[Storable[ConcreteValue, HybridAddress.A]],
+                  Environment[HybridAddress.A])]): (KAddr, KontStore[KAddr]) =
+        a match {
+          case HaltKontAddress =>
+            stack.foldLeft[(KAddr, KontStore[KAddr])](
+              (initialKontAddress, KontStore.empty[KAddr]))({
+              case ((actualNext, extendedKontStore),
+                    (a, someNewSemFrame, newVStack, newρ)) =>
+                someNewSemFrame match {
+                  case Some(newSemFrame) =>
+                    val convertedA = mapKontAddress(a, newρ)
+                    (convertedA,
+                     extendedKontStore.extend(convertedA,
+                                              Kont(newSemFrame, actualNext)))
+                  case None =>
+                    (actualNext, extendedKontStore)
+                }
 
-          })
-        case _ =>
-          val Kont(frame, next) = kontStore.lookup(a).head
-          val (someNewSemFrame, newVStack, newρ) =
-            concSem.convertToAbsSemanticsFrame(frame, ρ, vStack, abstSem)
-          loop(next,
-            newVStack,
-            newρ,
-            (a, someNewSemFrame, newVStack, newρ) :: stack)
-      }
+            })
+          case _ =>
+            val Kont(frame, next) = kontStore.lookup(a).head
+            val (someNewSemFrame, newVStack, newρ) =
+              concSem.convertToAbsSemanticsFrame(frame, ρ, vStack, abstSem)
+            loop(next,
+                 newVStack,
+                 newρ,
+                 (a, someNewSemFrame, newVStack, newρ) :: stack)
+        }
       loop(a, vStack, ρ, Nil)
     }
 
-    private def convertKStoreAbsValuesInFrames[AbstL: IsConvertableLattice, KAddr <: KontAddr : KontAddress](
-                                                                                                kontStore: KontStore[KAddr],
-                                                                                                convertValue: ConcreteValue => AbstL,
-                                                                                                concBaseSem: BaseSchemeSemantics[ConcreteValue,
-                                                                                                  HybridAddress.A,
-                                                                                                  HybridTimestamp.T],
-                                                                                                abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T])
-    : KontStore[KAddr] = {
-      val kontAddrConverter = new DefaultKontAddrConverter[Exp]
+    private def convertKStoreAbsValuesInFrames[AbstL: IsConvertableLattice,
+                                               KAddr <: KontAddr: KontAddress](
+        kontStore: KontStore[KAddr],
+        convertValue: ConcreteValue => AbstL,
+        concBaseSem: BaseSchemeSemantics[ConcreteValue,
+                                         HybridAddress.A,
+                                         HybridTimestamp.T],
+        abstSem: BaseSchemeSemantics[AbstL,
+                                     HybridAddress.A,
+                                     HybridTimestamp.T]): KontStore[KAddr] = {
+      val kontAddrConverter = new DefaultKontAddrConverter[SchemeExp]
       kontStore.map(
         kontAddrConverter.convertKontAddr, //TODO used the identity function, should use the DefaultKontAddrConverter
         (frame: Frame) =>
           concBaseSem.convertAbsInFrame[AbstL](
             frame.asInstanceOf[SchemeFrame[ConcreteValue,
-              HybridAddress.A,
-              HybridTimestamp.T]],
+                                           HybridAddress.A,
+                                           HybridTimestamp.T]],
             convertValue,
             convertEnv,
             abstSem))
     }
 
     private def convertStore[AbstL: IsConvertableLattice](
-                                                           store: Store[HybridAddress.A, ConcreteValue],
-                                                           convertValue: ConcreteValue => AbstL): Store[HybridAddress.A, AbstL] = {
+        store: Store[HybridAddress.A, ConcreteValue],
+        convertValue: ConcreteValue => AbstL)
+      : Store[HybridAddress.A, AbstL] = {
       var valuesConvertedStore = Store.empty[HybridAddress.A, AbstL]
       def addToNewStore(tuple: (HybridAddress.A, ConcreteValue)): Boolean = {
         val convertedAddress =
-          new DefaultHybridAddressConverter().convertAddress(tuple._1)
+          new DefaultHybridAddressConverter[SchemeExp]()
+            .convertAddress(tuple._1)
         val convertedValue = convertValue(tuple._2)
         valuesConvertedStore =
           valuesConvertedStore.extend(convertedAddress, convertedValue)
@@ -175,25 +195,26 @@ class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcr
       valuesConvertedStore
     }
 
-    private def convertKStore[AbstL: IsConvertableLattice, KAddr <: KontAddr : KontAddress](
-                                                                               mapKontAddress: (KontAddr,
-                                                                                 Option[Environment[HybridAddress.A]])
-                                                                                 => KAddr,
-                                                                               kontStore: KontStore[KontAddr],
-                                                                               convertValue: ConcreteValue => AbstL,
-                                                                               concBaseSem: BaseSchemeSemantics[ConcreteValue,
-                                                                                 HybridAddress.A,
-                                                                                 HybridTimestamp.T],
-                                                                               abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T])
-    : KontStore[KAddr] = {
-      val kontAddrConverter = new DefaultKontAddrConverter[Exp]
+    private def convertKStore[AbstL: IsConvertableLattice,
+                              KAddr <: KontAddr: KontAddress](
+        mapKontAddress: (KontAddr,
+                         Option[Environment[HybridAddress.A]]) => KAddr,
+        kontStore: KontStore[KontAddr],
+        convertValue: ConcreteValue => AbstL,
+        concBaseSem: BaseSchemeSemantics[ConcreteValue,
+                                         HybridAddress.A,
+                                         HybridTimestamp.T],
+        abstSem: BaseSchemeSemantics[AbstL,
+                                     HybridAddress.A,
+                                     HybridTimestamp.T]): KontStore[KAddr] = {
+      val kontAddrConverter = new DefaultKontAddrConverter[SchemeExp]
       kontStore.map[KAddr](
         (ka) => mapKontAddress(kontAddrConverter.convertKontAddr(ka), None),
         (frame: Frame) =>
           concBaseSem.convertAbsInFrame[AbstL](
             frame.asInstanceOf[SchemeFrame[ConcreteValue,
-              HybridAddress.A,
-              HybridTimestamp.T]],
+                                           HybridAddress.A,
+                                           HybridTimestamp.T]],
             convertValue,
             convertEnv,
             abstSem))
@@ -201,7 +222,7 @@ class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcr
 
     def convertState[AbstL: IsConvertableLattice,
                      KAddr <: KontAddr: KontAddress](
-        concSem: ConvertableSemantics[Exp,
+        concSem: ConvertableSemantics[SchemeExp,
                                       ConcreteValue,
                                       HybridAddress.A,
                                       HybridTimestamp.T],
@@ -209,8 +230,9 @@ class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcr
                                      HybridAddress.A,
                                      HybridTimestamp.T],
         initialKontAddress: KAddr,
-        mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr)
-      : (ConvertedControl[Exp, AbstL, HybridAddress.A],
+        mapKontAddress: (KontAddr,
+                         Option[Environment[HybridAddress.A]]) => KAddr)
+      : (ConvertedControl[SchemeExp, AbstL, HybridAddress.A],
          Store[HybridAddress.A, AbstL],
          KontStore[KAddr],
          KAddr,
@@ -223,25 +245,28 @@ class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcr
       val convertValueFun =
         convertValue[AbstL](concSem.primitives, abstSem.primitives) _
 
-      val convertedControl: ConvertedControl[Exp, AbstL, HybridAddress.A] =
+      val convertedControl: ConvertedControl[SchemeExp, AbstL, HybridAddress.A] =
         control match {
           case ControlEval(exp, env) =>
-            ConvertedControlEval[Exp, AbstL, HybridAddress.A](exp, convertEnv(env))
+            ConvertedControlEval[SchemeExp, AbstL, HybridAddress.A](
+              exp,
+              convertEnv(env))
           case ControlKont(v) =>
-            ConvertedControlKont[Exp, AbstL, HybridAddress.A](convertValueFun(v))
+            ConvertedControlKont[SchemeExp, AbstL, HybridAddress.A](
+              convertValueFun(v))
         }
 
       val convertedStore = convertStore(store, convertValueFun)
 
-      val convertedKStore = convertKStore[AbstL, KAddr](mapKontAddress, kstore, convertValueFun, concBaseSem, abstSem)
+      val convertedKStore = convertKStore[AbstL, KAddr](mapKontAddress,
+                                                        kstore,
+                                                        convertValueFun,
+                                                        concBaseSem,
+                                                        abstSem)
 
       val convertedA = mapKontAddress(a, None)
       val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
-      (convertedControl,
-       convertedStore,
-       convertedKStore,
-       convertedA,
-       newT)
+      (convertedControl, convertedStore, convertedKStore, convertedA, newT)
     }
   }
 
@@ -249,11 +274,26 @@ class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcr
     * Performs the evaluation of an expression, possibly writing the output graph
     * in a file, and returns the set of final states reached
     */
-  def eval(exp: Exp,
-           sem: Semantics[Exp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
+  def eval(exp: SchemeExp,
+           sem: Semantics[SchemeExp,
+                          ConcreteConcreteLattice.L,
+                          HybridAddress.A,
+                          HybridTimestamp.T],
            graph: Boolean,
            timeout: Option[Long]): Output[ConcreteConcreteLattice.L] = {
     def loop(state: State, start: Long, count: Int): ConcreteMachineOutput = {
+
+      tracingFlags.RUNTIME_ANALYSIS_INTERVAL match {
+        case NoRunTimeAnalysis =>
+        case RunTimeAnalysisEvery(analysis_interval) =>
+          if (stepCount % analysis_interval == 0) {
+            Logger.log(s"stepCount: $stepCount", Logger.U)
+            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
+          }
+      }
+
+      stepCount += 1
+
       if (timeout.exists(System.nanoTime - start > _)) {
         ConcreteMachineOutputTimeout(
           (System.nanoTime - start) / Math.pow(10, 9),
@@ -274,7 +314,8 @@ class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcr
                        start,
                        count + 1)
                 case ActionPush(frame, e, env, store2, _) =>
-                  val next = NormalKontAddress[Exp, HybridTimestamp.T](e, t)
+                  val next =
+                    NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                   loop(State(ControlEval(e, env),
                              store2,
                              kstore.extend(next, Kont(frame, a)),
@@ -331,7 +372,8 @@ class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcr
                         start,
                         count + 1)
                     case ActionPush(frame, e, env, store2, _) =>
-                      val next = NormalKontAddress[Exp, HybridTimestamp.T](e, t)
+                      val next =
+                        NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                       loop(State(ControlEval(e, env),
                                  store2,
                                  kstore.extend(next, Kont(frame, a)),
@@ -383,7 +425,7 @@ class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcr
       }
     }
 
-    def inject(exp: Exp,
+    def inject(exp: SchemeExp,
                env: Environment[HybridAddress.A],
                sto: Store[HybridAddress.A, ConcreteConcreteLattice.L]): State =
       State(ControlEval(exp, env),
@@ -392,10 +434,13 @@ class HybridConcreteMachine[Exp](implicit unused1: IsSchemeLattice[ConcreteConcr
             HaltKontAddress,
             time.initial(""))
 
-    loop(inject(exp,
-                Environment.initial[HybridAddress.A](sem.initialEnv),
-                Store.initial[HybridAddress.A, ConcreteConcreteLattice.L](sem.initialStore)),
-         System.nanoTime,
-         0)
+    val initialState = inject(
+      exp,
+      Environment.initial[HybridAddress.A](sem.initialEnv),
+      Store.initial[HybridAddress.A, ConcreteConcreteLattice.L](
+        sem.initialStore))
+    pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState)
+
+    loop(initialState, System.nanoTime, 0)
   }
 }

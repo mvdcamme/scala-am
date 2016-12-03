@@ -31,7 +31,7 @@ case class VariableNotFoundException(variable: String)
     extends Exception(variable)
 case class NotAPrimitiveException(message: String) extends Exception(message)
 
-trait ConcretableTracingProgramState[Exp] {
+trait ConcretableProgramState[Exp] {
 
   def concretableState: ProgramState[Exp]
 
@@ -60,7 +60,7 @@ trait ConcretableTracingProgramState[Exp] {
     case TracingControlError(_) => Colors.Red
   }
 
-  def concreteSubsumes(that: ConcretableTracingProgramState[Exp]): Boolean =
+  def concreteSubsumes(that: ConcretableProgramState[Exp]): Boolean =
     concretableState.control.subsumes(that.concretableState.control) &&
       concretableState.ρ.subsumes(that.concretableState.ρ) &&
       concretableState.σ.subsumes(that.concretableState.σ) &&
@@ -122,7 +122,7 @@ case class ProgramState[Exp: Expression](
     extends TracingProgramState[Exp,
                                 HybridAddress.A,
                                 HybridTimestamp.T]
-    with ConcretableTracingProgramState[Exp] {
+    with ConcretableProgramState[Exp] {
 
   def abs = implicitly[JoinLattice[ConcreteConcreteLattice.L]]
   def addr = implicitly[Address[HybridAddress.A]]

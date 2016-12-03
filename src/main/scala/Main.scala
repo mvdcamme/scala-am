@@ -530,14 +530,22 @@ object Main {
             implicit val sabsCCLattice =
               ConcreteConcreteLattice.isSchemeLattice
 
+            val sem = new SchemeSemantics[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](
+              new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
+
             val pointsLattice = new PointsToLattice(false)
             implicit val pointsConvLattice = pointsLattice.isSchemeLattice
             implicit val pointsLatInfoProv = pointsLattice.latticeInfoProvider
 
-            val machine = new HybridConcreteMachine[SchemeExp]()(sabsCCLattice, Expression.SchemeExpExpression)
+            implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
 
-            val sem = new SchemeSemantics[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](
-              new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
+            val pointsToAnalysisLauncher =
+                          new PointsToAnalysisLauncher[pointsLattice.L](sem)(
+                            pointsConvLattice,
+                            pointsLatInfoProv)
+
+            val machine = new HybridConcreteMachine[pointsLattice.L](pointsToAnalysisLauncher, config.tracingFlags)
+            (sabsCCLattice, pointsConvLattice, pointsLatInfoProv)
 
             def calcResult(program: String)() = {
               machine.eval(sem.parse(program), sem, config.dotfile.isDefined, config.timeout)
