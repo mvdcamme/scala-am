@@ -126,14 +126,16 @@ class IncrementalAnalysisChecker[GraphNode](val aam: AAM[_, _, _, _]) {
         /*
          * Just follow the Then/Else branch.
          */
-        val correctEdges = edges.filter( (edge) => edge._2 == edgeInfo )
+        val correctEdges = edges.filter( (edge) => edge._1 == edgeInfo )
         assert(correctEdges.size == 1, s"Expected 1 Then/Else edge at node " +
           s"${initialGraph.get.nodeId(currentNode.get)}, got ${correctEdges.size} " +
           s"edges instead: $correctEdges")
         val correctEdge = correctEdges.head
         currentNode = Some(correctEdge._2)
       case OperatorTaken(_) | FrameFollowed(_) =>
-
+        assert(edges.size == 1, "TODO Cannot handle splits")
+        val edge = edges.head
+        currentNode = Some(edge._2)
     }
   }
 }
