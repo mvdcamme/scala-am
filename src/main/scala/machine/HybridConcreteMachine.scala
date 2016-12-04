@@ -16,10 +16,6 @@ class HybridConcreteMachine[
 
   var stepCount: Integer = 0
 
-//  implicit val isSchemeLattice: IsSchemeLattice[ConcreteConcreteLattice.L] = ConcreteConcreteLattice.isSchemeLattice
-//  implicit val isAddress: Address[HybridAddress.A] = HybridAddress.isAddress
-//  implicit val isTimestamp: Timestamp[HybridTimestamp.T] = HybridTimestamp.isTimestamp
-
   trait ConcreteMachineOutput extends Output[ConcreteConcreteLattice.L] {
     def toDotFile(path: String) =
       println("Not generating graph for ConcreteMachine")

@@ -545,7 +545,6 @@ object Main {
                             pointsLatInfoProv)
 
             val machine = new HybridConcreteMachine[pointsLattice.L](pointsToAnalysisLauncher, config.tracingFlags)
-            (sabsCCLattice, pointsConvLattice, pointsLatInfoProv)
 
             def calcResult(program: String)() = {
               machine.eval(sem.parse(program), sem, config.dotfile.isDefined, config.timeout)
