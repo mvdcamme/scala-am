@@ -96,7 +96,16 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             .lookup(a)
             .flatMap({
               case Kont(frame, next) =>
-                integrate(next, sem.stepKont(v, frame, store, t))
+                val succsEdges = integrate(next, sem.stepKont(v, frame, store, t))
+                succsEdges.map({ case (succState, edgeInfo) =>
+                  /* If step did not generate any EdgeInformation, place a FrameUsed EdgeInformation */
+                  val replacedEdgeInfo = if (edgeInfo == NoEdgeInformation) {
+                      FrameFollowed(frame)
+                    } else {
+                      edgeInfo
+                    }
+                  (succState, replacedEdgeInfo)
+                })
             })
         /* In an error state, the state is not able to make a step */
         case ControlError(_) => Set()
