@@ -429,6 +429,7 @@ class HybridConcreteMachine[
             output.toDotFile("concrete.dot")
             output
           case Right((succState, edgeInfo)) =>
+            pointsToAnalysisLauncher.doConcreteStep(edgeInfo)
             loop(succState, start, count + 1, graph.addEdge(state, edgeInfo, succState))
         }
       }

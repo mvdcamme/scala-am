@@ -99,12 +99,35 @@ class PointsToAnalysis[
 class IncrementalAnalysisChecker[GraphNode](val aam: AAM[_, _, _, _]) {
 
   var initialGraph: Option[Graph[GraphNode, EdgeInformation]] = None
+  var currentNode: Option[GraphNode] = None
 
   def hasInitialGraph: Boolean = initialGraph.isDefined
-  def initializeGraph(graph: Graph[GraphNode, EdgeInformation]) = initialGraph = Some(graph)
+  def initializeGraph(graph: Graph[GraphNode, EdgeInformation]) = {
+    initialGraph = Some(graph)
+    val someStartNode = graph.getNode(0)
+    assert(someStartNode.isDefined)
+    currentNode = Some(someStartNode.get)
+  }
 
   def containsNode(node: GraphNode): Boolean = {
     initialGraph.get.nodeId(node) != -1
+  }
+
+  def computeSuccNode(edgeInfo: EdgeInformation) = {
+    assert(currentNode.isDefined && initialGraph.isDefined)
+    val edges = initialGraph.get.nodeEdges(currentNode.get)
+    edgeInfo match {
+      case NoEdgeInformation =>
+        if(edges.size != 1) {
+          Logger.log(s"Failed at node ${currentNode.get} (id ${initialGraph.get.nodeId(currentNode.get)}), has ${edges
+            .size} edges", Logger.U)
+          throw new Exception
+        }
+        val edge = edges.head
+        currentNode = Some(edge._2)
+      case ThenBranchTaken | ElseBranchTaken | OperatorTaken(_) =>
+
+    }
   }
 }
 
@@ -162,5 +185,8 @@ class PointsToAnalysisLauncher[
         throw new Exception(
           s"Expected initial analysis to produce a graph, got $other instead")
     }
+
+  def doConcreteStep(edgeInfo: EdgeInformation) =
+    incrementalAnalysis.computeSuccNode(edgeInfo)
 
 }

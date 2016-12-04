@@ -81,4 +81,6 @@ case class Graph[Node, Annotation](ids: Map[Node, Int],
     bw.write(toDot(label, color, annotLabel))
     bw.close()
   }
+
+  def nodeEdges(node: Node): Set[(Annotation, Node)] = edges(node)
 }
