@@ -118,14 +118,11 @@ class IncrementalAnalysisChecker[GraphNode](val aam: AAM[_, _, _, _]) {
     val edges = initialGraph.get.nodeEdges(currentNode.get)
     edgeInfo match {
       case NoEdgeInformation =>
-        if(edges.size != 1) {
-          Logger.log(s"Failed at node ${currentNode.get} (id ${initialGraph.get.nodeId(currentNode.get)}), has ${edges
-            .size} edges", Logger.U)
-          throw new Exception
-        }
+        assert(edges.size == 1, s"Failed at node ${initialGraph.get.nodeId(currentNode.get)} (${currentNode.get}), has ${edges
+          .size} edges")
         val edge = edges.head
         currentNode = Some(edge._2)
-      case ThenBranchTaken | ElseBranchTaken | OperatorTaken(_) =>
+      case ThenBranchTaken | ElseBranchTaken | OperatorTaken(_) | FrameFollowed(_) =>
 
     }
   }
