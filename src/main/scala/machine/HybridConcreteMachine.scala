@@ -279,6 +279,13 @@ class HybridConcreteMachine[
     }
   }
 
+  def possiblyReplaceEdgeInfo(edgeInfo: EdgeInformation, frame: Frame) = edgeInfo match {
+    case NoEdgeInformation =>
+      FrameFollowed(frame)
+    case _ =>
+      edgeInfo
+  }
+
   /**
     * Performs the evaluation of an expression, possibly writing the output graph
     * in a file, and returns the set of final states reached
@@ -375,7 +382,8 @@ class HybridConcreteMachine[
                   val edge = edges.head._2
                   edges.head._1 match {
                     case ActionReachedValue(v, store2, _) =>
-                      Right(State(ControlKont(v), store2, kstore, a, time.tick(t)), edge)
+                      Right(State(ControlKont(v), store2, kstore, a, time.tick(t)), possiblyReplaceEdgeInfo(edge,
+                        frame))
                     case ActionPush(frame, e, env, store2, _) =>
                       val next =
                         NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
@@ -383,19 +391,22 @@ class HybridConcreteMachine[
                         store2,
                         kstore.extend(next, Kont(frame, a)),
                         next,
-                        time.tick(t)), edge)
+                        time.tick(t)), possiblyReplaceEdgeInfo(edge,
+                        frame))
                     case ActionEval(e, env, store2, _) =>
                       Right(State(ControlEval(e, env),
                         store2,
                         kstore,
                         a,
-                        time.tick(t)), edge)
+                        time.tick(t)), possiblyReplaceEdgeInfo(edge,
+                        frame))
                     case ActionStepIn(fexp, _, e, env, store2, _, _) =>
                       Right(State(ControlEval(e, env),
                         store2,
                         kstore,
                         a,
-                        time.tick(t, fexp)), edge)
+                        time.tick(t, fexp)), possiblyReplaceEdgeInfo(edge,
+                        frame))
                     case ActionError(err) =>
                       Left(ConcreteMachineOutputError(
                         (System.nanoTime - start) / Math.pow(10, 9),
