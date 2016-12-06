@@ -99,44 +99,59 @@ class PointsToAnalysis[
 class IncrementalAnalysisChecker[GraphNode](val aam: AAM[_, _, _, _]) {
 
   var initialGraph: Option[Graph[GraphNode, EdgeInformation]] = None
-  var currentNode: Option[GraphNode] = None
+  var currentNodes: Set[GraphNode] = Set()
 
   def hasInitialGraph: Boolean = initialGraph.isDefined
   def initializeGraph(graph: Graph[GraphNode, EdgeInformation]) = {
     initialGraph = Some(graph)
     val someStartNode = graph.getNode(0)
     assert(someStartNode.isDefined)
-    currentNode = Some(someStartNode.get)
+    currentNodes = Set(someStartNode.get)
   }
 
   def containsNode(node: GraphNode): Boolean = {
     initialGraph.get.nodeId(node) != -1
   }
 
-  def computeSuccNode(edgeInfo: EdgeInformation) = {
-    assert(currentNode.isDefined && initialGraph.isDefined)
-    val edges = initialGraph.get.nodeEdges(currentNode.get)
+  def followStateSubsumedEdges(node: GraphNode): Set[GraphNode] =
+    initialGraph.get.nodeEdges(node).flatMap( (edge) => edge._1 match {
+      case StateSubsumed =>
+        followStateSubsumedEdges(edge._2)
+      case _ =>
+        Set(node)
+    })
+
+  def computeSuccNode(node: GraphNode, edgeInfo: EdgeInformation): Set[GraphNode] = {
+    Logger.log(s"Computing successor of node ${initialGraph.get.nodeId(node)}", Logger.U)
+    assert(currentNodes.nonEmpty && initialGraph.isDefined)
+    val edges = initialGraph.get.nodeEdges(node)
     edgeInfo match {
       case NoEdgeInformation =>
-        assert(edges.size == 1, s"Failed at node ${initialGraph.get.nodeId(currentNode.get)} (${currentNode.get}), has ${edges
-          .size} edges")
-        val edge = edges.head
-        currentNode = Some(edge._2)
+//        assert(edges.size == 1, s"Failed at node ${initialGraph.get.nodeId(node)} ($node), has ${edges.size} edges")
+//        val edge = edges.head
+        edges.map(_._2)
       case ThenBranchTaken | ElseBranchTaken =>
         /*
          * Just follow the Then/Else branch.
          */
-        val correctEdges = edges.filter( (edge) => edge._1 == edgeInfo )
-        assert(correctEdges.size == 1, s"Expected 1 Then/Else edge at node " +
-          s"${initialGraph.get.nodeId(currentNode.get)}, got ${correctEdges.size} " +
-          s"edges instead: $correctEdges")
-        val correctEdge = correctEdges.head
-        currentNode = Some(correctEdge._2)
+        edges.flatMap( (edge) => if (edge._1 == edgeInfo ) {
+          Set(edge._2)
+        } else Set[GraphNode]())
+//        assert(correctEdges.size == 1, s"Expected 1 Then/Else edge at node " +
+//          s"${initialGraph.get.nodeId(node)}, got ${correctEdges.size} " +
+//          s"edges instead: $correctEdges")
       case OperatorTaken(_) | FrameFollowed(_) =>
-        assert(edges.size == 1, "TODO Cannot handle splits")
-        val edge = edges.head
-        currentNode = Some(edge._2)
+        edges.map(_._2)
     }
+  }
+
+  def computeSuccNodes(edgeInfo: EdgeInformation) = {
+    /* First follow all StateSubsumed edges before trying to use the concrete edge information */
+    val nodesSubsumedEdgesFollowed = currentNodes.flatMap(followStateSubsumedEdges)
+    Logger.log(s"Skipping subsumed edges leads to ${nodesSubsumedEdgesFollowed.size} nodes with edge-info $edgeInfo",
+      Logger.U)
+    currentNodes = nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(_, edgeInfo))
+    Logger.log(s"Successor nodes ${currentNodes.map(initialGraph.get.nodeId)}", Logger.U)
   }
 }
 
@@ -196,6 +211,6 @@ class PointsToAnalysisLauncher[
     }
 
   def doConcreteStep(edgeInfo: EdgeInformation) =
-    incrementalAnalysis.computeSuccNode(edgeInfo)
+    incrementalAnalysis.computeSuccNodes(edgeInfo)
 
 }
