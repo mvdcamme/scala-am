@@ -28,3 +28,5 @@ case class OperatorTaken[Exp : Expression](body: List[Exp]) extends EdgeInformat
 case class FrameFollowed(frame: Frame) extends EdgeInformation {
   override def toString = frame.toString
 }
+
+case object StateSubsumed extends EdgeInformation

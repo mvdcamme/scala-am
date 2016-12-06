@@ -219,12 +219,18 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       } else {
         todo.headOption match {
           case Some(s) =>
-            if (visited.contains(s) || visited.exists(s2 => s2.subsumes(s))) {
-              /* If we already visited the state, or if it is subsumed by another already
-               * visited state, we ignore it. The subsumption part reduces the
-               * number of visited states but leads to non-determinism due to the
-               * non-determinism of Scala's headOption (it seems so at least). */
+            if (visited.contains(s)) {
+              /* If we already visited the state, we ignore it. */
+//              loop(todo.tail, visited, halted, startingTime, graph)
               loop(todo.tail, visited, halted, startingTime, graph)
+            } else if (visited.exists(s2 => s2.subsumes(s))) {
+              /* If the state is subsumed by another already visited state,
+               * we ignore it. The subsumption part reduces the number of visited
+               * states but leads to non-determinism due to the non-determinism
+               * of Scala's headOption (it seems so at least).
+               * We do have to add an edge from the current state to the subsumed state. */
+              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, EdgeInformation]](graph)({
+                case (graph, s2) => if (s2.subsumes(s)) graph.addEdge(s, StateSubsumed, s2) else graph}))
             } else if (s.halted || stopEval.fold(false)(pred => pred(s))) {
               /* If the state is a final state or the stopEval predicate determines the machine can stop exploring
                * this state, add it to the list of final states and continue exploring the graph */
