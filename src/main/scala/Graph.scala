@@ -82,5 +82,10 @@ case class Graph[Node, Annotation](ids: Map[Node, Int],
     bw.close()
   }
 
-  def nodeEdges(node: Node): Set[(Annotation, Node)] = edges(node)
+  def nodeEdges(node: Node): Set[(Annotation, Node)] =
+    if (edges.contains(node)) {
+      edges(node)
+    } else {
+      Set()
+    }
 }
