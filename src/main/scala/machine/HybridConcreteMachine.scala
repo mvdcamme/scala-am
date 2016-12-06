@@ -175,7 +175,7 @@ class HybridConcreteMachine[
                                      HybridTimestamp.T]): KontStore[KAddr] = {
       val kontAddrConverter = new DefaultKontAddrConverter[SchemeExp]
       kontStore.map(
-        kontAddrConverter.convertKontAddr, //TODO used the identity function, should use the DefaultKontAddrConverter
+        kontAddrConverter.convertKontAddr,
         (frame: Frame) =>
           concBaseSem.convertAbsInFrame[AbstL](
             frame.asInstanceOf[SchemeFrame[ConcreteValue,
