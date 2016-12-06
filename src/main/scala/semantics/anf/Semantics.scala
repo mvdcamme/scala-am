@@ -34,7 +34,7 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
   }
 
   def stepEval(e: ANFExp, env: Environment[Addr], store: Store[Addr, Abs], t: Time): Set[(Action[ANFExp, Abs, Addr],
-    EdgeInformation)] =
+    List[EdgeInformation])] =
     addNoEdgeInfo(e match {
     /* To step an atomic expression, performs atomic evaluation on it */
     case ae: ANFAtomicExp => atomicEval(ae, env, store).collect({

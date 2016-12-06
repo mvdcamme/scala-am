@@ -98,11 +98,11 @@ class PointsToAnalysis[
 
 class IncrementalAnalysisChecker[GraphNode](val aam: AAM[_, _, _, _]) {
 
-  var initialGraph: Option[Graph[GraphNode, EdgeInformation]] = None
+  var initialGraph: Option[Graph[GraphNode, List[EdgeInformation]]] = None
   var currentNodes: Set[GraphNode] = Set()
 
   def hasInitialGraph: Boolean = initialGraph.isDefined
-  def initializeGraph(graph: Graph[GraphNode, EdgeInformation]) = {
+  def initializeGraph(graph: Graph[GraphNode, List[EdgeInformation]]) = {
     initialGraph = Some(graph)
     val someStartNode = graph.getNode(0)
     assert(someStartNode.isDefined)
@@ -114,43 +114,38 @@ class IncrementalAnalysisChecker[GraphNode](val aam: AAM[_, _, _, _]) {
   }
 
   def followStateSubsumedEdges(node: GraphNode): Set[GraphNode] =
-    initialGraph.get.nodeEdges(node).flatMap( (edge) => edge._1 match {
-      case StateSubsumed =>
+    initialGraph.get.nodeEdges(node).flatMap( (edge) =>
+      if (edge._1.contains(StateSubsumed)) {
+        assert(edge._1.size == 1, s"StateSubsmed edge contains more than 1 edge: ${edge._1}")
         followStateSubsumedEdges(edge._2)
-      case _ =>
+      } else {
         Set(node)
-    })
+      } )
 
-  def computeSuccNode(node: GraphNode, edgeInfo: EdgeInformation): Set[GraphNode] = {
+  def filterSingleEdgeInfo(abstractEdges: Set[(List[EdgeInformation], GraphNode)], edgeInfo: EdgeInformation): Set[(List[EdgeInformation], GraphNode)] =
+    abstractEdges.filter({ case (abstractEdgeInfos, node) => edgeInfo match {
+      case ThenBranchTaken | ElseBranchTaken =>
+        abstractEdgeInfos.contains(edgeInfo)
+      case OperatorTaken(_) | FrameFollowed(_) =>
+        true
+    } })
+
+  def computeSuccNode(node: GraphNode, concreteEdgeInfos: List[EdgeInformation]): Set[GraphNode] = {
     Logger.log(s"Computing successor of node ${initialGraph.get.nodeId(node)}", Logger.U)
     assert(currentNodes.nonEmpty && initialGraph.isDefined)
-    val edges = initialGraph.get.nodeEdges(node)
-    edgeInfo match {
-      case NoEdgeInformation =>
-//        assert(edges.size == 1, s"Failed at node ${initialGraph.get.nodeId(node)} ($node), has ${edges.size} edges")
-//        val edge = edges.head
-        edges.map(_._2)
-      case ThenBranchTaken | ElseBranchTaken =>
-        /*
-         * Just follow the Then/Else branch.
-         */
-        edges.flatMap( (edge) => if (edge._1 == edgeInfo ) {
-          Set(edge._2)
-        } else Set[GraphNode]())
-//        assert(correctEdges.size == 1, s"Expected 1 Then/Else edge at node " +
-//          s"${initialGraph.get.nodeId(node)}, got ${correctEdges.size} " +
-//          s"edges instead: $correctEdges")
-      case OperatorTaken(_) | FrameFollowed(_) =>
-        edges.map(_._2)
-    }
+    val abstractEdges = initialGraph.get.nodeEdges(node)
+    val filteredAbstractEdges = concreteEdgeInfos.foldLeft[Set[(List[EdgeInformation], GraphNode)]](abstractEdges)(
+      (filteredAbstractEdges,
+      concreteEdgeInfo) => filterSingleEdgeInfo(filteredAbstractEdges, concreteEdgeInfo))
+    filteredAbstractEdges.map(_._2)
   }
 
-  def computeSuccNodes(edgeInfo: EdgeInformation) = {
+  def computeSuccNodes(edgeInfos: List[EdgeInformation]) = {
     /* First follow all StateSubsumed edges before trying to use the concrete edge information */
     val nodesSubsumedEdgesFollowed = currentNodes.flatMap(followStateSubsumedEdges)
-    Logger.log(s"Skipping subsumed edges leads to ${nodesSubsumedEdgesFollowed.size} nodes with edge-info $edgeInfo",
+    Logger.log(s"Skipping subsumed edges leads to ${nodesSubsumedEdgesFollowed.size} nodes with edge-info $edgeInfos",
       Logger.U)
-    currentNodes = nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(_, edgeInfo))
+    currentNodes = nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(_, edgeInfos))
     Logger.log(s"Successor nodes ${currentNodes.map(initialGraph.get.nodeId)}", Logger.U)
   }
 }
@@ -210,7 +205,7 @@ class PointsToAnalysisLauncher[
           s"Expected initial analysis to produce a graph, got $other instead")
     }
 
-  def doConcreteStep(edgeInfo: EdgeInformation) =
-    incrementalAnalysis.computeSuccNodes(edgeInfo)
+  def doConcreteStep(edgeInfos: List[EdgeInformation]) =
+    incrementalAnalysis.computeSuccNodes(edgeInfos)
 
 }

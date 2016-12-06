@@ -41,7 +41,7 @@ class AAMGlobalStore[
       control.subsumes(that.control) && a == that.a && t == that.t
 
     private def integrate(a: KontAddr,
-                          edges: Set[(Action[Exp, Abs, Addr], EdgeInformation)],
+                          edges: Set[(Action[Exp, Abs, Addr], List[EdgeInformation])],
                           store: GlobalStore,
                           kstore: KontStore[KontAddr])
       : (Set[State], GlobalStore, KontStore[KontAddr]) =

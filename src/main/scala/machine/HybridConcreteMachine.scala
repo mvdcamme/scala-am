@@ -41,7 +41,7 @@ class HybridConcreteMachine[
   case class ConcreteMachineOutputValue(time: Double,
                                         numberOfStates: Int,
                                         v: ConcreteConcreteLattice.L,
-                                        graph: Graph[State, EdgeInformation])
+                                        graph: Graph[State, List[EdgeInformation]])
       extends ConcreteMachineOutput {
     def finalValues = Set(v)
     def containsFinalValue(v2: ConcreteConcreteLattice.L) = v == v2
@@ -279,12 +279,7 @@ class HybridConcreteMachine[
     }
   }
 
-  def possiblyReplaceEdgeInfo(edgeInfo: EdgeInformation, frame: Frame) = edgeInfo match {
-    case NoEdgeInformation =>
-      FrameFollowed(frame)
-    case _ =>
-      edgeInfo
-  }
+  def possiblyReplaceEdgeInfo(edgeInfo: List[EdgeInformation], frame: Frame) = FrameFollowed(frame) :: edgeInfo
 
   /**
     * Performs the evaluation of an expression, possibly writing the output graph
@@ -297,7 +292,7 @@ class HybridConcreteMachine[
                           HybridTimestamp.T],
            graph: Boolean,
            timeout: Option[Long]): Output[ConcreteConcreteLattice.L] = {
-    def loop(state: State, start: Long, count: Int, graph: Graph[State, EdgeInformation]): ConcreteMachineOutput = {
+    def loop(state: State, start: Long, count: Int, graph: Graph[State, List[EdgeInformation]]): ConcreteMachineOutput = {
 
       tracingFlags.RUNTIME_ANALYSIS_INTERVAL match {
         case NoRunTimeAnalysis =>
@@ -321,7 +316,7 @@ class HybridConcreteMachine[
         val a = state.a
         val t = state.t
 
-        def step(control: Control): Either[ConcreteMachineOutput, (State, EdgeInformation)] = control match {
+        def step(control: Control): Either[ConcreteMachineOutput, (State, List[EdgeInformation])] = control match {
           case ControlEval(e, env) =>
             val edges = sem.stepEval(e, env, store, t)
             if (edges.size == 1) {
@@ -463,6 +458,6 @@ class HybridConcreteMachine[
         sem.initialStore))
     pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState)
 
-    loop(initialState, System.nanoTime, 0, new Graph[State, EdgeInformation]())
+    loop(initialState, System.nanoTime, 0, new Graph[State, List[EdgeInformation]]())
   }
 }
