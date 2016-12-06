@@ -189,7 +189,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                           case ControlError(_) => Colors.Red
                         }
                     },
-                    node => List(scala.xml.Text(node.toString.take(40))))
+                    node => List(scala.xml.Text(node.mkString(", ").take(40))))
       case None =>
         println("Not generating graph because no graph was computed")
     }

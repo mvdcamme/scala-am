@@ -63,8 +63,8 @@ case class Graph[Node, Annotation](ids: Map[Node, Int],
     edges.foreach({
       case (n1, ns) =>
         ns.foreach({
-          case (annot, n2) =>
-            val annotstr = annotLabel(annot).mkString(" ")
+          case (annots, n2) =>
+            val annotstr = annotLabel(annots).mkString(" ")
             sb.append(
               s"node_${ids(n1)} -> node_${ids(n2)} [label=<$annotstr>]\n")
         })
