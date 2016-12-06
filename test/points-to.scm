@@ -10,4 +10,4 @@
          (let ((b (cons 3 4)))
            (loop (- n 1) (id b))))))
 
-(loop 100 'done)
+(loop 20 'done)
