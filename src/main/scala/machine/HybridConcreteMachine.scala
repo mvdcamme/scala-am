@@ -332,21 +332,21 @@ class HybridConcreteMachine[
                     kstore.extend(next, Kont(frame, a)),
                     next,
                     time.tick(t)),
-                    edge)
+                    EvaluatingExpression(e) :: edge)
                 case ActionEval(e, env, store2, _) =>
                   Right(State(ControlEval(e, env),
                     store2,
                     kstore,
                     a,
                     time.tick(t)),
-                    edge)
+                    EvaluatingExpression(e) :: edge)
                 case ActionStepIn(fexp, _, e, env, store2, _, _) =>
                   Right(State(ControlEval(e, env),
                     store2,
                     kstore,
                     a,
                     time.tick(t, fexp)),
-                    edge)
+                    EvaluatingExpression(e) :: edge)
                 case ActionError(err) =>
                   Left(ConcreteMachineOutputError(
                     (System.nanoTime - start) / Math.pow(10, 9),
@@ -386,22 +386,19 @@ class HybridConcreteMachine[
                         store2,
                         kstore.extend(next, Kont(frame, a)),
                         next,
-                        time.tick(t)), possiblyReplaceEdgeInfo(edge,
-                        frame))
+                        time.tick(t)), EvaluatingExpression(e) :: possiblyReplaceEdgeInfo(edge, frame))
                     case ActionEval(e, env, store2, _) =>
                       Right(State(ControlEval(e, env),
                         store2,
                         kstore,
                         a,
-                        time.tick(t)), possiblyReplaceEdgeInfo(edge,
-                        frame))
+                        time.tick(t)), EvaluatingExpression(e) :: possiblyReplaceEdgeInfo(edge, frame))
                     case ActionStepIn(fexp, _, e, env, store2, _, _) =>
                       Right(State(ControlEval(e, env),
                         store2,
                         kstore,
                         a,
-                        time.tick(t, fexp)), possiblyReplaceEdgeInfo(edge,
-                        frame))
+                        time.tick(t, fexp)), EvaluatingExpression(e) :: possiblyReplaceEdgeInfo(edge, frame))
                     case ActionError(err) =>
                       Left(ConcreteMachineOutputError(
                         (System.nanoTime - start) / Math.pow(10, 9),

@@ -113,10 +113,20 @@ class IncrementalAnalysisChecker[GraphNode](val aam: AAM[_, _, _, _]) {
     initialGraph.get.nodeId(node) != -1
   }
 
+  /*
+   * Recursively follow all StateSubsumed edges.
+   *
+   * When encountering an edge annotation with StateSubsumed, this edge should automatically
+   * be followed, as this implies that the current concrete state can match both states, and as
+   * the first state (the state from which the edge originates) will be a dead end, matching of
+   * the concrete state should proceed with the state that subsumes the 'dead' state.
+   */
   def followStateSubsumedEdges(node: GraphNode): Set[GraphNode] =
     initialGraph.get.nodeEdges(node).flatMap( (edge) =>
       if (edge._1.contains(StateSubsumed)) {
-        assert(edge._1.size == 1, s"StateSubsmed edge contains more than 1 edge: ${edge._1}")
+        /* Make sure that an edge is ONLY annotated with StateSubsumed. It should not be possible
+         * to have a StateSubsumed edge with any other annotation. */
+        assert(edge._1.size == 1, s"StateSubsumed edge contains more than 1 edge: ${edge._1}")
         followStateSubsumedEdges(edge._2)
       } else {
         Set(node)
@@ -125,6 +135,8 @@ class IncrementalAnalysisChecker[GraphNode](val aam: AAM[_, _, _, _]) {
   def filterSingleEdgeInfo(abstractEdges: Set[(List[EdgeInformation], GraphNode)], edgeInfo: EdgeInformation): Set[(List[EdgeInformation], GraphNode)] =
     abstractEdges.filter({ case (abstractEdgeInfos, node) => edgeInfo match {
       case ThenBranchTaken | ElseBranchTaken =>
+        abstractEdgeInfos.contains(edgeInfo)
+      case EvaluatingExpression(e) =>
         abstractEdgeInfos.contains(edgeInfo)
       case OperatorTaken(_) | FrameFollowed(_) =>
         true

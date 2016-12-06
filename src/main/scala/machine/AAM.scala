@@ -195,6 +195,17 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     }
   }
 
+  /*
+   * Checks whether the given (successor) state is a eval-state. If so, adds an EvaluatingExpression
+   * annotation to the list of edge annotations.
+   */
+  def addEvalEdgeAnnotation(s: State, edgeInfos: List[EdgeInformation]): List[EdgeInformation] = s.control match {
+    case ControlEval(exp, _) =>
+      EvaluatingExpression(exp) :: edgeInfos
+    case _ =>
+      edgeInfos
+  }
+
   def kickstartEval(initialState: State,
                     sem: Semantics[Exp, Abs, Addr, Time],
                     stopEval: Option[State => Boolean],
@@ -236,7 +247,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
               update the graph, and push the new successors on the todo list */
               val succsEdges = s.step(sem)
               val newGraph =
-                graph.addEdges(succsEdges.map(s2 => (s, s2._2, s2._1)))
+                graph.addEdges(succsEdges.map(s2 => (s, addEvalEdgeAnnotation(s2._1, s2._2), s2._1)))
               loop(todo.tail ++ succsEdges.map(_._1),
                    visited + s,
                    halted,

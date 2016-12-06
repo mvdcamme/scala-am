@@ -29,4 +29,16 @@ case class FrameFollowed(frame: Frame) extends EdgeInformation {
   override def toString = frame.toString
 }
 
-case object StateSubsumed extends EdgeInformation
+/*
+ * State not explored further because it was already subsumed by another state in the graph.
+ */
+case object StateSubsumed extends EdgeInformation {
+  override def toString = "Subsumed by"
+}
+
+/*
+ * State leads to the evaluation of the given expression.
+ */
+case class EvaluatingExpression[Exp : Expression](exp: Exp) extends EdgeInformation {
+  override def toString = s"Evaluate ${exp.toString}"
+}
