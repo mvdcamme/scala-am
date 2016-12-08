@@ -75,14 +75,12 @@ class HybridConcreteMachine[
     }
 
     private def convertValue[AbstL: IsConvertableLattice](
-        concPrims: Primitives[HybridAddress.A, ConcreteValue],
         abstPrims: SchemePrimitives[HybridAddress.A, AbstL]
     )(value: ConcreteValue): AbstL =
       ConcreteConcreteLattice.convert[SchemeExp, AbstL, HybridAddress.A](
         value,
         new DefaultHybridAddressConverter[SchemeExp],
         convertEnv,
-        concPrims,
         abstPrims)
 
     /**
@@ -251,7 +249,7 @@ class HybridConcreteMachine[
           new SchemePrimitives[HybridAddress.A, ConcreteValue])
 
       val convertValueFun =
-        convertValue[AbstL](concSem.primitives, abstSem.primitives) _
+        convertValue[AbstL](abstSem.primitives) _
 
       val convertedControl: ConvertedControl[SchemeExp, AbstL, HybridAddress.A] =
         control match {

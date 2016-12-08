@@ -39,7 +39,7 @@ trait PointsToableLatticeInfoProvider[L] extends LatticeInfoProvider[L] {
 class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
     implicit str: IsString[S],
     bool: IsBoolean[B],
-    val int: IsInteger[I],
+    int: IsInteger[I],
     float: IsFloat[F],
     char: IsChar[C],
     sym: IsSymbol[Sym]) {
@@ -802,7 +802,6 @@ object ConcreteConcreteLattice extends SchemeLattice {
       x: L,
       addressConverter: AddressConverter[Addr],
       convertEnv: Environment[Addr] => Environment[Addr],
-      concPrims: Primitives[Addr, L],
       abstPrims: SchemePrimitives[Addr, Abs]): Abs = {
     val convLat = implicitly[IsConvertableLattice[Abs]]
     def convertValue(value: lattice.Value): Abs = value match {
@@ -821,7 +820,7 @@ object ConcreteConcreteLattice extends SchemeLattice {
       case lattice.Symbol(s) =>
         convLat.injectSymbol(s.asInstanceOf[ISet[String]].toList.head)
       case p: lattice.Prim[Addr, L] =>
-        convLat.inject(concPrims.convertPrimitive(abstPrims, p.prim))
+        convLat.inject(p.prim.convert(abstPrims))
       case lattice.Closure(lambda, env) =>
         val convertedEnv = convertEnv(env.asInstanceOf[Environment[Addr]])
         convLat.inject(

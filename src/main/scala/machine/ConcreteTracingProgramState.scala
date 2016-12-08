@@ -632,14 +632,12 @@ case class ProgramState[Exp: Expression](
   }
 
   private def convertValue[AbstL: IsConvertableLattice](
-      concPrims: Primitives[HybridAddress.A, ConcreteValue],
       abstPrims: SchemePrimitives[HybridAddress.A, AbstL]
   )(value: ConcreteValue): AbstL =
     ConcreteConcreteLattice.convert[Exp, AbstL, HybridAddress.A](
       value,
       new DefaultHybridAddressConverter[Exp],
       convertEnv,
-      concPrims,
       abstPrims)
 
   /**
@@ -867,7 +865,7 @@ case class ProgramState[Exp: Expression](
         new SchemePrimitives[HybridAddress.A, ConcreteValue])
 
     val convertValueFun =
-      convertValue[AbstL](concSem.primitives, abstSem.primitives) _
+      convertValue[AbstL](abstSem.primitives) _
 
     val convertedρ = convertEnv(ρ)
     val startKontAddress = control match {
