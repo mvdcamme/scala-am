@@ -51,7 +51,7 @@ class IncrementalPointsToAnalysis[GraphNode](val aam: AAM[_, _, _, _]) {
             abstractEdgeInfos.contains(edgeInfo)
           case EvaluatingExpression(e) =>
             abstractEdgeInfos.contains(edgeInfo)
-          case OperatorTaken(_) | FrameFollowed(_) | ReachedValue(_) =>
+          case OperatorTaken(_) | FrameFollowed(_) | ReachedValue(_) | ReachedConcreteValue(_) =>
             true
         }
     })

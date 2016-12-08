@@ -49,3 +49,10 @@ case class EvaluatingExpression[Exp : Expression](exp: Exp) extends EdgeInformat
 case class ReachedValue[Abs : JoinLattice](v: Abs) extends EdgeInformation {
   override def toString = s"Reached $v"
 }
+
+/*
+ * State leads to a continuation state that reached the given concrete value.
+ */
+case class ReachedConcreteValue(v: ConcreteConcreteLattice.L) extends EdgeInformation {
+  override def toString = s"Reached $v"
+}

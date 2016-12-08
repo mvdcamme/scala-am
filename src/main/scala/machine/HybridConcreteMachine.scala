@@ -323,7 +323,7 @@ class HybridConcreteMachine[
               val edge = edges.head._2
               edges.head._1 match {
                 case ActionReachedValue(v, store2, _) =>
-                  Right(State(ControlKont(v), store2, kstore, a, time.tick(t)), ReachedValue(v) :: edge)
+                  Right(State(ControlKont(v), store2, kstore, a, time.tick(t)), ReachedConcreteValue(v) :: edge)
                 case ActionPush(frame, e, env, store2, _) =>
                   val next =
                     NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
@@ -377,7 +377,7 @@ class HybridConcreteMachine[
                   val edge = edges.head._2
                   edges.head._1 match {
                     case ActionReachedValue(v, store2, _) =>
-                      Right(State(ControlKont(v), store2, kstore, a, time.tick(t)), ReachedValue
+                      Right(State(ControlKont(v), store2, kstore, a, time.tick(t)), ReachedConcreteValue
                       (v) :: possiblyReplaceEdgeInfo(edge, frame))
                     case ActionPush(frame, e, env, store2, _) =>
                       val next =
