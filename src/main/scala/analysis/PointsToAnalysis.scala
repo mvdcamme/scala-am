@@ -3,8 +3,9 @@ import java.io.{FileWriter, BufferedWriter, File}
 class PointsToAnalysis[
     Exp: Expression, L: JoinLattice, Addr: Address, Time: Timestamp] {
 
-  private def joinStores[Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](machine: Machine)(
-    stores: Set[Store[Addr, L]]): Set[(Addr, L)] = {
+  private def joinStores[
+      Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](
+      machine: Machine)(stores: Set[Store[Addr, L]]): Set[(Addr, L)] = {
     val joinedStore = stores.foldLeft(Store.initial(Set()): Store[Addr, L]) {
       case (joinedStore, store) => joinedStore.join(store)
     }
@@ -50,10 +51,11 @@ class PointsToAnalysis[
     }
   }
 
-  private def analyzeOutput[Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](
-                                                                                  machine: Machine,
-                            pointsTo: L => Option[Int],
-                            relevantAddress: Addr => Boolean)(
+  private def analyzeOutput[
+      Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](
+      machine: Machine,
+      pointsTo: L => Option[Int],
+      relevantAddress: Addr => Boolean)(
       output: Machine#MachineOutput): List[(Addr, Option[Int])] = {
     val storeValues = joinStores(machine)(output.finalStores)
     val initial: List[(Addr, Option[Int])] = Nil
@@ -114,21 +116,22 @@ class PointsToAnalysisLauncher[
   val pointsToAnalysis =
     new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
 
-  def runStaticAnalysisGeneric(currentProgramState: PS,
-                               stepSwitched: Option[Int],
-                               toDotFile: Option[String]): StaticAnalysisResult = {
+  def runStaticAnalysisGeneric(
+      currentProgramState: PS,
+      stepSwitched: Option[Int],
+      toDotFile: Option[String]): StaticAnalysisResult = {
     wrapRunAnalysis(
       () => {
         val startStates =
           convertStateAAM(aam, concSem, abstSem, currentProgramState)
         val result =
           pointsToAnalysis.analyze(toDotFile,
-            aam,
-            abstSem,
-            lip.pointsTo,
-            (addr) =>
-              !HybridAddress.isAddress.isPrimitive(
-                addr))(startStates, false, stepSwitched)
+                                   aam,
+                                   abstSem,
+                                   lip.pointsTo,
+                                   (addr) =>
+                                     !HybridAddress.isAddress.isPrimitive(
+                                       addr))(startStates, false, stepSwitched)
         Logger.log(s"Static points-to analysis result is $result", Logger.D)
         result
       })
@@ -141,7 +144,9 @@ class PointsToAnalysisLauncher[
   }
 
   def runInitialStaticAnalysis(currentProgramState: PS): Unit =
-    runStaticAnalysisGeneric(currentProgramState, None, Some("initial_graph.dot")) match {
+    runStaticAnalysisGeneric(currentProgramState,
+                             None,
+                             Some("initial_graph.dot")) match {
       case result: AnalysisGraph[aam.GraphNode] =>
         incrementalAnalysis.initializeGraph(result.graph)
       case other =>
