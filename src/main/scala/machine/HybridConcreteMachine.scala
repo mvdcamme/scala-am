@@ -3,10 +3,9 @@ import scala.annotation.tailrec
 class HybridConcreteMachine[
     PAbs: IsConvertableLattice: PointsToableLatticeInfoProvider](
     pointsToAnalysisLauncher: PointsToAnalysisLauncher[PAbs],
-    tracingFlags: TracingFlags)(
-    implicit unused1: IsSchemeLattice[ConcreteConcreteLattice.L],
-    unused2: IsConvertableLattice[PAbs],
-    unused3: PointsToableLatticeInfoProvider[PAbs])
+    tracingFlags: TracingFlags)(implicit unused1: IsSchemeLattice[ConcreteConcreteLattice.L])
+//    unused2: IsConvertableLattice[PAbs],
+//    unused3: PointsToableLatticeInfoProvider[PAbs])
     extends EvalKontMachine[SchemeExp,
                             ConcreteConcreteLattice.L,
                             HybridAddress.A,
