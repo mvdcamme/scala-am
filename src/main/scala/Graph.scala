@@ -51,6 +51,7 @@ case class Graph[Node, Annotation](ids: Map[Node, Int],
     ids.find({ case (_, v) => id == v }).map(_._1)
   def nodeId(node: Node): Int =
     ids.getOrElse(node, -1)
+  def nodeExists(node: Node): Boolean = nodeId(node) != -1
   def toDot(label: Node => List[scala.xml.Node],
             color: Node => String,
             annotLabel: Annotation => List[scala.xml.Node]): String = {

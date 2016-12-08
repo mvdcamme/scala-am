@@ -299,7 +299,8 @@ class HybridConcreteMachine[
         case RunTimeAnalysisEvery(analysis_interval) =>
           if (stepCount % analysis_interval == 0) {
             Logger.log(s"stepCount: $stepCount", Logger.U)
-            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
+            pointsToAnalysisLauncher.filterReachable(stepCount)
+//            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
           }
       }
 
@@ -430,6 +431,7 @@ class HybridConcreteMachine[
         stepped match {
           case Left(output) =>
             output.toDotFile("concrete.dot")
+            pointsToAnalysisLauncher.end
             output
           case Right((succState, edgeInfo)) =>
             pointsToAnalysisLauncher.doConcreteStep(edgeInfo)
