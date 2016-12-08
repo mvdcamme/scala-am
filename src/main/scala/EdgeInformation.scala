@@ -40,5 +40,12 @@ case object StateSubsumed extends EdgeInformation {
  * State leads to the evaluation of the given expression.
  */
 case class EvaluatingExpression[Exp : Expression](exp: Exp) extends EdgeInformation {
-  override def toString = s"Evaluate ${exp.toString}"
+  override def toString = s"Evaluate $exp"
+}
+
+/*
+ * State leads to a continuation state that reached the given value.
+ */
+case class ReachedValue[Abs : JoinLattice](v: Abs) extends EdgeInformation {
+  override def toString = s"Reached $v"
 }
