@@ -40,11 +40,76 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
           Set(node)
         })
 
+  object AbstLOrdering extends PartialOrdering[AbstL] {
+
+    def lteq(x: AbstL, y: AbstL): Boolean = {
+      val isSchemeLattice = implicitly[IsSchemeLattice[AbstL]]
+      (isSchemeLattice.subsumes(x, y), isSchemeLattice.subsumes(y, x)) match {
+        case (false, true) => true
+        case _ => false
+      }
+    }
+
+    def tryCompare(x: AbstL, y: AbstL): Option[Int] = {
+      val isSchemeLattice = implicitly[IsSchemeLattice[AbstL]]
+      (isSchemeLattice.subsumes(x, y), isSchemeLattice.subsumes(y, x)) match {
+        case _ if x == y => Some(0)
+        case (true, true) => Some(0)
+        case (true, false) => Some(1)
+        case (false, true) => Some(-1)
+        case (false, false) => None
+      }
+    }
+  }
+
+  def iter(edgesContainingReachedValue: Set[((List[EdgeInformation], GraphNode), AbstL)]): Set[(
+    (List[EdgeInformation], GraphNode), AbstL)] = {
+    edgesContainingReachedValue.filter(tuple1 => {
+      /*
+       * Only keep a value n if it holds that n does not subsume any other value m.
+       * Only keep a value n if it holds that n is either smaller than (subsumed by), 'equal' to or incomparable with
+        * every other node m.
+       */
+      val excluded = edgesContainingReachedValue.filter(_ != tuple1)
+      excluded.forall(tuple2 => AbstLOrdering.tryCompare(tuple1._2, tuple2._2) match {
+        case Some(1) => false
+        case _ => true
+      })
+    })
+  }
+
   def filterSingleEdgeInfo( convertValueFun: ConcreteConcreteLattice.L => AbstL,
                             abstractEdges: Set[(List[EdgeInformation], GraphNode)],
-                            concreteEdgeInfo: EdgeInformation): Set[(List[EdgeInformation], GraphNode)] = {
-
-    abstractEdges.filter({
+                            concreteEdgeInfo: EdgeInformation): Set[(List[EdgeInformation], GraphNode)] = concreteEdgeInfo match {
+    case ReachedConcreteValue(concreteValue) =>
+      /* All edges containing a ReachedValue annotation whose abstract value actually subsumes the abstracted
+      concrete value, zipped together with the abstract value that was reached. */
+      val edgesContainingReachedValue: Set[((List[EdgeInformation], GraphNode), AbstL)] = abstractEdges.flatMap[(
+        (List[EdgeInformation], GraphNode), AbstL), Set[((List[EdgeInformation], GraphNode), AbstL)]](
+        (tuple: (List[EdgeInformation], GraphNode)) => {
+          val reachedValueFound: Option[EdgeInformation] = tuple._1.find({
+          case info:
+            ReachedValue[AbstL] =>
+            val isSchemeLattice = implicitly[IsSchemeLattice[AbstL]]
+            val convertedValue = convertValueFun(concreteValue)
+            isSchemeLattice.subsumes(info.v, convertedValue)
+          case info: ReachedValue[_] => //TODO Should not happen
+            assert(false)
+            false
+          case _ =>
+            false
+        })
+          reachedValueFound match {
+            case info: Some[ReachedValue[AbstL]] =>
+              Set((tuple, info.get.v))
+            case _ =>
+              Set()
+          }
+        })
+      implicit val ordering: PartialOrdering[AbstL] = AbstLOrdering
+      val minReachedValueEdges: Set[(List[EdgeInformation], GraphNode)] = iter(edgesContainingReachedValue).map(_._1)
+      minReachedValueEdges
+    case _ => abstractEdges.filter({
       case (abstractEdgeInfos, node) =>
         concreteEdgeInfo match {
           case ThenBranchTaken | ElseBranchTaken =>
@@ -53,19 +118,6 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
             abstractEdgeInfos.contains(concreteEdgeInfo)
           case OperatorTaken(_) | FrameFollowed(_) =>
             true
-          case ReachedConcreteValue(concreteValue) =>
-            abstractEdgeInfos.exists({
-              /* Is there any ReachedValue edge containing an abstract value that subsumes the abstracted concrete
-              value? There should be at least one ReachedValue annotation. If not, this edge should definitely be
-              filtered. */
-              case info: ReachedValue[AbstL] =>
-                val isSchemeLattice = implicitly[IsSchemeLattice[AbstL]]
-                val convertedValue = convertValueFun(concreteValue)
-                isSchemeLattice.subsumes(info.v, convertedValue)
-              case wrong: ReachedValue[_] => //TODO Should not happen
-                assert(false)
-                false
-              case _ => false})
         }
     })
   }
@@ -98,10 +150,10 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
   }
 
   def end(): Unit = {
-    val f = new java.io.File("Analysis/concrete_nodes_size.txt")
+    val f = new java.io.File("Analysis/Concrete nodes/concrete_nodes_size.txt")
     val bw = new java.io.BufferedWriter(new java.io.FileWriter(f))
     sizes.foreach((tuple) =>
-      bw.write(s"${tuple._1};${tuple._2}\n"))
+      bw.write(s"${tuple._1};${tuple._2};${tuple._3.mkString(";")}\n"))
     bw.close()
   }
 
@@ -141,14 +193,14 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
 
   def filterReachable(stepCount: Int): Unit = {
     assert(currentGraph.isDefined)
-    val f = new java.io.FileWriter("Analysis/graph_size.txt", true)
+    val f = new java.io.FileWriter("Analysis/Graph size/graph_size.txt", true)
     val bw = new java.io.BufferedWriter(f)
     val reachables = ReachablesIntermediateResult(new Graph(), Set(), currentNodes.toList)
     val edgesSize = currentGraph.get.edges.size
     val filteredGraph = breadthFirst(reachables).graph
     currentGraph = Some(filteredGraph)
     val newEdgesSize = currentGraph.get.edges.size
-    bw.write(s"$stepCount;$edgesSize;$newEdgesSize\n")
+    bw.write(s"$stepCount;$newEdgesSize\n")
     bw.close()
   }
 }
