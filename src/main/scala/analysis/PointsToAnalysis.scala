@@ -108,7 +108,7 @@ class PointsToAnalysisLauncher[
 
   val aam: SpecAAM = new SpecAAM()
 
-  val incrementalAnalysis = new IncrementalPointsToAnalysis[aam.GraphNode](aam)
+  val incrementalAnalysis = new IncrementalPointsToAnalysis[Abs, aam.GraphNode](aam)
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]
@@ -154,8 +154,9 @@ class PointsToAnalysisLauncher[
           s"Expected initial analysis to produce a graph, got $other instead")
     }
 
-  def doConcreteStep(edgeInfos: List[EdgeInformation]) =
-    incrementalAnalysis.computeSuccNodes(edgeInfos)
+  def doConcreteStep(convertValueFun: SchemePrimitives[HybridAddress.A, Abs] => ConcreteConcreteLattice.L => Abs,
+                     edgeInfos: List[EdgeInformation]) =
+    incrementalAnalysis.computeSuccNodes(convertValueFun(abstSem.primitives), edgeInfos)
 
   def end(): Unit = incrementalAnalysis.end()
 

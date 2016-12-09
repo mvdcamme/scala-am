@@ -1,4 +1,4 @@
-class IncrementalPointsToAnalysis[GraphNode](val aam: AAM[_, _, _, _]) {
+class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: AAM[_, _, _, _]) {
 
   type AbstractGraph = Graph[GraphNode, List[EdgeInformation]]
 
@@ -34,65 +34,74 @@ class IncrementalPointsToAnalysis[GraphNode](val aam: AAM[_, _, _, _]) {
         if (edge._1.contains(StateSubsumed)) {
           /* Make sure that an edge is ONLY annotated with StateSubsumed. It should not be possible
            * to have a StateSubsumed edge with any other annotation. */
-          assert(edge._1.size == 1,
-            s"StateSubsumed edge contains more than 1 edge: ${edge._1}")
+          assert(edge._1.size == 1, s"StateSubsumed edge contains more than 1 edge: ${edge._1}")
           followStateSubsumedEdges(edge._2)
         } else {
           Set(node)
         })
 
-  def filterSingleEdgeInfo(
+  def filterSingleEdgeInfo( convertValueFun: ConcreteConcreteLattice.L => AbstL,
                             abstractEdges: Set[(List[EdgeInformation], GraphNode)],
-                            edgeInfo: EdgeInformation): Set[(List[EdgeInformation], GraphNode)] =
+                            concreteEdgeInfo: EdgeInformation): Set[(List[EdgeInformation], GraphNode)] = {
+
     abstractEdges.filter({
       case (abstractEdgeInfos, node) =>
-        edgeInfo match {
+        concreteEdgeInfo match {
           case ThenBranchTaken | ElseBranchTaken =>
-            abstractEdgeInfos.contains(edgeInfo)
+            abstractEdgeInfos.contains(concreteEdgeInfo)
           case EvaluatingExpression(e) =>
-            abstractEdgeInfos.contains(edgeInfo)
-          case OperatorTaken(_) | FrameFollowed(_) | ReachedValue(_) | ReachedConcreteValue(_) =>
+            abstractEdgeInfos.contains(concreteEdgeInfo)
+          case OperatorTaken(_) | FrameFollowed(_) =>
             true
+          case ReachedConcreteValue(concreteValue) =>
+            abstractEdgeInfos.exists({
+              /* Is there any ReachedValue edge containing an abstract value that subsumes the abstracted concrete
+              value? There should be at least one ReachedValue annotation. If not, this edge should definitely be
+              filtered. */
+              case info: ReachedValue[AbstL] =>
+                val isSchemeLattice = implicitly[IsSchemeLattice[AbstL]]
+                val convertedValue = convertValueFun(concreteValue)
+                isSchemeLattice.subsumes(info.v, convertedValue)
+              case wrong: ReachedValue[_] => //TODO Should not happen
+                assert(false)
+                false
+              case _ => false})
         }
     })
+  }
 
-  def computeSuccNode(
+  def computeSuccNode( convertValueFun: ConcreteConcreteLattice.L => AbstL,
                        node: GraphNode,
                        concreteEdgeInfos: List[EdgeInformation]): Set[GraphNode] = {
-    Logger.log(s"Computing successor of node ${currentGraph.get.nodeId(node)}",
-      Logger.U)
     assert(currentNodes.nonEmpty && currentGraph.isDefined)
     val abstractEdges = currentGraph.get.nodeEdges(node)
     val filteredAbstractEdges =
       concreteEdgeInfos.foldLeft[Set[(List[EdgeInformation], GraphNode)]](
         abstractEdges)((filteredAbstractEdges, concreteEdgeInfo) =>
-        filterSingleEdgeInfo(filteredAbstractEdges, concreteEdgeInfo))
+        filterSingleEdgeInfo(convertValueFun, filteredAbstractEdges, concreteEdgeInfo))
     filteredAbstractEdges.map(_._2)
   }
 
   var i = 0
   var sizes: List[(Int, Int, List[Int])] = Nil
 
-  def computeSuccNodes(edgeInfos: List[EdgeInformation]) = {
+  def computeSuccNodes(convertValueFun: ConcreteConcreteLattice.L => AbstL,
+                       edgeInfos: List[EdgeInformation]) = {
     /* First follow all StateSubsumed edges before trying to use the concrete edge information */
     val nodesSubsumedEdgesFollowed =
       currentNodes.flatMap(followStateSubsumedEdges)
-    Logger.log(
-      s"Skipping subsumed edges leads to ${nodesSubsumedEdgesFollowed.size} nodes with edge-info $edgeInfos",
-      Logger.U)
     val succNodes =
-      nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(_, edgeInfos))
+      nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(convertValueFun, _, edgeInfos))
     currentNodes = succNodes.flatMap(followStateSubsumedEdges)
     i += 1
     sizes = sizes :+ (i, currentNodes.size, currentNodes.toList.map(initialGraph.get.nodeId))
-    Logger.log(s"Successor nodes ${currentNodes.map(currentGraph.get.nodeId)}", Logger.U)
   }
 
   def end(): Unit = {
     val f = new java.io.File("Analysis/concrete_nodes_size.txt")
     val bw = new java.io.BufferedWriter(new java.io.FileWriter(f))
     sizes.foreach((tuple) =>
-      bw.write(s"${tuple._1};${tuple._2};${tuple._3.mkString(";")}\n"))
+      bw.write(s"${tuple._1};${tuple._2}\n"))
     bw.close()
   }
 
@@ -105,7 +114,6 @@ class IncrementalPointsToAnalysis[GraphNode](val aam: AAM[_, _, _, _]) {
    */
   def addReachableEdges(reachables: ReachablesIntermediateResult,
                         node: GraphNode): ReachablesIntermediateResult = {
-    //    Logger.log(s"In addReachableEdges, node = $node", Logger.U)
     val graph = reachables.graph
     val todoQueue = reachables.todoQueue
     val nodesDone = reachables.nodesDone
@@ -137,11 +145,9 @@ class IncrementalPointsToAnalysis[GraphNode](val aam: AAM[_, _, _, _]) {
     val bw = new java.io.BufferedWriter(f)
     val reachables = ReachablesIntermediateResult(new Graph(), Set(), currentNodes.toList)
     val edgesSize = currentGraph.get.edges.size
-    //    Logger.log(s"Original edges size is $edgesSize", Logger.U)
     val filteredGraph = breadthFirst(reachables).graph
     currentGraph = Some(filteredGraph)
     val newEdgesSize = currentGraph.get.edges.size
-    //    Logger.log(s"Current edges size is $newEdgesSize", Logger.U)
     bw.write(s"$stepCount;$edgesSize;$newEdgesSize\n")
     bw.close()
   }

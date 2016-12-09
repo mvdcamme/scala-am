@@ -53,6 +53,27 @@ class HybridConcreteMachine[
     }
   }
 
+  private def convertValue[AbstL: IsConvertableLattice](abstPrims: SchemePrimitives[HybridAddress.A, AbstL])
+                                                       (value: ConcreteConcreteLattice.L): AbstL =
+    ConcreteConcreteLattice.convert[SchemeExp, AbstL, HybridAddress.A](
+      value,
+      new DefaultHybridAddressConverter[SchemeExp],
+      convertEnv,
+      abstPrims)
+
+  /**
+    * Converts all addresses in the environment.
+    * @param env The environment for which all addresses must be converted.
+    * @return A new environment with all addresses converted.
+    */
+  private def convertEnv(
+                          env: Environment[HybridAddress.A]): Environment[HybridAddress.A] = {
+    val addressConverter = new DefaultHybridAddressConverter[SchemeExp]()
+    env.map { (address) =>
+      addressConverter.convertAddress(address)
+    }
+  }
+
   case class State(control: Control,
                    store: Store[HybridAddress.A, ConcreteConcreteLattice.L],
                    kstore: KontStore[KontAddr],
@@ -72,28 +93,6 @@ class HybridConcreteMachine[
       case ControlEval(_, _) => Colors.Green
       case ControlKont(_) => Colors.Pink
       case ControlError(_) => Colors.Red
-    }
-
-    private def convertValue[AbstL: IsConvertableLattice](
-        abstPrims: SchemePrimitives[HybridAddress.A, AbstL]
-    )(value: ConcreteValue): AbstL =
-      ConcreteConcreteLattice.convert[SchemeExp, AbstL, HybridAddress.A](
-        value,
-        new DefaultHybridAddressConverter[SchemeExp],
-        convertEnv,
-        abstPrims)
-
-    /**
-      * Converts all addresses in the environment.
-      * @param env The environment for which all addresses must be converted.
-      * @return A new environment with all addresses converted.
-      */
-    private def convertEnv(
-        env: Environment[HybridAddress.A]): Environment[HybridAddress.A] = {
-      val addressConverter = new DefaultHybridAddressConverter[SchemeExp]()
-      env.map { (address) =>
-        addressConverter.convertAddress(address)
-      }
     }
 
     /**
@@ -431,7 +430,7 @@ class HybridConcreteMachine[
             pointsToAnalysisLauncher.end
             output
           case Right((succState, edgeInfo)) =>
-            pointsToAnalysisLauncher.doConcreteStep(edgeInfo)
+            pointsToAnalysisLauncher.doConcreteStep(convertValue[PAbs], edgeInfo)
             loop(succState, start, count + 1, graph.addEdge(state, edgeInfo, succState))
         }
       }

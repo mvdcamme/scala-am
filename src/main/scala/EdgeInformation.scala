@@ -54,5 +54,5 @@ case class ReachedValue[Abs : JoinLattice](v: Abs) extends EdgeInformation {
  * State leads to a continuation state that reached the given concrete value.
  */
 case class ReachedConcreteValue(v: ConcreteConcreteLattice.L) extends EdgeInformation {
-  override def toString = s"Reached $v"
+  override def toString = s"Reached concrete $v"
 }
