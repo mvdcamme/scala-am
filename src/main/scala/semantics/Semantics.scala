@@ -82,6 +82,12 @@ trait ConvertableSemantics[Exp, Abs, Addr, Time]
                                  vStack: List[Storable[Abs, Addr]],
                                  absSem: BaseSchemeSemantics[Abs, Addr, Time])
   : (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr])
+
+  def convertAbsInFrame[OtherAbs: IsConvertableLattice](frame: SchemeFrame[Abs, Addr, Time],
+                                                         convertValue: (Abs) => OtherAbs,
+                                                         convertEnv: (Environment[Addr]) => Environment[Addr],
+                                                         abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time])
+  : SchemeFrame[OtherAbs, Addr, Time]
 }
 
 trait SemanticsTraced[Exp, Abs, Addr, Time]

@@ -6,6 +6,12 @@ Time: Timestamp](primitives: SchemePrimitives[Addr, Abs])
 
   val actionPopFailKont = ActionPopFailKontT[SchemeExp, Abs, Addr]()
 
+  override def convertAbsInFrame[OtherAbs: IsConvertableLattice](frame: SchemeFrame[Abs, Addr, Time],
+                                                                 convertValue: (Abs) => OtherAbs,
+                                                                 convertEnv: (Environment[Addr]) => Environment[Addr],
+                                                                 abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time])
+  : SchemeFrame[OtherAbs, Addr, Time] = ???
+
   override def stepEval(e: SchemeExp,
                         ρ: Environment[Addr],
                         σ: Store[Addr, Abs],

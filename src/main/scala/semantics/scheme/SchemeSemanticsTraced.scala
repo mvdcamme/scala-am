@@ -655,6 +655,12 @@ class SchemeSemanticsTraced[Abs: IsSchemeLattice, Addr: Address,
 Time: Timestamp](primitives: SchemePrimitives[Addr, Abs])
     extends BaseSchemeSemanticsTraced[Abs, Addr, Time](primitives) {
 
+  override def convertAbsInFrame[OtherAbs: IsConvertableLattice](frame: SchemeFrame[Abs, Addr, Time],
+    convertValue: (Abs) => OtherAbs,
+    convertEnv: (Environment[Addr]) => Environment[Addr],
+    abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time])
+    : SchemeFrame[OtherAbs, Addr, Time] = ???
+
   protected def addRead(action: ActionT[SchemeExp, Abs, Addr],
                         read: Set[Addr]): ActionT[SchemeExp, Abs, Addr] =
     action match {
