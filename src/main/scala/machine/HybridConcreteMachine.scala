@@ -275,8 +275,6 @@ class HybridConcreteMachine[
     }
   }
 
-  def possiblyReplaceEdgeInfo(edgeInfo: List[EdgeInformation], frame: Frame) = FrameFollowed(frame) :: edgeInfo
-
   /**
     * Performs the evaluation of an expression, possibly writing the output graph
     * in a file, and returns the set of final states reached
@@ -374,8 +372,8 @@ class HybridConcreteMachine[
                   val edge = edges.head._2
                   edges.head._1 match {
                     case ActionReachedValue(v, store2, _) =>
-                      Right(State(ControlKont(v), store2, kstore, a, time.tick(t)), ReachedConcreteValue
-                      (v) :: possiblyReplaceEdgeInfo(edge, frame))
+                      Right(State(ControlKont(v), store2, kstore, a, time.tick(t)), ReachedConcreteValue(v)
+                       :: FrameFollowed(frame) :: edge)
                     case ActionPush(frame, e, env, store2, _) =>
                       val next =
                         NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
@@ -383,19 +381,19 @@ class HybridConcreteMachine[
                         store2,
                         kstore.extend(next, Kont(frame, a)),
                         next,
-                        time.tick(t)), EvaluatingExpression(e) :: possiblyReplaceEdgeInfo(edge, frame))
+                        time.tick(t)), EvaluatingExpression(e) :: FrameFollowed(frame) :: edge)
                     case ActionEval(e, env, store2, _) =>
                       Right(State(ControlEval(e, env),
                         store2,
                         kstore,
                         a,
-                        time.tick(t)), EvaluatingExpression(e) :: possiblyReplaceEdgeInfo(edge, frame))
+                        time.tick(t)), EvaluatingExpression(e) :: FrameFollowed(frame) :: edge)
                     case ActionStepIn(fexp, _, e, env, store2, _, _) =>
                       Right(State(ControlEval(e, env),
                         store2,
                         kstore,
                         a,
-                        time.tick(t, fexp)), EvaluatingExpression(e) :: possiblyReplaceEdgeInfo(edge, frame))
+                        time.tick(t, fexp)), EvaluatingExpression(e) :: FrameFollowed(frame) :: edge)
                     case ActionError(err) =>
                       Left(ConcreteMachineOutputError(
                         (System.nanoTime - start) / Math.pow(10, 9),
@@ -423,14 +421,14 @@ class HybridConcreteMachine[
               err.toString))
         }
 
-        val stepped = step(state.control)
+        val stepped = step(control)
         stepped match {
           case Left(output) =>
             output.toDotFile("concrete.dot")
             pointsToAnalysisLauncher.end
             output
           case Right((succState, edgeInfo)) =>
-            pointsToAnalysisLauncher.doConcreteStep(convertValue[PAbs], edgeInfo)
+            pointsToAnalysisLauncher.doConcreteStep(convertValue[PAbs], edgeInfo, stepCount)
             loop(succState, start, count + 1, graph.addEdge(state, edgeInfo, succState))
         }
       }

@@ -3,7 +3,7 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
   type AbstractGraph = Graph[GraphNode, List[EdgeInformation]]
 
   var initialGraph: Option[Graph[GraphNode, List[EdgeInformation]]] = None
-  var currentGraph: Option[Graph[GraphNode, List[EdgeInformation]]] = None
+  var currentGraph: Option[Graph[GraphNode, List[EdgeInformation]]] = initialGraph
   var currentNodes: Set[GraphNode] = Set()
 
   def hasInitialGraph: Boolean = currentGraph.isDefined
@@ -88,8 +88,7 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
         (List[EdgeInformation], GraphNode), AbstL), Set[((List[EdgeInformation], GraphNode), AbstL)]](
         (tuple: (List[EdgeInformation], GraphNode)) => {
           val reachedValueFound: Option[EdgeInformation] = tuple._1.find({
-          case info:
-            ReachedValue[AbstL] =>
+          case info: ReachedValue[AbstL] =>
             val isSchemeLattice = implicitly[IsSchemeLattice[AbstL]]
             val convertedValue = convertValueFun(concreteValue)
             isSchemeLattice.subsumes(info.v, convertedValue)
@@ -134,26 +133,42 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
     filteredAbstractEdges.map(_._2)
   }
 
-  var i = 0
-  var sizes: List[(Int, Int, List[Int])] = Nil
+  var graphSize: List[(Int, Int)] = Nil
+  var concreteNodes: List[(Int, Int, List[Int])] = Nil
 
   def computeSuccNodes(convertValueFun: ConcreteConcreteLattice.L => AbstL,
-                       edgeInfos: List[EdgeInformation]) = {
+                       edgeInfos: List[EdgeInformation],
+                       stepNumber: Int) = {
     /* First follow all StateSubsumed edges before trying to use the concrete edge information */
     val nodesSubsumedEdgesFollowed =
       currentNodes.flatMap(followStateSubsumedEdges)
     val succNodes =
       nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(convertValueFun, _, edgeInfos))
     currentNodes = succNodes.flatMap(followStateSubsumedEdges)
-    i += 1
-    sizes = sizes :+ (i, currentNodes.size, currentNodes.toList.map(initialGraph.get.nodeId))
+    concreteNodes = concreteNodes :+ (stepNumber, currentNodes.size, currentNodes.toList.map(initialGraph.get.nodeId))
   }
 
   def end(): Unit = {
-    val f = new java.io.File("Analysis/Concrete nodes/concrete_nodes_size.txt")
-    val bw = new java.io.BufferedWriter(new java.io.FileWriter(f))
-    sizes.foreach((tuple) =>
-      bw.write(s"${tuple._1};${tuple._2};${tuple._3.mkString(";")}\n"))
+    /*
+     * Write the evolution of the size + ids of the concrete nodes.
+     */
+    val fileWithoudIds = new java.io.File("Analysis/Concrete nodes/concrete_nodes_size.txt")
+    val fileWithIds = new java.io.File("Analysis/Concrete nodes/concrete_nodes_size_with_ids.txt")
+    val bwWithoutIds = new java.io.BufferedWriter(new java.io.FileWriter(fileWithoudIds))
+    val bwWithIds = new java.io.BufferedWriter(new java.io.FileWriter(fileWithIds))
+    concreteNodes.foreach((tuple) => {
+      bwWithoutIds.write(s"${tuple._1};${tuple._2}\n")
+      bwWithIds.write(s"${tuple._1};${tuple._2};${tuple._3.mkString(";")}\n")
+    })
+    bwWithoutIds.close()
+    bwWithIds.close()
+
+    /*
+     * Write the evolution in the number of edges of the graph.
+     */
+    val f = new java.io.FileWriter("Analysis/Graph size/graph_size.txt", true)
+    val bw = new java.io.BufferedWriter(f)
+    graphSize.foreach( (tuple) => bw.write(s"${tuple._1};${tuple._2}\n") )
     bw.close()
   }
 
@@ -193,14 +208,10 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
 
   def filterReachable(stepCount: Int): Unit = {
     assert(currentGraph.isDefined)
-    val f = new java.io.FileWriter("Analysis/Graph size/graph_size.txt", true)
-    val bw = new java.io.BufferedWriter(f)
     val reachables = ReachablesIntermediateResult(new Graph(), Set(), currentNodes.toList)
-    val edgesSize = currentGraph.get.edges.size
     val filteredGraph = breadthFirst(reachables).graph
     currentGraph = Some(filteredGraph)
     val newEdgesSize = currentGraph.get.edges.size
-    bw.write(s"$stepCount;$newEdgesSize\n")
-    bw.close()
+    graphSize = graphSize :+ (stepCount, newEdgesSize)
   }
 }

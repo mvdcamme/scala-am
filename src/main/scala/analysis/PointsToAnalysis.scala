@@ -155,8 +155,9 @@ class PointsToAnalysisLauncher[
     }
 
   def doConcreteStep(convertValueFun: SchemePrimitives[HybridAddress.A, Abs] => ConcreteConcreteLattice.L => Abs,
-                     edgeInfos: List[EdgeInformation]) =
-    incrementalAnalysis.computeSuccNodes(convertValueFun(abstSem.primitives), edgeInfos)
+                     edgeInfos: List[EdgeInformation],
+                     stepNumber: Int) =
+    incrementalAnalysis.computeSuccNodes(convertValueFun(abstSem.primitives), edgeInfos, stepNumber)
 
   def end(): Unit = incrementalAnalysis.end()
 
