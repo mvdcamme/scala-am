@@ -54,6 +54,9 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       extends SchemeFrame[Abs, Addr, Time] {
     override def savesEnv(): Option[Environment[Address]] = Some(env)
 
+    override def toString: String = s"FrameFuncallOperands($f, $args, $env)"
+
+    override def meaningfullySubsumes = true
     override def subsumes(that: Frame): Boolean = that match {
       case that: FrameFuncallOperands =>
         fexp == that.fexp &&

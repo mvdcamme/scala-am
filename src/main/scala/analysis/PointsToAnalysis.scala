@@ -92,7 +92,7 @@ class PointsToAnalysis[
     Logger.log(s"Starting static points-to analysis", Logger.I)
     val result =
       machine.kickstartEval(startState, sem, None, None, stepSwitched)
-    toDot.map(result.toDotFile(_))
+    toDot.map(result.toDotFile)
     analyzeOutput(machine, pointsTo, relevantAddress)(result)
     AnalysisGraph[machine.GraphNode](result.graph.get)
   }
@@ -154,10 +154,17 @@ class PointsToAnalysisLauncher[
           s"Expected initial analysis to produce a graph, got $other instead")
     }
 
-  def doConcreteStep(convertValueFun: SchemePrimitives[HybridAddress.A, Abs] => ConcreteConcreteLattice.L => Abs,
+  def doConcreteStep(convertValue: SchemePrimitives[HybridAddress.A, Abs] => ConcreteConcreteLattice.L => Abs,
+                     convertFrame: (ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
+                                    BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
+                                    ConcreteConcreteLattice.L => Abs) => SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
+                       => SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T],
                      edgeInfos: List[EdgeInformation],
-                     stepNumber: Int) =
-    incrementalAnalysis.computeSuccNodes(convertValueFun(abstSem.primitives), edgeInfos, stepNumber)
+                     stepNumber: Int) = {
+    val convertValueFun = convertValue(abstSem.primitives)
+    incrementalAnalysis.computeSuccNodes(convertValueFun, convertFrame(concSem, abstSem, convertValueFun), edgeInfos,
+      stepNumber)
+  }
 
   def end(): Unit = incrementalAnalysis.end()
 

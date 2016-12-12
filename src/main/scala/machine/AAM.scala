@@ -99,7 +99,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                 val succsEdges = integrate(next, sem.stepKont(v, frame, store, t))
                 succsEdges.map({ case (succState, edgeInfo) =>
                   /* If step did not generate any EdgeInformation, place a FrameUsed EdgeInformation */
-                  val replacedEdgeInfo = FrameFollowed(frame) :: edgeInfo
+                  val replacedEdgeInfo = FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) :: edgeInfo
                   (succState, replacedEdgeInfo)
                 })
             })
@@ -203,7 +203,16 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     case ControlEval(exp, _) =>
       EvaluatingExpression(exp) :: edgeInfos
     case ControlKont(v) =>
-      ReachedValue(v) :: edgeInfos
+      if (edgeInfos.exists({
+        case FrameFollowed(frame) =>
+          frame.meaningfullySubsumes
+        case _ =>
+          false
+      })) {
+        edgeInfos
+      } else {
+        ReachedValue(v) :: edgeInfos
+      }
     case _ =>
       edgeInfos
   }

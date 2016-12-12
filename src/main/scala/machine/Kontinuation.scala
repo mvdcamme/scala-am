@@ -5,6 +5,7 @@ trait Frame {
   type Address
   type Timestamp
 
+  def meaningfullySubsumes: Boolean = false
   def subsumes(that: Frame): Boolean
   def writeEffectsFor(): Set[Address] = Set()
 
