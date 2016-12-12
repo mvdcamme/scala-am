@@ -54,6 +54,22 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       extends SchemeFrame[Abs, Addr, Time] {
     override def savesEnv(): Option[Environment[Address]] = Some(env)
 
+    override def subsumes(that: Frame): Boolean = that match {
+      case that: FrameFuncallOperands =>
+        fexp == that.fexp &&
+        cur == that.cur &&
+        toeval == that.toeval &&
+        sabs.subsumes(f, that.f) &&
+        args.zip(that.args).forall( (zipped) =>
+          /* Check whether they have evaluated the same argument expression */
+          zipped._1._1 == zipped._2._1 &&
+          /* and whether the results of this subsume those of that. */
+          sabs.subsumes(zipped._1._2, zipped._2._2)) &&
+        env.subsumes(that.env)
+      case _ =>
+        false
+    }
+
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
         convertEnv: Environment[Addr] => Environment[Addr],
