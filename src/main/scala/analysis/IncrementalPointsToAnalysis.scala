@@ -166,7 +166,7 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
     /*
      * Write the evolution in the number of edges of the graph.
      */
-    val f = new java.io.FileWriter("Analysis/Graph size/graph_size.txt", true)
+    val f = new java.io.FileWriter("Analysis/Graph size/graph_size.txt")
     val bw = new java.io.BufferedWriter(f)
     graphSize.foreach( (tuple) => bw.write(s"${tuple._1};${tuple._2}\n") )
     bw.close()
