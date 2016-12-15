@@ -316,19 +316,11 @@ class HybridConcreteMachine[
                   Right(State(ControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
                         NextKontAddressNow(next) :: EvaluatingExpression(e) :: FramePushed(frameCast) :: edgeInfos)
                 case ActionEval(e, env, store2, _) =>
-                  Right(State(ControlEval(e, env),
-                    store2,
-                    kstore,
-                    a,
-                    time.tick(t)),
+                  Right(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
                     EvaluatingExpression(e) :: edgeInfos)
                 case ActionStepIn(fexp, _, e, env, store2, _, _) =>
-                  Right(State(ControlEval(e, env),
-                    store2,
-                    kstore,
-                    a,
-                    time.tick(t, fexp)),
-                    EvaluatingExpression(e) :: edgeInfos)
+                  Right(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
+                        EvaluatingExpression(e) :: edgeInfos)
                 case ActionError(err) =>
                   Left(ConcreteMachineOutputError(
                     (System.nanoTime - start) / Math.pow(10, 9),

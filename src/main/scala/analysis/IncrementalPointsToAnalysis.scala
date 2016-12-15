@@ -228,8 +228,9 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
       convertFrameFun: ConcreteFrame => AbstractFrame,
       node: GraphNode,
       concreteEdgeInfos: List[EdgeAnnotation]): Set[GraphNode] = {
-    assert(currentNodes.nonEmpty && currentGraph.isDefined)
+    assert(currentGraph.isDefined)
     val abstractEdges = currentGraph.get.nodeEdges(node)
+    Logger.log(s"abstractEdgeInfos = ${abstractEdges.map(_._1)}", Logger.U)
     val filteredAbstractEdges =
       concreteEdgeInfos.foldLeft[Set[Edge]](abstractEdges)(
         (filteredAbstractEdges, concreteEdgeInfo) =>
@@ -255,9 +256,7 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
                        convertFrameFun: ConcreteFrame => AbstractFrame,
                        edgeInfos: List[EdgeAnnotation],
                        stepNumber: Int) = {
-    Logger.log(
-      s"in step $stepNumber, concreteEdgeInfos = $edgeInfos, before: currentNodes = $currentNodes",
-      Logger.U)
+    Logger.log(s"in step $stepNumber \nbefore: currentNodes = $currentNodes \nconcreteEdgeInfos = $edgeInfos", Logger.U)
     addNodesVisited(currentNodes)
     /* First follow all StateSubsumed edges before trying to use the concrete edge information */
     val nodesSubsumedEdgesFollowed =
@@ -361,8 +360,7 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
 
   def filterReachable(stepCount: Int): Unit = {
     assert(currentGraph.isDefined)
-    val reachables =
-      ReachablesIntermediateResult(new Graph(), Set(), currentNodes.toList)
+    val reachables = ReachablesIntermediateResult(new Graph(), Set(), currentNodes.toList)
     val filteredGraph = breadthFirst(reachables).graph
     currentGraph = Some(filteredGraph)
     val newEdgesSize = currentGraph.get.edges.size

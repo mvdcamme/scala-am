@@ -67,11 +67,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
           /* When a continuation needs to be pushed, push it in the continuation store */
           case ActionPush(frame, e, env, store, _) => {
             val next = NormalKontAddress[Exp, Time](e, t)
-            (State(ControlEval(e, env),
-              store,
-              kstore.extend(next, Kont(frame, a)),
-              next,
-              time.tick(t)),
+            (State(ControlEval(e, env), store, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
               FramePushed(frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) :: edgeInfo)
           }
           /* When a value needs to be evaluated, we go to an eval state */
