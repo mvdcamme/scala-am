@@ -16,13 +16,6 @@ case object ThenBranchTaken extends EdgeAnnotation {
 }
 
 /*
- * Control-flow split due to operator-value: check operator's AST.
- */
-case class OperatorTaken[Exp : Expression](body: List[Exp]) extends EdgeAnnotation {
-  override def toString = body.toString()
-}
-
-/*
  * Control-flow split due to spurious return: check continuation frame used.
  */
 case class FrameFollowed[Abs : JoinLattice](frame: SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]) extends EdgeAnnotation {

@@ -349,7 +349,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                     body.head,
                     env2,
                     store,
-                    argsv), List(OperatorTaken(body)))
+                    argsv), Nil)
                 else
                   (ActionStepIn[SchemeExp, Abs, Addr](
                     fexp,
@@ -357,7 +357,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                     SchemeBegin(body, pos),
                     env2,
                     store,
-                    argsv), List(OperatorTaken(body)))
+                    argsv), Nil)
             }
           } else {
             (ActionError[SchemeExp, Abs, Addr](
