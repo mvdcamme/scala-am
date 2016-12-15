@@ -1,14 +1,14 @@
 class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: AAM[_, _, _, _]) {
 
-  type AbstractGraph = Graph[GraphNode, List[EdgeInformation]]
-  type Edge = (List[EdgeInformation], GraphNode)
+  type AbstractGraph = Graph[GraphNode, List[EdgeAnnotation]]
+  type Edge = (List[EdgeAnnotation], GraphNode)
 
   var initialGraph: Option[AbstractGraph] = None
   var currentGraph: Option[AbstractGraph] = initialGraph
   var currentNodes: Set[GraphNode] = Set()
 
   var nodesVisited: Set[GraphNode] = Set()
-  var edgesVisited: Set[(GraphNode, List[EdgeInformation], GraphNode)] = Set()
+  var edgesVisited: Set[(GraphNode, List[EdgeAnnotation], GraphNode)] = Set()
 
   def hasInitialGraph: Boolean = currentGraph.isDefined
   def initializeGraph(graph: AbstractGraph) = {
@@ -100,7 +100,7 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
          * The ReachedValue annotation (if any exists) containing an abstract value that subsumes the converted
          * concrete value.
          */
-        val reachedValueFound: Option[EdgeInformation] = tuple._1.find({
+        val reachedValueFound: Option[EdgeAnnotation] = tuple._1.find({
           case info: ReachedValue[AbstL] =>
             /*
              * Immediately check whether the value on the abstract edge actually subsumes the converted concrete value.
@@ -126,8 +126,8 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
     minReachedValueEdges
   }
 
-  private def frameUsedSubsumes(getFrameFromInfo: EdgeInformation => Option[AbstractFrame])
-                               (info: EdgeInformation,
+  private def frameUsedSubsumes(getFrameFromInfo: EdgeAnnotation => Option[AbstractFrame])
+                               (info: EdgeAnnotation,
                                 convertedFrame: AbstractFrame)
   : Option[AbstractFrame] =
     getFrameFromInfo(info) match {
@@ -148,7 +148,7 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
   type AbstractFrame = SchemeFrame[AbstL, HybridAddress.A, HybridTimestamp.T]
 
   def filterFrameEdges(convertedFrame: AbstractFrame,
-                       subsumesFrame: (EdgeInformation,
+                       subsumesFrame: (EdgeAnnotation,
                                        AbstractFrame) => Option[AbstractFrame],
                        abstractEdges: Set[Edge]): Set[Edge] = {
     if (!convertedFrame.meaningfullySubsumes) {
@@ -185,7 +185,7 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
   def filterSingleEdgeInfo(convertValueFun: ConcreteConcreteLattice.L => AbstL,
                            convertFrameFun: ConcreteFrame => AbstractFrame,
                            abstractEdges: Set[Edge],
-                           concreteEdgeInfo: EdgeInformation): Set[Edge] =
+                           concreteEdgeInfo: EdgeAnnotation): Set[Edge] =
     concreteEdgeInfo match {
       case ReachedConcreteValue(concreteValue) =>
         filterReachedConcreteValueEdges(convertValueFun,
@@ -226,7 +226,7 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
       convertValueFun: ConcreteConcreteLattice.L => AbstL,
       convertFrameFun: ConcreteFrame => AbstractFrame,
       node: GraphNode,
-      concreteEdgeInfos: List[EdgeInformation]): Set[GraphNode] = {
+      concreteEdgeInfos: List[EdgeAnnotation]): Set[GraphNode] = {
     assert(currentNodes.nonEmpty && currentGraph.isDefined)
     val abstractEdges = currentGraph.get.nodeEdges(node)
     val filteredAbstractEdges =
@@ -252,7 +252,7 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
 
   def computeSuccNodes(convertValueFun: ConcreteConcreteLattice.L => AbstL,
                        convertFrameFun: ConcreteFrame => AbstractFrame,
-                       edgeInfos: List[EdgeInformation],
+                       edgeInfos: List[EdgeAnnotation],
                        stepNumber: Int) = {
     Logger.log(
       s"in step $stepNumber, concreteEdgeInfos = $edgeInfos, before: currentNodes = $currentNodes",

@@ -54,7 +54,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       * one.
       */
     private def integrate(a: KontAddr,
-                          edges: Set[(Action[Exp, Abs, Addr], List[EdgeInformation])]): Set[(State, List[EdgeInformation])] =
+                          edges: Set[(Action[Exp, Abs, Addr], List[EdgeAnnotation])]): Set[(State, List[EdgeAnnotation])] =
       edges.map({ case (action, edgeInfo) =>
         action match {
           /* When a value is reached, we go to a continuation state */
@@ -85,7 +85,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     /**
       * Computes the set of states that follow the current state
       */
-    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[(State, List[EdgeInformation])] =
+    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[(State, List[EdgeAnnotation])] =
       control match {
         /* In a eval state, call the semantic's evaluation method */
         case ControlEval(e, env) =>
@@ -98,7 +98,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
               case Kont(frame, next) =>
                 val succsEdges = integrate(next, sem.stepKont(v, frame, store, t))
                 succsEdges.map({ case (succState, edgeInfo) =>
-                  /* If step did not generate any EdgeInformation, place a FrameUsed EdgeInformation */
+                  /* If step did not generate any EdgeAnnotation, place a FrameFollowed EdgeAnnotation */
                   val replacedEdgeInfo = FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) :: edgeInfo
                   (succState, replacedEdgeInfo)
                 })
@@ -148,7 +148,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   case class AAMOutput(halted: Set[State],
                        numberOfStates: Int,
                        time: Double,
-                       graph: Option[Graph[State, List[EdgeInformation]]],
+                       graph: Option[Graph[State, List[EdgeAnnotation]]],
                        timedOut: Boolean,
                        stepSwitched: Option[Int])
       extends Output[Abs] with MayHaveGraph[State] with HasFinalStores[Addr, Abs] {
@@ -200,7 +200,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
    * Checks whether the given (successor) state is a eval-state. If so, adds an EvaluatingExpression
    * annotation to the list of edge annotations.
    */
-  def addSuccStateEdgeAnnotation(s: State, edgeInfos: List[EdgeInformation]): List[EdgeInformation] = s.control match {
+  def addSuccStateEdgeAnnotation(s: State, edgeInfos: List[EdgeAnnotation]): List[EdgeAnnotation] = s.control match {
     case ControlEval(exp, _) =>
       EvaluatingExpression(exp) :: edgeInfos
     case ControlKont(v) =>
@@ -227,7 +227,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
              visited: Set[State],
              halted: Set[State],
              startingTime: Long,
-             graph: Graph[State, List[EdgeInformation]]): AAMOutput = {
+             graph: Graph[State, List[EdgeAnnotation]]): AAMOutput = {
       if (timeout.map(System.nanoTime - startingTime > _).getOrElse(false)) {
         AAMOutput(halted,
                   visited.size,
@@ -248,7 +248,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                * states but leads to non-determinism due to the non-determinism
                * of Scala's headOption (it seems so at least).
                * We do have to add an edge from the current state to the subsumed state. */
-              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, List[EdgeInformation]]](graph)({
+              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, List[EdgeAnnotation]]](graph)({
                 case (graph, s2) => if (s2.subsumes(s)) graph.addEdge(s, List(StateSubsumed), s2) else graph}))
             } else if (s.halted || stopEval.fold(false)(pred => pred(s))) {
               /* If the state is a final state or the stopEval predicate determines the machine can stop exploring
@@ -277,7 +277,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       }
     }
     val startingTime = System.nanoTime
-    loop(Set(initialState), Set(), Set(), startingTime, new Graph[State, List[EdgeInformation]]().addNode(initialState))
+    loop(Set(initialState), Set(), Set(), startingTime, new Graph[State, List[EdgeAnnotation]]().addNode(initialState))
   }
 
   def kickstartAnalysis[L](analysis: Analysis[L, Exp, Abs, Addr, Time],

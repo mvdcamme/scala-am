@@ -159,7 +159,7 @@ class PointsToAnalysisLauncher[
                                     BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
                                     ConcreteConcreteLattice.L => Abs) => SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
                        => SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T],
-                     edgeInfos: List[EdgeInformation],
+                     edgeInfos: List[EdgeAnnotation],
                      stepNumber: Int) = {
     val convertValueFun = convertValue(abstSem.primitives)
     incrementalAnalysis.computeSuccNodes(convertValueFun, convertFrame(concSem, abstSem, convertValueFun), edgeInfos,

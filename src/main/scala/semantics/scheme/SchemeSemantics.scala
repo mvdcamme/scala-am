@@ -326,7 +326,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   def conditional(
       v: Abs,
       t: => Action[SchemeExp, Abs, Addr],
-      f: => Action[SchemeExp, Abs, Addr]): Set[(Action[SchemeExp, Abs, Addr], List[EdgeInformation])] =
+      f: => Action[SchemeExp, Abs, Addr]): Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] =
     (if (sabs.isTrue(v)) Set((t, List(ThenBranchTaken))) else Set()) ++
     (if (sabs.isFalse(v)) Set((f, List(ElseBranchTaken))) else Set())
 
@@ -334,8 +334,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                fexp: SchemeExp,
                argsv: List[(SchemeExp, Abs)],
                store: Store[Addr, Abs],
-               t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeInformation])] = {
-    val fromClo: Set[(Action[SchemeExp, Abs, Addr], List[EdgeInformation])] = sabs
+               t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] = {
+    val fromClo: Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] = sabs
       .getClosures[SchemeExp, Addr](function)
       .map({
         case (SchemeLambda(args, body, pos), env1) =>
@@ -409,7 +409,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                             toeval: List[SchemeExp],
                             env: Environment[Addr],
                             store: Store[Addr, Abs],
-                            t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeInformation])] =
+                            t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] =
     toeval match {
       case Nil => evalCall(f, fexp, args.reverse, store, t)
       case e :: rest =>
@@ -424,7 +424,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                             args: List[SchemeExp],
                             env: Environment[Addr],
                             store: Store[Addr, Abs],
-                            t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeInformation])] =
+                            t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] =
     funcallArgs(f, fexp, List(), args, env, store, t)
 
   protected def evalQuoted(exp: SExp,
@@ -713,13 +713,13 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       toeval: List[SchemeExp],
       env: Environment[Addr],
       store: Store[Addr, Abs],
-      t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeInformation])] = toeval match {
+      t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] = toeval match {
     case Nil => evalCall(f, fexp, args.reverse, store, t)
     case e :: rest =>
       atomicEval(e, env, store) match {
         case Some((v, effs)) =>
           addNoEdgeInfo(funcallArgs(f, fexp, (e, v) :: args, rest, env, store, t)
-            .map( (edge: (Action[SchemeExp, Abs, Addr], List[EdgeInformation])) => addEffects(edge._1, effs) ))
+            .map( (edge: (Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])) => addEffects(edge._1, effs) ))
         case None =>
           addNoEdgeInfo(Set(
             ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env),
@@ -734,13 +734,13 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     * where exp is an atomic expression, we can atomically evaluate exp to get v,
     * and call stepKont(v, store, frame).
     */
-  protected def optimizeAtomic(edges: Set[(Action[SchemeExp, Abs, Addr], List[EdgeInformation])],
-                               t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeInformation])] = {
+  protected def optimizeAtomic(edges: Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])],
+                               t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] = {
     addNoEdgeInfo(edges.flatMap((edge) => edge._1 match {
       case ActionPush(frame, exp, env, store, effects) =>
         atomicEval(exp, env, store) match {
           case Some((v, effs)) =>
-            stepKont(v, frame, store, t).map((edge: (Action[SchemeExp, Abs, Addr], List[EdgeInformation])) => addEffects
+            stepKont(v, frame, store, t).map((edge: (Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])) => addEffects
             (edge._1,
               effs ++ effects))
           case None =>

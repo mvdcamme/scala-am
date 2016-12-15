@@ -54,7 +54,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
 
     /** Integrate a set of action to compute the successor states */
     private def integrate(k: FreeKontAddr,
-                          edges: Set[(Action[Exp, Abs, Addr], List[EdgeInformation])]): Set[(State, List[EdgeInformation])] =
+                          edges: Set[(Action[Exp, Abs, Addr], List[EdgeAnnotation])]): Set[(State, List[EdgeAnnotation])] =
       edges.map({ case (action, edgeInfo) =>
         val newState = action match {
           case ActionReachedValue(v, store, _) =>
@@ -76,14 +76,14 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         (newState, edgeInfo)})
 
     /** Computes the successors states of this one relying on the given semantics */
-    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[(State, List[EdgeInformation])] =
+    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[(State, List[EdgeAnnotation])] =
       control match {
         case ControlEval(e, env) =>
           integrate(k, sem.stepEval(e, env, store, t))
         case ControlKont(v) =>
           kstore
             .lookup(k)
-            .foldLeft(Set[(State, List[EdgeInformation])]())((acc, k) =>
+            .foldLeft(Set[(State, List[EdgeAnnotation])]())((acc, k) =>
               k match {
                 case Kont(frame, next) =>
                   acc ++ integrate(next, sem.stepKont(v, frame, store, t))
@@ -152,7 +152,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   case class FreeOutput(halted: Set[State],
                         numberOfStates: Int,
                         time: Double,
-                        graph: Option[Graph[State, List[EdgeInformation]]],
+                        graph: Option[Graph[State, List[EdgeAnnotation]]],
                         timedOut: Boolean,
                         stepSwitched: Option[Int])
       extends Output[Abs] with MayHaveGraph[State] with HasFinalStores[Addr, Abs] {
@@ -210,13 +210,13 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     */
   @scala.annotation.tailrec
   private def loopWithLocalGraph(
-      s: States,
-      visited: Set[States],
-      halted: Set[State],
-      startingTime: Long,
-      timeout: Option[Long],
-      graph: Graph[State, List[EdgeInformation]],
-      sem: Semantics[Exp, Abs, Addr, Time]): Output[Abs] = {
+                                  s: States,
+                                  visited: Set[States],
+                                  halted: Set[State],
+                                  startingTime: Long,
+                                  timeout: Option[Long],
+                                  graph: Graph[State, List[EdgeAnnotation]],
+                                  sem: Semantics[Exp, Abs, Addr, Time]): Output[Abs] = {
     val s2Edge = s.step(sem)
     val h = halted ++ s.toStateSet.filter(_.halted)
     if (s2Edge.isEmpty || visited.contains(s2Edge) || timeout
@@ -236,7 +236,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                          startingTime,
                          timeout,
                          graph.addEdges(s.toStateSet.flatMap(state1 =>
-                           s2Edge.toStateSet.map(state2 => (state1, List(TODOEdgeInformation), state2)))),
+                           s2Edge.toStateSet.map(state2 => (state1, List(TODOEdgeAnnotation$), state2)))),
                          sem)
     }
   }
@@ -261,7 +261,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     def loop(s: States,
              visited: Set[States],
              halted: Set[State],
-             graph: Graph[State, List[EdgeInformation]]): FreeOutput = {
+             graph: Graph[State, List[EdgeAnnotation]]): FreeOutput = {
       val s2 = s.step(sem)
       val h = halted ++ s.toStateSet.filter(_.halted)
       if (s2.isEmpty || visited.contains(s2) || timeout
@@ -280,11 +280,11 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
              visited + s,
              h,
              graph.addEdges(s.toStateSet.flatMap(state1 =>
-               s2.toStateSet.map(state2 => (state1, List(TODOEdgeInformation), state2)))))
+               s2.toStateSet.map(state2 => (state1, List(TODOEdgeAnnotation$), state2)))))
       }
     }
 
-    loop(s, Set(), Set(), new Graph[State, List[EdgeInformation]]().addNode(initStateSet.head))
+    loop(s, Set(), Set(), new Graph[State, List[EdgeAnnotation]]().addNode(initStateSet.head))
   }
 
   def eval(exp: Exp,
@@ -297,7 +297,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                          Set(),
                          System.nanoTime,
                          timeout,
-                         new Graph[State, List[EdgeInformation]](),
+                         new Graph[State, List[EdgeAnnotation]](),
                          sem)
     } else {
       kickstartEval(States.inject(exp, sem.initialEnv, sem.initialStore),

@@ -172,7 +172,7 @@ Addr: Address, Time: Timestamp](sem: SemanticsTraced[Exp, Abs, Addr, Time])
 }
 
 trait MayHaveGraph[Node] {
-  def graph: Option[Graph[Node, List[EdgeInformation]]]
+  def graph: Option[Graph[Node, List[EdgeAnnotation]]]
   def toDotFile(path: String): Unit
 }
 
