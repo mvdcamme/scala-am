@@ -1,4 +1,4 @@
-class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: AAM[_, _, _, _]) {
+class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, GraphNode](val aam: AAM[_, _, _, _]) {
 
   type AbstractGraph = Graph[GraphNode, List[EdgeAnnotation]]
   type Edge = (List[EdgeAnnotation], GraphNode)
@@ -216,8 +216,9 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
                 abstractEdgeInfos.contains(concreteEdgeInfo)
               case EvaluatingExpression(e) =>
                 abstractEdgeInfos.contains(concreteEdgeInfo)
-              case OperatorTaken(_) =>
-                true
+              case NextKontAddressNow(ka) =>
+                val convertedKa = new ConvertTimestampKontAddrConverter(ConvertTimeStampConverter).convertKontAddr(ka)
+                abstractEdgeInfos.contains(NextKontAddressNow(convertedKa))
             }
         })
     }

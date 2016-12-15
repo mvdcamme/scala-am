@@ -37,6 +37,13 @@ case class FramePushed[Abs : JoinLattice](frame: SchemeFrame[Abs, HybridAddress.
 }
 
 /*
+ * Current continuation address changed to a.
+ */
+case class NextKontAddressNow(a: KontAddr) extends EdgeAnnotation {
+  override def toString = s"next = $a"
+}
+
+/*
  * State not explored further because it was already subsumed by another state in the graph.
  */
 case object StateSubsumed extends EdgeAnnotation {

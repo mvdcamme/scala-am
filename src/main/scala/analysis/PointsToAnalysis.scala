@@ -108,7 +108,7 @@ class PointsToAnalysisLauncher[
 
   val aam: SpecAAM = new SpecAAM()
 
-  val incrementalAnalysis = new IncrementalPointsToAnalysis[Abs, aam.GraphNode](aam)
+  val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, aam.GraphNode](aam)
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]
