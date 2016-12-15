@@ -183,7 +183,8 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                           case ControlError(_) => Colors.Red
                         }
                     },
-                    _ => List())
+                    _ => List(),
+                    None)
       case None =>
         println("Not generating graph because no graph was computed")
     }

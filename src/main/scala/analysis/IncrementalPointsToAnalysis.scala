@@ -190,6 +190,12 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
   var graphSize: List[(Int, Int)] = Nil
   var concreteNodes: List[(Int, Int, List[Int])] = Nil
 
+  private def addNodesVisited(nodes: Set[GraphNode]): Unit =
+    nodes.foreach(nodesVisited += _)
+
+  private def addEdgesVisited(node: GraphNode, edges: Set[Edge]): Unit =
+    edges.foreach((tuple) => edgesVisited += ((node, tuple._1, tuple._2)))
+
   def computeSuccNodes(convertValueFun: ConcreteConcreteLattice.L => AbstL,
                        convertFrameFun: SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] =>
                                         SchemeFrame[AbstL, HybridAddress.A, HybridTimestamp.T],
@@ -204,6 +210,14 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
     currentNodes = succNodes.flatMap(followStateSubsumedEdges)
     concreteNodes = concreteNodes :+ (stepNumber, currentNodes.size, currentNodes.toList.map(initialGraph.get.nodeId))
     Logger.log(s"in step $stepNumber, after: currentNodes = ${currentNodes.zip(currentNodes.map(initialGraph.get.nodeId))}", Logger.U)
+  private def saveTraversedGraph(): Unit = {
+    initialGraph.get.toDotFile(
+      "Analysis/Traversed graph/traversed_graph.dot",
+      node => List(scala.xml.Text(node.toString.take(40))),
+      (s) => if (nodesVisited.contains(s)) Colors.Red else Colors.White,
+      node => List(scala.xml.Text(node.mkString(", ").take(300))),
+      Some((edge) =>
+        if (edgesVisited.contains(edge)) Colors.Red else Colors.Black))
   }
 
   def end(): Unit = {

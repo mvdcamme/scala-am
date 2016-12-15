@@ -393,7 +393,8 @@ class HybridMachine[
                       if (halted.contains(s)) { Colors.Yellow } else {
                         s.graphNodeColor
                     },
-                    _ => List())
+                    _ => List(),
+                    None)
       case None =>
         Logger
           .log("Not generating graph because no graph was computed", Logger.E)

@@ -3,6 +3,7 @@ object Colors {
   val Green = "#DDFFDD"
   val Pink = "#FFDDDD"
   val Red = "#FF0000"
+  val Black = "#000000"
   val White = "#FFFFFF"
 }
 
@@ -53,13 +54,14 @@ case class Graph[Node, Annotation](ids: Map[Node, Int],
     ids.getOrElse(node, -1)
   def nodeExists(node: Node): Boolean = nodeId(node) != -1
   def toDot(label: Node => List[scala.xml.Node],
-            color: Node => String,
-            annotLabel: Annotation => List[scala.xml.Node]): String = {
+            colorNode: Node => String,
+            annotLabel: Annotation => List[scala.xml.Node],
+            colorEdge: Option[((Node, Annotation, Node)) => String]): String = {
     val sb = new StringBuilder("digraph G {\nsize=\"8,10.5\"\n")
     nodes.foreach((n) => {
       val labelstr = label(n).mkString(" ")
       sb.append(
-        s"node_${ids(n)}[label=<${ids(n)}: $labelstr>, fillcolor=<${color(n)}> style=<filled>];\n")
+        s"node_${ids(n)}[label=<${ids(n)}: $labelstr>, fillcolor=<${colorNode(n)}> style=<filled>];\n")
     })
     edges.foreach({
       case (n1, ns) =>
@@ -67,7 +69,8 @@ case class Graph[Node, Annotation](ids: Map[Node, Int],
           case (annots, n2) =>
             val annotstr = annotLabel(annots).mkString(" ")
             sb.append(
-              s"node_${ids(n1)} -> node_${ids(n2)} [label=<$annotstr>]\n")
+              s"node_${ids(n1)} -> node_${ids(n2)} [label=<$annotstr>" +
+              s"${colorEdge.foldLeft("")( (_, f) => " color=<" + f((n1, annots, n2)) + ">")}]\n")
         })
     })
     sb.append("}")
@@ -76,10 +79,11 @@ case class Graph[Node, Annotation](ids: Map[Node, Int],
   def toDotFile(path: String,
                 label: Node => List[scala.xml.Node],
                 color: Node => String,
-                annotLabel: Annotation => List[scala.xml.Node]): Unit = {
+                annotLabel: Annotation => List[scala.xml.Node],
+                colorEdge: Option[((Node, Annotation, Node)) => String]): Unit = {
     val f = new java.io.File(path)
     val bw = new java.io.BufferedWriter(new java.io.FileWriter(f))
-    bw.write(toDot(label, color, annotLabel))
+    bw.write(toDot(label, color, annotLabel, colorEdge))
     bw.close()
   }
 

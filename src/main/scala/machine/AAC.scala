@@ -111,7 +111,7 @@ class AAC[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       graph.toDotFile(file, {
         case KontCtx(ctx) => List(scala.xml.Text(ctx.toString.take(40)))
         case KontEmpty => List(scala.xml.Text("ε"))
-      }, x => Colors.White, x => List(scala.xml.Text(x.toString)))
+      }, x => Colors.White, x => List(scala.xml.Text(x.toString)), None)
     }
   }
 
@@ -408,7 +408,8 @@ class AAC[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                           case ControlError(_) => Colors.Red
                         }
                     },
-                    _ => List())
+                    _ => List(),
+                    None)
       case None =>
         println("Not generating graph because no graph was computed")
     }
