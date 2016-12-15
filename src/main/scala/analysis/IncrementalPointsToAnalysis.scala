@@ -1,10 +1,14 @@
 class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: AAM[_, _, _, _]) {
 
   type AbstractGraph = Graph[GraphNode, List[EdgeInformation]]
+  type Edge = (List[EdgeInformation], GraphNode)
 
-  var initialGraph: Option[Graph[GraphNode, List[EdgeInformation]]] = None
-  var currentGraph: Option[Graph[GraphNode, List[EdgeInformation]]] = initialGraph
+  var initialGraph: Option[AbstractGraph] = None
+  var currentGraph: Option[AbstractGraph] = initialGraph
   var currentNodes: Set[GraphNode] = Set()
+
+  var nodesVisited: Set[GraphNode] = Set()
+  var edgesVisited: Set[(GraphNode, List[EdgeInformation], GraphNode)] = Set()
 
   def hasInitialGraph: Boolean = currentGraph.isDefined
   def initializeGraph(graph: AbstractGraph) = {
@@ -34,13 +38,16 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
         if (edge._1.contains(StateSubsumed)) {
           /* Make sure that an edge is ONLY annotated with StateSubsumed. It should not be possible
            * to have a StateSubsumed edge with any other annotation. */
-          assert(edge._1.size == 1, s"StateSubsumed edge contains more than 1 edge: ${edge._1}")
+          assert(edge._1.size == 1,
+                 s"StateSubsumed edge contains more than 1 edge: ${edge._1}")
+          addEdgesVisited(node, Set(edge))
           followStateSubsumedEdges(edge._2)
         } else {
           Set(node)
-        })
+      })
 
-  class SubsumesOrdering[T](subsumes: (T, T) => Boolean) extends PartialOrdering[T] {
+  class SubsumesOrdering[T](subsumes: (T, T) => Boolean)
+      extends PartialOrdering[T] {
 
     def lteq(x: T, y: T): Boolean = {
       (subsumes(x, y), subsumes(y, x)) match {
@@ -60,32 +67,35 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
     }
   }
 
-  def findMinimallySubsuming[T](edges: Set[((List[EdgeInformation], GraphNode), T)],
-                                ordering: SubsumesOrdering[T]): Set[(List[EdgeInformation], GraphNode)] = {
-    edges.filter(tuple1 => {
-      /*
-       * Only keep a value n if it holds that n does not subsume any other value m.
-       * Only keep a value n if it holds that n is either smaller than (subsumed by), 'equal' to or incomparable with
-        * every other node m.
-       */
-      val excluded = edges.filter(_ != tuple1)
-      excluded.forall(tuple2 => ordering.tryCompare(tuple1._2, tuple2._2) match {
-        case Some(1) => false
-        case _ => true
+  def findMinimallySubsuming[T](edges: Set[(Edge, T)],
+                                ordering: SubsumesOrdering[T]): Set[Edge] = {
+    edges
+      .filter(tuple1 => {
+        /*
+         * Only keep a value n if it holds that n does not subsume any other value m.
+         * Only keep a value n if it holds that n is either smaller than (subsumed by), 'equal' to or incomparable with
+         * every other node m.
+         */
+        val excluded = edges.filter(_ != tuple1)
+        excluded.forall(tuple2 =>
+          ordering.tryCompare(tuple1._2, tuple2._2) match {
+            case Some(1) => false
+            case _ => true
+        })
       })
-    }).map(_._1)
+      .map(_._1)
   }
 
-  def filterReachedConcreteValueEdges(convertValueFun: ConcreteConcreteLattice.L => AbstL,
-                                      concreteValue: ConcreteConcreteLattice.L,
-                                      abstractEdges: Set[(List[EdgeInformation], GraphNode)]): Set[(List[EdgeInformation], GraphNode)] = {
+  def filterReachedConcreteValueEdges(
+      convertValueFun: ConcreteConcreteLattice.L => AbstL,
+      concreteValue: ConcreteConcreteLattice.L,
+      abstractEdges: Set[Edge]): Set[Edge] = {
     /*
-       * All edges containing a ReachedValue annotation whose abstract value actually subsumes the abstracted
-       * concrete value, zipped together with the abstract value that was reached.
-       */
-    val edgesContainingReachedValue: Set[((List[EdgeInformation], GraphNode), AbstL)] = abstractEdges.flatMap[(
-      (List[EdgeInformation], GraphNode), AbstL), Set[((List[EdgeInformation], GraphNode), AbstL)]](
-      (tuple: (List[EdgeInformation], GraphNode)) => {
+     * All edges containing a ReachedValue annotation whose abstract value actually subsumes the abstracted
+     * concrete value, zipped together with the abstract value that was reached.
+     */
+    val edgesContainingReachedValue: Set[(Edge, AbstL)] = abstractEdges
+      .flatMap[(Edge, AbstL), Set[(Edge, AbstL)]]((tuple: Edge) => {
         /*
          * The ReachedValue annotation (if any exists) containing an abstract value that subsumes the converted
          * concrete value.
@@ -109,16 +119,39 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
             Set()
         }
       })
-    val ordering = new SubsumesOrdering[AbstL](implicitly[IsSchemeLattice[AbstL]].subsumes)
-    val minReachedValueEdges: Set[(List[EdgeInformation], GraphNode)] = findMinimallySubsuming(edgesContainingReachedValue, ordering)
+    val ordering =
+      new SubsumesOrdering[AbstL](implicitly[IsSchemeLattice[AbstL]].subsumes)
+    val minReachedValueEdges: Set[Edge] =
+      findMinimallySubsuming(edgesContainingReachedValue, ordering)
     minReachedValueEdges
   }
 
-  def filterFrameFollowedEdges(convertFrameFun: SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] =>
-                                                SchemeFrame[AbstL, HybridAddress.A, HybridTimestamp.T],
-                               concreteFrame: SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-                               abstractEdges: Set[(List[EdgeInformation], GraphNode)]): Set[(List[EdgeInformation], GraphNode)] = {
-    if (! concreteFrame.meaningfullySubsumes) {
+  private def frameUsedSubsumes(getFrameFromInfo: EdgeInformation => Option[AbstractFrame])
+                               (info: EdgeInformation,
+                                convertedFrame: AbstractFrame)
+  : Option[AbstractFrame] =
+    getFrameFromInfo(info) match {
+      case Some(abstractFrame) =>
+        val subsumes = abstractFrame.subsumes(convertedFrame)
+        Logger.log(s"frameUsedSubsumes: $abstractFrame subsumes $convertedFrame ? $subsumes", Logger.U)
+        if (subsumes) {
+          Some(abstractFrame)
+        } else {
+          None
+        }
+      case _ =>
+        None
+    }
+
+  type ConcreteFrame =
+    SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
+  type AbstractFrame = SchemeFrame[AbstL, HybridAddress.A, HybridTimestamp.T]
+
+  def filterFrameEdges(convertedFrame: AbstractFrame,
+                       subsumesFrame: (EdgeInformation,
+                                       AbstractFrame) => Option[AbstractFrame],
+                       abstractEdges: Set[Edge]): Set[Edge] = {
+    if (!convertedFrame.meaningfullySubsumes) {
       // TODO hack: implement a proper subsumes method for every frame
       abstractEdges
     } else {
@@ -126,64 +159,85 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
        * All edges containing a FrameFollowed annotation whose abstract value actually subsumes the abstracted
        * concrete value, zipped together with the abstract value that was reached.
        */
-      val edgesContainingFrameFollowed: Set[((List[EdgeInformation], GraphNode), SchemeFrame[AbstL, HybridAddress.A, HybridTimestamp.T])] = abstractEdges.flatMap[(
-        (List[EdgeInformation], GraphNode), SchemeFrame[AbstL, HybridAddress.A, HybridTimestamp.T]), Set[((List[EdgeInformation], GraphNode), SchemeFrame[AbstL, HybridAddress.A, HybridTimestamp.T])]](
-        (tuple: (List[EdgeInformation], GraphNode)) => {
-          val frameFollowedFound: Option[EdgeInformation] = tuple._1.find({
-            case FrameFollowed(abstractFrame) =>
-              val convertedFrame = convertFrameFun(concreteFrame)
-              abstractFrame.subsumes(convertedFrame)
-            case _ =>
-              false
-          })
-          frameFollowedFound match {
-            case info: Some[FrameFollowed[AbstL]] =>
-              Set((tuple, info.get.frame))
-            case _ =>
-              Set()
-          }
-        })
-      val ordering = new SubsumesOrdering[SchemeFrame[AbstL, HybridAddress.A, HybridTimestamp.T]]( (frame1, frame2) => frame1.subsumes(frame2))
-      val minFrameFollowedEdges: Set[(List[EdgeInformation], GraphNode)] = findMinimallySubsuming(edgesContainingFrameFollowed, ordering)
+      val edgesContainingFrames: Set[(Edge, AbstractFrame)] =
+        abstractEdges
+          .flatMap[(Edge, AbstractFrame), Set[(Edge, AbstractFrame)]](
+            (edge: Edge) => {
+              val someFound: Option[AbstractFrame] = edge._1.map(subsumesFrame(_, convertedFrame)).foldLeft[Option[AbstractFrame]](None)({
+                case (Some(x), _) =>
+                  Some(x)
+                case (None, y) =>
+                  y
+              })
+              someFound.foldLeft[Set[(Edge, AbstractFrame)]](Set())({
+                case (_, abstractFrame) => Set((edge, abstractFrame))
+              })
+            })
+      val ordering = new SubsumesOrdering[AbstractFrame]((frame1, frame2) =>
+        frame1.subsumes(frame2))
+      val minFrameFollowedEdges: Set[Edge] =
+        findMinimallySubsuming(edgesContainingFrames, ordering)
+      Logger.log(s"minFrameFollowedEdges = $minFrameFollowedEdges", Logger.U)
       minFrameFollowedEdges
     }
   }
 
-  def filterSingleEdgeInfo( convertValueFun: ConcreteConcreteLattice.L => AbstL,
-                            convertFrameFun: SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] =>
-                                             SchemeFrame[AbstL, HybridAddress.A, HybridTimestamp.T],
-                            abstractEdges: Set[(List[EdgeInformation], GraphNode)],
-                            concreteEdgeInfo: EdgeInformation): Set[(List[EdgeInformation], GraphNode)] = concreteEdgeInfo match {
-    case ReachedConcreteValue(concreteValue) =>
-      filterReachedConcreteValueEdges(convertValueFun, concreteValue, abstractEdges)
+  def filterSingleEdgeInfo(convertValueFun: ConcreteConcreteLattice.L => AbstL,
+                           convertFrameFun: ConcreteFrame => AbstractFrame,
+                           abstractEdges: Set[Edge],
+                           concreteEdgeInfo: EdgeInformation): Set[Edge] =
+    concreteEdgeInfo match {
+      case ReachedConcreteValue(concreteValue) =>
+        filterReachedConcreteValueEdges(convertValueFun,
+                                        concreteValue,
+                                        abstractEdges)
 
-    case info: FrameFollowed[ConcreteConcreteLattice.L] =>
-      filterFrameFollowedEdges(convertFrameFun, info.frame, abstractEdges)
+      case info: FrameFollowed[ConcreteConcreteLattice.L] =>
+        filterFrameEdges(convertFrameFun(info.frame), frameUsedSubsumes({
+          case info: FrameFollowed[AbstL] =>
+            Some(info.frame)
+          case _ =>
+            None}),
+          abstractEdges)
 
-    case _ => abstractEdges.filter({
-      case (abstractEdgeInfos, node) =>
-        concreteEdgeInfo match {
-          case ThenBranchTaken | ElseBranchTaken =>
-            abstractEdgeInfos.contains(concreteEdgeInfo)
-          case EvaluatingExpression(e) =>
-            abstractEdgeInfos.contains(concreteEdgeInfo)
-          case OperatorTaken(_) =>
-            true
-        }
-    })
-  }
+      case info: FramePushed[ConcreteConcreteLattice.L] =>
+        filterFrameEdges(convertFrameFun(info.frame), frameUsedSubsumes({
+          case info: FramePushed[AbstL] =>
+            Some(info.frame)
+          case _ =>
+            None}),
+          abstractEdges)
 
-  def computeSuccNode( convertValueFun: ConcreteConcreteLattice.L => AbstL,
-                       convertFrameFun: SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] =>
-                                        SchemeFrame[AbstL, HybridAddress.A, HybridTimestamp.T],
-                       node: GraphNode,
-                       concreteEdgeInfos: List[EdgeInformation]): Set[GraphNode] = {
+      case _ =>
+        abstractEdges.filter({
+          case (abstractEdgeInfos, node) =>
+            concreteEdgeInfo match {
+              case ThenBranchTaken | ElseBranchTaken =>
+                abstractEdgeInfos.contains(concreteEdgeInfo)
+              case EvaluatingExpression(e) =>
+                abstractEdgeInfos.contains(concreteEdgeInfo)
+              case OperatorTaken(_) =>
+                true
+            }
+        })
+    }
+
+  def computeSuccNode(
+      convertValueFun: ConcreteConcreteLattice.L => AbstL,
+      convertFrameFun: ConcreteFrame => AbstractFrame,
+      node: GraphNode,
+      concreteEdgeInfos: List[EdgeInformation]): Set[GraphNode] = {
     assert(currentNodes.nonEmpty && currentGraph.isDefined)
     val abstractEdges = currentGraph.get.nodeEdges(node)
     val filteredAbstractEdges =
-      concreteEdgeInfos.foldLeft[Set[(List[EdgeInformation], GraphNode)]](
-        abstractEdges)((filteredAbstractEdges, concreteEdgeInfo) =>
-        filterSingleEdgeInfo(convertValueFun, convertFrameFun, filteredAbstractEdges, concreteEdgeInfo))
+      concreteEdgeInfos.foldLeft[Set[Edge]](abstractEdges)(
+        (filteredAbstractEdges, concreteEdgeInfo) =>
+          filterSingleEdgeInfo(convertValueFun,
+                               convertFrameFun,
+                               filteredAbstractEdges,
+                               concreteEdgeInfo))
+    addEdgesVisited(node, filteredAbstractEdges)
+    Logger.log(s"filteredAbstractEdges = $filteredAbstractEdges", Logger.U)
     filteredAbstractEdges.map(_._2)
   }
 
@@ -197,19 +251,30 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
     edges.foreach((tuple) => edgesVisited += ((node, tuple._1, tuple._2)))
 
   def computeSuccNodes(convertValueFun: ConcreteConcreteLattice.L => AbstL,
-                       convertFrameFun: SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] =>
-                                        SchemeFrame[AbstL, HybridAddress.A, HybridTimestamp.T],
+                       convertFrameFun: ConcreteFrame => AbstractFrame,
                        edgeInfos: List[EdgeInformation],
                        stepNumber: Int) = {
-    Logger.log(s"in step $stepNumber, concreteEdgeInfos = $edgeInfos, before: currentNodes = $currentNodes", Logger.U)
+    Logger.log(
+      s"in step $stepNumber, concreteEdgeInfos = $edgeInfos, before: currentNodes = $currentNodes",
+      Logger.U)
+    addNodesVisited(currentNodes)
     /* First follow all StateSubsumed edges before trying to use the concrete edge information */
     val nodesSubsumedEdgesFollowed =
       currentNodes.flatMap(followStateSubsumedEdges)
-    val succNodes =
-      nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(convertValueFun, convertFrameFun, _, edgeInfos))
+    addNodesVisited(nodesSubsumedEdgesFollowed)
+    val succNodes = nodesSubsumedEdgesFollowed.flatMap(
+      computeSuccNode(convertValueFun, convertFrameFun, _, edgeInfos))
+    addNodesVisited(succNodes)
+    Logger.log(
+      s"succNodes = ${succNodes.zip(succNodes.map(initialGraph.get.nodeId))}",
+      Logger.U)
     currentNodes = succNodes.flatMap(followStateSubsumedEdges)
-    concreteNodes = concreteNodes :+ (stepNumber, currentNodes.size, currentNodes.toList.map(initialGraph.get.nodeId))
-    Logger.log(s"in step $stepNumber, after: currentNodes = ${currentNodes.zip(currentNodes.map(initialGraph.get.nodeId))}", Logger.U)
+    concreteNodes = concreteNodes :+ (stepNumber, currentNodes.size, currentNodes.toList
+        .map(initialGraph.get.nodeId))
+    Logger.log(s"in step $stepNumber, after: currentNodes = ${currentNodes.zip(
+      currentNodes.map(initialGraph.get.nodeId))}", Logger.U)
+  }
+
   private def saveTraversedGraph(): Unit = {
     initialGraph.get.toDotFile(
       "Analysis/Traversed graph/traversed_graph.dot",
@@ -224,10 +289,14 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
     /*
      * Write the evolution of the size + ids of the concrete nodes.
      */
-    val fileWithoudIds = new java.io.File("Analysis/Concrete nodes/concrete_nodes_size.txt")
-    val fileWithIds = new java.io.File("Analysis/Concrete nodes/concrete_nodes_size_with_ids.txt")
-    val bwWithoutIds = new java.io.BufferedWriter(new java.io.FileWriter(fileWithoudIds))
-    val bwWithIds = new java.io.BufferedWriter(new java.io.FileWriter(fileWithIds))
+    val fileWithoudIds =
+      new java.io.File("Analysis/Concrete nodes/concrete_nodes_size.txt")
+    val fileWithIds = new java.io.File(
+      "Analysis/Concrete nodes/concrete_nodes_size_with_ids.txt")
+    val bwWithoutIds =
+      new java.io.BufferedWriter(new java.io.FileWriter(fileWithoudIds))
+    val bwWithIds =
+      new java.io.BufferedWriter(new java.io.FileWriter(fileWithIds))
     concreteNodes.foreach((tuple) => {
       bwWithoutIds.write(s"${tuple._1};${tuple._2}\n")
       bwWithIds.write(s"${tuple._1};${tuple._2};${tuple._3.mkString(";")}\n")
@@ -242,6 +311,8 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
     val bw = new java.io.BufferedWriter(f)
     graphSize.foreach( (tuple) => bw.write(s"${tuple._1};${tuple._2}\n") )
     bw.close()
+
+    saveTraversedGraph()
   }
 
   case class ReachablesIntermediateResult(graph: AbstractGraph,
@@ -258,10 +329,14 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
     val nodesDone = reachables.nodesDone
     if (!nodesDone.contains(node)) {
       val edges = currentGraph.get.nodeEdges(node)
-      val newGraphTodo = edges.foldLeft((graph, todoQueue))( (graphTodo, edge) => {
-        (graphTodo._1.addEdge(node, edge._1, edge._2), graphTodo._2 :+ edge._2)
-      })
-      ReachablesIntermediateResult(newGraphTodo._1, nodesDone + node, newGraphTodo._2)
+      val newGraphTodo =
+        edges.foldLeft((graph, todoQueue))((graphTodo, edge) => {
+          (graphTodo._1.addEdge(node, edge._1, edge._2),
+           graphTodo._2 :+ edge._2)
+        })
+      ReachablesIntermediateResult(newGraphTodo._1,
+                                   nodesDone + node,
+                                   newGraphTodo._2)
     } else {
       /* If the current node was already placed in the graph, all of its edges should also
        * already have been placed in the graph, so we don't need to recursively call ourselves here. */
@@ -269,18 +344,24 @@ class IncrementalPointsToAnalysis[AbstL : IsSchemeLattice, GraphNode](val aam: A
     }
   }
 
-  def breadthFirst(reachables: ReachablesIntermediateResult): ReachablesIntermediateResult = reachables.todoQueue match {
-    case Nil =>
-      reachables
-    case node :: rest =>
-      val newReachables = addReachableEdges(ReachablesIntermediateResult(reachables.graph, reachables.nodesDone,
-        rest), node)
-      breadthFirst(newReachables)
-  }
+  def breadthFirst(
+      reachables: ReachablesIntermediateResult): ReachablesIntermediateResult =
+    reachables.todoQueue match {
+      case Nil =>
+        reachables
+      case node :: rest =>
+        val newReachables = addReachableEdges(
+          ReachablesIntermediateResult(reachables.graph,
+                                       reachables.nodesDone,
+                                       rest),
+          node)
+        breadthFirst(newReachables)
+    }
 
   def filterReachable(stepCount: Int): Unit = {
     assert(currentGraph.isDefined)
-    val reachables = ReachablesIntermediateResult(new Graph(), Set(), currentNodes.toList)
+    val reachables =
+      ReachablesIntermediateResult(new Graph(), Set(), currentNodes.toList)
     val filteredGraph = breadthFirst(reachables).graph
     currentGraph = Some(filteredGraph)
     val newEdgesSize = currentGraph.get.edges.size

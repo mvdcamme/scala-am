@@ -96,6 +96,16 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       extends SchemeFrame[Abs, Addr, Time] {
     override def savesEnv(): Option[Environment[Address]] = Some(env)
 
+    override def meaningfullySubsumes = true
+    override def subsumes(that: Frame): Boolean = that match {
+      case FrameIf(thatCons, thatAlt, thatEnv) =>
+        cons == thatCons &&
+        alt == thatAlt &&
+        env.subsumes(thatEnv)
+      case _ => false
+
+    }
+
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
         convertEnv: Environment[Addr] => Environment[Addr],

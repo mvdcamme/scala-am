@@ -56,30 +56,30 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     private def integrate(a: KontAddr,
                           edges: Set[(Action[Exp, Abs, Addr], List[EdgeInformation])]): Set[(State, List[EdgeInformation])] =
       edges.map({ case (action, edgeInfo) =>
-        val newState = action match {
+        action match {
           /* When a value is reached, we go to a continuation state */
           case ActionReachedValue(v, store, _) =>
-            State(ControlKont(v), store, kstore, a, time.tick(t))
+            (State(ControlKont(v), store, kstore, a, time.tick(t)), edgeInfo)
           /* When a continuation needs to be pushed, push it in the continuation store */
           case ActionPush(frame, e, env, store, _) => {
             val next = NormalKontAddress[Exp, Time](e, t)
-            State(ControlEval(e, env),
+            (State(ControlEval(e, env),
               store,
               kstore.extend(next, Kont(frame, a)),
               next,
-              time.tick(t))
+              time.tick(t)),
+              FramePushed(frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) :: edgeInfo)
           }
           /* When a value needs to be evaluated, we go to an eval state */
           case ActionEval(e, env, store, _) =>
-            State(ControlEval(e, env), store, kstore, a, time.tick(t))
+            (State(ControlEval(e, env), store, kstore, a, time.tick(t)), edgeInfo)
           /* When a function is stepped in, we also go to an eval state */
           case ActionStepIn(fexp, _, e, env, store, _, _) =>
-            State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp))
+            (State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)), edgeInfo)
           /* When an error is reached, we go to an error state */
           case ActionError(err) =>
-            State(ControlError(err), store, kstore, a, time.tick(t))
+            (State(ControlError(err), store, kstore, a, time.tick(t)), edgeInfo)
         }
-        (newState, edgeInfo)
       })
 
     /**

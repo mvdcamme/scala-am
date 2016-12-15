@@ -311,6 +311,7 @@ class HybridConcreteMachine[
                 case ActionReachedValue(v, store2, _) =>
                   Right(State(ControlKont(v), store2, kstore, a, time.tick(t)), maybeAddReachedConcreteValue(v, edgeInfos))
                 case ActionPush(frame, e, env, store2, _) =>
+                  val frameCast = frame.asInstanceOf[SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]]
                   val next =
                     NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                   Right(State(ControlEval(e, env),
@@ -318,7 +319,7 @@ class HybridConcreteMachine[
                     kstore.extend(next, Kont(frame, a)),
                     next,
                     time.tick(t)),
-                    EvaluatingExpression(e) :: edgeInfos)
+                    EvaluatingExpression(e) :: FramePushed(frameCast) :: edgeInfos)
                 case ActionEval(e, env, store2, _) =>
                   Right(State(ControlEval(e, env),
                     store2,
@@ -357,7 +358,7 @@ class HybridConcreteMachine[
               val frames = kstore.lookup(a)
               if (frames.size == 1) {
                 val frame = frames.head.frame
-                val frameCast = frame.asInstanceOf[SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]]
+                val originFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]]
                 val a = frames.head.next
                 val edges = sem.stepKont(v, frame, store, t)
                 if (edges.size == 1) {
@@ -365,23 +366,24 @@ class HybridConcreteMachine[
                   edges.head._1 match {
                     case ActionReachedValue(v, store2, _) =>
                       Right((State(ControlKont(v), store2, kstore, a, time.tick(t)),
-                             maybeAddReachedConcreteValue(v, FrameFollowed[ConcreteConcreteLattice.L](frameCast) :: edge)))
+                             maybeAddReachedConcreteValue(v, FrameFollowed[ConcreteConcreteLattice.L](originFrameCast) :: edge)))
                     case ActionPush(frame, e, env, store2, _) =>
+                      val destinationFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]]
                       val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                       Right((State(ControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
-                             EvaluatingExpression(e) :: FrameFollowed[ConcreteConcreteLattice.L](frameCast) :: edge))
+                             EvaluatingExpression(e) :: FrameFollowed(originFrameCast) :: FramePushed(destinationFrameCast) :: edge))
                     case ActionEval(e, env, store2, _) =>
                       Right(State(ControlEval(e, env),
                         store2,
                         kstore,
                         a,
-                        time.tick(t)), EvaluatingExpression(e) :: FrameFollowed[ConcreteConcreteLattice.L](frameCast) :: edge)
+                        time.tick(t)), EvaluatingExpression(e) :: FrameFollowed[ConcreteConcreteLattice.L](originFrameCast) :: edge)
                     case ActionStepIn(fexp, _, e, env, store2, _, _) =>
                       Right(State(ControlEval(e, env),
                         store2,
                         kstore,
                         a,
-                        time.tick(t, fexp)), EvaluatingExpression(e) :: FrameFollowed[ConcreteConcreteLattice.L](frameCast) :: edge)
+                        time.tick(t, fexp)), EvaluatingExpression(e) :: FrameFollowed[ConcreteConcreteLattice.L](originFrameCast) :: edge)
                     case ActionError(err) =>
                       Left(ConcreteMachineOutputError(
                         (System.nanoTime - start) / Math.pow(10, 9),

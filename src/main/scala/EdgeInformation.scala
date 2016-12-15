@@ -26,7 +26,14 @@ case class OperatorTaken[Exp : Expression](body: List[Exp]) extends EdgeInformat
  * Control-flow split due to spurious return: check continuation frame used.
  */
 case class FrameFollowed[Abs : JoinLattice](frame: SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]) extends EdgeInformation {
-  override def toString = frame.toString
+  override def toString = s"Followed $frame"
+}
+
+/*
+ * Pushed a frame into the continuation store.
+ */
+case class FramePushed[Abs : JoinLattice](frame: SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]) extends EdgeInformation {
+  override def toString = s"Pushed $frame"
 }
 
 /*
