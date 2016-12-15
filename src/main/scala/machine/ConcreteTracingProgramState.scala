@@ -722,9 +722,8 @@ case class ProgramState[Exp: Expression](
                                        HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T])
     : KontStore[KAddr] = {
-    val kontAddrConverter = new DefaultKontAddrConverter[Exp]
-    kontStore.map(
-      kontAddrConverter.convertKontAddr,
+    val kontAddrConverter = new DefaultKontAddrConverter[Exp, KAddr]
+    kontStore.map(kontAddrConverter.convertKontAddr,
       (frame: Frame) =>
         concBaseSem.convertAbsInFrame[AbstL](
           frame.asInstanceOf[SchemeFrame[ConcreteValue,

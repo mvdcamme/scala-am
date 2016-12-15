@@ -10,7 +10,7 @@ object IdHybridAddressConverter extends AddressConverter[HybridAddress.A] {
 
 }
 
-class ConvertTimeStampHybridAddressConverter[Exp: Expression, Time: Timestamp](
+class ConvertTimestampHybridAddressConverter[Exp: Expression, Time: Timestamp](
     timeSwitcher: TimestampConverter[Time])
     extends AddressConverter[HybridAddress.A] {
 
@@ -42,7 +42,7 @@ class DefaultHybridAddressConverter[Exp: Expression]
 
   val timestampConverter = ConvertTimeStampConverter
   val addressConverter =
-    new ConvertTimeStampHybridAddressConverter[Exp, HybridTimestamp.T](
+    new ConvertTimestampHybridAddressConverter[Exp, HybridTimestamp.T](
       timestampConverter)
 
   def convertAddress(address: HybridAddress.A): HybridAddress.A =
