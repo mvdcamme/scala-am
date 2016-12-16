@@ -186,7 +186,7 @@ trait HasFinalStores[Addr, Abs] {
 trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
   type MachineState
   type GraphNode
-  type MachineOutput <: MayHaveGraph[GraphNode] with HasFinalStores[Addr, Abs]
+  type MachineOutput <: Output[Abs] with MayHaveGraph[GraphNode] with HasFinalStores[Addr, Abs]
 
   def kickstartEval(initialState: MachineState,
                     sem: Semantics[Exp, Abs, Addr, Time],

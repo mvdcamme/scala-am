@@ -236,7 +236,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                          startingTime,
                          timeout,
                          graph.addEdges(s.toStateSet.flatMap(state1 =>
-                           s2Edge.toStateSet.map(state2 => (state1, List(TODOEdgeAnnotation$), state2)))),
+                           s2Edge.toStateSet.map(state2 => (state1, List(TODOEdgeAnnotation), state2)))),
                          sem)
     }
   }
@@ -280,7 +280,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
              visited + s,
              h,
              graph.addEdges(s.toStateSet.flatMap(state1 =>
-               s2.toStateSet.map(state2 => (state1, List(TODOEdgeAnnotation$), state2)))))
+               s2.toStateSet.map(state2 => (state1, List(TODOEdgeAnnotation), state2)))))
       }
     }
 

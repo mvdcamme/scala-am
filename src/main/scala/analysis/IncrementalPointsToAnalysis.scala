@@ -256,7 +256,8 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
                        convertFrameFun: ConcreteFrame => AbstractFrame,
                        edgeInfos: List[EdgeAnnotation],
                        stepNumber: Int) = {
-    Logger.log(s"in step $stepNumber \nbefore: currentNodes = $currentNodes \nconcreteEdgeInfos = $edgeInfos", Logger.U)
+    Logger.log(s"in step $stepNumber \nbefore: currentNodes = ${currentNodes.zip(currentNodes.map(initialGraph.get.nodeId))} " +
+               s"\nconcreteEdgeInfos = $edgeInfos", Logger.U)
     addNodesVisited(currentNodes)
     /* First follow all StateSubsumed edges before trying to use the concrete edge information */
     val nodesSubsumedEdgesFollowed =

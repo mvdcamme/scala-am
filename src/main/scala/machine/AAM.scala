@@ -242,7 +242,6 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
           case Some(s) =>
             if (visited.contains(s)) {
               /* If we already visited the state, we ignore it. */
-//              loop(todo.tail, visited, halted, startingTime, graph)
               loop(todo.tail, visited, halted, startingTime, graph)
             } else if (visited.exists(s2 => s2.subsumes(s))) {
               /* If the state is subsumed by another already visited state,

@@ -3,14 +3,15 @@ trait EdgeAnnotation
 case object NoEdgeAnnotation$ extends EdgeAnnotation {
   override def toString = "void"
 }
-case object TODOEdgeAnnotation$ extends EdgeAnnotation
+case object TODOEdgeAnnotation extends EdgeAnnotation
 
 /*
- * Control-flow split due to if: took else or then.
+ * Control-flow split due to if: took else-branch or then-branch.
  */
 case object ElseBranchTaken extends EdgeAnnotation {
   override def toString = "Else"
 }
+
 case object ThenBranchTaken extends EdgeAnnotation {
   override def toString = "Then"
 }
