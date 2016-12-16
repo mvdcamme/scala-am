@@ -309,7 +309,8 @@ class HybridConcreteMachine[
               val edgeInfos = edges.head._2
               edges.head._1 match {
                 case ActionReachedValue(v, store2, _) =>
-                  Right(State(ControlKont(v), store2, kstore, a, time.tick(t)), maybeAddReachedConcreteValue(v, edgeInfos))
+                  Right(State(ControlKont(v), store2, kstore, a, time.tick(t)),
+                        NextKontAddressNow(a) :: maybeAddReachedConcreteValue(v, edgeInfos))
                 case ActionPush(frame, e, env, store2, _) =>
                   val frameCast = frame.asInstanceOf[SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]]
                   val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
@@ -317,10 +318,10 @@ class HybridConcreteMachine[
                         NextKontAddressNow(next) :: EvaluatingExpression(e) :: FramePushed(frameCast) :: edgeInfos)
                 case ActionEval(e, env, store2, _) =>
                   Right(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
-                    EvaluatingExpression(e) :: edgeInfos)
+                        NextKontAddressNow(a) :: EvaluatingExpression(e) :: edgeInfos)
                 case ActionStepIn(fexp, _, e, env, store2, _, _) =>
                   Right(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
-                        EvaluatingExpression(e) :: edgeInfos)
+                        NextKontAddressNow(a) :: EvaluatingExpression(e) :: edgeInfos)
                 case ActionError(err) =>
                   Left(ConcreteMachineOutputError(
                     (System.nanoTime - start) / Math.pow(10, 9),
@@ -353,7 +354,7 @@ class HybridConcreteMachine[
                   edges.head._1 match {
                     case ActionReachedValue(v, store2, _) =>
                       Right((State(ControlKont(v), store2, kstore, a, time.tick(t)),
-                        NextKontAddressNow(a) :: maybeAddReachedConcreteValue(v, FrameFollowed[ConcreteConcreteLattice.L](originFrameCast) :: edge)))
+                            NextKontAddressNow(a) :: maybeAddReachedConcreteValue(v, FrameFollowed[ConcreteConcreteLattice.L](originFrameCast) :: edge)))
                     case ActionPush(frame, e, env, store2, _) =>
                       val destinationFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]]
                       val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
@@ -417,7 +418,7 @@ class HybridConcreteMachine[
             SchemeFrame[PAbs, HybridAddress.A, HybridTimestamp.T] = {
               (frame: SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]) =>
                 concBaseSem.convertAbsInFrame[PAbs](
-                  frame.asInstanceOf[SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]],
+                  frame,
                   convertValueFun,
                   convertEnv,
                   abstSem)

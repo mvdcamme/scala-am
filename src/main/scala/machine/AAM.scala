@@ -48,10 +48,6 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       control.subsumes(that.control) && store.subsumes(that.store) && a == that.a && kstore
         .subsumes(that.kstore) && t == that.t
 
-    private def addNextKontAddressNow(a: KontAddr, newA: KontAddr, edgeInfos: List[EdgeAnnotation])
-    : List[EdgeAnnotation] =
-      if (a != newA) NextKontAddressNow(newA) :: edgeInfos else edgeInfos
-
     /**
       * Integrates a set of actions (returned by the semantics, see
       * Semantics.scala), in order to generate a set of states that succeeds this
@@ -90,7 +86,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         /* In a eval state, call the semantic's evaluation method */
         case ControlEval(e, env) =>
           val succsEdges = integrate(a, sem.stepEval(e, env, store, t))
-          succsEdges.map({ case (succState, edgeInfos) => (succState, addNextKontAddressNow(a, succState.a, edgeInfos)) })
+          succsEdges.map({ case (succState, edgeInfos) => (succState, NextKontAddressNow(succState.a) :: edgeInfos) })
         /* In a continuation state, call the semantics' continuation method */
         case ControlKont(v) =>
           kstore
@@ -100,8 +96,9 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                 val succsEdges = integrate(next, sem.stepKont(v, frame, store, t))
                 succsEdges.map({ case (succState, edgeInfos) =>
                   /* If step did not generate any EdgeAnnotation, place a FrameFollowed EdgeAnnotation */
-                  val replacedEdgeInfo = addNextKontAddressNow(a, succState.a, FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A,  HybridTimestamp.T]]) ::
-                                                                               edgeInfos)
+                  val replacedEdgeInfo = NextKontAddressNow(succState.a) ::
+                                         FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A,  HybridTimestamp.T]]) ::
+                                         edgeInfos
                   (succState, replacedEdgeInfo)
                 })
             })
