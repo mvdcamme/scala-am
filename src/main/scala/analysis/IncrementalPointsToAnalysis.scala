@@ -32,19 +32,21 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
    * the concrete state should proceed with the state that subsumes the 'dead' state.
    */
   def followStateSubsumedEdges(node: GraphNode): Set[GraphNode] =
-    currentGraph.get
-      .nodeEdges(node)
-      .flatMap((edge) =>
+    if (currentGraph.get.nodeEdges(node).isEmpty) {
+      Set(node)
+    } else {
+      currentGraph.get.nodeEdges(node).flatMap((edge) =>
         if (edge._1.contains(StateSubsumed)) {
           /* Make sure that an edge is ONLY annotated with StateSubsumed. It should not be possible
            * to have a StateSubsumed edge with any other annotation. */
           assert(edge._1.size == 1,
-                 s"StateSubsumed edge contains more than 1 edge: ${edge._1}")
+            s"StateSubsumed edge contains more than 1 edge: ${edge._1}")
           addEdgesVisited(node, Set(edge))
           followStateSubsumedEdges(edge._2)
         } else {
           Set(node)
-      })
+        })
+    }
 
   class SubsumesOrdering[T](subsumes: (T, T) => Boolean)
       extends PartialOrdering[T] {
