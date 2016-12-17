@@ -31,10 +31,17 @@ case class FramePushed[Abs : JoinLattice](frame: SchemeFrame[Abs, HybridAddress.
 }
 
 /*
- * Current continuation address changed to a.
+ * Popped a continuation address.
  */
-case class NextKontAddressNow(a: KontAddr) extends EdgeAnnotation {
-  override def toString = s"next = $a"
+case class KontAddrPopped(oldA: KontAddr, newA: KontAddr) extends EdgeAnnotation {
+  override def toString = s"Popped = $oldA, next = $newA"
+}
+
+/*
+ * Pushed a continuation address.
+ */
+case class KontAddrPushed(a: KontAddr) extends EdgeAnnotation {
+  override def toString = s"Pushed = $a"
 }
 
 /*

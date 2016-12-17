@@ -64,7 +64,9 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
           case ActionPush(frame, e, env, store, _) => {
             val next = NormalKontAddress[Exp, Time](e, t)
             (State(ControlEval(e, env), store, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
-              FramePushed(frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) :: edgeInfo)
+             KontAddrPushed(next) ::
+             FramePushed(frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) ::
+             edgeInfo)
           }
           /* When a value needs to be evaluated, we go to an eval state */
           case ActionEval(e, env, store, _) =>
@@ -85,8 +87,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       control match {
         /* In a eval state, call the semantic's evaluation method */
         case ControlEval(e, env) =>
-          val succsEdges = integrate(a, sem.stepEval(e, env, store, t))
-          succsEdges.map({ case (succState, edgeInfos) => (succState, NextKontAddressNow(succState.a) :: edgeInfos) })
+          integrate(a, sem.stepEval(e, env, store, t))
         /* In a continuation state, call the semantics' continuation method */
         case ControlKont(v) =>
           kstore
@@ -96,7 +97,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                 val succsEdges = integrate(next, sem.stepKont(v, frame, store, t))
                 succsEdges.map({ case (succState, edgeInfos) =>
                   /* If step did not generate any EdgeAnnotation, place a FrameFollowed EdgeAnnotation */
-                  val replacedEdgeInfo = NextKontAddressNow(succState.a) ::
+                  val replacedEdgeInfo = KontAddrPopped(a, next) ::
                                          FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A,  HybridTimestamp.T]]) ::
                                          edgeInfos
                   (succState, replacedEdgeInfo)

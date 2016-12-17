@@ -218,9 +218,14 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
                 abstractEdgeInfos.contains(concreteEdgeInfo)
               case EvaluatingExpression(e) =>
                 abstractEdgeInfos.contains(concreteEdgeInfo)
-              case NextKontAddressNow(ka) =>
+              case KontAddrPopped(oldA, newA) =>
+                val KAConverter = new ConvertTimestampKontAddrConverter(ConvertTimeStampConverter)
+                val convertedOlda = KAConverter.convertKontAddr(oldA)
+                val convertedNewa = KAConverter.convertKontAddr(newA)
+                abstractEdgeInfos.contains(KontAddrPopped(convertedOlda, convertedNewa))
+              case KontAddrPushed(ka) =>
                 val convertedKa = new ConvertTimestampKontAddrConverter(ConvertTimeStampConverter).convertKontAddr(ka)
-                abstractEdgeInfos.contains(NextKontAddressNow(convertedKa))
+                abstractEdgeInfos.contains(KontAddrPushed(convertedKa))
             }
         })
     }
