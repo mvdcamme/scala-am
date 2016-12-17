@@ -6,28 +6,10 @@ case object NoEdgeAnnotation$ extends EdgeAnnotation {
 case object TODOEdgeAnnotation extends EdgeAnnotation
 
 /*
- * Control-flow split due to if: took else-branch or then-branch.
- */
-case object ElseBranchTaken extends EdgeAnnotation {
-  override def toString = "Else"
-}
-
-case object ThenBranchTaken extends EdgeAnnotation {
-  override def toString = "Then"
-}
-
-/*
  * Control-flow split due to spurious return: check continuation frame used.
  */
 case class FrameFollowed[Abs : JoinLattice](frame: SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]) extends EdgeAnnotation {
   override def toString = s"Followed $frame"
-}
-
-/*
- * Pushed a frame into the continuation store.
- */
-case class FramePushed[Abs : JoinLattice](frame: SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]) extends EdgeAnnotation {
-  override def toString = s"Pushed $frame"
 }
 
 /*

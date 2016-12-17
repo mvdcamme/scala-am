@@ -327,8 +327,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       v: Abs,
       t: => Action[SchemeExp, Abs, Addr],
       f: => Action[SchemeExp, Abs, Addr]): Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] =
-    (if (sabs.isTrue(v)) Set((t, List(ThenBranchTaken))) else Set()) ++
-    (if (sabs.isFalse(v)) Set((f, List(ElseBranchTaken))) else Set())
+    (if (sabs.isTrue(v)) Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])]((t, List())) else Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])]()) ++
+    (if (sabs.isFalse(v)) Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])]((f, List())) else Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])]())
 
   def evalCall(function: Abs,
                fexp: SchemeExp,

@@ -315,7 +315,7 @@ class HybridConcreteMachine[
                   val frameCast = frame.asInstanceOf[SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]]
                   val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                   Right(State(ControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
-                        KontAddrPushed(next) :: EvaluatingExpression(e) :: FramePushed(frameCast) :: edgeInfos)
+                        KontAddrPushed(next) :: EvaluatingExpression(e) :: edgeInfos)
                 case ActionEval(e, env, store2, _) =>
                   Right(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
                         EvaluatingExpression(e) :: edgeInfos)
@@ -365,7 +365,6 @@ class HybridConcreteMachine[
                             KontAddrPopped(oldA, a) ::
                             EvaluatingExpression(e) ::
                             FrameFollowed(originFrameCast) ::
-                            FramePushed(destinationFrameCast) ::
                             edge))
                     case ActionEval(e, env, store2, _) =>
                       Right(State(ControlEval(e, env),

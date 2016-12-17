@@ -202,20 +202,10 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
             None}),
           abstractEdges)
 
-      case info: FramePushed[ConcreteConcreteLattice.L] =>
-        filterFrameEdges(convertFrameFun(info.frame), frameUsedSubsumes({
-          case info: FramePushed[AbstL] =>
-            Some(info.frame)
-          case _ =>
-            None}),
-          abstractEdges)
-
       case _ =>
         abstractEdges.filter({
           case (abstractEdgeInfos, node) =>
             concreteEdgeInfo match {
-              case ThenBranchTaken | ElseBranchTaken =>
-                abstractEdgeInfos.contains(concreteEdgeInfo)
               case EvaluatingExpression(e) =>
                 abstractEdgeInfos.contains(concreteEdgeInfo)
               case KontAddrPopped(oldA, newA) =>
