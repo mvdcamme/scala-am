@@ -291,11 +291,11 @@ class AAC[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     private def integrate(lkont: LocalKont,
                           kont: Kont,
                           kstore: KontStore,
-                          edges: Set[(Action[Exp, Abs, Addr], List[EdgeAnnotation])])
+                          edges: Set[Action[Exp, Abs, Addr]])
       : (Set[State], KontStore, Set[Context]) =
       edges.foldLeft((Set[State](), kstore, Set[Context]()))({ (acc, edge) =>
         val (states, kstore, contexts) = acc
-        edge._1 match {
+        edge match {
           case ActionReachedValue(v, store, _) =>
             (states + State(ControlKont(v), store, lkont, kont, time.tick(t)),
              kstore,

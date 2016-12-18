@@ -88,8 +88,7 @@ object LamLatticeImpl {
 
 /** This defines the semantics of call-by-value lambda expressions */
 class LamSemantics[Abs: LamLattice, Addr: Address, Time: Timestamp]
-    extends BaseSemantics[LamExp, Abs, Addr, Time]
-    with ComputingEdgeInformation[LamExp, Abs, Addr] {
+    extends BaseSemantics[LamExp, Abs, Addr, Time] {
 
   /** We inherit the value abs that is bound to a JoinLattice[Abs], but we need
     * access to our inject and getClosures, so we need a LamLattice[Abs] as
@@ -115,7 +114,7 @@ class LamSemantics[Abs: LamLattice, Addr: Address, Time: Timestamp]
 
   /** The stepEval function defines how to perform an evaluation step on an
     * expression */
-  def stepEval(e: LamExp, env: Env, store: Sto, t: Time) = addNoEdgeInfo(e match {
+  def stepEval(e: LamExp, env: Env, store: Sto, t: Time) = e match {
     /* A lambda evaluate to a closure by pairing it with the current environment,
      * and injecting this in the abstract domain */
     case Lam(_, _, _) => Set(ActionReachedValue(labs.inject((e, env)), store))
@@ -132,11 +131,11 @@ class LamSemantics[Abs: LamLattice, Addr: Address, Time: Timestamp]
           }
         case None => Set(ActionError(UnboundVariable(x)))
       }
-  })
+  }
 
   /** The stepKont function defines how to behave when we reached a value v and we
     * have frame as the top continuation on the stack */
-  def stepKont(v: Abs, frame: Frame, store: Sto, t: Time) = addNoEdgeInfo(frame match {
+  def stepKont(v: Abs, frame: Frame, store: Sto, t: Time) = frame match {
     /* We have evaluated the operator v but still need to evaluate the operator e */
     case FrameArg(e, env) => Set(ActionPush(FrameFun(v), e, env, store))
     /* We have evaluated both the operator (fun) and the operand (v). We go through
@@ -152,7 +151,7 @@ class LamSemantics[Abs: LamLattice, Addr: Address, Time: Timestamp]
             ActionEval(e, env.extend(x, a), store.extend(a, v))
           }
         })
-  })
+  }
 
   /** The parse function just parses an expression from a string. We rely on an
     * already-defined s-expression parser, and compile an s-expression in a

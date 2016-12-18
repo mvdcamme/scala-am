@@ -24,8 +24,7 @@ trait SchemeFrame[Abs, Addr, Time] extends Frame {
 class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     val primitives: SchemePrimitives[Addr, Abs])
     extends BaseSemantics[SchemeExp, Abs, Addr, Time]
-    with ConvertableSemantics[SchemeExp, Abs, Addr, Time]
-    with ComputingEdgeInformation[SchemeExp, Abs, Addr] {
+    with ConvertableSemantics[SchemeExp, Abs, Addr, Time] {
 
   def sabs = implicitly[IsSchemeLattice[Abs]]
   case class FrameFuncallOperator(fexp: SchemeExp,
@@ -326,16 +325,16 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   def conditional(
       v: Abs,
       t: => Action[SchemeExp, Abs, Addr],
-      f: => Action[SchemeExp, Abs, Addr]): Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] =
-    (if (sabs.isTrue(v)) Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])]((t, List())) else Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])]()) ++
-    (if (sabs.isFalse(v)) Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])]((f, List())) else Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])]())
+      f: => Action[SchemeExp, Abs, Addr]): Set[Action[SchemeExp, Abs, Addr]] =
+    (if (sabs.isTrue(v)) Set(t) else Set[Action[SchemeExp, Abs, Addr]]()) ++
+    (if (sabs.isFalse(v)) Set(f) else Set[Action[SchemeExp, Abs, Addr]]())
 
   def evalCall(function: Abs,
                fexp: SchemeExp,
                argsv: List[(SchemeExp, Abs)],
                store: Store[Addr, Abs],
-               t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] = {
-    val fromClo: Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] = sabs
+               t: Time): Set[Action[SchemeExp, Abs, Addr]] = {
+    val fromClo: Set[Action[SchemeExp, Abs, Addr]] = sabs
       .getClosures[SchemeExp, Addr](function)
       .map({
         case (SchemeLambda(args, body, pos), env1) =>
@@ -343,29 +342,29 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             bindArgs(args.zip(argsv), env1, store, t) match {
               case (env2, store) =>
                 if (body.length == 1)
-                  (ActionStepIn[SchemeExp, Abs, Addr](
+                  ActionStepIn[SchemeExp, Abs, Addr](
                     fexp,
                     (SchemeLambda(args, body, pos), env1),
                     body.head,
                     env2,
                     store,
-                    argsv), Nil)
+                    argsv)
                 else
-                  (ActionStepIn[SchemeExp, Abs, Addr](
+                  ActionStepIn[SchemeExp, Abs, Addr](
                     fexp,
                     (SchemeLambda(args, body, pos), env1),
                     SchemeBegin(body, pos),
                     env2,
                     store,
-                    argsv), Nil)
+                    argsv)
             }
           } else {
-            (ActionError[SchemeExp, Abs, Addr](
-              ArityError(fexp.toString, args.length, argsv.length)), Nil)
+            ActionError[SchemeExp, Abs, Addr](
+              ArityError(fexp.toString, args.length, argsv.length))
           }
         case (lambda, _) =>
-          (ActionError[SchemeExp, Abs, Addr](
-            TypeError(lambda.toString, "operator", "closure", "not a closure")), Nil)
+          ActionError[SchemeExp, Abs, Addr](
+            TypeError(lambda.toString, "operator", "closure", "not a closure"))
       })
     val fromPrim = sabs
       .getPrimitives[Addr, Abs](function)
@@ -384,14 +383,14 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                        Set[Action[SchemeExp, Abs, Addr]](
                          ActionError[SchemeExp, Abs, Addr](err))))
     if (fromClo.isEmpty && fromPrim.isEmpty) {
-      addNoEdgeInfo(Set(
+      Set(
         ActionError(
           TypeError(function.toString,
                     "operator",
                     "function",
-                    "not a function"))))
+                    "not a function")))
     } else {
-      fromClo ++ addNoEdgeInfo(fromPrim)
+      fromClo ++ fromPrim
     }
   }
 
@@ -409,22 +408,22 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                             toeval: List[SchemeExp],
                             env: Environment[Addr],
                             store: Store[Addr, Abs],
-                            t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] =
+                            t: Time): Set[Action[SchemeExp, Abs, Addr]] =
     toeval match {
       case Nil => evalCall(f, fexp, args.reverse, store, t)
       case e :: rest =>
-        addNoEdgeInfo(Set(
+        Set(
           ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env),
                      e,
                      env,
-                     store)))
+                     store))
     }
   protected def funcallArgs(f: Abs,
                             fexp: SchemeExp,
                             args: List[SchemeExp],
                             env: Environment[Addr],
                             store: Store[Addr, Abs],
-                            t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] =
+                            t: Time): Set[Action[SchemeExp, Abs, Addr]] =
     funcallArgs(f, fexp, List(), args, env, store, t)
 
   protected def evalQuoted(exp: SExp,
@@ -461,7 +460,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   def stepEval(e: SchemeExp,
                env: Environment[Addr],
                store: Store[Addr, Abs],
-               t: Time) = addNoEdgeInfo(e match { // Cases in stepEval shouldn't generate any splits in abstract graph
+               t: Time) = e match { // Cases in stepEval shouldn't generate any splits in abstract graph
     case λ: SchemeLambda =>
       Set(ActionReachedValue(sabs.inject[SchemeExp, Addr]((λ, env)), store))
     case SchemeFuncall(f, args, _) =>
@@ -545,7 +544,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         case Some(v) => Set(ActionReachedValue(v, store))
         case None => Set(ActionError(NotSupported(s"Unhandled value: $v")))
       }
-  })
+  }
 
   def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time) =
     frame match {
@@ -567,20 +566,20 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             case ((env, store), ((variable, value), a)) =>
               (env.extend(variable, a), store.extend(a, value))
           })
-        addNoEdgeInfo(Set(evalBody(body, env1, store1)))
+        Set(evalBody(body, env1, store1))
       }
       case FrameLet(name, bindings, (variable, e) :: toeval, body, env) =>
-        addNoEdgeInfo(Set(
+        Set(
           ActionPush(
             FrameLet(variable, (name, v) :: bindings, toeval, body, env),
             e,
             env,
-            store)))
+            store))
       case FrameLetStar(name, bindings, body, env) =>
         val a = addr.variable(name, abs.bottom, t)
         val env1 = env.extend(name, a)
         val store1 = store.extend(a, v)
-        addNoEdgeInfo(bindings match {
+        bindings match {
           case Nil =>
             Set(evalBody(body, env1, store1))
           case (variable, exp) :: rest =>
@@ -589,26 +588,26 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                          exp,
                          env1,
                          store1))
-        })
+        }
       case FrameLetrec(a, Nil, body, env) =>
-        addNoEdgeInfo(Set(evalBody(body, env, store.update(a, v))))
+        Set(evalBody(body, env, store.update(a, v)))
       case FrameLetrec(a, (a1, exp) :: rest, body, env) =>
-        addNoEdgeInfo(Set(
+        Set(
           ActionPush(FrameLetrec(a1, rest, body, env),
                      exp,
                      env,
-                     store.update(a, v))))
+                     store.update(a, v)))
       case FrameSet(name, env) =>
-        addNoEdgeInfo(env.lookup(name) match {
+        env.lookup(name) match {
           case Some(a) =>
             Set(
               ActionReachedValue(sabs.inject(false),
                                  store.update(a, v),
                                  Set(EffectWriteVariable(a))))
           case None => Set(ActionError(UnboundVariable(name)))
-        })
+        }
       case FrameBegin(body, env) =>
-        addNoEdgeInfo(Set(evalBody(body, env, store)))
+        Set(evalBody(body, env, store))
       case FrameCond(cons, clauses, env) =>
         conditional(
           v,
@@ -635,7 +634,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         })
         /* TODO: precision could be improved in cases where we know that default is not
          * reachable */
-        addNoEdgeInfo(fromClauses.toSet + evalBody(default, env, store))
+        fromClauses.toSet + evalBody(default, env, store)
       }
       case FrameAnd(Nil, env) =>
         conditional(v,
@@ -713,19 +712,19 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       toeval: List[SchemeExp],
       env: Environment[Addr],
       store: Store[Addr, Abs],
-      t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] = toeval match {
+      t: Time): Set[Action[SchemeExp, Abs, Addr]] = toeval match {
     case Nil => evalCall(f, fexp, args.reverse, store, t)
     case e :: rest =>
       atomicEval(e, env, store) match {
         case Some((v, effs)) =>
-          addNoEdgeInfo(funcallArgs(f, fexp, (e, v) :: args, rest, env, store, t)
-            .map( (edge: (Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])) => addEffects(edge._1, effs) ))
+          funcallArgs(f, fexp, (e, v) :: args, rest, env, store, t)
+            .map( (edge: Action[SchemeExp, Abs, Addr]) => addEffects(edge, effs) )
         case None =>
-          addNoEdgeInfo(Set(
+          Set(
             ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env),
                        e,
                        env,
-                       store)))
+                       store))
       }
   }
 
@@ -734,21 +733,20 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     * where exp is an atomic expression, we can atomically evaluate exp to get v,
     * and call stepKont(v, store, frame).
     */
-  protected def optimizeAtomic(edges: Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])],
-                               t: Time): Set[(Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])] = {
-    addNoEdgeInfo(edges.flatMap((edge) => edge._1 match {
+  protected def optimizeAtomic(edges: Set[Action[SchemeExp, Abs, Addr]],
+                               t: Time): Set[Action[SchemeExp, Abs, Addr]] = {
+    edges.flatMap((edge) => edge match {
       case ActionPush(frame, exp, env, store, effects) =>
         atomicEval(exp, env, store) match {
           case Some((v, effs)) =>
-            stepKont(v, frame, store, t).map((edge: (Action[SchemeExp, Abs, Addr], List[EdgeAnnotation])) => addEffects
-            (edge._1,
-              effs ++ effects))
+            stepKont(v, frame, store, t).map((edge: Action[SchemeExp, Abs, Addr]) => addEffects
+            (edge, effs ++ effects))
           case None =>
             Set[Action[SchemeExp, Abs, Addr]](
               ActionPush(frame, exp, env, store, effects))
         }
       case action => Set[Action[SchemeExp, Abs, Addr]](action)
-    }))
+    })
   }
 
   override def stepEval(e: SchemeExp,

@@ -54,36 +54,34 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
 
     /** Integrate a set of action to compute the successor states */
     private def integrate(k: FreeKontAddr,
-                          edges: Set[(Action[Exp, Abs, Addr], List[EdgeAnnotation])]): Set[(State, List[EdgeAnnotation])] =
-      edges.map({ case (action, edgeInfo) =>
-        val newState = action match {
-          case ActionReachedValue(v, store, _) =>
-            State(ControlKont(v), store, kstore, k, time.tick(t))
-          case ActionPush(frame, e, env, store, _) =>
-            val next = new FreeNormalKontAddress(e, env)
-            State(ControlEval(e, env),
-              store,
-              kstore.extend(next, Kont(frame, k)),
-              next,
-              time.tick(t))
-          case ActionEval(e, env, store, _) =>
-            State(ControlEval(e, env), store, kstore, k, time.tick(t))
-          case ActionStepIn(fexp, _, e, env, store, _, _) =>
-            State(ControlEval(e, env), store, kstore, k, time.tick(t, fexp))
-          case ActionError(err) =>
-            State(ControlError(err), store, kstore, k, time.tick(t))
-        }
-        (newState, edgeInfo)})
+                          edges: Set[Action[Exp, Abs, Addr]]): Set[State] =
+      edges.map({
+        case ActionReachedValue(v, store, _) =>
+          State(ControlKont(v), store, kstore, k, time.tick(t))
+        case ActionPush(frame, e, env, store, _) =>
+          val next = new FreeNormalKontAddress(e, env)
+          State(ControlEval(e, env),
+            store,
+            kstore.extend(next, Kont(frame, k)),
+            next,
+            time.tick(t))
+        case ActionEval(e, env, store, _) =>
+          State(ControlEval(e, env), store, kstore, k, time.tick(t))
+        case ActionStepIn(fexp, _, e, env, store, _, _) =>
+          State(ControlEval(e, env), store, kstore, k, time.tick(t, fexp))
+        case ActionError(err) =>
+          State(ControlError(err), store, kstore, k, time.tick(t))
+      })
 
     /** Computes the successors states of this one relying on the given semantics */
-    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[(State, List[EdgeAnnotation])] =
+    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[State] =
       control match {
         case ControlEval(e, env) =>
           integrate(k, sem.stepEval(e, env, store, t))
         case ControlKont(v) =>
           kstore
             .lookup(k)
-            .foldLeft(Set[(State, List[EdgeAnnotation])]())((acc, k) =>
+            .foldLeft(Set[State]())((acc, k) =>
               k match {
                 case Kont(frame, next) =>
                   acc ++ integrate(next, sem.stepKont(v, frame, store, t))
@@ -130,12 +128,12 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     def step(sem: Semantics[Exp, Abs, Addr, Time]): States = {
       val states =
         R.map(conf => State(conf.control, store, kstore, conf.k, conf.t))
-      val succsEdges = states.flatMap(state => state.step(sem))
-      val (store1, kstore1) = succsEdges.map(_._1).foldLeft(
+      val succs = states.flatMap(state => state.step(sem))
+      val (store1, kstore1) = succs.foldLeft(
         (Store.empty[Addr, Abs], KontStore.empty[FreeKontAddr]))(
         (acc, state) => (acc._1.join(state.store), acc._2.join(state.kstore)))
       States(
-        succsEdges.map(stateEdge => Configuration(stateEdge._1.control, stateEdge._1.k, stateEdge._1.t)),
+        succs.map(state => Configuration(state.control, state.k, state.t)),
         store1,
         kstore1)
     }

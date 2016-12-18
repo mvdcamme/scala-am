@@ -2,8 +2,7 @@
  * Semantics for ANF Scheme (abstract grammar defined in ANF.scala)
  */
 class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](primitives: Primitives[Addr, Abs])
-    extends BaseSemantics[ANFExp, Abs, Addr, Time]
-    with ComputingEdgeInformation[ANFExp, Abs, Addr] {
+    extends BaseSemantics[ANFExp, Abs, Addr, Time] {
   def sabs = implicitly[IsSchemeLattice[Abs]]
   /** ANF Scheme only has three types of continuation frames: halt, let, and letrec */
   trait ANFFrame extends Frame {
@@ -33,9 +32,8 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
     case ANFValue(v, _) => MayFailError(List(NotSupported(s"Unhandled value: ${v}")))
   }
 
-  def stepEval(e: ANFExp, env: Environment[Addr], store: Store[Addr, Abs], t: Time): Set[(Action[ANFExp, Abs, Addr],
-    List[EdgeAnnotation])] =
-    addNoEdgeInfo(e match {
+  def stepEval(e: ANFExp, env: Environment[Addr], store: Store[Addr, Abs], t: Time): Set[Action[ANFExp, Abs, Addr]] =
+    e match {
     /* To step an atomic expression, performs atomic evaluation on it */
     case ae: ANFAtomicExp => atomicEval(ae, env, store).collect({
       case (v, effs) => Set(ActionReachedValue(v, store, effs))
@@ -107,9 +105,9 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
      * store allocation and is therefore not atomic. We don't deal with them in
      * ANF (they can always be converted into calls to cons). */
     case ANFQuoted(sexp, _) => Set(ActionError(NotSupported("quoted expressions not yet handled in ANF")))
-  })
+  }
 
-  def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time) = addNoEdgeInfo(frame match {
+  def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time) = frame match {
     /* Allocate the variable and bind it to the reached value */
     case FrameLet(variable, body, env) => {
       val vara = addr.variable(variable, v, t)
@@ -118,7 +116,7 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
     /* Just bind the variable to the reached value, since it has already been allocated */
     case FrameLetrec(variable, vara, body, env) =>
       Set(ActionEval(body, env, store.update(vara, v)))
-  })
+  }
 
   def parse(program: String): ANFExp = ANF.parse(program)
   override def initialBindings = primitives.bindings

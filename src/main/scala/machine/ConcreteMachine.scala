@@ -62,7 +62,7 @@ class ConcreteMachine[
           case ControlEval(e, env) =>
             val edges = sem.stepEval(e, env, store, t)
             if (edges.size == 1) {
-              edges.head._1 match {
+              edges.head match {
                 case ActionReachedValue(v, store2, _) =>
                   loop(ControlKont(v),
                        store2,
@@ -109,7 +109,7 @@ class ConcreteMachine[
               case frame :: tl =>
                 val edges = sem.stepKont(v, frame, store, t)
                 if (edges.size == 1) {
-                  edges.head._1 match {
+                  edges.head match {
                     case ActionReachedValue(v, store2, _) =>
                       loop(ControlKont(v),
                            store2,

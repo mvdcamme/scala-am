@@ -41,12 +41,12 @@ class AAMGlobalStore[
       control.subsumes(that.control) && a == that.a && t == that.t
 
     private def integrate(a: KontAddr,
-                          edges: Set[(Action[Exp, Abs, Addr], List[EdgeAnnotation])],
+                          edges: Set[Action[Exp, Abs, Addr]],
                           store: GlobalStore,
                           kstore: KontStore[KontAddr])
       : (Set[State], GlobalStore, KontStore[KontAddr]) =
       edges.foldLeft((Set[State](), store, kstore))((acc, edge) =>
-        edge._1 match {
+        edge match {
           case ActionReachedValue(v, store2, _) =>
             (acc._1 + State(ControlKont(v), a, time.tick(t)),
              acc._2.includeDelta(store2.delta),

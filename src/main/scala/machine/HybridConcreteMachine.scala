@@ -306,22 +306,21 @@ class HybridConcreteMachine[
           case ControlEval(e, env) =>
             val edges = sem.stepEval(e, env, store, t)
             if (edges.size == 1) {
-              val edgeInfos = edges.head._2
-              edges.head._1 match {
+              edges.head match {
                 case ActionReachedValue(v, store2, _) =>
                   Right(State(ControlKont(v), store2, kstore, a, time.tick(t)),
-                        maybeAddReachedConcreteValue(v, edgeInfos))
+                        maybeAddReachedConcreteValue(v, Nil))
                 case ActionPush(frame, e, env, store2, _) =>
                   val frameCast = frame.asInstanceOf[SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]]
                   val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                   Right(State(ControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
-                        KontAddrPushed(next) :: EvaluatingExpression(e) :: edgeInfos)
+                        KontAddrPushed(next) :: EvaluatingExpression(e) :: Nil)
                 case ActionEval(e, env, store2, _) =>
                   Right(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
-                        EvaluatingExpression(e) :: edgeInfos)
+                        EvaluatingExpression(e) :: Nil)
                 case ActionStepIn(fexp, _, e, env, store2, _, _) =>
                   Right(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
-                        EvaluatingExpression(e) :: edgeInfos)
+                        EvaluatingExpression(e) :: Nil)
                 case ActionError(err) =>
                   Left(ConcreteMachineOutputError(
                     (System.nanoTime - start) / Math.pow(10, 9),
@@ -351,12 +350,11 @@ class HybridConcreteMachine[
                 val a = frames.head.next
                 val edges = sem.stepKont(v, frame, store, t)
                 if (edges.size == 1) {
-                  val edge = edges.head._2
-                  edges.head._1 match {
+                  edges.head match {
                     case ActionReachedValue(v, store2, _) =>
                       Right((State(ControlKont(v), store2, kstore, a, time.tick(t)),
                             KontAddrPopped(oldA, a) :: maybeAddReachedConcreteValue(v,
-                              FrameFollowed[ConcreteConcreteLattice.L](originFrameCast) :: edge)))
+                              FrameFollowed[ConcreteConcreteLattice.L](originFrameCast) :: Nil)))
                     case ActionPush(frame, e, env, store2, _) =>
                       val destinationFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]]
                       val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
@@ -365,7 +363,7 @@ class HybridConcreteMachine[
                             KontAddrPopped(oldA, a) ::
                             EvaluatingExpression(e) ::
                             FrameFollowed(originFrameCast) ::
-                            edge))
+                            Nil))
                     case ActionEval(e, env, store2, _) =>
                       Right(State(ControlEval(e, env),
                         store2,
@@ -375,7 +373,7 @@ class HybridConcreteMachine[
                             KontAddrPopped(oldA, a) ::
                             EvaluatingExpression(e) ::
                             FrameFollowed[ConcreteConcreteLattice.L](originFrameCast) ::
-                            edge)
+                            Nil)
                     case ActionStepIn(fexp, _, e, env, store2, _, _) =>
                       Right(State(ControlEval(e, env),
                         store2,
@@ -385,7 +383,7 @@ class HybridConcreteMachine[
                             KontAddrPopped(oldA, a) ::
                             EvaluatingExpression(e) ::
                             FrameFollowed[ConcreteConcreteLattice.L](originFrameCast) ::
-                            edge)
+                            Nil)
                     case ActionError(err) =>
                       Left(ConcreteMachineOutputError(
                         (System.nanoTime - start) / Math.pow(10, 9),
