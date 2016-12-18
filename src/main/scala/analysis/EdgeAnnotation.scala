@@ -43,13 +43,13 @@ case class EvaluatingExpression[Exp : Expression](exp: Exp) extends EdgeAnnotati
 /*
  * State leads to a continuation state that reached the given value.
  */
-case class ReachedValue[Abs : JoinLattice](v: Abs) extends EdgeAnnotation {
-  override def toString = s"Reached $v"
-}
-
-/*
- * State leads to a continuation state that reached the given concrete value.
- */
-case class ReachedConcreteValue(v: ConcreteConcreteLattice.L) extends EdgeAnnotation {
-  override def toString = s"Reached concrete $v"
-}
+//case class ReachedValue[Abs : JoinLattice](v: Abs) extends EdgeAnnotation {
+//  override def toString = s"Reached $v"
+//}
+//
+///*
+// * State leads to a continuation state that reached the given concrete value.
+// */
+//case class ReachedConcreteValue(v: ConcreteConcreteLattice.L) extends EdgeAnnotation {
+//  override def toString = s"Reached concrete $v"
+//}

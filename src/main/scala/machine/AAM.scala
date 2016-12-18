@@ -208,7 +208,8 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       })) {
         edgeInfos
       } else {
-        ReachedValue(v) :: edgeInfos
+//        ReachedValue(v) ::
+        edgeInfos
       }
     case _ =>
       edgeInfos

@@ -298,7 +298,8 @@ class HybridConcreteMachine[
             edgeInfos
           }
           else {
-            ReachedConcreteValue(v) :: edgeInfos
+//            ReachedConcreteValue(v) ::
+            edgeInfos
           }
         }
 
