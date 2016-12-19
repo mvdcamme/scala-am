@@ -38,6 +38,11 @@ trait BasicSemantics[Exp, Abs, Addr, Time] {
 trait Semantics[Exp, Abs, Addr, Time]
     extends BasicSemantics[Exp, Abs, Addr, Time] {
 
+  type ActionChange = (Action[Exp, Abs, Addr], List[StateChangeEdge[Exp, Abs, Addr, Time]])
+
+  def addNilStateChangeEdges(actions: Set[Action[Exp, Abs, Addr]]): Set[ActionChange] =
+    actions.map((_, Nil))
+
   /**
     * Defines what actions should be taken when an expression e needs to be
     * evaluated, in environment env with store store
@@ -45,7 +50,7 @@ trait Semantics[Exp, Abs, Addr, Time]
   def stepEval(e: Exp,
                env: Environment[Addr],
                store: Store[Addr, Abs],
-               t: Time): Set[Action[Exp, Abs, Addr]]
+               t: Time): Set[ActionChange]
 
   /**
     * Defines what actions should be taken when a value v has been reached, and
@@ -54,7 +59,7 @@ trait Semantics[Exp, Abs, Addr, Time]
   def stepKont(v: Abs,
                frame: Frame,
                store: Store[Addr, Abs],
-               t: Time): Set[Action[Exp, Abs, Addr]]
+               t: Time): Set[ActionChange]
 
   /** Defines the elements in the initial environment/store */
   def initialBindings: Iterable[(String, Addr, Abs)] = List()
@@ -340,11 +345,11 @@ abstract class BaseSemantics[
   def bindArgs(l: List[(String, (Exp, Abs))],
                env: Environment[Addr],
                store: Store[Addr, Abs],
-               t: Time): (Environment[Addr], Store[Addr, Abs]) =
-    l.foldLeft((env, store))({
-      case ((env, store), (name, (exp, value))) => {
+               t: Time): (Environment[Addr], Store[Addr, Abs], List[(Addr, Abs)]) =
+    l.foldLeft[(Environment[Addr], Store[Addr, Abs], List[(Addr, Abs)])]((env, store, Nil))({
+      case ((env, store, tuples), (name, (exp, value))) => {
         val a = addr.variable(name, value, t)
-        (env.extend(name, a), store.extend(a, value))
+        (env.extend(name, a), store.extend(a, value), (a, value) :: tuples)
       }
     })
 }
@@ -378,7 +383,7 @@ Addr: Address, Time: Timestamp](val primitives: Primitives[Addr, Abs])
 }
 
 /**********************************************************************************************************************
-  *                                                   TRACED ACTIONS                                                   *
+ *                                                   TRACED ACTIONS                                                   *
  **********************************************************************************************************************/
 abstract class ActionT[Exp: Expression, Abs: JoinLattice, Addr: Address]() {
   def isGuard: Boolean = false
