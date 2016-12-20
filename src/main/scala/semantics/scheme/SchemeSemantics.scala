@@ -322,12 +322,9 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                    addressReaches: Addr => Set[Addr]): Set[Addr] =
     frame.reaches(valueReaches, envReaches, addressReaches)
 
-  def conditional(
-      v: Abs,
-      t: => Action[SchemeExp, Abs, Addr],
-      f: => Action[SchemeExp, Abs, Addr]): Set[Action[SchemeExp, Abs, Addr]] =
-    (if (sabs.isTrue(v)) Set(t) else Set[Action[SchemeExp, Abs, Addr]]()) ++
-    (if (sabs.isFalse(v)) Set(f) else Set[Action[SchemeExp, Abs, Addr]]())
+  def conditional(v: Abs, t: => ActionChange, f: => ActionChange): Set[ActionChange] =
+    (if (sabs.isTrue(v)) Set(t) else Set[ActionChange]()) ++
+    (if (sabs.isFalse(v)) Set(f) else Set[ActionChange]())
 
   def evalCall(function: Abs,
                fexp: SchemeExp,
@@ -340,23 +337,15 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         case (SchemeLambda(args, body, pos), env1) =>
           if (args.length == argsv.length) {
             bindArgs(args.zip(argsv), env1, store, t) match {
-              case (env2, store, stateChanges) =>
+              case (env2, store, boundAddresses) =>
                 if (body.length == 1)
-                  (ActionStepIn[SchemeExp, Abs, Addr](
-                    fexp,
-                    (SchemeLambda(args, body, pos), env1),
-                    body.head,
-                    env2,
-                    store,
-                    argsv), stateChanges)
+                  (ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1),
+                                                      body.head, env2, store, argsv),
+                   boundAddresses.map( (boundAddress) => StoreExtend[SchemeExp, Abs, Addr, Time](boundAddress._1, boundAddress._2)))
                 else
-                  (ActionStepIn[SchemeExp, Abs, Addr](
-                    fexp,
-                    (SchemeLambda(args, body, pos), env1),
-                    SchemeBegin(body, pos),
-                    env2,
-                    store,
-                    argsv), stateChanges)
+                  (ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1),
+                                                      SchemeBegin(body, pos), env2, store, argsv),
+                   boundAddresses.map( (boundAddress) => StoreExtend[SchemeExp, Abs, Addr, Time](boundAddress._1, boundAddress._2)))
             }
           } else {
             (ActionError[SchemeExp, Abs, Addr](
@@ -366,6 +355,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           (ActionError[SchemeExp, Abs, Addr](
             TypeError(lambda.toString, "operator", "closure", "not a closure")), Nil)
       })
+    /* TODO take into account store changes made by the application of the primitives */
     val fromPrim = sabs
       .getPrimitives[Addr, Abs](function)
       .flatMap(
@@ -374,21 +364,16 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             .call(fexp, argsv, store, t)
             .collect({
                        case (res, store2, effects) =>
-                         Set[Action[SchemeExp, Abs, Addr]](
+                         addNilStateChangeEdges(Set[Action[SchemeExp, Abs, Addr]](
                            ActionReachedValue[SchemeExp, Abs, Addr](res,
                                                                     store2,
-                                                                    effects))
+                                                                    effects)))
                      },
                      err =>
-                       Set[Action[SchemeExp, Abs, Addr]](
-                         ActionError[SchemeExp, Abs, Addr](err))))
+                       addNilStateChangeEdges(Set[Action[SchemeExp, Abs, Addr]](
+                         ActionError[SchemeExp, Abs, Addr](err)))))
     if (fromClo.isEmpty && fromPrim.isEmpty) {
-      Set(
-        ActionError(
-          TypeError(function.toString,
-                    "operator",
-                    "function",
-                    "not a function")))
+      addNilStateChangeEdges(Set(ActionError(TypeError(function.toString, "operator", "function", "not a function"))))
     } else {
       fromClo ++ fromPrim
     }
@@ -435,10 +420,13 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val care: SchemeExp = SchemeIdentifier(car.toString, car.pos)
       val cdre: SchemeExp = SchemeIdentifier(cdr.toString, cdr.pos)
       val cara = addr.cell(care, t)
-      val (carv, store2) = evalQuoted(car, store, t)
+      val (carv, store2, stateChangesCar) = evalQuoted(car, store, t)
       val cdra = addr.cell(cdre, t)
-      val (cdrv, store3) = evalQuoted(cdr, store2, t)
-      (sabs.cons(cara, cdra), store3.extend(cara, carv).extend(cdra, cdrv), List(StoreExtend(cara, carv), StoreExtend(cdra, cdrv)))
+      val (cdrv, store3, stateChangesCdr) = evalQuoted(cdr, store2, t)
+      (sabs.cons(cara, cdra), store3.extend(cara, carv).extend(cdra, cdrv),
+       List(StoreExtend[SchemeExp, Abs, Addr, Time](cara, carv), StoreExtend[SchemeExp, Abs, Addr, Time](cdra, cdrv)) ++
+         stateChangesCar ++
+         stateChangesCdr)
     }
     case SExpValue(v, _) =>
       (v match {
@@ -478,25 +466,29 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     case SchemeLetrec(Nil, body, _) =>
       Set(evalBody(body, env, store))
     case SchemeLetrec((v, exp) :: bindings, body, _) => {
+      case class ValuesToUpdate(env: Environment[Addr],
+                                store: Store[Addr, Abs],
+                                stateChanges: List[StateChangeEdge[SchemeExp, Abs, Addr, Time]])
+      type X = (ValuesToUpdate, (String, Addr))
       val variables = v :: bindings.map(_._1)
       val addresses = variables.map(v => addr.variable(v, abs.bottom, t))
-      val (env1, store1, stateChanges) = variables
+      val initial = ValuesToUpdate(env, store, Nil)
+      val ValuesToUpdate(env1, store1, stateChanges) = variables
         .zip(addresses)
-        .foldLeft[(Environment[Addr], Store[Addr, Abs], StateChangeEdge[SchemeExp, Abs, Addr, Time])]
-                 ((env, store, Nil))( (tuple: ((Environment[Addr], Store[Addr, Abs], List[StateChangeEdge[SchemeExp, Abs, Addr, Time]]), (String, Addr))) => tuple match {
-                   case ((env, store, stateChanges), (v, a)) =>
-                     (env.extend(v, a),
-                      store.extend(a, abs.bottom),
-                      StoreExtend[SchemeExp, Abs, Addr, Time](a, abs.bottom) :: stateChanges)
-                 })
+        .foldLeft[ValuesToUpdate](initial)({
+        case (ValuesToUpdate(env, store, stateChanges), (v, a)) =>
+          ValuesToUpdate(env.extend(v, a),
+                         store.extend(a, abs.bottom),
+                         StoreExtend[SchemeExp, Abs, Addr, Time](a, abs.bottom) :: stateChanges)
+      })
       Set((ActionPush(FrameLetrec(addresses.head,
                                addresses.tail.zip(bindings.map(_._2)),
                                body,
                                env1),
                    exp,
                    env1,
-                   store1)),
-          stateChanges)}
+                   store1), stateChanges))
+    }
     case SchemeSet(variable, exp, _) =>
       addNilStateChangeEdges(Set(ActionPush(FrameSet(variable, env), exp, env, store)))
     case SchemeBegin(body, _) =>
@@ -559,8 +551,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         funcallArgs(f, fexp, (exp, v) :: args, toeval, env, store, t)
       case FrameIf(cons, alt, env) =>
         conditional(v,
-                    ActionEval(cons, env, store),
-                    ActionEval(alt, env, store))
+          (ActionEval(cons, env, store), Nil),
+          (ActionEval(alt, env, store), Nil))
       case FrameLet(name, bindings, Nil, body, env) => {
         val variables = name :: bindings.reverse.map(_._1)
         val addresses =
@@ -574,12 +566,12 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         Set(evalBody(body, env1, store1))
       }
       case FrameLet(name, bindings, (variable, e) :: toeval, body, env) =>
-        Set(
+        addNilStateChangeEdges(Set(
           ActionPush(
             FrameLet(variable, (name, v) :: bindings, toeval, body, env),
             e,
             env,
-            store))
+            store)))
       case FrameLetStar(name, bindings, body, env) =>
         val a = addr.variable(name, abs.bottom, t)
         val env1 = env.extend(name, a)
@@ -588,41 +580,33 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           case Nil =>
             Set(evalBody(body, env1, store1))
           case (variable, exp) :: rest =>
-            Set(
-              ActionPush(FrameLetStar(variable, rest, body, env1),
-                         exp,
-                         env1,
-                         store1))
+            Set((ActionPush(FrameLetStar(variable, rest, body, env1), exp, env1, store1),
+                 List(StoreExtend[SchemeExp, Abs, Addr, Time](a, v))))
         }
       case FrameLetrec(a, Nil, body, env) =>
         Set(evalBody(body, env, store.update(a, v)))
       case FrameLetrec(a, (a1, exp) :: rest, body, env) =>
-        Set(
-          ActionPush(FrameLetrec(a1, rest, body, env),
-                     exp,
-                     env,
-                     store.update(a, v)))
+        Set((ActionPush(FrameLetrec(a1, rest, body, env), exp, env, store.update(a, v)),
+             List(StoreUpdate[SchemeExp, Abs, Addr, Time](a, v))))
       case FrameSet(name, env) =>
         env.lookup(name) match {
           case Some(a) =>
-            Set(
-              ActionReachedValue(sabs.inject(false),
-                                 store.update(a, v),
-                                 Set(EffectWriteVariable(a))))
-          case None => Set(ActionError(UnboundVariable(name)))
+            Set((ActionReachedValue(sabs.inject(false), store.update(a, v), Set(EffectWriteVariable(a))),
+                 List(StoreUpdate[SchemeExp, Abs, Addr, Time](a, v))))
+          case None => addNilStateChangeEdges(Set(ActionError(UnboundVariable(name))))
         }
       case FrameBegin(body, env) =>
         Set(evalBody(body, env, store))
       case FrameCond(cons, clauses, env) =>
         conditional(
           v,
-          if (cons.isEmpty) { ActionReachedValue(v, store) } else {
+          if (cons.isEmpty) { (ActionReachedValue(v, store), Nil) } else {
             evalBody(cons, env, store)
           },
           clauses match {
-            case Nil => ActionReachedValue(sabs.inject(false), store)
+            case Nil => (ActionReachedValue(sabs.inject(false), store), Nil)
             case (exp, cons2) :: rest =>
-              ActionPush(FrameCond(cons2, rest, env), exp, env, store)
+              (ActionPush(FrameCond(cons2, rest, env), exp, env, store), Nil)
           })
       case FrameCase(clauses, default, env) => {
         val fromClauses = clauses.flatMap({
@@ -633,9 +617,9 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                     case Some(v2) => sabs.subsumes(v, v2)
                 }))
               /* TODO: precision could be improved by restricting v to v2 */
-              Set[Action[SchemeExp, Abs, Addr]](evalBody(body, env, store))
+              Set[ActionChange](evalBody(body, env, store))
             else
-              Set[Action[SchemeExp, Abs, Addr]]()
+              Set[ActionChange]()
         })
         /* TODO: precision could be improved in cases where we know that default is not
          * reachable */
@@ -643,20 +627,20 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       }
       case FrameAnd(Nil, env) =>
         conditional(v,
-                    ActionReachedValue(v, store),
-                    ActionReachedValue(sabs.inject(false), store))
+                    (ActionReachedValue(v, store), Nil),
+                    (ActionReachedValue(sabs.inject(false), store), Nil))
       case FrameAnd(e :: rest, env) =>
         conditional(v,
-                    ActionPush(FrameAnd(rest, env), e, env, store),
-                    ActionReachedValue(sabs.inject(false), store))
+                    (ActionPush(FrameAnd(rest, env), e, env, store), Nil),
+                    (ActionReachedValue(sabs.inject(false), store), Nil))
       case FrameOr(Nil, env) =>
         conditional(v,
-                    ActionReachedValue(v, store),
-                    ActionReachedValue(sabs.inject(false), store))
+                    (ActionReachedValue(v, store), Nil),
+                    (ActionReachedValue(sabs.inject(false), store), Nil))
       case FrameOr(e :: rest, env) =>
         conditional(v,
-                    ActionReachedValue(v, store),
-                    ActionPush(FrameOr(rest, env), e, env, store))
+                    (ActionReachedValue(v, store), Nil),
+                    (ActionPush(FrameOr(rest, env), e, env, store), Nil))
       case FrameDefine(name, env) =>
         throw new Exception(
           s"TODO: define not handled (no global environment)")
@@ -673,6 +657,9 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   *     (+ 1 1) can directly be evaluated to 2 without modifying the store. Also,
   *     to evaluate (+ 1 (f)), we can directly push the continuation and jump to
   *     the evaluation of (f), instead of evaluating +, and 1 in separate states.
+  */
+/**
+  * TODO Check whether atomic optimisations don't mess up the computed StateChangeEdges
   */
 class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     primitives: SchemePrimitives[Addr, Abs])
@@ -717,19 +704,18 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       toeval: List[SchemeExp],
       env: Environment[Addr],
       store: Store[Addr, Abs],
-      t: Time): Set[Action[SchemeExp, Abs, Addr]] = toeval match {
+      t: Time): Set[ActionChange] = toeval match {
     case Nil => evalCall(f, fexp, args.reverse, store, t)
     case e :: rest =>
       atomicEval(e, env, store) match {
         case Some((v, effs)) =>
           funcallArgs(f, fexp, (e, v) :: args, rest, env, store, t)
-            .map( (edge: Action[SchemeExp, Abs, Addr]) => addEffects(edge, effs) )
+            .map( (actionChange: ActionChange) => (addEffects(actionChange._1, effs), actionChange._2) )
         case None =>
-          Set(
-            ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env),
+          Set((ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env),
                        e,
                        env,
-                       store))
+                       store), Nil))
       }
   }
 
@@ -738,19 +724,18 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     * where exp is an atomic expression, we can atomically evaluate exp to get v,
     * and call stepKont(v, store, frame).
     */
-  protected def optimizeAtomic(edges: Set[Action[SchemeExp, Abs, Addr]],
-                               t: Time): Set[Action[SchemeExp, Abs, Addr]] = {
-    edges.flatMap((edge) => edge match {
-      case ActionPush(frame, exp, env, store, effects) =>
+  protected def optimizeAtomic(actionChanges: Set[ActionChange],
+                               t: Time): Set[ActionChange] = {
+    actionChanges.flatMap( (actionChange) => actionChange match {
+      case (ActionPush(frame, exp, env, store, effects), stateChanges) =>
         atomicEval(exp, env, store) match {
           case Some((v, effs)) =>
-            stepKont(v, frame, store, t).map((edge: Action[SchemeExp, Abs, Addr]) => addEffects
-            (edge, effs ++ effects))
+            stepKont(v, frame, store, t).map( (actionChange: ActionChange) =>
+              (addEffects(actionChange._1, effs ++ effects), actionChange._2) )
           case None =>
-            Set[Action[SchemeExp, Abs, Addr]](
-              ActionPush(frame, exp, env, store, effects))
+            Set[ActionChange]((ActionPush(frame, exp, env, store, effects), stateChanges))
         }
-      case action => Set[Action[SchemeExp, Abs, Addr]](action)
+      case actionChange => Set[ActionChange](actionChange)
     })
   }
 

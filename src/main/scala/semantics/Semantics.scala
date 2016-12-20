@@ -347,9 +347,9 @@ abstract class BaseSemantics[
                store: Store[Addr, Abs],
                t: Time): (Environment[Addr], Store[Addr, Abs], List[(Addr, Abs)]) =
     l.foldLeft[(Environment[Addr], Store[Addr, Abs], List[(Addr, Abs)])]((env, store, Nil))({
-      case ((env, store, tuples), (name, (exp, value))) => {
+      case ((env, store, boundAddresses), (name, (exp, value))) => {
         val a = addr.variable(name, value, t)
-        (env.extend(name, a), store.extend(a, value), (a, value) :: tuples)
+        (env.extend(name, a), store.extend(a, value), (a, value) :: boundAddresses)
       }
     })
 }
