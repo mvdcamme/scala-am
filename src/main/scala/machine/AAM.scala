@@ -48,38 +48,63 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       control.subsumes(that.control) && store.subsumes(that.store) && a == that.a && kstore
         .subsumes(that.kstore) && t == that.t
 
+    type EdgeInformation = (State, List[EdgeAnnotation], List[StateChangeEdge[Exp, Abs, Addr, Time]])
+
     /**
       * Integrates a set of actions (returned by the semantics, see
       * Semantics.scala), in order to generate a set of states that succeeds this
       * one.
       */
     private def integrate(a: KontAddr,
-                          edges: Set[Action[Exp, Abs, Addr]]): Set[(State, List[EdgeAnnotation])] =
-      edges.map( (action) => action match {
+                          actionChanges: Set[(Action[Exp, Abs, Addr], List[StateChangeEdge[Exp, Abs, Addr, Time]])])
+    : Set[EdgeInformation] =
+      actionChanges.map( (actionChange) => actionChange._1 match {
           /* When a value is reached, we go to a continuation state */
           case ActionReachedValue(v, store, _) =>
-            (State(ControlKont(v), store, kstore, a, time.tick(t)), Nil)
+            (State(ControlKont(v), store, kstore, a, time.tick(t)),
+             Nil,
+              ControlValueReached(v) :: TimeTick() :: actionChange._2)
           /* When a continuation needs to be pushed, push it in the continuation store */
           case ActionPush(frame, e, env, store, _) => {
             val next = NormalKontAddress[Exp, Time](e, t)
-            (State(ControlEval(e, env), store, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
-             List(KontAddrPushed(next)))
+            val kont = Kont(frame, a)
+            (State(ControlEval(e, env), store, kstore.extend(next, kont), next, time.tick(t)),
+             List(KontAddrPushed(next)),
+              ControlExpEvaluated(e, env) :: KontStoreFramePush[Exp, Abs, Addr, Time, KontAddr]
+               (next, kont) :: KontAddrChanged[Exp, Abs, Addr, Time, KontAddr](next) :: TimeTick() :: actionChange._2)
           }
           /* When a value needs to be evaluated, we go to an eval state */
           case ActionEval(e, env, store, _) =>
-            (State(ControlEval(e, env), store, kstore, a, time.tick(t)), Nil)
+            (State(ControlEval(e, env), store, kstore, a, time.tick(t)),
+             Nil,
+              ControlExpEvaluated(e, env) :: TimeTick() :: actionChange._2)
           /* When a function is stepped in, we also go to an eval state */
           case ActionStepIn(fexp, _, e, env, store, _, _) =>
-            (State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)), Nil)
+            (State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)),
+             Nil,
+              ControlExpEvaluated(e, env) :: TimeTickExp(fexp) ::
+               actionChange._2)
           /* When an error is reached, we go to an error state */
           case ActionError(err) =>
-            (State(ControlError(err), store, kstore, a, time.tick(t)), Nil)
+            (State(ControlError(err), store, kstore, a, time.tick(t)),
+             Nil,
+             ControlErrorReached(err) :: TimeTick() :: actionChange._2)
         })
+
+    private def maybeAddKontAddrChanged(a: KontAddr, stateChanges: List[StateChangeEdge[Exp, Abs, Addr, Time]])
+    : List[StateChangeEdge[Exp, Abs, Addr, Time]] =
+      if (stateChanges.exists({
+        case KontAddrChanged(_) => true
+        case _ => false})) {
+        stateChanges
+      } else {
+        KontAddrChanged[Exp, Abs, Addr, Time, KontAddr](a) :: stateChanges
+      }
 
     /**
       * Computes the set of states that follow the current state
       */
-    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[(State, List[EdgeAnnotation])] =
+    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[EdgeInformation] =
       control match {
         /* In a eval state, call the semantic's evaluation method */
         case ControlEval(e, env) =>
@@ -90,13 +115,14 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             .lookup(a)
             .flatMap({
               case Kont(frame, next) =>
-                val succsEdges = integrate(next, sem.stepKont(v, frame, store, t))
-                succsEdges.map({ case (succState, edgeInfos) =>
+                val edgeInfos = integrate(next, sem.stepKont(v, frame, store, t))
+                edgeInfos.map({ case (succState, edgeAnnotations, stateChanges) =>
                   /* If step did not generate any EdgeAnnotation, place a FrameFollowed EdgeAnnotation */
-                  val replacedEdgeInfo = KontAddrPopped(a, next) ::
-                                         FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A,  HybridTimestamp.T]]) ::
-                                         edgeInfos
-                  (succState, replacedEdgeInfo)
+                  val replacedEdgeAnnot =
+                    KontAddrPopped(a, next) ::
+                    FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) ::
+                    edgeAnnotations
+                  (succState, replacedEdgeAnnot, maybeAddKontAddrChanged(next, stateChanges))
                 })
             })
         /* In an error state, the state is not able to make a step */

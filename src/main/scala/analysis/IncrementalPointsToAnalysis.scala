@@ -1,6 +1,6 @@
 class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, GraphNode](val aam: AAM[_, _, _, _]) {
 
-  type AbstractGraph = Graph[GraphNode, List[EdgeAnnotation]]
+  type AbstractGraph = Graph[GraphNode, (List[EdgeAnnotation], List[StateChangeEdge[Exp, AbstL, _, _]])]
   type Edge = (List[EdgeAnnotation], GraphNode)
 
   var initialGraph: Option[AbstractGraph] = None
@@ -88,46 +88,6 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
       .map(_._1)
   }
 
-//  def filterReachedConcreteValueEdges(
-//      convertValueFun: ConcreteConcreteLattice.L => AbstL,
-//      concreteValue: ConcreteConcreteLattice.L,
-//      abstractEdges: Set[Edge]): Set[Edge] = {
-//    /*
-//     * All edges containing a ReachedValue annotation whose abstract value actually subsumes the abstracted
-//     * concrete value, zipped together with the abstract value that was reached.
-//     */
-//    val edgesContainingReachedValue: Set[(Edge, AbstL)] = abstractEdges
-//      .flatMap[(Edge, AbstL), Set[(Edge, AbstL)]]((tuple: Edge) => {
-//        /*
-//         * The ReachedValue annotation (if any exists) containing an abstract value that subsumes the converted
-//         * concrete value.
-//         */
-//        val reachedValueFound: Option[EdgeAnnotation] = tuple._1.find({
-//          case info: ReachedValue[AbstL] =>
-//            /*
-//             * Immediately check whether the value on the abstract edge actually subsumes the converted concrete value.
-//             * If not, we won't take this edge anyway.
-//             */
-//            val isSchemeLattice = implicitly[IsSchemeLattice[AbstL]]
-//            val convertedValue = convertValueFun(concreteValue)
-//            isSchemeLattice.subsumes(info.v, convertedValue)
-//          case _ =>
-//            false
-//        })
-//        reachedValueFound match {
-//          case info: Some[ReachedValue[AbstL]] =>
-//            Set((tuple, info.get.v))
-//          case _ =>
-//            Set()
-//        }
-//      })
-//    val ordering =
-//      new SubsumesOrdering[AbstL](implicitly[IsSchemeLattice[AbstL]].subsumes)
-//    val minReachedValueEdges: Set[Edge] =
-//      findMinimallySubsuming(edgesContainingReachedValue, ordering)
-//    minReachedValueEdges
-//  }
-
   private def frameUsedSubsumes(getFrameFromInfo: EdgeAnnotation => Option[AbstractFrame])
                                (info: EdgeAnnotation,
                                 convertedFrame: AbstractFrame)
@@ -189,10 +149,6 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
                            abstractEdges: Set[Edge],
                            concreteEdgeInfo: EdgeAnnotation): Set[Edge] =
     concreteEdgeInfo match {
-//      case ReachedConcreteValue(concreteValue) =>
-//        filterReachedConcreteValueEdges(convertValueFun,
-//                                        concreteValue,
-//                                        abstractEdges)
 
       case info: FrameFollowed[ConcreteConcreteLattice.L] =>
         filterFrameEdges(convertFrameFun(info.frame), frameUsedSubsumes({
