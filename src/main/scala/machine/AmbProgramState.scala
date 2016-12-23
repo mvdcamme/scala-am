@@ -1,3 +1,5 @@
+import ConcreteConcreteLattice.ConcreteValue
+
 case class HaltFailFrame() extends Frame {
   def subsumes(that: Frame): Boolean = that.equals(this)
 }
@@ -12,8 +14,8 @@ case object CannotBacktrackError extends SemanticError {
 
 case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
                                             failStack: List[Frame])(
-    implicit sabs: IsSchemeLattice[ConcreteConcreteLattice.L],
-    latInfoProv: LatticeInfoProvider[ConcreteConcreteLattice.L])
+    implicit sabs: IsSchemeLattice[ConcreteValue],
+    latInfoProv: LatticeInfoProvider[ConcreteValue])
     extends TracingProgramState[Exp,
                                 HybridAddress.A,
                                 HybridTimestamp.T]
@@ -25,8 +27,8 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
   def time = implicitly[Timestamp[HybridTimestamp.T]]
 
   def this(normalState: ProgramState[Exp])(
-      implicit sabs: IsSchemeLattice[ConcreteConcreteLattice.L],
-      latInfoProv: LatticeInfoProvider[ConcreteConcreteLattice.L]) =
+      implicit sabs: IsSchemeLattice[ConcreteValue],
+      latInfoProv: LatticeInfoProvider[ConcreteValue]) =
     this(normalState, List(HaltFailFrame()))
 
   def wrapApplyAction(sem: SemanticsTraced[Exp,

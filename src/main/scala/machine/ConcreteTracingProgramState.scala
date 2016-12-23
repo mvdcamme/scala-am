@@ -1,6 +1,8 @@
 import scala.annotation.tailrec
 import scala.collection.immutable.Stack
 
+import ConcreteConcreteLattice.ConcreteValue
+
 trait ActionReturn[Exp, Abs, Addr, Time, +State] {
   def getState: State =
     throw new Exception(
@@ -11,8 +13,8 @@ case class ActionStep[Exp: Expression,
                       Time: Timestamp,
                       State <: TracingProgramState[Exp, Addr, Time]](
     newState: State,
-    action: ActionT[Exp, ConcreteConcreteLattice.L, Addr])
-    extends ActionReturn[Exp, ConcreteConcreteLattice.L, Addr, Time, State] {
+    action: ActionT[Exp, ConcreteValue, Addr])
+    extends ActionReturn[Exp, ConcreteValue, Addr, Time, State] {
   override def getState: State = newState
 }
 case class GuardFailed[Exp: Expression,
@@ -50,8 +52,8 @@ trait ConcretableProgramState[Exp] {
     */
   def finalValues = concretableState.control match {
     case TracingControlKont(_) =>
-      Set[ConcreteConcreteLattice.L](concretableState.v)
-    case _ => Set[ConcreteConcreteLattice.L]()
+      Set[ConcreteValue](concretableState.v)
+    case _ => Set[ConcreteValue]()
   }
 
   def graphNodeColor = concretableState.control match {
@@ -68,22 +70,20 @@ trait ConcretableProgramState[Exp] {
       concretableState.kstore.subsumes(that.concretableState.kstore) &&
       concretableState.t == that.concretableState.t
 
-  def control: TracingControl[Exp, ConcreteConcreteLattice.L, HybridAddress.A] =
+  def control: TracingControl[Exp, ConcreteValue, HybridAddress.A] =
     concretableState.control
   def ρ: Environment[HybridAddress.A] = concretableState.ρ
-  def σ: Store[HybridAddress.A, ConcreteConcreteLattice.L] = concretableState.σ
+  def σ: Store[HybridAddress.A, ConcreteValue] = concretableState.σ
   def kstore: KontStore[KontAddr] = concretableState.kstore
   def a: KontAddr = concretableState.a
   def t: HybridTimestamp.T = concretableState.t
-  def v: ConcreteConcreteLattice.L = concretableState.v
-  def vStack: List[Storable[ConcreteConcreteLattice.L, HybridAddress.A]] =
+  def v: ConcreteValue = concretableState.v
+  def vStack: List[Storable[ConcreteValue, HybridAddress.A]] =
     concretableState.vStack
 
 }
 
 trait ConcreteTracingProgramState[Exp, Addr, Time] {
-
-  type ConcreteValue = ConcreteConcreteLattice.L
 
   def convertState[AbstL: IsConvertableLattice, KAddr <: KontAddr : KontAddress](
       concSem: ConvertableSemantics[Exp,
@@ -107,24 +107,24 @@ trait ConcreteTracingProgramState[Exp, Addr, Time] {
   */
 case class ProgramState[Exp: Expression](
     override val control: TracingControl[Exp,
-                                         ConcreteConcreteLattice.L,
+                                         ConcreteValue,
                                          HybridAddress.A],
     override val ρ: Environment[HybridAddress.A],
-    override val σ: Store[HybridAddress.A, ConcreteConcreteLattice.L],
+    override val σ: Store[HybridAddress.A, ConcreteValue],
     override val kstore: KontStore[KontAddr],
     override val a: KontAddr,
     override val t: HybridTimestamp.T,
-    override val v: ConcreteConcreteLattice.L,
+    override val v: ConcreteValue,
     override val vStack: List[
-      Storable[ConcreteConcreteLattice.L, HybridAddress.A]])(
-    implicit sabs: IsSchemeLattice[ConcreteConcreteLattice.L],
-    latInfoProv: LatticeInfoProvider[ConcreteConcreteLattice.L])
+      Storable[ConcreteValue, HybridAddress.A]])(
+    implicit sabs: IsSchemeLattice[ConcreteValue],
+    latInfoProv: LatticeInfoProvider[ConcreteValue])
     extends TracingProgramState[Exp,
                                 HybridAddress.A,
                                 HybridTimestamp.T]
     with ConcretableProgramState[Exp] {
 
-  def abs = implicitly[JoinLattice[ConcreteConcreteLattice.L]]
+  def abs = implicitly[JoinLattice[ConcreteValue]]
   def addr = implicitly[Address[HybridAddress.A]]
   def time = implicitly[Timestamp[HybridTimestamp.T]]
 
@@ -609,16 +609,13 @@ case class ProgramState[Exp: Expression](
   /**
     * Builds the state with the initial environment and stores
     */
-  def this(sem: SemanticsTraced[Exp,
-                                ConcreteConcreteLattice.L,
-                                HybridAddress.A,
-                                HybridTimestamp.T],
+  def this(sem: SemanticsTraced[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
            exp: Exp)(
-      implicit sabs: IsSchemeLattice[ConcreteConcreteLattice.L],
-      latInfoProv: LatticeInfoProvider[ConcreteConcreteLattice.L]) =
+      implicit sabs: IsSchemeLattice[ConcreteValue],
+      latInfoProv: LatticeInfoProvider[ConcreteValue]) =
     this(TracingControlEval(exp),
          Environment.initial[HybridAddress.A](sem.initialEnv),
-         Store.initial[HybridAddress.A, ConcreteConcreteLattice.L](
+         Store.initial[HybridAddress.A, ConcreteValue](
            sem.initialStore),
          KontStore.empty[KontAddr],
          HaltKontAddress,

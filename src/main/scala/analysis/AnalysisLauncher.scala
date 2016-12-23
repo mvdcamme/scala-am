@@ -1,3 +1,5 @@
+import ConcreteConcreteLattice.ConcreteValue
+
 abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
 
   protected val abstSem =
@@ -60,10 +62,7 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
     */
   protected def convertStateFree(
       free: Free[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
-      concSem: ConvertableSemantics[SchemeExp,
-                                    ConcreteConcreteLattice.L,
-                                    HybridAddress.A,
-                                    HybridTimestamp.T],
+      concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
       programState: PS): free.States = {
     val (control, store, kstore, a, t) =
@@ -84,10 +83,7 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
     */
   protected def convertStateAAM(
       aam: AAM[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
-  concSem: ConvertableSemantics[SchemeExp,
-                                ConcreteConcreteLattice.L,
-                                HybridAddress.A,
-                                HybridTimestamp.T],
+  concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
   abstSem: BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
   programState: PS): aam.State = {
     val (control, store, kstore, a, t) =

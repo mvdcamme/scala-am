@@ -1,5 +1,7 @@
 import scala.annotation.tailrec
 
+import ConcreteConcreteLattice.ConcreteValue
+
 class HybridConcreteMachine[
     PAbs: IsConvertableLattice: PointsToableLatticeInfoProvider](
     pointsToAnalysisLauncher: PointsToAnalysisLauncher[PAbs],
@@ -77,9 +79,8 @@ class HybridConcreteMachine[
                    kstore: KontStore[KontAddr],
                    a: KontAddr,
                    t: HybridTimestamp.T)
-      extends ConcreteTracingProgramState[SchemeExp,
-                                          HybridAddress.A,
-                                          HybridTimestamp.T] {
+      extends ConcreteTracingProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
+      with StateTrait[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] {
 
     def halted = control match {
       case ControlError(_) => true
@@ -304,7 +305,7 @@ class HybridConcreteMachine[
 
         type StepSucceeded = (State,
                               List[EdgeAnnotation],
-                              List[StateChangeEdge[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]])
+                              List[StateChangeEdge[State]])
 
         def step(control: Control): Either[ConcreteMachineOutput, StepSucceeded] =
           control
@@ -314,34 +315,34 @@ class HybridConcreteMachine[
             if (edges.size == 1) {
               edges.head match {
                 case (ActionReachedValue(v, store2, _), stateChanges) =>
-                  Right(State(ControlKont(v), store2, kstore, a, time.tick(t)),
-                        maybeAddReachedConcreteValue(v, Nil),
-                        ControlValueReached[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](v) ::
-                          TimeTick[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]() ::
-                          stateChanges)
+                  Right((State(ControlKont(v), store2, kstore, a, time.tick(t)),
+                         maybeAddReachedConcreteValue(v, Nil),
+                         ControlValueReached(v) ::
+                           TimeTick[State]() ::
+                           stateChanges.map(_.convert[State])))
                 case (ActionPush(frame, e, env, store2, _), stateChanges) =>
                   val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                   val kont = Kont(frame, a)
-                  Right(State(ControlEval(e, env), store2, kstore.extend(next, kont), next, time.tick(t)),
-                        KontAddrPushed(next) :: EvaluatingExpression(e) ::
-                          Nil,
-                        ControlExpEvaluated[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](e, env) ::
-                          KontStoreFramePush[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T, KontAddr](next, kont) ::
-                          TimeTick[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]() :: stateChanges)
+                  Right((State(ControlEval(e, env), store2, kstore.extend(next, kont), next, time.tick(t)),
+                         KontAddrPushed(next) :: EvaluatingExpression(e) ::
+                           Nil,
+                         ControlExpEvaluated[SchemeExp, HybridAddress.A, State](e, env) ::
+                           KontStoreFramePush[KontAddr, State](next, kont) ::
+                           TimeTick[State]() :: stateChanges.map(_.convert[State])))
                 case (ActionEval(e, env, store2, _), stateChanges) =>
-                  Right(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
-                        EvaluatingExpression(e) ::
-                          Nil,
-                        ControlExpEvaluated[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](e, env) ::
-                          TimeTick[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]() ::
-                          stateChanges)
+                  Right((State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
+                         EvaluatingExpression(e) ::
+                           Nil,
+                         ControlExpEvaluated[SchemeExp, HybridAddress.A, State](e, env) ::
+                           TimeTick[State]() ::
+                           stateChanges.map(_.convert[State])))
                 case (ActionStepIn(fexp, _, e, env, store2, _, _), stateChanges) =>
-                  Right(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
-                        EvaluatingExpression(e) ::
-                          Nil,
-                        ControlExpEvaluated[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](e, env) ::
-                          TimeTickExp[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](fexp) ::
-                          stateChanges)
+                  Right((State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
+                         EvaluatingExpression(e) ::
+                           Nil,
+                         ControlExpEvaluated[SchemeExp, HybridAddress.A, State](e, env) ::
+                           TimeTickExp[SchemeExp, State](fexp) ::
+                           stateChanges.map(_.convert[State])))
                 case (ActionError(err), stateChanges) =>
                   Left(ConcreteMachineOutputError(
                     (System.nanoTime - start) / Math.pow(10, 9),
@@ -366,52 +367,52 @@ class HybridConcreteMachine[
               val frames = kstore.lookup(a)
               if (frames.size == 1) {
                 val frame = frames.head.frame
-                val originFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]]
+                val originFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
                 val oldA = state.a
                 val a = frames.head.next
                 val edges = sem.stepKont(v, frame, store, t)
                 if (edges.size == 1) {
                   edges.head match {
                     case (ActionReachedValue(v, store2, _), stateChanges) =>
-                      Right(State(ControlKont(v), store2, kstore, a, time.tick(t)),
-                            KontAddrPopped(oldA, a) ::
-                              maybeAddReachedConcreteValue(v,
-                              FrameFollowed[ConcreteConcreteLattice.L](originFrameCast) :: Nil),
-                            ControlValueReached[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](v) ::
-                              TimeTick[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]() ::
-                              stateChanges)
+                      Right((State(ControlKont(v), store2, kstore, a, time.tick(t)),
+                             KontAddrPopped(oldA, a) ::
+                               maybeAddReachedConcreteValue(v,
+                               FrameFollowed[ConcreteValue](originFrameCast) :: Nil),
+                             ControlValueReached[ConcreteValue, State](v) ::
+                               TimeTick[State]() ::
+                               stateChanges.map(_.convert[State])))
                     case (ActionPush(frame, e, env, store2, _), stateChanges) =>
                       val kont = Kont(frame, a)
-                      val destinationFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]]
+                      val destinationFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
                       val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
-                      Right(State(ControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
-                            KontAddrPushed(next) ::
-                              KontAddrPopped(oldA, a) ::
-                              EvaluatingExpression(e) ::
-                              FrameFollowed(originFrameCast) ::
-                              Nil,
-                            ControlExpEvaluated[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](e, env) ::
-                              KontStoreFramePush[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T, KontAddr](next, kont) ::
-                              TimeTick[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]() ::
-                              stateChanges)
+                      Right((State(ControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
+                             KontAddrPushed(next) ::
+                               KontAddrPopped(oldA, a) ::
+                               EvaluatingExpression(e) ::
+                               FrameFollowed(originFrameCast) ::
+                               Nil,
+                             ControlExpEvaluated[SchemeExp, HybridAddress.A, State](e, env) ::
+                               KontStoreFramePush[KontAddr, State](next, kont) ::
+                               TimeTick[State]() ::
+                               stateChanges.map(_.convert[State])))
                     case (ActionEval(e, env, store2, _), stateChanges) =>
-                      Right(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
-                            KontAddrPopped(oldA, a) ::
-                              EvaluatingExpression(e) ::
-                              FrameFollowed[ConcreteConcreteLattice.L](originFrameCast) ::
-                              Nil,
-                            ControlExpEvaluated[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](e, env) ::
-                              TimeTick[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]() ::
-                              stateChanges)
+                      Right((State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
+                             KontAddrPopped(oldA, a) ::
+                               EvaluatingExpression(e) ::
+                               FrameFollowed[ConcreteValue](originFrameCast) ::
+                               Nil,
+                             ControlExpEvaluated[SchemeExp, HybridAddress.A, State](e, env) ::
+                               TimeTick[State]() ::
+                               stateChanges.map(_.convert[State])))
                     case (ActionStepIn(fexp, _, e, env, store2, _, _), stateChanges) =>
-                      Right(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
-                            KontAddrPopped(oldA, a) ::
-                              EvaluatingExpression(e) ::
-                              FrameFollowed[ConcreteConcreteLattice.L](originFrameCast) ::
-                              Nil,
-                            ControlExpEvaluated[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](e, env) ::
-                              TimeTick[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]() ::
-                              stateChanges)
+                      Right((State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
+                             KontAddrPopped(oldA, a) ::
+                               EvaluatingExpression(e) ::
+                               FrameFollowed[ConcreteValue](originFrameCast) ::
+                               Nil,
+                             ControlExpEvaluated[SchemeExp, HybridAddress.A, State](e, env) ::
+                               TimeTick[State]() ::
+                               stateChanges.map(_.convert[State])))
                     case (ActionError(err), stateChanges) =>
                       Left(ConcreteMachineOutputError(
                         (System.nanoTime - start) / Math.pow(10, 9),
@@ -445,16 +446,13 @@ class HybridConcreteMachine[
             output.toDotFile("concrete.dot")
             pointsToAnalysisLauncher.end
             output
-          case Right((succState, edgeInfo)) =>
-            def convertFrameFun(concBaseSem: ConvertableSemantics[SchemeExp,
-                                                                  ConcreteConcreteLattice.L,
-                                                                  HybridAddress.A,
-                                                                  HybridTimestamp.T],
+          case Right((succState, edgeAnnotations, stateChanges)) =>
+            def convertFrameFun(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                 abstSem: BaseSchemeSemantics[PAbs, HybridAddress.A, HybridTimestamp.T],
-                                convertValueFun: ConcreteConcreteLattice.L => PAbs):
-            SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] =>
+                                convertValueFun: ConcreteValue => PAbs):
+            SchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T] =>
             SchemeFrame[PAbs, HybridAddress.A, HybridTimestamp.T] = {
-              (frame: SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]) =>
+              (frame: SchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]) =>
                 concBaseSem.convertAbsInFrame[PAbs](
                   frame,
                   convertValueFun,
@@ -462,8 +460,8 @@ class HybridConcreteMachine[
                   abstSem)
             }
 
-            pointsToAnalysisLauncher.doConcreteStep(convertValue[PAbs], convertFrameFun, edgeInfo, stepCount)
-            loop(succState, start, count + 1, graph.addEdge(state, edgeInfo, succState))
+            pointsToAnalysisLauncher.doConcreteStep(convertValue[PAbs], convertFrameFun, edgeAnnotations, stepCount)
+            loop(succState, start, count + 1, graph.addEdge(state, edgeAnnotations, succState))
         }
       }
 
@@ -471,7 +469,7 @@ class HybridConcreteMachine[
 
     def inject(exp: SchemeExp,
                env: Environment[HybridAddress.A],
-               sto: Store[HybridAddress.A, ConcreteConcreteLattice.L]): State =
+               sto: Store[HybridAddress.A, ConcreteValue]): State =
       State(ControlEval(exp, env),
             sto,
             KontStore.empty[KontAddr],
@@ -481,7 +479,7 @@ class HybridConcreteMachine[
     val initialState = inject(
       exp,
       Environment.initial[HybridAddress.A](sem.initialEnv),
-      Store.initial[HybridAddress.A, ConcreteConcreteLattice.L](
+      Store.initial[HybridAddress.A, ConcreteValue](
         sem.initialStore))
     pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState)
 

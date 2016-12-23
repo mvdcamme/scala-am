@@ -171,8 +171,8 @@ Addr: Address, Time: Timestamp](sem: SemanticsTraced[Exp, Abs, Addr, Time])
   def time = implicitly[Timestamp[Time]]
 }
 
-trait MayHaveGraph[Node] {
-  def graph: Option[Graph[Node, List[EdgeAnnotation]]]
+trait MayHaveGraph[Node <: StateTrait[_, _, _, _]] {
+  def graph: Option[Graph[Node, (List[EdgeAnnotation], List[StateChangeEdge[Node]])]]
   def toDotFile(path: String): Unit
 }
 
@@ -182,6 +182,8 @@ trait HasFinalStores[Addr, Abs] {
   def stepSwitched: Option[Int]
 
 }
+
+trait StateTrait[Exp, Abs, Addr, Time]
 
 trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
   type MachineState
@@ -193,4 +195,8 @@ trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
                     stopEval: Option[MachineState => Boolean],
                     timeout: Option[Long],
                     stepSwitched: Option[Int]): MachineOutput
+}
+
+trait ProducesSpecialGraph[Exp, Abs, Addr, Time] extends KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
+  override type GraphNode <: StateTrait[Exp, Abs, Addr, Time]
 }

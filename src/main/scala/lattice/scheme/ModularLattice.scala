@@ -791,8 +791,10 @@ object ConcreteConcreteLattice extends SchemeLattice {
   import ConcreteChar._
   import ConcreteSymbol._
 
+
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](true)
   type L = lattice.LSet
+  type ConcreteValue = L
   val isSchemeLattice: IsConvertableLattice[L] =
     lattice.isSchemeLatticeSet
   val latticeInfoProvider: PointsToableLatticeInfoProvider[L] =

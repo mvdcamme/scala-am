@@ -1,3 +1,5 @@
+import ConcreteConcreteLattice.ConcreteValue
+
 /**
   * Implementation of a CESK machine following the AAM approach (Van Horn, David,
   * and Matthew Might. "Abstracting abstract machines." ACM Sigplan
@@ -39,8 +41,6 @@ class HybridMachine[
                                   ConcreteConcreteLattice.L,
                                   HybridAddress.A,
                                   HybridTimestamp.T](sem) {
-
-  type ConcreteValue = ConcreteConcreteLattice.L
 
   type PS =
     TracingProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]

@@ -626,7 +626,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
       .map({
         case (SchemeLambda(args, body, pos), ρ1) =>
           if (args.length == argsv.length) {
-            val (ρ2, σ2) = bindArgs(args.zip(argsv), ρ1, σ, t)
+            val (ρ2, σ2, stateChanges) = bindArgs(args.zip(argsv), ρ1, σ, t)
             val formattedBody = if (body.length == 1) { body.head } else {
               SchemeBegin(body, pos)
             }

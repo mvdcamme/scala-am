@@ -341,11 +341,11 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                 if (body.length == 1)
                   (ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1),
                                                       body.head, env2, store, argsv),
-                   boundAddresses.map( (boundAddress) => StoreExtend[SchemeExp, Abs, Addr, Time](boundAddress._1, boundAddress._2)))
+                   boundAddresses.map( (boundAddress) => StoreExtendSemantics[Abs, Addr](boundAddress._1, boundAddress._2)))
                 else
                   (ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1),
                                                       SchemeBegin(body, pos), env2, store, argsv),
-                   boundAddresses.map( (boundAddress) => StoreExtend[SchemeExp, Abs, Addr, Time](boundAddress._1, boundAddress._2)))
+                   boundAddresses.map( (boundAddress) => StoreExtendSemantics[Abs, Addr](boundAddress._1, boundAddress._2)))
             }
           } else {
             (ActionError[SchemeExp, Abs, Addr](
@@ -413,7 +413,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
 
   protected def evalQuoted(exp: SExp,
                            store: Store[Addr, Abs],
-                           t: Time): (Abs, Store[Addr, Abs], List[StateChangeEdge[SchemeExp, Abs, Addr, Time]]) = exp
+                           t: Time): (Abs, Store[Addr, Abs], List[StoreChangeSemantics[Abs, Addr]]) = exp
   match {
     case SExpIdentifier(sym, _) => (sabs.injectSymbol(sym), store, Nil)
     case SExpPair(car, cdr, _) => {
@@ -424,7 +424,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val cdra = addr.cell(cdre, t)
       val (cdrv, store3, stateChangesCdr) = evalQuoted(cdr, store2, t)
       (sabs.cons(cara, cdra), store3.extend(cara, carv).extend(cdra, cdrv),
-       List(StoreExtend[SchemeExp, Abs, Addr, Time](cara, carv), StoreExtend[SchemeExp, Abs, Addr, Time](cdra, cdrv)) ++
+       List(StoreExtendSemantics[Abs, Addr](cara, carv), StoreExtendSemantics[Abs, Addr](cdra, cdrv)) ++
          stateChangesCar ++
          stateChangesCdr)
     }
@@ -468,7 +468,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     case SchemeLetrec((v, exp) :: bindings, body, _) => {
       case class ValuesToUpdate(env: Environment[Addr],
                                 store: Store[Addr, Abs],
-                                stateChanges: List[StateChangeEdge[SchemeExp, Abs, Addr, Time]])
+                                stateChanges: List[StoreChangeSemantics[Abs, Addr]])
       type X = (ValuesToUpdate, (String, Addr))
       val variables = v :: bindings.map(_._1)
       val addresses = variables.map(v => addr.variable(v, abs.bottom, t))
@@ -476,10 +476,10 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val ValuesToUpdate(env1, store1, stateChanges) = variables
         .zip(addresses)
         .foldLeft[ValuesToUpdate](initial)({
-        case (ValuesToUpdate(env, store, stateChanges), (v, a)) =>
+        case (ValuesToUpdate(env, store, storeChanges), (v, a)) =>
           ValuesToUpdate(env.extend(v, a),
                          store.extend(a, abs.bottom),
-                         StoreExtend[SchemeExp, Abs, Addr, Time](a, abs.bottom) :: stateChanges)
+                         StoreExtendSemantics[Abs, Addr](a, abs.bottom) :: storeChanges)
       })
       Set((ActionPush(FrameLetrec(addresses.head,
                                addresses.tail.zip(bindings.map(_._2)),
@@ -516,7 +516,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val env1 = env.extend(name, a)
       val store1 = store.extend(a, v)
       Set((ActionReachedValue[SchemeExp, Abs, Addr](v, store),
-           List(StoreExtend[SchemeExp, Abs, Addr, Time](a, v))))
+           List(StoreExtendSemantics[Abs, Addr](a, v))))
     case SchemeIdentifier(name, _) =>
       addNilStateChangeEdges(env.lookup(name) match {
         case Some(a) =>
@@ -581,18 +581,18 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             Set(evalBody(body, env1, store1))
           case (variable, exp) :: rest =>
             Set((ActionPush(FrameLetStar(variable, rest, body, env1), exp, env1, store1),
-                 List(StoreExtend[SchemeExp, Abs, Addr, Time](a, v))))
+                 List(StoreExtendSemantics[Abs, Addr](a, v))))
         }
       case FrameLetrec(a, Nil, body, env) =>
         Set(evalBody(body, env, store.update(a, v)))
       case FrameLetrec(a, (a1, exp) :: rest, body, env) =>
         Set((ActionPush(FrameLetrec(a1, rest, body, env), exp, env, store.update(a, v)),
-             List(StoreUpdate[SchemeExp, Abs, Addr, Time](a, v))))
+             List(StoreUpdateSemantics[Abs, Addr](a, v))))
       case FrameSet(name, env) =>
         env.lookup(name) match {
           case Some(a) =>
             Set((ActionReachedValue(sabs.inject(false), store.update(a, v), Set(EffectWriteVariable(a))),
-                 List(StoreUpdate[SchemeExp, Abs, Addr, Time](a, v))))
+                 List(StoreUpdateSemantics[Abs, Addr](a, v))))
           case None => addNilStateChangeEdges(Set(ActionError(UnboundVariable(name))))
         }
       case FrameBegin(body, env) =>

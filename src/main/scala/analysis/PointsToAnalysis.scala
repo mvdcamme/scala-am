@@ -93,7 +93,7 @@ class PointsToAnalysis[
     Logger.log(s"Starting static points-to analysis", Logger.I)
     val result =
       machine.kickstartEval(startState, sem, None, None, stepSwitched)
-    toDot.map(result.toDotFile)
+    toDot.foreach(result.toDotFile)
     analyzeOutput(machine, pointsTo, relevantAddress)(result)
     AnalysisGraph[machine.GraphNode](result.graph.get)
   }
@@ -109,7 +109,8 @@ class PointsToAnalysisLauncher[
 
   val aam: SpecAAM = new SpecAAM()
 
-  val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, aam.GraphNode](aam)
+  implicit val stateChangeEdgeApplier = aam.StateChangeApplier
+  val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, aam.GraphNode]
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]

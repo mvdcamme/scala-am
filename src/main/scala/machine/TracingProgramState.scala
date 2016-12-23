@@ -1,3 +1,5 @@
+import ConcreteConcreteLattice.ConcreteValue
+
 trait TracingProgramState[Exp, Addr, Time]
   extends ConcreteTracingProgramState[Exp, Addr, Time] {
 

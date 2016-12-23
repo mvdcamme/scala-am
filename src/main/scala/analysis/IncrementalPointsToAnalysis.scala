@@ -1,14 +1,18 @@
-class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, GraphNode](val aam: AAM[_, _, _, _]) {
+class IncrementalPointsToAnalysis[Exp : Expression,
+                                  AbstL : IsSchemeLattice,
+                                  State <: StateTrait[Exp, AbstL, _, _] : StateChangeEdgeApplier] {
 
-  type AbstractGraph = Graph[GraphNode, (List[EdgeAnnotation], List[StateChangeEdge[Exp, AbstL, _, _]])]
-  type Edge = (List[EdgeAnnotation], GraphNode)
+  type Edge = ((List[EdgeAnnotation], List[StateChangeEdge[State]]), State)
+  type AbstractGraph = Graph[State, (List[EdgeAnnotation], List[StateChangeEdge[State]])]
+
+  val stateChangeApplier: StateChangeEdgeApplier[State] = implicitly[StateChangeEdgeApplier[State]]
 
   var initialGraph: Option[AbstractGraph] = None
   var currentGraph: Option[AbstractGraph] = initialGraph
-  var currentNodes: Set[GraphNode] = Set()
+  var currentNodes: Set[State] = Set()
 
-  var nodesVisited: Set[GraphNode] = Set()
-  var edgesVisited: Set[(GraphNode, List[EdgeAnnotation], GraphNode)] = Set()
+  var nodesVisited: Set[State] = Set()
+  var edgesVisited: Set[(State, (List[EdgeAnnotation], List[StateChangeEdge[State]]), State)] = Set()
 
   def hasInitialGraph: Boolean = currentGraph.isDefined
   def initializeGraph(graph: AbstractGraph) = {
@@ -19,7 +23,7 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
     currentNodes = Set(someStartNode.get)
   }
 
-  def containsNode(node: GraphNode): Boolean = {
+  def containsNode(node: State): Boolean = {
     currentGraph.get.nodeId(node) != -1
   }
 
@@ -31,15 +35,15 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
    * the first state (the state from which the edge originates) will be a dead end, matching of
    * the concrete state should proceed with the state that subsumes the 'dead' state.
    */
-  def followStateSubsumedEdges(node: GraphNode): Set[GraphNode] =
+  def followStateSubsumedEdges(node: State): Set[State] =
     if (currentGraph.get.nodeEdges(node).isEmpty) {
       Set(node)
     } else {
       currentGraph.get.nodeEdges(node).flatMap((edge) =>
-        if (edge._1.contains(StateSubsumed)) {
+        if (edge._1._1.contains(StateSubsumed)) {
           /* Make sure that an edge is ONLY annotated with StateSubsumed. It should not be possible
            * to have a StateSubsumed edge with any other annotation. */
-          assert(edge._1.size == 1,
+          assert(edge._1._1.size == 1,
             s"StateSubsumed edge contains more than 1 edge: ${edge._1}")
           addEdgesVisited(node, Set(edge))
           followStateSubsumedEdges(edge._2)
@@ -125,7 +129,7 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
         abstractEdges
           .flatMap[(Edge, AbstractFrame), Set[(Edge, AbstractFrame)]](
             (edge: Edge) => {
-              val someFound: Option[AbstractFrame] = edge._1.map(subsumesFrame(_, convertedFrame)).foldLeft[Option[AbstractFrame]](None)({
+              val someFound: Option[AbstractFrame] = edge._1._1.map(subsumesFrame(_, convertedFrame)).foldLeft[Option[AbstractFrame]](None)({
                 case (Some(x), _) =>
                   Some(x)
                 case (None, y) =>
@@ -160,7 +164,7 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
 
       case _ =>
         abstractEdges.filter({
-          case (abstractEdgeInfos, node) =>
+          case ((abstractEdgeInfos, _), _) =>
             concreteEdgeInfo match {
               case EvaluatingExpression(e) =>
                 abstractEdgeInfos.contains(concreteEdgeInfo)
@@ -179,8 +183,8 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
   def computeSuccNode(
       convertValueFun: ConcreteConcreteLattice.L => AbstL,
       convertFrameFun: ConcreteFrame => AbstractFrame,
-      node: GraphNode,
-      concreteEdgeInfos: List[EdgeAnnotation]): Set[GraphNode] = {
+      node: State,
+      concreteEdgeInfos: List[EdgeAnnotation]): Set[State] = {
     assert(currentGraph.isDefined)
     val abstractEdges = currentGraph.get.nodeEdges(node)
     Logger.log(s"abstractEdgeInfos = ${abstractEdges.map(_._1)}", Logger.U)
@@ -199,10 +203,10 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
   var graphSize: List[(Int, Int)] = Nil
   var concreteNodes: List[(Int, Int, List[Int])] = Nil
 
-  private def addNodesVisited(nodes: Set[GraphNode]): Unit =
+  private def addNodesVisited(nodes: Set[State]): Unit =
     nodes.foreach(nodesVisited += _)
 
-  private def addEdgesVisited(node: GraphNode, edges: Set[Edge]): Unit =
+  private def addEdgesVisited(node: State, edges: Set[Edge]): Unit =
     edges.foreach((tuple) => edgesVisited += ((node, tuple._1, tuple._2)))
 
   def computeSuccNodes(convertValueFun: ConcreteConcreteLattice.L => AbstL,
@@ -234,7 +238,7 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
       "Analysis/Traversed graph/traversed_graph.dot",
       node => List(scala.xml.Text(node.toString.take(40))),
       (s) => if (nodesVisited.contains(s)) Colors.Red else Colors.White,
-      node => List(scala.xml.Text(node.mkString(", ").take(300))),
+      node => List(scala.xml.Text((node._1.mkString(", ") ++ node._2.mkString(", ")).take(300))),
       Some((edge) =>
         if (edgesVisited.contains(edge)) Colors.Red else Colors.Black))
   }
@@ -270,14 +274,14 @@ class IncrementalPointsToAnalysis[Exp : Expression, AbstL : IsSchemeLattice, Gra
   }
 
   case class ReachablesIntermediateResult(graph: AbstractGraph,
-                                          nodesDone: Set[GraphNode],
-                                          todoQueue: List[GraphNode])
+                                          nodesDone: Set[State],
+                                          todoQueue: List[State])
 
   /*
    * Remove variable todo, let addReachableEdges return tuple of graph and todo-list
    */
   def addReachableEdges(reachables: ReachablesIntermediateResult,
-                        node: GraphNode): ReachablesIntermediateResult = {
+                        node: State): ReachablesIntermediateResult = {
     val graph = reachables.graph
     val todoQueue = reachables.todoQueue
     val nodesDone = reachables.nodesDone

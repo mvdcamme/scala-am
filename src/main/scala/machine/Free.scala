@@ -46,7 +46,8 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                    store: Store[Addr, Abs],
                    kstore: KontStore[FreeKontAddr],
                    k: FreeKontAddr,
-                   t: Time) {
+                   t: Time)
+    extends StateTrait[Exp, Abs, Addr, Time] {
     override def toString = control.toString
     def subsumes(that: State): Boolean =
       control.subsumes(that.control) && store.subsumes(that.store) && kstore

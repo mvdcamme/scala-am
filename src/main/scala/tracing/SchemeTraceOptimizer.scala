@@ -1,5 +1,7 @@
 import scala.annotation.tailrec
 
+import ConcreteConcreteLattice.ConcreteValue
+
 /**
   * Created by mvdcamme on 24/02/16.
   */
@@ -37,8 +39,6 @@ class SchemeTraceOptimizer[Abs: ConstantableLatticeInfoProvider](
                                  ConcreteConcreteLattice.L,
                                  HybridAddress.A,
                                  HybridTimestamp.T]
-
-  type ConcreteValue = ConcreteConcreteLattice.L
 
   val basicOptimizations: List[(Boolean, (SpecTraceFull => SpecTraceFull))] =
     List(

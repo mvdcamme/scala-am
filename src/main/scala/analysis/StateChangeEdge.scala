@@ -1,49 +1,68 @@
-trait StateChangeEdge[Exp, Abs, Addr, Time]
+trait StateChangeEdge[+State <: StateTrait[_, _, _, _]]
 
-trait ApplyStateChangeEdge[Exp, Abs, Addr, Time] {
+trait StateChangeEdgeApplier[State <: StateTrait[_, _, _, _]] {
 
-  type State
-
-  def applyStateChangeEdge(stateChangeEdge: StateChangeEdge[Exp, Abs, Addr, Time]): State
+  def applyStateChangeEdge(state: State, stateChangeEdge: StateChangeEdge[State]): State
 
 }
 
-/*********************************************************************************************************************
- *                                                     AAM edges                                                     *
- *********************************************************************************************************************/
 
-case class ControlValueReached[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
-  (v: Abs)
-  extends StateChangeEdge[Exp, Abs, Addr, Time]
 
-case class ControlExpEvaluated[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
-  (e: Exp, env: Environment[Addr])
-  extends StateChangeEdge[Exp, Abs, Addr, Time]
-
-case class TimeTick[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
+abstract class StoreChangeSemantics[Abs : JoinLattice, Addr : Address]
   ()
-  extends StateChangeEdge[Exp, Abs, Addr, Time]
+  extends StateChangeEdge[StateTrait[_, Abs, Addr, _]] {
+  implicit def convert[State <: StateTrait[_, Abs, Addr, _]]: StateChangeEdge[State]
+}
 
-case class TimeTickExp[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
-  (e: Exp)
-  extends StateChangeEdge[Exp, Abs, Addr, Time]
+case class StoreExtendSemantics[Abs : JoinLattice, Addr : Address]
+  (a: Addr, v: Abs)
+  extends StoreChangeSemantics[Abs, Addr] {
+  override implicit def convert[State <: StateTrait[_, Abs, Addr, _]] = StoreExtend[Abs, Addr, State](a, v)
+}
 
-case class KontAddrChanged[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp, KontAddr : KontAddress]
+case class StoreUpdateSemantics[Abs : JoinLattice, Addr : Address]
+  (a: Addr, v: Abs)
+  extends StoreChangeSemantics[Abs, Addr] {
+  override implicit def convert[State <: StateTrait[_, Abs, Addr, _]] = StoreUpdate[Abs, Addr, State](a, v)
+}
+
+
+
+
+
+
+case class ControlErrorReached[State <: StateTrait[_, _, _, _]]
+(error: SemanticError)
+  extends StateChangeEdge[State]
+
+case class ControlExpEvaluated[Exp : Expression, Addr : Address, State <: StateTrait[Exp, _, Addr, _]]
+  (e: Exp, env: Environment[Addr])
+  extends StateChangeEdge[State]
+
+case class ControlValueReached[Abs : JoinLattice, State <: StateTrait[_, Abs, _, _]]
+(v: Abs)
+  extends StateChangeEdge[State]
+
+case class KontAddrChanged[KontAddr : KontAddress, State <: StateTrait[_, _, _, _]]
   (a: KontAddr)
-  extends StateChangeEdge[Exp, Abs, Addr, Time]
+  extends StateChangeEdge[State]
 
-case class KontStoreFramePush[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp, KontAddr : KontAddress]
+case class KontStoreFramePush[KontAddr : KontAddress, State <: StateTrait[_, _, _, _]]
   (pushAddress: KontAddr, kont: Kont[KontAddr])
-  extends StateChangeEdge[Exp, Abs, Addr, Time]
+  extends StateChangeEdge[State]
 
-case class ControlErrorReached[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
-  (error: SemanticError)
-  extends StateChangeEdge[Exp, Abs, Addr, Time]
-
-case class StoreExtend[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
+case class  StoreExtend[Abs : JoinLattice, Addr : Address, State <: StateTrait[_, Abs, Addr, _]]
   (a: Addr, v: Abs)
-  extends StateChangeEdge[Exp, Abs, Addr, Time]
+  extends StateChangeEdge[State]
 
-case class StoreUpdate[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
+case class StoreUpdate[Abs : JoinLattice, Addr : Address, State <: StateTrait[_, Abs, Addr, _]]
   (a: Addr, v: Abs)
-  extends StateChangeEdge[Exp, Abs, Addr, Time]
+  extends StateChangeEdge[State]
+
+case class TimeTick[State <: StateTrait[_, _, _, _]]
+()
+  extends StateChangeEdge[State]
+
+case class TimeTickExp[Exp : Expression, State <: StateTrait[Exp, _, _, _]]
+(e: Exp)
+  extends StateChangeEdge[State]

@@ -24,10 +24,23 @@ trait BasicSemantics[Exp, Abs, Addr, Time] {
   implicit def exp: Expression[Exp]
   implicit def time: Timestamp[Time]
 
+  /**
+    * Binds arguments in the environment and store. Arguments are given as a list
+    * of triple, where each triple is made of:
+    *   - the name of the argument
+    *   - the expression evaluated to get the argument's value
+    *   - the value of the argument
+    */
   def bindArgs(l: List[(String, (Exp, Abs))],
                ρ: Environment[Addr],
                σ: Store[Addr, Abs],
-               t: Time): (Environment[Addr], Store[Addr, Abs])
+               t: Time): (Environment[Addr], Store[Addr, Abs], List[(Addr, Abs)]) =
+    l.foldLeft[(Environment[Addr], Store[Addr, Abs], List[(Addr, Abs)])]((ρ, σ, Nil))({
+      case ((env, store, boundAddresses), (name, (exp, value))) => {
+        val a = addr.variable(name, value, t)
+        (env.extend(name, a), store.extend(a, value), (a, value) :: boundAddresses)
+      }
+    })
 
   /**
     * Defines how to parse a program
@@ -38,7 +51,7 @@ trait BasicSemantics[Exp, Abs, Addr, Time] {
 trait Semantics[Exp, Abs, Addr, Time]
     extends BasicSemantics[Exp, Abs, Addr, Time] {
 
-  type ActionChange = (Action[Exp, Abs, Addr], List[StateChangeEdge[Exp, Abs, Addr, Time]])
+  type ActionChange = (Action[Exp, Abs, Addr], List[StoreChangeSemantics[Abs, Addr]])
 
   def addNilStateChangeEdges(actions: Set[Action[Exp, Abs, Addr]]): Set[ActionChange] =
     actions.map((_, Nil))
@@ -334,24 +347,6 @@ abstract class BaseSemantics[
   def addr = implicitly[Address[Addr]]
   def exp = implicitly[Expression[Exp]]
   def time = implicitly[Timestamp[Time]]
-
-  /**
-    * Binds arguments in the environment and store. Arguments are given as a list
-    * of triple, where each triple is made of:
-    *   - the name of the argument
-    *   - the expression evaluated to get the argument's value
-    *   - the value of the argument
-    */
-  def bindArgs(l: List[(String, (Exp, Abs))],
-               env: Environment[Addr],
-               store: Store[Addr, Abs],
-               t: Time): (Environment[Addr], Store[Addr, Abs], List[(Addr, Abs)]) =
-    l.foldLeft[(Environment[Addr], Store[Addr, Abs], List[(Addr, Abs)])]((env, store, Nil))({
-      case ((env, store, boundAddresses), (name, (exp, value))) => {
-        val a = addr.variable(name, value, t)
-        (env.extend(name, a), store.extend(a, value), (a, value) :: boundAddresses)
-      }
-    })
 }
 
 abstract class BaseSemanticsTraced[Exp: Expression, Abs: JoinLattice,
@@ -362,24 +357,6 @@ Addr: Address, Time: Timestamp](val primitives: Primitives[Addr, Abs])
   def addr = implicitly[Address[Addr]]
   def exp = implicitly[Expression[Exp]]
   def time = implicitly[Timestamp[Time]]
-
-  /**
-    * Binds arguments in the environment and store. Arguments are given as a list
-    * of triple, where each triple is made of:
-    *   - the name of the argument
-    *   - the expression evaluated to get the argument's value
-    *   - the value of the argument
-    */
-  def bindArgs(l: List[(String, (Exp, Abs))],
-               env: Environment[Addr],
-               store: Store[Addr, Abs],
-               t: Time): (Environment[Addr], Store[Addr, Abs]) =
-    l.foldLeft((env, store))({
-      case ((env, store), (name, (exp, value))) => {
-        val a = addr.variable(name, value, t)
-        (env.extend(name, a), store.extend(a, value))
-      }
-    })
 }
 
 /**********************************************************************************************************************
