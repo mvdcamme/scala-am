@@ -81,7 +81,7 @@ class PointsToAnalysis[
     result
   }
 
-  def analyze[Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](
+  def analyze[Machine <: ProducesStateGraph[Exp, L, Addr, Time]](
       toDot: Option[String],
       machine: Machine,
       sem: Semantics[Exp, L, Addr, Time],
@@ -95,7 +95,7 @@ class PointsToAnalysis[
       machine.kickstartEval(startState, sem, None, None, stepSwitched)
     toDot.foreach(result.toDotFile)
     analyzeOutput(machine, pointsTo, relevantAddress)(result)
-    AnalysisGraph[machine.GraphNode](result.graph.get)
+    AnalysisGraph[machine.GraphNode](result.graph)
   }
 }
 

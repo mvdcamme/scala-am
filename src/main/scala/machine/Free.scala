@@ -154,7 +154,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                         graph: Option[Graph[State, List[EdgeAnnotation]]],
                         timedOut: Boolean,
                         stepSwitched: Option[Int])
-      extends Output[Abs] with MayHaveGraph[State] with HasFinalStores[Addr, Abs] {
+      extends Output[Abs] with HasFinalStores[Addr, Abs] {
 
     def finalValues =
       halted.flatMap(st =>

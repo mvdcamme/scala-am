@@ -171,8 +171,8 @@ Addr: Address, Time: Timestamp](sem: SemanticsTraced[Exp, Abs, Addr, Time])
   def time = implicitly[Timestamp[Time]]
 }
 
-trait MayHaveGraph[Node <: StateTrait[_, _, _, _]] {
-  def graph: Option[Graph[Node, (List[EdgeAnnotation], List[StateChangeEdge[Node]])]]
+trait HasGraph[Node <: StateTrait[_, _, _, _]] {
+  def graph: Graph[Node, (List[EdgeAnnotation], List[StateChangeEdge[Node]])]
   def toDotFile(path: String): Unit
 }
 
@@ -188,7 +188,7 @@ trait StateTrait[Exp, Abs, Addr, Time]
 trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
   type MachineState
   type GraphNode
-  type MachineOutput <: Output[Abs] with MayHaveGraph[GraphNode] with HasFinalStores[Addr, Abs]
+  type MachineOutput <: Output[Abs] with HasFinalStores[Addr, Abs]
 
   def kickstartEval(initialState: MachineState,
                     sem: Semantics[Exp, Abs, Addr, Time],
@@ -197,6 +197,7 @@ trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
                     stepSwitched: Option[Int]): MachineOutput
 }
 
-trait ProducesSpecialGraph[Exp, Abs, Addr, Time] extends KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
+trait ProducesStateGraph[Exp, Abs, Addr, Time] extends KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
   override type GraphNode <: StateTrait[Exp, Abs, Addr, Time]
+  override type MachineOutput <: Output[Abs] with HasGraph[GraphNode] with HasFinalStores[Addr, Abs]
 }

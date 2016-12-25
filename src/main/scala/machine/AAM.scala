@@ -18,7 +18,7 @@
   */
 class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     extends EvalKontMachine[Exp, Abs, Addr, Time]
-    with ProducesSpecialGraph[Exp, Abs, Addr, Time] {
+    with ProducesStateGraph[Exp, Abs, Addr, Time] {
 
   type MachineState = State
   type GraphNode = State
@@ -173,10 +173,10 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   case class AAMOutput(halted: Set[State],
                        numberOfStates: Int,
                        time: Double,
-                       graph: Option[Graph[State, (List[EdgeAnnotation], List[StateChangeEdge[State]])]],
+                       graph: Graph[State, (List[EdgeAnnotation], List[StateChangeEdge[State]])],
                        timedOut: Boolean,
                        stepSwitched: Option[Int])
-      extends Output[Abs] with MayHaveGraph[State] with HasFinalStores[Addr, Abs] {
+      extends Output[Abs] with HasGraph[State] with HasFinalStores[Addr, Abs] {
 
     /**
       * Returns the list of final values that can be reached
@@ -202,23 +202,19 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     /**
       * Outputs the graph in a dot file
       */
-    def toDotFile(path: String) = graph match {
-      case Some(g) =>
-        g.toDotFile(path,
-                    node => List(scala.xml.Text(node.toString.take(40))),
-                    (s) =>
-                      if (halted.contains(s)) { Colors.Yellow } else {
-                        s.control match {
-                          case ControlEval(_, _) => Colors.Green
-                          case ControlKont(_) => Colors.Pink
-                          case ControlError(_) => Colors.Red
-                        }
-                    },
-                    node => List(scala.xml.Text(node._1.mkString(", ").take(300))),
-                    None)
-      case None =>
-        println("Not generating graph because no graph was computed")
-    }
+    def toDotFile(path: String) =
+      graph.toDotFile(path,
+                      node => List(scala.xml.Text(node.toString.take(40))),
+                      (s) =>
+                        if (halted.contains(s)) { Colors.Yellow } else {
+                           s.control match {
+                             case ControlEval(_, _) => Colors.Green
+                             case ControlKont(_) => Colors.Pink
+                             case ControlError(_) => Colors.Red
+                           }
+                        },
+                      node => List(scala.xml.Text(node._1.mkString(", ").take(300))),
+                      None)
   }
 
   /*
@@ -258,7 +254,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         AAMOutput(halted,
                   visited.size,
                   (System.nanoTime - startingTime) / Math.pow(10, 9),
-                  Some(graph),
+                  graph,
                   true,
                   stepSwitched)
       } else {
@@ -299,7 +295,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             AAMOutput(halted,
                       visited.size,
                       (System.nanoTime - startingTime) / Math.pow(10, 9),
-                      Some(graph),
+                      graph,
                       false,
                       stepSwitched)
         }
