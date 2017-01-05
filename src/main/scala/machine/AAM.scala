@@ -199,6 +199,13 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     def containsFinalValue(v: Abs) =
       finalValues.exists(v2 => abs.subsumes(v2, v))
 
+    private def describeNode(node: State): String =
+      s"<p>${node.control}</p>\n" +
+      s"<p>${node.store}</p>\n" +
+      s"<p>${node.kstore}</p>\n" +
+      s"<p>${node.a}</p>\n" +
+      s"<p>${node.t}</p>\n"
+
     /**
       * Outputs the graph in a dot file
       */
@@ -213,6 +220,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                              case ControlError(_) => Colors.Red
                            }
                         },
+                      Some(describeNode),
                       node => List(scala.xml.Text(node._1.mkString(", ").take(300))),
                       None)
   }
