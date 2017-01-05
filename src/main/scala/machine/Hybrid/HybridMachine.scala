@@ -393,6 +393,7 @@ class HybridMachine[
                       if (halted.contains(s)) { Colors.Yellow } else {
                         s.graphNodeColor
                     },
+                    None,
                     _ => List(),
                     None)
       case None =>

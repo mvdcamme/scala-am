@@ -147,6 +147,7 @@ class AAMGlobalStore[
                           case ControlError(_) => Colors.Red
                         }
                     },
+                    None,
                     _ => List(),
                     None)
       case None =>
