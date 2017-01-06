@@ -111,7 +111,7 @@ class AAC[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       graph.toDotFile(file, {
         case KontCtx(ctx) => List(scala.xml.Text(ctx.toString.take(40)))
         case KontEmpty => List(scala.xml.Text("ε"))
-      }, x => Colors.White, None, x => List(scala.xml.Text(x.toString)), None)
+      }, x => Colors.White, x => List(scala.xml.Text(x.toString)), None)
     }
   }
 
@@ -408,7 +408,6 @@ class AAC[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                           case ControlError(_) => Colors.Red
                         }
                     },
-                    None,
                     _ => List(),
                     None)
       case None =>

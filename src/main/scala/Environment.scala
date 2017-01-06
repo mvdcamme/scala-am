@@ -25,6 +25,8 @@ abstract class Environment[Addr: Address] {
 
   /** Maps over all addresses in the environment */
   def map(f: Addr => Addr): Environment[Addr]
+
+  def descriptor: Descriptor[Environment[Addr]] = new BasicDescriptor[Environment[Addr]](this)
 }
 
 /** Basic mapping from names to addresses */
@@ -44,6 +46,12 @@ case class BasicEnvironment[Addr: Address](content: Map[String, Addr])
     val newMap: Map[String, Addr] = content.mapValues(f)
     new BasicEnvironment[Addr](newMap)
   }
+
+  override def descriptor = new BasicEnvironmentDescriptor[Addr](this)
+}
+
+class BasicEnvironmentDescriptor[Addr](val env: BasicEnvironment[Addr]) extends Descriptor[BasicEnvironment[Addr]] {
+  override def describe: String = describeCollapsableList(env.content)
 }
 
 /** Environment that combines a default read-only environment with a writable environment */

@@ -170,6 +170,14 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             time.initial(""))
   }
 
+  class StateDescriptor(val state: State) extends Descriptor[State] {
+    override def describe: String = s"<p>${state.control}</p>\n" +
+      s"<p>${state.store}</p>\n" +
+      s"<p>${state.kstore}</p>\n" +
+      s"<p>${state.a}</p>\n" +
+      s"<p>${state.t}</p>\n"
+  }
+
   case class AAMOutput(halted: Set[State],
                        numberOfStates: Int,
                        time: Double,
@@ -199,13 +207,6 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     def containsFinalValue(v: Abs) =
       finalValues.exists(v2 => abs.subsumes(v2, v))
 
-    private def describeNode(node: State): String =
-      s"<p>${node.control}</p>\n" +
-      s"<p>${node.store}</p>\n" +
-      s"<p>${node.kstore}</p>\n" +
-      s"<p>${node.a}</p>\n" +
-      s"<p>${node.t}</p>\n"
-
     /**
       * Outputs the graph in a dot file
       */
@@ -220,7 +221,6 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                              case ControlError(_) => Colors.Red
                            }
                         },
-                      Some(describeNode),
                       node => List(scala.xml.Text(node._1.mkString(", ").take(300))),
                       None)
   }
@@ -310,7 +310,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       }
     }
     val startingTime = System.nanoTime
-    loop(Set(initialState), Set(), Set(), startingTime, new Graph().addNode
+    loop(Set(initialState), Set(), Set(), startingTime, new HyperlinkedGraph().addNode
     (initialState))
   }
 

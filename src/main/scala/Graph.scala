@@ -56,17 +56,13 @@ case class Graph[Node, Annotation](ids: Map[Node, Int],
 
   def toDot(label: Node => List[scala.xml.Node],
             colorNode: Node => String,
-            addHyperlink: Boolean,
             annotLabel: Annotation => List[scala.xml.Node],
             colorEdge: Option[((Node, Annotation, Node)) => String]): String = {
     val sb = new StringBuilder("digraph G {\nsize=\"8,10.5\"\n")
     nodes.foreach((n) => {
       val labelstr = label(n).mkString(" ")
       val target = "_blank"
-      sb.append(
-        s"node_${ids(n)}[label=<${ids(n)}: $labelstr>, fillcolor=<${colorNode(n)}> style=<filled>" +
-          s"${if (addHyperlink) {"URL=" + "\"" + "file:///Users/mvdcamme/PhD/Projects/scala-am/index.html#" +
-            s"${ids(n)}" + "\""} else ""} ];\n")
+      sb.append(s"node_${ids(n)}[label=<${ids(n)}: $labelstr>, fillcolor=<${colorNode(n)}> style=<filled>];\n")
     })
     edges.foreach({
       case (n1, ns) =>
@@ -82,33 +78,18 @@ case class Graph[Node, Annotation](ids: Map[Node, Int],
     return sb.toString
   }
 
-  private def openBufferedWriter(path: String, append: Boolean = false): java.io.BufferedWriter = {
+  protected def openBufferedWriter(path: String, append: Boolean = false): java.io.BufferedWriter = {
     val f = new java.io.File(path)
     new java.io.BufferedWriter(new java.io.FileWriter(f, append))
-  }
-
-  private def writeNodesDump(describeNode: Node => String, outputPath: String): Unit = {
-    val bw = openBufferedWriter(outputPath)
-    bw.write("<!DOCTYPE html>\n<html>\n<body>")
-    ids.foreach({ case (node, id) => bw.write(s"<a name=$id></a>\n${describeNode(node)}\n") })
-    bw.write("</body>\n</html>")
-    bw.close()
-  }
-
-  private def handleNodesDump(describeNode: Option[Node => String]): Unit = {
-    val outputPath = "/Users/mvdcamme/PhD/Projects/scala-am/index.html"
-    if (describeNode.isDefined) writeNodesDump(describeNode.get, outputPath)
   }
 
   def toDotFile(path: String,
                 label: Node => List[scala.xml.Node],
                 color: Node => String,
-                describeNode: Option[Node => String],
                 annotLabel: Annotation => List[scala.xml.Node],
                 colorEdge: Option[((Node, Annotation, Node)) => String]): Unit = {
-    handleNodesDump(describeNode)
     val bw = openBufferedWriter(path)
-    bw.write(toDot(label, color, describeNode.isDefined, annotLabel, colorEdge))
+    bw.write(toDot(label, color, annotLabel, colorEdge))
     bw.close()
   }
 
