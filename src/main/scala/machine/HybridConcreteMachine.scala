@@ -49,7 +49,6 @@ class HybridConcreteMachine[
       graph.toDotFile(path,
         node => List(scala.xml.Text(node.toString.take(40))),
         (s) => s.graphNodeColor,
-        None,
         _ => List(),
         None)
     }

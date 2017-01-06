@@ -182,7 +182,6 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                           case ControlError(_) => Colors.Red
                         }
                     },
-                    None,
                     _ => List(),
                     None)
       case None =>

@@ -126,6 +126,9 @@ abstract class EvalKontMachine[
     */
   trait Control {
     def subsumes(that: Control): Boolean
+
+    /** Generates a descriptor for this control. */
+    def descriptor: Descriptor[Control] = new BasicDescriptor[Control](this)
   }
 
   /**
@@ -138,6 +141,17 @@ abstract class EvalKontMachine[
       case ControlEval(exp2, env2) => exp.equals(exp2) && env.subsumes(env2)
       case _ => false
     }
+
+    override def descriptor = new BasicDescriptor[Control](this)
+  }
+
+  class ControlDescriptor(val control: Control) extends Descriptor[Control] {
+    override def describe: String = s"<p>$control</p>" + (control match {
+      case ControlEval(exp, env) =>
+        putIntoCollapsableList(List(exp.toString, env.descriptor.describe))
+      case _ =>
+        control.toString
+    })
   }
 
   /**

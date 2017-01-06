@@ -1,46 +1,6 @@
 import scalaz.Scalaz._
 import scalaz.Semigroup
 
-/*
-<<<<<<< HEAD
-class Store[Addr : Address, Abs : AbstractValue](content: Map[Addr, (Int, Abs)], counting: Boolean) {
-  val abs = implicitly[AbstractValue[Abs]]
-  val addr = implicitly[Address[Addr]]
-
-  override def toString = content.filterKeys(a => !addr.isPrimitive(a)).toString
-
-  def getContent: Map[Addr, (Int, Abs)] = content
-
-  def convertStore[Abs : AbstractValue]: Store[ClassicalAddress, Abs] = {
-    return new Store[ClassicalAddress, Abs](Map[ClassicalAddress, (Int, Abs)](), counting)
-  }
-
-  def keys: collection.Iterable[Addr] = content.keys
-  /** Checks if a predicate is true for all elements of the store */
-  def forall(p: ((Addr, Abs)) => Boolean) = content.forall({
-    case (a, (_, v)) => p(a, v)
-  })
-  def lookup(a: Addr): Abs = content.get(a) match {
-    case None => throw new Exception(s"Unbound address (should not happen): $a")
-    case Some(v) => v._2
-  }
-  /** Looks up a value in the store (returning bottom if value not present) */
-  def lookupBot(a: Addr): Abs = content.getOrElse(a, (0, abs.bottom))._2
-  /** Adds a new element to the store */
-  def extend(a: Addr, v: Abs): Store[Addr, Abs] = content.get(a) match {
-    case None => new Store(content + (a -> (0, v)), counting)
-    case Some((n, v2)) => new Store(content + (a -> (if (counting) { n+1 } else { n }, abs.join(v2, v))), counting)
-  }
-  /** Updates an element in the store. Might perform a strong update if this store supports strong updates */
-  def update(a: Addr, v: Abs): Store[Addr, Abs] = {
-    if (counting) {
-      content.get(a) match {
-        case None => throw new RuntimeException("Updating store at an adress not used")
-        case Some((0, _)) => new Store(content + (a -> (0, v)), counting)
-        case _ => extend(a, v)
-      }
-=======
- */
 abstract class Store[Addr: Address, Abs: JoinLattice] {
   val abs = implicitly[JoinLattice[Abs]]
   val addr = implicitly[Address[Addr]]
@@ -87,6 +47,9 @@ abstract class Store[Addr: Address, Abs: JoinLattice] {
 
   /** Removes all addresses that are not in the given set of reachable addresses from the store  */
   def gc(reachables: Set[Addr]): Store[Addr, Abs]
+
+  /** Generates a descriptor for this store. */
+  def descriptor: Descriptor[Store[Addr, Abs]] = new BasicDescriptor[Store[Addr, Abs]](this)
 }
 
 /** Basic store with no fancy feature, just a map from addresses to values */
@@ -123,7 +86,13 @@ case class BasicStore[Addr: Address, Abs: JoinLattice](content: Map[Addr, Abs])
   def toSet = content.toSet
 
   def gc(reachables: Set[Addr]): Store[Addr, Abs] =
-    this.copy(content = content.filterKeys(reachables.contains(_)))
+    this.copy(content = content.filterKeys(reachables.contains))
+
+  override def descriptor = new BasicStoreDescriptor[Addr, Abs](this)
+}
+
+class BasicStoreDescriptor[Addr, Abs](val store: BasicStore[Addr, Abs]) extends Descriptor[BasicStore[Addr, Abs]] {
+  def describe: String = describeCollapsableList(store.content)
 }
 
 /** Store that combines a default read-only store with a writable store */

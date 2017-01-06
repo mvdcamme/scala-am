@@ -49,6 +49,8 @@ abstract class KontStore[KontAddr: KontAddress] {
     * @return A new KontStore in which the Kont value is removed.
     */
   def remove(a: KontAddr, k: Kont[KontAddr]): KontStore[KontAddr]
+
+  def descriptor: Descriptor[KontStore[KontAddr]] = new BasicDescriptor[KontStore[KontAddr]](this)
 }
 
 case class BasicKontStore[KontAddr: KontAddress](
@@ -101,6 +103,12 @@ case class BasicKontStore[KontAddr: KontAddress](
         }
       case None => this
     }
+
+  override def descriptor = new BasicKontStoreDescriptor[KontAddr](this)
+}
+
+class BasicKontStoreDescriptor[KontAddr](val kstore: BasicKontStore[KontAddr]) extends Descriptor[BasicKontStore[KontAddr]] {
+  override def describe: String = describeCollapsableList(kstore.content)
 }
 
 case class TimestampedKontStore[KontAddr: KontAddress](

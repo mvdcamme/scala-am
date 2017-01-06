@@ -238,7 +238,6 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       "Analysis/Traversed graph/traversed_graph.dot",
       node => List(scala.xml.Text(node.toString.take(40))),
       (s) => if (nodesVisited.contains(s)) Colors.Red else Colors.White,
-      None,
       node => List(scala.xml.Text((node._1.mkString(", ") ++ node._2.mkString(", ")).take(300))),
       Some((edge) =>
         if (edgesVisited.contains(edge)) Colors.Red else Colors.Black))
