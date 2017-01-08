@@ -1,0 +1,19 @@
+.state {
+  border: 2px solid blue ;
+}
+
+.env {
+  border: 2px solid yellow ;
+}
+
+.eval {
+  border: 2px solid orange ;
+}
+
+.store {
+  border: 2px solid green ;
+}
+
+.kstore {
+  border: 2px solid red ;
+}

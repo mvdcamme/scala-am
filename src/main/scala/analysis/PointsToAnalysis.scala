@@ -72,10 +72,10 @@ class PointsToAnalysis[
     })
     val metrics = calculateMetrics(result)
     Logger.log(
-      s"Static points-to analysis completed:\n +" +
+      s"Static points-to analysis completed:\n" +
       s"resulting value is ${output.finalValues}\n" +
-      s"resulting set equals $result" +
-      s"metrics equals $metrics",
+      s"resulting set equals $result\n" +
+      s"metrics equals $metrics\n",
       Logger.U)
     possiblyWriteMetrics(output.stepSwitched.getOrElse(-1), metrics)
     result

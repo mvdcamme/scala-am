@@ -7,10 +7,17 @@ object Colors {
   val White = "#FFFFFF"
 }
 
-case class Graph[Node, Annotation](ids: Map[Node, Int],
-                                   next: Int,
-                                   nodes: Set[Node],
-                                   edges: Map[Node, Set[(Annotation, Node)]]) {
+class Graph[Node, Annotation](val ids: Map[Node, Int],
+                              val next: Int,
+                              val nodes: Set[Node],
+                              val edges: Map[Node, Set[(Annotation, Node)]]) {
+
+  def factory(ids: Map[Node, Int],
+              next: Int,
+              nodes: Set[Node],
+              edges: Map[Node, Set[(Annotation, Node)]]): Graph[Node, Annotation] =
+    new Graph[Node, Annotation](ids, next, nodes, edges)
+
   def this() =
     this(Map[Node, Int](),
          0,
@@ -23,7 +30,7 @@ case class Graph[Node, Annotation](ids: Map[Node, Int],
          Map[Node, Set[(Annotation, Node)]]())
   def addNode(node: Node): Graph[Node, Annotation] =
     if (nodes.contains(node)) { this } else {
-      Graph(ids + (node -> next), next + 1, nodes + node, edges)
+      factory(ids + (node -> next), next + 1, nodes + node, edges)
     }
   def addEdge(node1: Node,
               annot: Annotation,
@@ -40,10 +47,7 @@ case class Graph[Node, Annotation](ids: Map[Node, Int],
     } else {
       val existing: Set[(Annotation, Node)] =
         edges.getOrElse(node1, Set[(Annotation, Node)]())
-      Graph(ids,
-            next,
-            nodes,
-            edges + (node1 -> (existing ++ Set((annot, node2)))))
+      factory(ids, next, nodes, edges + (node1 -> (existing ++ Set((annot, node2)))))
     }
   def size: Int = nodes.size
   def transitions: Int = edges.size
