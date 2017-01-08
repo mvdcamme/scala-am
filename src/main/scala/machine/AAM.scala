@@ -170,12 +170,18 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             time.initial(""))
   }
 
-  class StateDescriptor(val state: State) extends Descriptor[State] {
-    override def describe: String = s"<p>${state.control}</p>\n" +
-      s"<p>${state.store}</p>\n" +
-      s"<p>${state.kstore}</p>\n" +
-      s"<p>${state.a}</p>\n" +
-      s"<p>${state.t}</p>\n"
+  class StateDescriptor extends Descriptor[State] {
+    def describe[U >: State](state: U): String = state match {
+      case State(control, store, kstore, a, t) =>
+          putIntoCollapsableList(List(
+            control.descriptor.describe(control),
+            store.descriptor.describe(store),
+            kstore.descriptor.describe(kstore),
+            a.toString,
+            t.toString), state.toString, Some("state"))
+      case _ =>
+        state.toString
+    }
   }
 
   case class AAMOutput(halted: Set[State],
@@ -310,6 +316,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       }
     }
     val startingTime = System.nanoTime
+    implicit val stateDescriptor = new StateDescriptor()
     loop(Set(initialState), Set(), Set(), startingTime, new HyperlinkedGraph().addNode
     (initialState))
   }
