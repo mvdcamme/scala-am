@@ -29,13 +29,13 @@ trait Descriptor[+Component] {
   /**
     * Converts certain character sequences in the given HTML string that will not be accurately displayed on the webpage
     * (such as the '<' or '>' characters) by their proper HTML entities.
-    * @param html The string in which to replace the characters.
+    * @param HTML The string in which to replace the characters.
     * @return A new string representing the HTML in which all necessary characters have been replaced by their proper
     *         entities.
     */
-  def convertHTML(html: String): String = {
+  def convertHTML(HTML: String): String = {
     val stringsToReplace = List(("<", "&#60;"), (">", "&#62;"))
-    stringsToReplace.foldLeft(html)( (converted, toReplace) => converted.replace(toReplace._1, toReplace._2))
+    stringsToReplace.foldLeft(HTML)( (converted, toReplace) => converted.replace(toReplace._1, toReplace._2))
   }
 }
 
