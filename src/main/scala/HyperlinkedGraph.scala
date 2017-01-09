@@ -1,3 +1,5 @@
+import java.io.File
+
 class HyperlinkedGraph[Node, Annotation](ids: Map[Node, Int],
                                          next: Int,
                                          nodes: Set[Node],
@@ -24,18 +26,18 @@ class HyperlinkedGraph[Node, Annotation](ids: Map[Node, Int],
                        edges: Map[Node, Set[(Annotation, Node)]]): Graph[Node, Annotation] =
     new HyperlinkedGraph[Node, Annotation](ids, next, nodes, edges)
 
-  override def toDot(label: Node => List[scala.xml.Node],
-                     colorNode: Node => String,
-                     annotLabel: Annotation => List[scala.xml.Node],
-                     colorEdge: Option[((Node, Annotation, Node)) => String]): String = {
+  def toDot(label: Node => List[scala.xml.Node],
+            colorNode: Node => String,
+            annotLabel: Annotation => List[scala.xml.Node],
+            colorEdge: Option[((Node, Annotation, Node)) => String],
+            HTMLPath: String): String = {
     val sb = new StringBuilder("digraph G {\nsize=\"8,10.5\"\n")
     nodes.foreach((n) => {
       val labelstr = label(n).mkString(" ")
       val target = "_blank"
       sb.append(
         s"node_${ids(n)}[label=<${ids(n)}: $labelstr>, fillcolor=<${colorNode(n)}> style=<filled>" +
-          s"${"URL=" + "\"" + "file:///Users/mvdcamme/PhD/Projects/scala-am/index.html#" +
-            s"${ids(n)}" + "\""} ];\n")
+        s"${"URL=" + "\"" + s"file://$HTMLPath#" + s"${ids(n)}" + "\""} ];\n")
     })
     edges.foreach({
       case (n1, ns) =>
@@ -51,12 +53,14 @@ class HyperlinkedGraph[Node, Annotation](ids: Map[Node, Int],
     sb.toString
   }
 
-  private def writeNodesDump(path: String): Unit = {
-    /*
-     * Htmlfile wile be saved in the same path as the .dot file, except with the .html extension.
-     */
-    val htmlOutputPath = path.split(".dot").head + ".html"
-    val bw = openBufferedWriter(htmlOutputPath)
+  private def generateHTMLOutputPath(dotFilePath: String): String = {
+    val currentDirAbsolutePath = new File(".").getAbsolutePath + "/"
+    /* Htmlfile wile be saved in the same path as the .dot file, except with the .html extension. */
+    currentDirAbsolutePath + dotFilePath.split(".dot").head + ".html"
+  }
+
+  private def writeNodesDump(HTMLPath: String): Unit = {
+    val bw = openBufferedWriter(HTMLPath)
     val descriptor = implicitly[Descriptor[Node]]
     bw.write("<!DOCTYPE html>\n<html>\n<head><link rel=\"stylesheet\" type=\"text/css\" href=\"styles.css\"></head><body>\n" +
     "\t<script src=\"http://code.jquery.com/jquery-1.10.1.min.js\"></script>\n" +
@@ -77,9 +81,10 @@ class HyperlinkedGraph[Node, Annotation](ids: Map[Node, Int],
                          color: Node => String,
                          annotLabel: Annotation => List[scala.xml.Node],
                          colorEdge: Option[((Node, Annotation, Node)) => String]): Unit = {
-    writeNodesDump(path)
+    val HTMLPath = generateHTMLOutputPath(path)
+    writeNodesDump(HTMLPath)
     val bw = openBufferedWriter(path)
-    bw.write(toDot(label, color, annotLabel, colorEdge))
+    bw.write(toDot(label, color, annotLabel, colorEdge, HTMLPath))
     bw.close()
   }
 
