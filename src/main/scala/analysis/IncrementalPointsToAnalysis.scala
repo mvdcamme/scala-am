@@ -1,18 +1,19 @@
 class IncrementalPointsToAnalysis[Exp : Expression,
                                   AbstL : IsSchemeLattice,
-                                  State <: StateTrait[Exp, AbstL, _, _] : StateChangeEdgeApplier] {
+                                  Addr : Address,
+                                  State <: StateTrait[Exp, AbstL, Addr, _] : ActionTApplier] {
 
-  type Edge = ((List[EdgeAnnotation], List[StateChangeEdge[State]]), State)
-  type AbstractGraph = Graph[State, (List[EdgeAnnotation], List[StateChangeEdge[State]])]
+  type Edge = ((List[EdgeAnnotation], List[ActionT[Exp, AbstL, Addr]]), State)
+  type AbstractGraph = Graph[State, (List[EdgeAnnotation], List[ActionT[Exp, AbstL, Addr]])]
 
-  val stateChangeApplier: StateChangeEdgeApplier[State] = implicitly[StateChangeEdgeApplier[State]]
+  val stateChangeApplier: ActionTApplier[State] = implicitly[ActionTApplier[State]]
 
   var initialGraph: Option[AbstractGraph] = None
   var currentGraph: Option[AbstractGraph] = initialGraph
   var currentNodes: Set[State] = Set()
 
   var nodesVisited: Set[State] = Set()
-  var edgesVisited: Set[(State, (List[EdgeAnnotation], List[StateChangeEdge[State]]), State)] = Set()
+  var edgesVisited: Set[(State, (List[EdgeAnnotation], List[ActionT[Exp, AbstL, Addr]]), State)] = Set()
 
   def hasInitialGraph: Boolean = currentGraph.isDefined
   def initializeGraph(graph: AbstractGraph) = {

@@ -48,13 +48,17 @@ trait BasicSemantics[Exp, Abs, Addr, Time] {
   def parse(program: String): Exp
 }
 
+case class ActionChange[Exp : Expression, Abs : JoinLattice, Addr : Address]
+  (action: Action[Exp, Abs, Addr], actionEdge: List[ActionT[Exp, Abs, Addr]])
+
 trait Semantics[Exp, Abs, Addr, Time]
     extends BasicSemantics[Exp, Abs, Addr, Time] {
 
-  type ActionChange = (Action[Exp, Abs, Addr], List[StoreChangeSemantics[Abs, Addr]])
+  def addNilStateChangeEdges(action: Action[Exp, Abs, Addr]): Set[ActionChange[Exp, Abs, Addr]] =
+    addNilStateChangeEdges(Set(action))
 
-  def addNilStateChangeEdges(actions: Set[Action[Exp, Abs, Addr]]): Set[ActionChange] =
-    actions.map((_, Nil))
+  def addNilStateChangeEdges(actions: Set[Action[Exp, Abs, Addr]]): Set[ActionChange[Exp, Abs, Addr]] =
+    actions.map(ActionChange(_, Nil))
 
   /**
     * Defines what actions should be taken when an expression e needs to be
@@ -63,7 +67,7 @@ trait Semantics[Exp, Abs, Addr, Time]
   def stepEval(e: Exp,
                env: Environment[Addr],
                store: Store[Addr, Abs],
-               t: Time): Set[ActionChange]
+               t: Time): Set[ActionChange[Exp, Abs, Addr]]
 
   /**
     * Defines what actions should be taken when a value v has been reached, and
@@ -72,7 +76,7 @@ trait Semantics[Exp, Abs, Addr, Time]
   def stepKont(v: Abs,
                frame: Frame,
                store: Store[Addr, Abs],
-               t: Time): Set[ActionChange]
+               t: Time): Set[ActionChange[Exp, Abs, Addr]]
 
   /** Defines the elements in the initial environment/store */
   def initialBindings: Iterable[(String, Addr, Abs)] = List()
@@ -457,10 +461,22 @@ abstract class ActionGuardT[Exp: Expression, Abs: JoinLattice, Addr: Address](
 case class ActionAllocVarsT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     varNames: List[String])
     extends ActionT[Exp, Abs, Addr]
-case class ActionCreateClosureT[Exp: Expression, Abs: JoinLattice,
-Addr: Address](λ: Exp)
+/*
+ * Extend store with the given addresses, initialized to the bottom value.
+ */
+case class ActionAllocAddressesT[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    varNames: List[Addr])
+    extends ActionT[Exp, Abs, Addr]
+case class ActionCreateClosureT[Exp: Expression, Abs: JoinLattice, Addr: Address]
+    (λ: Exp)
     extends ActionT[Exp, Abs, Addr]
     with ChangesValueReg[Exp, Abs, Addr]
+/*
+ * Extend store with these addresses and initialize them to their corresponding value on the stack.
+ */
+case class ActionDefineAddressesT[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    addresses: List[Addr])
+    extends ActionT[Exp, Abs, Addr]
 case class ActionEndClosureCallT[
     Exp: Expression, Abs: JoinLattice, Addr: Address]()
     extends ActionT[Exp, Abs, Addr]
@@ -597,6 +613,9 @@ case class ActionRestoreSaveEnvT[
 case class ActionSaveEnvT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
     extends ActionT[Exp, Abs, Addr]
     with SavesEnv[Exp, Abs, Addr]
+case class ActionSetAddressT[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    adress: Addr)
+    extends ActionT[Exp, Abs, Addr]
 case class ActionSetVarT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     variable: String)
     extends ActionT[Exp, Abs, Addr]

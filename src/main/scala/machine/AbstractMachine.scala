@@ -183,8 +183,8 @@ Addr: Address, Time: Timestamp](sem: SemanticsTraced[Exp, Abs, Addr, Time])
   def time = implicitly[Timestamp[Time]]
 }
 
-trait HasGraph[Node <: StateTrait[_, _, _, _]] {
-  def graph: Graph[Node, (List[EdgeAnnotation], List[StateChangeEdge[Node]])]
+trait HasGraph[Exp, Abs, Addr, Node <: StateTrait[Exp, Abs, Addr, _]] {
+  def graph: Graph[Node, (List[EdgeAnnotation], List[ActionT[Exp, Abs, Addr]])]
   def toDotFile(path: String): Unit
 }
 
@@ -211,5 +211,5 @@ trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
 
 trait ProducesStateGraph[Exp, Abs, Addr, Time] extends KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
   override type GraphNode <: StateTrait[Exp, Abs, Addr, Time]
-  override type MachineOutput <: Output[Abs] with HasGraph[GraphNode] with HasFinalStores[Addr, Abs]
+  override type MachineOutput <: Output[Abs] with HasGraph[Exp, Abs, Addr, GraphNode] with HasFinalStores[Addr, Abs]
 }

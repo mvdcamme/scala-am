@@ -392,10 +392,9 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
                ActionEvalPushT(key, FrameCaseT(clauses, default)))))
     case SchemeDefineVariable(name, exp, _) =>
       Set(interpreterStep(List(ActionEvalPushT(exp, FrameDefineT(name)))))
-    case SchemeDefineFunction(name, args, body, pos) => {
+    case SchemeDefineFunction(name, args, body, pos) =>
       val v = sabs.inject[SchemeExp, Addr]((SchemeLambda(args, body, pos), ρ))
       Set(interpreterStep(List(ActionReachedValueT(v), actionPopKont)))
-    }
     case SchemeFuncall(f, args, _) =>
       Set(
         interpreterStep(

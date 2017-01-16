@@ -49,7 +49,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       control.subsumes(that.control) && store.subsumes(that.store) && a == that.a && kstore
         .subsumes(that.kstore) && t == that.t
 
-    type EdgeInformation = (State, List[EdgeAnnotation], List[StateChangeEdge[State]])
+    type EdgeInformation = (State, List[EdgeAnnotation], List[ActionT[Exp, Abs, Addr]])
 
     /**
       * Integrates a set of actions (returned by the semantics, see
@@ -57,52 +57,41 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       * one.
       */
     private def integrate(a: KontAddr,
-                          actionChanges: Set[(Action[Exp, Abs, Addr], List[StoreChangeSemantics[Abs, Addr]])])
+                          actionChanges: Set[ActionChange[Exp, Abs, Addr]])
     : Set[EdgeInformation] =
       actionChanges.map( (actionChange) => {
-        val convertedStoreChanges = actionChange._2.map(_.convert[State])
-        actionChange._1 match {
+        val actionEdges = actionChange.actionEdge
+        actionChange.action match {
           /* When a value is reached, we go to a continuation state */
           case ActionReachedValue(v, store, _) =>
             (State(ControlKont(v), store, kstore, a, time.tick(t)),
               Nil,
-              ControlValueReached(v) :: TimeTick() :: convertedStoreChanges)
+              actionEdges)
           /* When a continuation needs to be pushed, push it in the continuation store */
           case ActionPush(frame, e, env, store, _) => {
             val next = NormalKontAddress[Exp, Time](e, t)
             val kont = Kont(frame, a)
             (State(ControlEval(e, env), store, kstore.extend(next, kont), next, time.tick(t)),
               List(KontAddrPushed(next)),
-              ControlExpEvaluated[Exp, Addr, State](e, env) :: KontStoreFramePush[KontAddr, State](next, kont) ::
-                KontAddrChanged[KontAddr, State](next) :: TimeTick[State]() :: convertedStoreChanges)
+              actionEdges)
           }
           /* When a value needs to be evaluated, we go to an eval state */
           case ActionEval(e, env, store, _) =>
             (State(ControlEval(e, env), store, kstore, a, time.tick(t)),
               Nil,
-              ControlExpEvaluated(e, env) :: TimeTick() :: convertedStoreChanges)
+              actionEdges)
           /* When a function is stepped in, we also go to an eval state */
           case ActionStepIn(fexp, _, e, env, store, _, _) =>
             (State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)),
               Nil,
-              ControlExpEvaluated(e, env) :: TimeTickExp(fexp) :: convertedStoreChanges)
+              actionEdges)
           /* When an error is reached, we go to an error state */
           case ActionError(err) =>
             (State(ControlError(err), store, kstore, a, time.tick(t)),
               Nil,
-              ControlErrorReached(err) :: TimeTick() :: convertedStoreChanges)
+              actionEdges)
         }
       })
-
-    private def maybeAddKontAddrChanged(a: KontAddr, stateChanges: List[StateChangeEdge[State]])
-    : List[StateChangeEdge[State]] =
-      if (stateChanges.exists({
-        case KontAddrChanged(_) => true
-        case _ => false})) {
-        stateChanges
-      } else {
-        KontAddrChanged[KontAddr, State](a) :: stateChanges
-      }
 
     /**
       * Computes the set of states that follow the current state
@@ -119,13 +108,13 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             .flatMap({
               case Kont(frame, next) =>
                 val edgeInfos = integrate(next, sem.stepKont(v, frame, store, t))
-                edgeInfos.map({ case (succState, edgeAnnotations, stateChanges) =>
+                edgeInfos.map({ case (succState, edgeAnnotations, actionEdges) =>
                   /* If step did not generate any EdgeAnnotation, place a FrameFollowed EdgeAnnotation */
                   val replacedEdgeAnnot =
                     KontAddrPopped(a, next) ::
                     FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) ::
                     edgeAnnotations
-                  (succState, replacedEdgeAnnot, maybeAddKontAddrChanged(next, stateChanges))
+                  (succState, replacedEdgeAnnot, actionEdges)
                 })
             })
         /* In an error state, the state is not able to make a step */
@@ -187,10 +176,10 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   case class AAMOutput(halted: Set[State],
                        numberOfStates: Int,
                        time: Double,
-                       graph: Graph[State, (List[EdgeAnnotation], List[StateChangeEdge[State]])],
+                       graph: Graph[State, (List[EdgeAnnotation], List[ActionT[Exp, Abs, Addr]])],
                        timedOut: Boolean,
                        stepSwitched: Option[Int])
-      extends Output[Abs] with HasGraph[State] with HasFinalStores[Addr, Abs] {
+      extends Output[Abs] with HasGraph[Exp, Abs, Addr, State] with HasFinalStores[Addr, Abs] {
 
     /**
       * Returns the list of final values that can be reached
@@ -263,7 +252,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
              visited: Set[State],
              halted: Set[State],
              startingTime: Long,
-             graph: Graph[State, (List[EdgeAnnotation], List[StateChangeEdge[State]])]): AAMOutput = {
+             graph: Graph[State, (List[EdgeAnnotation], List[ActionT[Exp, Abs, Addr]])]): AAMOutput = {
       if (timeout.exists(System.nanoTime - startingTime > _)) {
         AAMOutput(halted,
                   visited.size,
@@ -283,7 +272,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                * states but leads to non-determinism due to the non-determinism
                * of Scala's headOption (it seems so at least).
                * We do have to add an edge from the current state to the subsumed state. */
-              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, (List[EdgeAnnotation], List[StateChangeEdge[State]])]](graph)({
+              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, (List[EdgeAnnotation], List[ActionT[Exp, Abs, Addr]])]](graph)({
                 case (graph, s2) =>
                   if (s2.subsumes(s))
                     graph.addEdge(s, (List(StateSubsumed), Nil), s2)
@@ -381,8 +370,8 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                          sem,
                          timeout)
 
-  object StateChangeApplier extends StateChangeEdgeApplier[State] {
-    override def applyStateChangeEdge(state: State, stateChangeEdge: StateChangeEdge[State]): State = stateChangeEdge match {
+  object ActionTApplier extends ActionTApplier[State] {
+    override def applyActionT(state: State, action: ActionT[Exp, Abs, Addr]): State = action match {
       case e: ControlErrorReached[State] =>
         state.copy(control = ControlError(e.error))
       case e: ControlExpEvaluated[Exp, Addr, _] =>

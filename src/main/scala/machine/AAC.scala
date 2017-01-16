@@ -343,7 +343,7 @@ class AAC[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     def step(kstore: KontStore, sem: Semantics[Exp, Abs, Addr, Time])
       : (Set[State], KontStore, Set[Context]) = control match {
       case ControlEval(e, env) =>
-        integrate(lkont, kont, kstore, sem.stepEval(e, env, store, t).map(_._1))
+        integrate(lkont, kont, kstore, sem.stepEval(e, env, store, t).map(_.action))
       case ControlKont(v) =>
         pop(lkont, kont, kstore).foldLeft(
           (Set[State](), kstore, Set[Context]()))((acc, popped) => {
@@ -351,7 +351,7 @@ class AAC[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             integrate(popped._2,
                       popped._3,
                       acc._2,
-                      sem.stepKont(v, popped._1, store, t).map(_._1))
+                      sem.stepKont(v, popped._1, store, t).map(_.action))
           (acc._1 ++ states, kstore1, acc._3 ++ contexts)
         })
       case ControlError(_) => (Set(), kstore, Set[Context]())

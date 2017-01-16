@@ -117,27 +117,27 @@ class LamSemantics[Abs: LamLattice, Addr: Address, Time: Timestamp]
   def stepEval(e: LamExp, env: Env, store: Sto, t: Time) = addNilStateChangeEdges(e match {
     /* A lambda evaluate to a closure by pairing it with the current environment,
      * and injecting this in the abstract domain */
-    case Lam(_, _, _) => Set(ActionReachedValue(labs.inject((e, env)), store))
+    case Lam(_, _, _) => ActionReachedValue[LamExp, Abs, Addr](labs.inject((e, env)), store)
     /* To evaluate an application, we first have to evaluate e1, and we push a
      * continuation to remember to evaluate e2 in the environment env */
-    case App(e1, e2, _) => Set(ActionPush(FrameArg(e2, env), e1, env, store))
+    case App(e1, e2, _) => ActionPush[LamExp, Abs, Addr](FrameArg(e2, env), e1, env, store)
     /* To evaluate a variable, just look it up in the store */
     case Var(x, _) =>
       env.lookup(x) match {
         case Some(a) =>
           store.lookup(a) match {
-            case Some(v) => Set(ActionReachedValue(v, store))
-            case None => Set(ActionError(UnboundAddress(a.toString)))
+            case Some(v) => ActionReachedValue[LamExp, Abs, Addr](v, store)
+            case None => ActionError[LamExp, Abs, Addr](UnboundAddress(a.toString))
           }
-        case None => Set(ActionError(UnboundVariable(x)))
+        case None => ActionError[LamExp, Abs, Addr](UnboundVariable(x))
       }
   })
 
   /** The stepKont function defines how to behave when we reached a value v and we
     * have frame as the top continuation on the stack */
-  def stepKont(v: Abs, frame: Frame, store: Sto, t: Time) = addNilStateChangeEdges(frame match {
+  def stepKont(v: Abs, frame: Frame, store: Sto, t: Time) = frame match {
     /* We have evaluated the operator v but still need to evaluate the operator e */
-    case FrameArg(e, env) => Set(ActionPush(FrameFun(v), e, env, store))
+    case FrameArg(e, env) => addNilStateChangeEdges(ActionPush[LamExp, Abs, Addr](FrameFun(v), e, env, store))
     /* We have evaluated both the operator (fun) and the operand (v). We go through
      * the possible closures bound to the operator and for each of them, we
      * have to evaluate their body by extending their environment with their
@@ -148,10 +148,10 @@ class LamSemantics[Abs: LamLattice, Addr: Address, Time: Timestamp]
         .map({
           case (Lam(x, e, _), env) => {
             val a = addr.variable(x, v, t)
-            ActionEval(e, env.extend(x, a), store.extend(a, v))
+            ActionChange(ActionEval[LamExp, Abs, Addr](e, env.extend(x, a), store.extend(a, v)), Nil)
           }
         })
-  })
+  }
 
   /** The parse function just parses an expression from a string. We rely on an
     * already-defined s-expression parser, and compile an s-expression in a

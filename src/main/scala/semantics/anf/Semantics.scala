@@ -32,12 +32,12 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
     case ANFValue(v, _) => MayFailError(List(NotSupported(s"Unhandled value: ${v}")))
   }
 
-  def stepEval(e: ANFExp, env: Environment[Addr], store: Store[Addr, Abs], t: Time): Set[ActionChange] =
-    addNilStateChangeEdges(e match {
+  def stepEval(e: ANFExp, env: Environment[Addr], store: Store[Addr, Abs], t: Time): Set[ActionChange[ANFExp, Abs, Addr]] =
+    e match {
     /* To step an atomic expression, performs atomic evaluation on it */
     case ae: ANFAtomicExp => atomicEval(ae, env, store).collect({
-      case (v, effs) => Set(ActionReachedValue(v, store, effs))
-    }, err => Set(ActionError[ANFExp, Abs, Addr](err)))
+      case (v, effs) => addNilStateChangeEdges(ActionReachedValue[ANFExp, Abs, Addr](v, store, effs))
+    }, err => addNilStateChangeEdges(ActionError[ANFExp, Abs, Addr](err)))
     /* Function call is the interesting case */
     case ANFFuncall(f, args, _) =>
       val init : MayFail[(List[(ANFExp, Abs)], Set[Effect[Addr]])] = MayFailSuccess(List(), Set())
@@ -68,56 +68,59 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
             case (res, store2, effects2) => Set[Action[ANFExp, Abs, Addr]](ActionReachedValue[ANFExp, Abs, Addr](res, store2, effects ++ effects2))
           }, err => Set[Action[ANFExp, Abs, Addr]](ActionError[ANFExp, Abs, Addr](err))))
         if (fromClo.isEmpty && fromPrim.isEmpty) {
-          Set[Action[ANFExp, Abs, Addr]](ActionError[ANFExp, Abs, Addr](TypeError(fv.toString, "operator", "function", "not a function")))
+          addNilStateChangeEdges(ActionError[ANFExp, Abs, Addr](TypeError(fv.toString, "operator", "function",
+            "not a function")))
         } else {
-          fromClo ++ fromPrim
+          (fromClo ++ fromPrim).map(ActionChange[ANFExp, Abs, Addr](_, Nil))
         }
-      }, err => Set[Action[ANFExp, Abs, Addr]](ActionError[ANFExp, Abs, Addr](err)))
+      }, err => addNilStateChangeEdges(ActionError[ANFExp, Abs, Addr](err)))
     /* To evaluate (if cond cons alt), evaluate cons (which is atomic), and
      * depending on the result, either step into cons or alt, or in both */
     case ANFIf(cond, cons, alt, _) =>
       atomicEval(cond, env, store).collect({
-        case (v, effects) => {
-          val t = ActionEval(cons, env, store, effects)
-          val f = ActionEval(alt, env, store, effects)
+        case (v, effects) =>
+          val t = ActionChange(ActionEval(cons, env, store, effects), Nil)
+          val f = ActionChange(ActionEval(alt, env, store, effects), Nil)
           if (sabs.isTrue(v) && sabs.isFalse(v)) { Set(t, f) } else if (sabs.isTrue(v)) { Set(t) } else if (sabs.isFalse(v)) { Set(f) } else { Set() }
-        }
-      }, err => Set(ActionError(err)))
+      }, err => addNilStateChangeEdges(ActionError[ANFExp, Abs, Addr](err)))
     /* To evaluate a let, first evaluate the binding */
     case ANFLet(variable, exp, body, _) =>
-      Set(ActionPush(FrameLet(variable, body, env), exp, env, store))
+      addNilStateChangeEdges(ActionPush(FrameLet(variable, body, env), exp, env, store))
     /* Same for letrec, but we need to bind the variable to an undefined value first */
-    case ANFLetrec(variable, exp, body, pos) => {
+    case ANFLetrec(variable, exp, body, pos) =>
       val vara = addr.variable(variable, abs.bottom, t)
       val env1 = env.extend(variable, vara)
       val store1 = store.extend(vara, abs.bottom)
-      Set(ActionPush(FrameLetrec(variable, vara, body, env1), exp, env1, store1))
-    }
+      addNilStateChangeEdges(ActionPush(FrameLetrec(variable, vara, body, env1), exp, env1, store1))
     /* A set! needs to update the value of a variable in the store */
     case ANFSet(variable, value, _) => env.lookup(variable) match {
       case Some(vara) => atomicEval(value, env, store).collect({
-        case (v, effects) => Set(ActionReachedValue(v, store.update(vara, v), effects + EffectWriteVariable(vara)))
-      }, err => Set(ActionError(err)))
-      case None => Set(ActionError(UnboundVariable(variable)))
+        case (v, effects) =>
+          addNilStateChangeEdges(ActionReachedValue[ANFExp, Abs, Addr](v, store.update(vara, v), effects + EffectWriteVariable(vara)))
+      }, err =>
+        addNilStateChangeEdges(ActionError[ANFExp, Abs, Addr](err)))
+      case None =>
+        addNilStateChangeEdges(ActionError[ANFExp, Abs, Addr](UnboundVariable(variable)))
     }
     /* A quoted identifier is a value */
-    case ANFQuoted(SExpIdentifier(sym, _), _) => Set(ActionReachedValue(sabs.injectSymbol(sym), store))
+    case ANFQuoted(SExpIdentifier(sym, _), _) =>
+      addNilStateChangeEdges(ActionReachedValue[ANFExp, Abs, Addr](sabs.injectSymbol(sym), store))
     /* A quoted s-expression is more complicated to evaluate, as it may require
      * store allocation and is therefore not atomic. We don't deal with them in
      * ANF (they can always be converted into calls to cons). */
-    case ANFQuoted(sexp, _) => Set(ActionError(NotSupported("quoted expressions not yet handled in ANF")))
-  })
+    case ANFQuoted(sexp, _) =>
+      addNilStateChangeEdges(ActionError[ANFExp, Abs, Addr](NotSupported("quoted expressions not yet handled in ANF")))
+  }
 
-  def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time) = addNilStateChangeEdges(frame match {
+  def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time) = frame match {
     /* Allocate the variable and bind it to the reached value */
-    case FrameLet(variable, body, env) => {
+    case FrameLet(variable, body, env) =>
       val vara = addr.variable(variable, v, t)
-      Set(ActionEval(body, env.extend(variable, vara), store.extend(vara, v)))
-    }
+      addNilStateChangeEdges(ActionEval(body, env.extend(variable, vara), store.extend(vara, v)))
     /* Just bind the variable to the reached value, since it has already been allocated */
     case FrameLetrec(variable, vara, body, env) =>
-      Set(ActionEval(body, env, store.update(vara, v)))
-  })
+      addNilStateChangeEdges(ActionEval(body, env, store.update(vara, v)))
+  }
 
   def parse(program: String): ANFExp = ANF.parse(program)
   override def initialBindings = primitives.bindings

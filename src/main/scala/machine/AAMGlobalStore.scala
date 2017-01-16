@@ -79,7 +79,7 @@ class AAMGlobalStore[
       : (Set[State], GlobalStore, KontStore[KontAddr]) = control match {
       /* In a eval state, call the semantic's evaluation method */
       case ControlEval(e, env) =>
-        integrate(a, sem.stepEval(e, env, store.store, t).map(_._1), store, kstore)
+        integrate(a, sem.stepEval(e, env, store.store, t).map(_.action), store, kstore)
       /* In a continuation state, call the semantic's continuation method */
       case ControlKont(v) =>
         kstore
@@ -88,7 +88,7 @@ class AAMGlobalStore[
             kont match {
               case Kont(frame, next) =>
                 integrate(next,
-                          sem.stepKont(v, frame, store.store, t).map(_._1),
+                          sem.stepKont(v, frame, store.store, t).map(_.action),
                           acc._2,
                           acc._3) match {
                   case (states, store2, kstore2) =>

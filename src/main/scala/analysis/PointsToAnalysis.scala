@@ -1,7 +1,6 @@
 import java.io.{FileWriter, BufferedWriter, File}
 
-class PointsToAnalysis[
-    Exp: Expression, L: JoinLattice, Addr: Address, Time: Timestamp] {
+class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Timestamp] {
 
   private def joinStores[
       Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](
@@ -95,7 +94,7 @@ class PointsToAnalysis[
       machine.kickstartEval(startState, sem, None, None, stepSwitched)
     toDot.foreach(result.toDotFile)
     analyzeOutput(machine, pointsTo, relevantAddress)(result)
-    AnalysisGraph[machine.GraphNode](result.graph)
+    AnalysisGraph[Exp, L, Addr, machine.GraphNode](result.graph)
   }
 }
 
@@ -109,8 +108,8 @@ class PointsToAnalysisLauncher[
 
   val aam: SpecAAM = new SpecAAM()
 
-  implicit val stateChangeEdgeApplier = aam.StateChangeApplier
-  val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, aam.GraphNode]
+  implicit val stateChangeEdgeApplier = aam.ActionTApplier
+  val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, HybridAddress.A, aam.GraphNode]
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]
@@ -149,7 +148,7 @@ class PointsToAnalysisLauncher[
     runStaticAnalysisGeneric(currentProgramState,
                              None,
                              Some("initial_graph.dot")) match {
-      case result: AnalysisGraph[aam.GraphNode] =>
+      case result: AnalysisGraph[SchemeExp, Abs, HybridAddress.A, aam.GraphNode] =>
         incrementalAnalysis.initializeGraph(result.graph)
       case other =>
         throw new Exception(

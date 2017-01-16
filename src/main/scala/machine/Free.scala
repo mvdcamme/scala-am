@@ -78,14 +78,14 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[State] =
       control match {
         case ControlEval(e, env) =>
-          integrate(k, sem.stepEval(e, env, store, t).map(_._1))
+          integrate(k, sem.stepEval(e, env, store, t).map(_.action))
         case ControlKont(v) =>
           kstore
             .lookup(k)
             .foldLeft(Set[State]())((acc, k) =>
               k match {
                 case Kont(frame, next) =>
-                  acc ++ integrate(next, sem.stepKont(v, frame, store, t).map(_._1))
+                  acc ++ integrate(next, sem.stepKont(v, frame, store, t).map(_.action))
             })
         case ControlError(_) => Set()
       }
