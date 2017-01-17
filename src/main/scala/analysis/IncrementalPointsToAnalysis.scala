@@ -1,12 +1,11 @@
 class IncrementalPointsToAnalysis[Exp : Expression,
                                   AbstL : IsSchemeLattice,
                                   Addr : Address,
-                                  State <: StateTrait[Exp, AbstL, Addr, _] : ActionTApplier] {
+                                  State <: StateTrait[Exp, AbstL, Addr, _]]
+                                 (implicit actionTApplier: ActionTApplier[Exp, AbstL, Addr, State]) {
 
   type Edge = ((List[EdgeAnnotation], List[ActionT[Exp, AbstL, Addr]]), State)
   type AbstractGraph = Graph[State, (List[EdgeAnnotation], List[ActionT[Exp, AbstL, Addr]])]
-
-  val stateChangeApplier: ActionTApplier[State] = implicitly[ActionTApplier[State]]
 
   var initialGraph: Option[AbstractGraph] = None
   var currentGraph: Option[AbstractGraph] = initialGraph

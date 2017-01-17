@@ -458,17 +458,17 @@ abstract class ActionGuardT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     extends ActionT[Exp, Abs, Addr]
     with IsGuard[Exp, Abs, Addr]
 
-case class ActionAllocVarsT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    varNames: List[String])
-    extends ActionT[Exp, Abs, Addr]
 /*
  * Extend store with the given addresses, initialized to the bottom value.
  */
 case class ActionAllocAddressesT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    varNames: List[Addr])
+    addresses: List[Addr])
+    extends ActionT[Exp, Abs, Addr]
+case class ActionAllocVarsT[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    varNames: List[String])
     extends ActionT[Exp, Abs, Addr]
 case class ActionCreateClosureT[Exp: Expression, Abs: JoinLattice, Addr: Address]
-    (λ: Exp)
+    (λ: Exp, env: Option[Environment[Addr]] = None)
     extends ActionT[Exp, Abs, Addr]
     with ChangesValueReg[Exp, Abs, Addr]
 /*
@@ -532,32 +532,27 @@ case class ActionGuardTrueT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     override val rp: RestartPoint[Exp, Abs, Addr],
     override val id: Integer)
     extends ActionGuardT[Exp, Abs, Addr](rp, id)
-case class ActionGuardSameClosure[Exp: Expression,
-                                  Abs: JoinLattice,
-                                  Addr: Address](
+case class ActionGuardSameClosure[Exp: Expression, Abs: JoinLattice, Addr: Address](
     recordedClosure: Abs,
     override val rp: RestartGuardDifferentClosure[Exp, Abs, Addr],
     override val id: Integer)
     extends ActionGuardT[Exp, Abs, Addr](rp, id)
-case class ActionGuardSpecializedPrimitive[Exp: Expression,
-                                           Abs: JoinLattice,
-                                           Addr: Address](
+case class ActionGuardSpecializedPrimitive[Exp: Expression, Abs: JoinLattice, Addr: Address](
     expectedType: SimpleTypes.Value,
     numberOfOperands: Int,
     override val rp: RestartSpecializedPrimitive[Exp, Abs, Addr],
     override val id: Integer)
     extends ActionGuardT[Exp, Abs, Addr](rp, id)
-
-case class ActionLookupVariableT[Exp: Expression,
-                                 Abs: JoinLattice,
-                                 Addr: Address](varName: String,
-                                                read: Set[Addr] = Set[Addr](),
-                                                write: Set[Addr] = Set[Addr]())
+case class ActionLookupAddressT[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    a: Addr)
+    extends ActionT[Exp, Abs, Addr]
+case class ActionLookupVariableT[Exp: Expression, Abs: JoinLattice, Addr: Address]
+    (varName: String,
+     read: Set[Addr] = Set[Addr](),
+     write: Set[Addr] = Set[Addr]())
     extends ActionT[Exp, Abs, Addr]
     with ChangesValueReg[Exp, Abs, Addr]
-case class ActionLookupVariablePushT[Exp: Expression,
-                                     Abs: JoinLattice,
-                                     Addr: Address](
+case class ActionLookupVariablePushT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     varName: String,
     read: Set[Addr] = Set[Addr](),
     write: Set[Addr] = Set[Addr]())

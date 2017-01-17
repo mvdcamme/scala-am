@@ -2,7 +2,8 @@ trait StateChangeEdge[+State <: StateTrait[_, _, _, _]]
 
 trait ActionTApplier[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]] {
 
-  def applyActionT(state: State, action: ActionT[Exp, Abs, Addr]): State
+  def applyActionT(state: State, action: ActionT[Exp, Abs, Addr])
+                  (implicit sabs: IsSchemeLattice[Abs]): Set[State]
 
 }
 

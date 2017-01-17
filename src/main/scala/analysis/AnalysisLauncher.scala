@@ -93,7 +93,7 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
       case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
       case ConvertedControlKont(v) => aam.ControlKont(v)
     }
-    aam.State(convertedControl, store, kstore, a, t)
+    aam.State(convertedControl, store, kstore, a, t, Nil)
   }
 
 }

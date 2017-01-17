@@ -35,7 +35,8 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                    store: Store[Addr, Abs],
                    kstore: KontStore[KontAddr],
                    a: KontAddr,
-                   t: Time)
+                   t: Time,
+                   vStack: List[Abs])
     extends StateTrait[Exp, Abs, Addr, Time] {
     override def toString = control.toString
 
@@ -64,30 +65,30 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         actionChange.action match {
           /* When a value is reached, we go to a continuation state */
           case ActionReachedValue(v, store, _) =>
-            (State(ControlKont(v), store, kstore, a, time.tick(t)),
+            (State(ControlKont(v), store, kstore, a, time.tick(t), Nil),
               Nil,
               actionEdges)
           /* When a continuation needs to be pushed, push it in the continuation store */
           case ActionPush(frame, e, env, store, _) => {
             val next = NormalKontAddress[Exp, Time](e, t)
             val kont = Kont(frame, a)
-            (State(ControlEval(e, env), store, kstore.extend(next, kont), next, time.tick(t)),
+            (State(ControlEval(e, env), store, kstore.extend(next, kont), next, time.tick(t), Nil),
               List(KontAddrPushed(next)),
               actionEdges)
           }
           /* When a value needs to be evaluated, we go to an eval state */
           case ActionEval(e, env, store, _) =>
-            (State(ControlEval(e, env), store, kstore, a, time.tick(t)),
+            (State(ControlEval(e, env), store, kstore, a, time.tick(t), Nil),
               Nil,
               actionEdges)
           /* When a function is stepped in, we also go to an eval state */
           case ActionStepIn(fexp, _, e, env, store, _, _) =>
-            (State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)),
+            (State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp), Nil),
               Nil,
               actionEdges)
           /* When an error is reached, we go to an error state */
           case ActionError(err) =>
-            (State(ControlError(err), store, kstore, a, time.tick(t)),
+            (State(ControlError(err), store, kstore, a, time.tick(t), Nil),
               Nil,
               actionEdges)
         }
@@ -156,12 +157,13 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             Store.initial[Addr, Abs](store),
             KontStore.empty[KontAddr],
             HaltKontAddress,
-            time.initial(""))
+            time.initial(""),
+            Nil)
   }
 
   class StateDescriptor extends Descriptor[State] {
     def describe[U >: State](state: U): String = state match {
-      case State(control, store, kstore, a, t) =>
+      case State(control, store, kstore, a, t, _) =>
           putIntoCollapsableList(List(
             control.descriptor.describe(control),
             store.descriptor.describe(store),
@@ -370,26 +372,49 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                          sem,
                          timeout)
 
-  object ActionTApplier extends ActionTApplier[State] {
-    override def applyActionT(state: State, action: ActionT[Exp, Abs, Addr]): State = action match {
-      case e: ControlErrorReached[State] =>
-        state.copy(control = ControlError(e.error))
-      case e: ControlExpEvaluated[Exp, Addr, _] =>
-        state.copy(control = ControlEval(e.e, e.env))
-      case e: ControlValueReached[Abs, State] =>
-        state.copy(control = ControlKont(e.v))
-      case e: KontAddrChanged[KontAddr, State] =>
-        state.copy(a = e.a)
-      case e: KontStoreFramePush[KontAddr, State] =>
-        state.copy(kstore = state.kstore.extend(e.pushAddress, e.kont))
-      case e: StoreExtend[Abs, Addr, State] =>
-        state.copy(store = state.store.extend(e.a, e.v))
-      case e: StoreUpdate[Abs, Addr, State] =>
-        state.copy(store = state.store.update(e.a, e.v))
-      case TimeTick() =>
-        state.copy(t = time.tick(state.t))
-      case e: TimeTickExp[Exp, State] =>
-        state.copy(t = time.tick(state.t, e.e))
+  object ActionTApplier extends ActionTApplier[Exp, Abs, Addr, State] {
+    override def applyActionT(state: State, action: ActionT[Exp, Abs, Addr])
+                             (implicit sabs: IsSchemeLattice[Abs]): Set[State] = action match {
+      case a: ActionAllocAddressesT[Exp, Abs, Addr] =>
+        val newStore = a.addresses.foldLeft(state.store)( (store, address) => store.extend(address, abs.bottom))
+        Set(state.copy(store = newStore))
+      case a: ActionCreateClosureT[Exp, Abs, Addr] =>
+        val closure = sabs.inject[Exp, Addr]((a.λ, a.env.get))
+        Set(state.copy(control = ControlKont(closure)))
+      case a: ActionDefineAddressesT[Exp, Abs, Addr] =>
+        val n = a.addresses.size
+        val values = state.vStack.take(n)
+        val newVStack = state.vStack.drop(n)
+        val addressValues = a.addresses.zip(values)
+        val newStore = addressValues.foldLeft(state.store)( (store, tuple) => store.extend(tuple._1, tuple._2))
+        Set(state.copy(store = newStore, vStack = newVStack))
+      case a: ActionLookupAddressT[Exp, Abs, Addr] =>
+        val value = state.store.lookup(a.a).get
+        Set(state.copy(control = ControlKont(value)))
+      case a: ActionPrimCallT[SchemeExp, Abs, Addr] =>
+        val values = state.vStack.take(a.n)
+        val newVStack = state.vStack.drop(a.n)
+        val operands = values.init
+        val operator = values.last
+        val primitives = sabs.getPrimitives[Addr, Abs](operator)
+        primitives.flatMap((primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store,
+          state.t)
+          .collect({
+          case (res, store2, effects) =>
+            Set(state.copy(control = ControlKont(res), store = store2, vStack = newVStack))
+        },
+          err =>
+            Set(state.copy(control = ControlError(err)))))
+      case a: ActionPushValT[Exp, Abs, Addr] =>
+        assert(state.control.isInstanceOf[ControlKont])
+        val value = state.control.asInstanceOf[ControlKont].v
+        Set(state.copy(vStack = value :: state.vStack))
+      case a: ActionReachedValueT[Exp, Abs, Addr] =>
+        Set(state.copy(control = ControlKont(a.v)))
+      case a: ActionSetAddressT[Exp, Abs, Addr] =>
+        assert(state.control.isInstanceOf[ControlKont])
+        val value = state.control.asInstanceOf[ControlKont].v
+        Set(state.copy(store = state.store.update(a.adress, value)))
     }
   }
 }

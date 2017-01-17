@@ -454,7 +454,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                t: Time) = e match { // Cases in stepEval shouldn't generate any splits in abstract graph
     case λ: SchemeLambda =>
       val action = ActionReachedValue[SchemeExp, Abs, Addr](sabs.inject[SchemeExp, Addr]((λ, env)), store)
-      val actionEdge = ActionCreateClosureT[SchemeExp, Abs, Addr](λ)
+      val actionEdge = ActionCreateClosureT[SchemeExp, Abs, Addr](λ, Some(env))
       Set(ActionChange(action, List(actionEdge)))
     case SchemeFuncall(f, args, _) =>
       addNilStateChangeEdges(ActionPush[SchemeExp, Abs, Addr](FrameFuncallOperator(f, args, env), f, env, store))
@@ -514,7 +514,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val lambda = SchemeLambda(args, body, pos)
       val v = sabs.inject[SchemeExp, Addr]((lambda, env))
       val action = ActionReachedValue[SchemeExp, Abs, Addr](v, store)
-      val actionEdges = List(ActionCreateClosureT[SchemeExp, Abs, Addr](lambda),
+      val actionEdges = List(ActionCreateClosureT[SchemeExp, Abs, Addr](lambda, Some(env)),
+                             actionPushVal,
                              ActionDefineAddressesT[SchemeExp, Abs, Addr](List(a)))
       Set(ActionChange(action, actionEdges))
     case SchemeIdentifier(name, _) =>
@@ -523,7 +524,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           store.lookup(a) match {
             case Some(v) =>
               val action = ActionReachedValue[SchemeExp, Abs, Addr](v, store, Set(EffectReadVariable(a)))
-              Set(ActionChange(action, List(ActionLookupVariableT(name))))
+              Set(ActionChange(action, List(ActionLookupAddressT(a))))
             case None => addNilStateChangeEdges(ActionError[SchemeExp, Abs, Addr](UnboundAddress(a.toString)))
           }
         case None => addNilStateChangeEdges(ActionError[SchemeExp, Abs, Addr](UnboundVariable(name)))
@@ -575,7 +576,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         val a = addr.variable(name, abs.bottom, t)
         val env1 = env.extend(name, a)
         val store1 = store.extend(a, v)
-        val actionEdges = List(actionPushVal, ActionAllocAddressesT[SchemeExp, Abs, Addr](List(a)))
+        val actionEdges = List(actionPushVal, ActionDefineAddressesT[SchemeExp, Abs, Addr](List(a)))
         bindings match {
           case Nil =>
             val ActionChange(actions, actionEdges2) = evalBody(body, env1, store1)
