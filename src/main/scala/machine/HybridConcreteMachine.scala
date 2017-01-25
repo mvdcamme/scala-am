@@ -40,7 +40,7 @@ class HybridConcreteMachine[
   case class ConcreteMachineOutputValue(time: Double,
                                         numberOfStates: Int,
                                         v: ConcreteConcreteLattice.L,
-                                        graph: Graph[State, List[EdgeAnnotation]])
+                                        graph: Graph[State, List[EdgeFilterAnnotation]])
       extends ConcreteMachineOutput {
     def finalValues = Set(v)
     def containsFinalValue(v2: ConcreteConcreteLattice.L) = v == v2
@@ -263,7 +263,7 @@ class HybridConcreteMachine[
                           HybridTimestamp.T],
            graph: Boolean,
            timeout: Option[Long]): Output[ConcreteConcreteLattice.L] = {
-    def loop(state: State, start: Long, count: Int, graph: Graph[State, List[EdgeAnnotation]]): ConcreteMachineOutput = {
+    def loop(state: State, start: Long, count: Int, graph: Graph[State, List[EdgeFilterAnnotation]]): ConcreteMachineOutput = {
 
       tracingFlags.RUNTIME_ANALYSIS_INTERVAL match {
         case NoRunTimeAnalysis =>
@@ -271,6 +271,7 @@ class HybridConcreteMachine[
           if (stepCount % analysis_interval == 0) {
             Logger.log(s"stepCount: $stepCount", Logger.U)
             pointsToAnalysisLauncher.filterReachable(stepCount)
+            pointsToAnalysisLauncher.applyEdgeActions(stepCount)
 //            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
           }
       }
@@ -289,7 +290,7 @@ class HybridConcreteMachine[
         val t = state.t
 
         def maybeAddReachedConcreteValue(v: ConcreteConcreteLattice.L,
-                                         edgeInfos: List[EdgeAnnotation]): List[EdgeAnnotation] = {
+                                         edgeInfos: List[EdgeFilterAnnotation]): List[EdgeFilterAnnotation] = {
           if (edgeInfos.exists({
             case FrameFollowed(frame) =>
               frame.meaningfullySubsumes
@@ -304,7 +305,7 @@ class HybridConcreteMachine[
         }
 
         type StepSucceeded = (State,
-                              List[EdgeAnnotation],
+                              List[EdgeFilterAnnotation],
                               List[ActionT[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A]])
 
         def step(control: Control): Either[ConcreteMachineOutput, StepSucceeded] =
@@ -463,6 +464,6 @@ class HybridConcreteMachine[
         sem.initialStore))
     pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState)
 
-    loop(initialState, System.nanoTime, 0, new Graph[State, List[EdgeAnnotation]]())
+    loop(initialState, System.nanoTime, 0, new Graph[State, List[EdgeFilterAnnotation]]())
   }
 }

@@ -5,9 +5,14 @@ trait ActionTApplier[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]] {
   def applyActionT(state: State, action: ActionT[Exp, Abs, Addr])
                   (implicit sabs: IsSchemeLattice[Abs]): Set[State]
 
+  def prepareState(state: State)
+                  (implicit sabs: IsSchemeLattice[Abs]): State
+
+  def subsumes(s1: State, s2: State): Boolean
+
+  def halted(state: State): Boolean
+
 }
-
-
 
 abstract class StoreChangeSemantics[Abs : JoinLattice, Addr : Address]
   ()

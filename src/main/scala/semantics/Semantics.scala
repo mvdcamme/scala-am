@@ -523,7 +523,6 @@ case class ActionExtendStoreT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     addr: Addr,
     lit: Abs)
     extends ActionT[Exp, Abs, Addr]
-
 case class ActionGuardFalseT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     override val rp: RestartPoint[Exp, Abs, Addr],
     override val id: Integer)
@@ -577,16 +576,13 @@ case class ActionPushValT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
   * A value is reached by the interpreter. As a result, a continuation will be
   * popped with the given reached value.
   */
-case class ActionReachedValueT[Exp: Expression,
-                               Abs: JoinLattice,
-                               Addr: Address](v: Abs,
-                                              read: Set[Addr] = Set[Addr](),
-                                              write: Set[Addr] = Set[Addr]())
+case class ActionReachedValueT[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    v: Abs,
+    read: Set[Addr] = Set[Addr](),
+    write: Set[Addr] = Set[Addr]())
     extends ActionT[Exp, Abs, Addr]
     with ChangesValueReg[Exp, Abs, Addr]
-case class ActionReachedValuePushT[Exp: Expression,
-                                   Abs: JoinLattice,
-                                   Addr: Address](
+case class ActionReachedValuePushT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     v: Abs,
     read: Set[Addr] = Set[Addr](),
     write: Set[Addr] = Set[Addr]())
@@ -600,8 +596,7 @@ case class ActionRemoveKontT[Exp: Expression, Abs: JoinLattice, Addr: Address](
 case class ActionRestoreEnvT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
     extends ActionT[Exp, Abs, Addr]
     with RestoresEnv[Exp, Abs, Addr]
-case class ActionRestoreSaveEnvT[
-    Exp: Expression, Abs: JoinLattice, Addr: Address]()
+case class ActionRestoreSaveEnvT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
     extends ActionT[Exp, Abs, Addr]
     with RestoresEnv[Exp, Abs, Addr]
     with SavesEnv[Exp, Abs, Addr]
@@ -614,9 +609,7 @@ case class ActionSetAddressT[Exp: Expression, Abs: JoinLattice, Addr: Address](
 case class ActionSetVarT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     variable: String)
     extends ActionT[Exp, Abs, Addr]
-case class ActionSpecializePrimitive[Exp: Expression,
-                                     Abs: JoinLattice,
-                                     Addr: Address](
+case class ActionSpecializePrimitive[Exp: Expression, Abs: JoinLattice, Addr: Address](
     expectedType: SimpleTypes.Value,
     primitive: Primitive[Addr, Abs],
     n: Integer,

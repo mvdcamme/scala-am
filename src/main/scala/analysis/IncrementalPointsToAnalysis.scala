@@ -4,15 +4,16 @@ class IncrementalPointsToAnalysis[Exp : Expression,
                                   State <: StateTrait[Exp, AbstL, Addr, _]]
                                  (implicit actionTApplier: ActionTApplier[Exp, AbstL, Addr, State]) {
 
-  type Edge = ((List[EdgeAnnotation], List[ActionT[Exp, AbstL, Addr]]), State)
-  type AbstractGraph = Graph[State, (List[EdgeAnnotation], List[ActionT[Exp, AbstL, Addr]])]
+  type EdgeAnnotation = (List[EdgeFilterAnnotation], List[ActionT[Exp, AbstL, Addr]])
+  type Edge = (EdgeAnnotation, State)
+  type AbstractGraph = Graph[State, EdgeAnnotation]
 
   var initialGraph: Option[AbstractGraph] = None
   var currentGraph: Option[AbstractGraph] = initialGraph
   var currentNodes: Set[State] = Set()
 
   var nodesVisited: Set[State] = Set()
-  var edgesVisited: Set[(State, (List[EdgeAnnotation], List[ActionT[Exp, AbstL, Addr]]), State)] = Set()
+  var edgesVisited: Set[(State, EdgeAnnotation, State)] = Set()
 
   def hasInitialGraph: Boolean = currentGraph.isDefined
   def initializeGraph(graph: AbstractGraph) = {
@@ -92,8 +93,8 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       .map(_._1)
   }
 
-  private def frameUsedSubsumes(getFrameFromInfo: EdgeAnnotation => Option[AbstractFrame])
-                               (info: EdgeAnnotation,
+  private def frameUsedSubsumes(getFrameFromInfo: EdgeFilterAnnotation => Option[AbstractFrame])
+                               (info: EdgeFilterAnnotation,
                                 convertedFrame: AbstractFrame)
   : Option[AbstractFrame] =
     getFrameFromInfo(info) match {
@@ -114,7 +115,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
   type AbstractFrame = SchemeFrame[AbstL, HybridAddress.A, HybridTimestamp.T]
 
   def filterFrameEdges(convertedFrame: AbstractFrame,
-                       subsumesFrame: (EdgeAnnotation,
+                       subsumesFrame: (EdgeFilterAnnotation,
                                        AbstractFrame) => Option[AbstractFrame],
                        abstractEdges: Set[Edge]): Set[Edge] = {
     if (!convertedFrame.meaningfullySubsumes) {
@@ -151,7 +152,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
   def filterSingleEdgeInfo(convertValueFun: ConcreteConcreteLattice.L => AbstL,
                            convertFrameFun: ConcreteFrame => AbstractFrame,
                            abstractEdges: Set[Edge],
-                           concreteEdgeInfo: EdgeAnnotation): Set[Edge] =
+                           concreteEdgeInfo: EdgeFilterAnnotation): Set[Edge] =
     concreteEdgeInfo match {
 
       case info: FrameFollowed[ConcreteConcreteLattice.L] =>
@@ -184,7 +185,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       convertValueFun: ConcreteConcreteLattice.L => AbstL,
       convertFrameFun: ConcreteFrame => AbstractFrame,
       node: State,
-      concreteEdgeInfos: List[EdgeAnnotation]): Set[State] = {
+      concreteEdgeInfos: List[EdgeFilterAnnotation]): Set[State] = {
     assert(currentGraph.isDefined)
     val abstractEdges = currentGraph.get.nodeEdges(node)
     Logger.log(s"abstractEdgeInfos = ${abstractEdges.map(_._1)}", Logger.U)
@@ -211,7 +212,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
 
   def computeSuccNodes(convertValueFun: ConcreteConcreteLattice.L => AbstL,
                        convertFrameFun: ConcreteFrame => AbstractFrame,
-                       edgeInfos: List[EdgeAnnotation],
+                       edgeInfos: List[EdgeFilterAnnotation],
                        stepNumber: Int) = {
     Logger.log(s"in step $stepNumber \nbefore: currentNodes = ${currentNodes.zip(currentNodes.map(initialGraph.get.nodeId))} " +
                s"\nconcreteEdgeInfos = $edgeInfos", Logger.U)
@@ -323,5 +324,51 @@ class IncrementalPointsToAnalysis[Exp : Expression,
     currentGraph = Some(filteredGraph)
     val newEdgesSize = currentGraph.get.edges.size
     graphSize = graphSize :+ (stepCount, newEdgesSize)
+  }
+
+  /*
+   * originalState: The original state that was present in the initial abstract graph.
+   * newState: the new state that was computed by following the ActionTs
+   */
+  case class StateCombo(originalState: State, newState: State)
+
+  private def evalLoop(todo: Set[StateCombo], visited: Set[State]): Unit = todo.headOption match {
+    case None =>
+    case Some(StateCombo(originalState, newState)) =>
+      Logger.log(s"Incrementally evaluating $newState", Logger.U)
+      if (actionTApplier.halted(newState)) {
+        Logger.log("Halted", Logger.U)
+        evalLoop(todo.tail, visited + newState)
+      } else if (visited.contains(newState)) {
+        Logger.log("Already visited", Logger.U)
+        evalLoop(todo.tail, visited)
+      } else if (visited.exists(s2 => actionTApplier.subsumes(s2, newState))) {
+        Logger.log("Already subsumed", Logger.U)
+        evalLoop(todo.tail, visited)
+      } else {
+        val edges: Set[Edge] = currentGraph.get.edges(originalState)
+        Logger.log(s"Using edges $edges", Logger.U)
+        val newStateCombos = edges.map( (edge) => {
+          val actionTs = edge._1._2
+          val newOriginalState = edge._2
+          Logger.log(s"Using actions $actionTs", Logger.U)
+          /* Compute, for all actions in one particular edge, the state resulting from the consecutive application of
+           * all actions.
+           */
+          val newStates = actionTs.foldLeft[State](newState)( (state, actionT) => {
+            val statesApplied = actionTApplier.applyActionT(state, actionT)
+            assert(statesApplied.size == 1, s"Applying $actionT results in states ($statesApplied): not yet " +
+              s"implemented")
+            statesApplied.head
+          })
+          StateCombo(newOriginalState, newState)
+        })
+        evalLoop(todo.tail ++ newStateCombos, visited + newState)
+      }
+  }
+
+  def applyEdgeActions(stepCount: Int): Unit = {
+    assert(currentGraph.isDefined)
+    evalLoop(currentNodes.map( (state) => StateCombo(state, actionTApplier.prepareState(state))), Set())
   }
 }

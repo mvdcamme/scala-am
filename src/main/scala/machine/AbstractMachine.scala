@@ -184,7 +184,7 @@ Addr: Address, Time: Timestamp](sem: SemanticsTraced[Exp, Abs, Addr, Time])
 }
 
 trait HasGraph[Exp, Abs, Addr, Node <: StateTrait[Exp, Abs, Addr, _]] {
-  def graph: Graph[Node, (List[EdgeAnnotation], List[ActionT[Exp, Abs, Addr]])]
+  def graph: Graph[Node, (List[EdgeFilterAnnotation], List[ActionT[Exp, Abs, Addr]])]
   def toDotFile(path: String): Unit
 }
 

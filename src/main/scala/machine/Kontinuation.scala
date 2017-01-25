@@ -1,15 +1,16 @@
 import scalaz.Scalaz._
 
 trait Frame {
-  type AbstractValue
+  type AbstractValue //TODO remove?
   type Address
-  type Timestamp
+  type Timestamp //TODO remove?
 
   def meaningfullySubsumes: Boolean = false
   def subsumes(that: Frame): Boolean
   def writeEffectsFor(): Set[Address] = Set()
 
   def savesEnv: Option[Environment[Address]] = None
+  def savedValues[Abs]: List[Abs] = Nil
 
 //  def convert[OtherAbs: IsSchemeLattice](convertValue: (AbstractValue) => OtherAbs,
 //                                          convertEnv: Environment[Address] => Environment[Address],

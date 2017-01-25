@@ -1,42 +1,37 @@
-trait EdgeAnnotation
-
-case object NoEdgeAnnotation$ extends EdgeAnnotation {
-  override def toString = "void"
-}
-case object TODOEdgeAnnotation extends EdgeAnnotation
+trait EdgeFilterAnnotation
 
 /*
  * Control-flow split due to spurious return: check continuation frame used.
  */
-case class FrameFollowed[Abs : JoinLattice](frame: SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]) extends EdgeAnnotation {
+case class FrameFollowed[Abs : JoinLattice](frame: SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]) extends EdgeFilterAnnotation {
   override def toString = s"Followed $frame"
 }
 
 /*
  * Popped a continuation address.
  */
-case class KontAddrPopped(oldA: KontAddr, newA: KontAddr) extends EdgeAnnotation {
+case class KontAddrPopped(oldA: KontAddr, newA: KontAddr) extends EdgeFilterAnnotation {
   override def toString = s"Popped = $oldA, next = $newA"
 }
 
 /*
  * Pushed a continuation address.
  */
-case class KontAddrPushed(a: KontAddr) extends EdgeAnnotation {
+case class KontAddrPushed(a: KontAddr) extends EdgeFilterAnnotation {
   override def toString = s"Pushed = $a"
 }
 
 /*
  * State not explored further because it was already subsumed by another state in the graph.
  */
-case object StateSubsumed extends EdgeAnnotation {
+case object StateSubsumed extends EdgeFilterAnnotation {
   override def toString = "Subsumed by"
 }
 
 /*
  * State leads to the evaluation of the given expression.
  */
-case class EvaluatingExpression[Exp : Expression](exp: Exp) extends EdgeAnnotation {
+case class EvaluatingExpression[Exp : Expression](exp: Exp) extends EdgeFilterAnnotation {
   override def toString = s"Evaluate $exp"
 }
 

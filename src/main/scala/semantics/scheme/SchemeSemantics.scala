@@ -33,7 +33,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                                   args: List[SchemeExp],
                                   env: Environment[Addr])
       extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv(): Option[Environment[Address]] = Some(env)
+    override def savesEnv: Option[Environment[Address]] = Some(env)
+    override def savedValues[Abs] = Nil
 
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
@@ -53,7 +54,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                                   toeval: List[SchemeExp],
                                   env: Environment[Addr])
       extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv(): Option[Environment[Address]] = Some(env)
+    override def savesEnv: Option[Environment[Address]] = Some(env)
+    override def savedValues[Abs] = args.map(_._2.asInstanceOf[Abs]) :+ f.asInstanceOf[Abs]
 
     override def toString: String = s"FrameFuncallOperands($f, $args, $env)"
 
@@ -95,7 +97,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   }
   case class FrameIf(cons: SchemeExp, alt: SchemeExp, env: Environment[Addr])
       extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv(): Option[Environment[Address]] = Some(env)
+    override def savesEnv: Option[Environment[Address]] = Some(env)
 
     override def meaningfullySubsumes = true
     override def subsumes(that: Frame): Boolean = that match {
@@ -123,7 +125,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                       body: List[SchemeExp],
                       env: Environment[Addr])
       extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv(): Option[Environment[Address]] = Some(env)
+    override def savesEnv: Option[Environment[Address]] = Some(env)
+    override def savedValues[Abs] = bindings.map(_._2.asInstanceOf[Abs])
 
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
@@ -148,7 +151,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                           body: List[SchemeExp],
                           env: Environment[Addr])
       extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv(): Option[Environment[Address]] = Some(env)
+    override def savesEnv: Option[Environment[Address]] = Some(env)
 
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
@@ -165,7 +168,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                          body: List[SchemeExp],
                          env: Environment[Addr])
       extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv(): Option[Environment[Address]] = Some(env)
+    override def savesEnv: Option[Environment[Address]] = Some(env)
 
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
@@ -194,7 +197,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       case None => Set()
     }
 
-    override def savesEnv(): Option[Environment[Address]] = Some(env)
+    override def savesEnv: Option[Environment[Address]] = Some(env)
 
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
@@ -208,7 +211,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   }
   case class FrameBegin(rest: List[SchemeExp], env: Environment[Addr])
       extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv(): Option[Environment[Address]] = Some(env)
+    override def savesEnv: Option[Environment[Address]] = Some(env)
 
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
@@ -224,7 +227,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                        clauses: List[(SchemeExp, List[SchemeExp])],
                        env: Environment[Addr])
       extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv(): Option[Environment[Address]] = Some(env)
+    override def savesEnv: Option[Environment[Address]] = Some(env)
 
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
@@ -240,7 +243,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                        default: List[SchemeExp],
                        env: Environment[Addr])
       extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv(): Option[Environment[Address]] = Some(env)
+    override def savesEnv: Option[Environment[Address]] = Some(env)
 
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
@@ -254,7 +257,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   }
   case class FrameAnd(rest: List[SchemeExp], env: Environment[Addr])
       extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv(): Option[Environment[Address]] = Some(env)
+    override def savesEnv: Option[Environment[Address]] = Some(env)
 
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
@@ -268,7 +271,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   }
   case class FrameOr(rest: List[SchemeExp], env: Environment[Addr])
       extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv(): Option[Environment[Address]] = Some(env)
+    override def savesEnv: Option[Environment[Address]] = Some(env)
 
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
@@ -282,7 +285,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   }
   case class FrameDefine(variable: String, env: Environment[Addr])
       extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv(): Option[Environment[Address]] = Some(env)
+    override def savesEnv: Option[Environment[Address]] = Some(env)
 
     def convert[OtherAbs: IsSchemeLattice](
         convertValue: (Abs) => OtherAbs,
@@ -345,11 +348,11 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                 val actionEdge: ActionT[SchemeExp, Abs, Addr] = ActionDefineAddressesT[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
                 if (body.length == 1) {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), body.head, env2, store, argsv)
-                  ActionChange[SchemeExp, Abs, Addr](action, List(actionEdge))
+                  ActionChange[SchemeExp, Abs, Addr](action, List(actionPushVal, actionEdge))
                 }
                 else {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), SchemeBegin(body, pos), env2, store, argsv)
-                  ActionChange[SchemeExp, Abs, Addr](action, List(actionEdge))
+                  ActionChange[SchemeExp, Abs, Addr](action, List(actionPushVal, actionEdge))
                 }
             }
           } else {
@@ -368,9 +371,9 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             .collect({
                        case (res, store2, effects) =>
                          val n = argsv.size + 1 // Numbr of values to pop: all arguments + the operator
-                         val actionEdge = ActionPrimCallT[SchemeExp, Abs, Addr](argsv.size + 1, fexp, argsv.map(_._1))
+                         val applyPrim = ActionPrimCallT[SchemeExp, Abs, Addr](argsv.size + 1, fexp, argsv.map(_._1))
                          val action = ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects)
-                         Set(ActionChange[SchemeExp, Abs, Addr](action, List(actionEdge)))
+                         Set(ActionChange[SchemeExp, Abs, Addr](action, List(actionPushVal, applyPrim)))
                      },
                      err =>
                        addNilStateChangeEdges(ActionError[SchemeExp, Abs, Addr](err))))
@@ -399,11 +402,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     toeval match {
       case Nil => evalCall(f, fexp, args.reverse, store, t)
       case e :: rest =>
-        Set(
-          ActionChange(ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env),
-                     e,
-                     env,
-                     store), Nil))
+        Set(ActionChange(ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env), e, env, store),
+                         List(actionPushVal)))
     }
   protected def funcallArgs(f: Abs,
                             fexp: SchemeExp,
@@ -719,7 +719,8 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             .map( (actionChange: ActionChange[SchemeExp, Abs, Addr]) =>
               ActionChange(addEffects(actionChange.action, effs), actionChange.actionEdge) )
         case None =>
-          addNilStateChangeEdges(ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env), e, env, store))
+          Set(ActionChange(ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env), e, env, store),
+                           List(actionPushVal)))
       }
   }
 

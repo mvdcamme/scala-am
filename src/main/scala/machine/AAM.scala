@@ -24,6 +24,8 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   type GraphNode = State
   override type MachineOutput = AAMOutput
 
+  type VStack = List[Abs]
+
   def name = "AAM"
 
   /**
@@ -36,7 +38,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                    kstore: KontStore[KontAddr],
                    a: KontAddr,
                    t: Time,
-                   vStack: List[Abs])
+                   vStack: VStack)
     extends StateTrait[Exp, Abs, Addr, Time] {
     override def toString = control.toString
 
@@ -47,10 +49,9 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       * them has already been explored.
       */
     def subsumes(that: State): Boolean =
-      control.subsumes(that.control) && store.subsumes(that.store) && a == that.a && kstore
-        .subsumes(that.kstore) && t == that.t
+      control.subsumes(that.control) && store.subsumes(that.store) && a == that.a && kstore.subsumes(that.kstore) && t == that.t
 
-    type EdgeInformation = (State, List[EdgeAnnotation], List[ActionT[Exp, Abs, Addr]])
+    type EdgeComponents = (State, List[EdgeFilterAnnotation], List[ActionT[Exp, Abs, Addr]])
 
     /**
       * Integrates a set of actions (returned by the semantics, see
@@ -59,7 +60,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       */
     private def integrate(a: KontAddr,
                           actionChanges: Set[ActionChange[Exp, Abs, Addr]])
-    : Set[EdgeInformation] =
+    : Set[EdgeComponents] =
       actionChanges.map( (actionChange) => {
         val actionEdges = actionChange.actionEdge
         actionChange.action match {
@@ -97,7 +98,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     /**
       * Computes the set of states that follow the current state
       */
-    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[EdgeInformation] =
+    def step(sem: Semantics[Exp, Abs, Addr, Time]): Set[EdgeComponents] =
       control match {
         /* In a eval state, call the semantic's evaluation method */
         case ControlEval(e, env) =>
@@ -178,7 +179,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   case class AAMOutput(halted: Set[State],
                        numberOfStates: Int,
                        time: Double,
-                       graph: Graph[State, (List[EdgeAnnotation], List[ActionT[Exp, Abs, Addr]])],
+                       graph: Graph[State, (List[EdgeFilterAnnotation], List[ActionT[Exp, Abs, Addr]])],
                        timedOut: Boolean,
                        stepSwitched: Option[Int])
       extends Output[Abs] with HasGraph[Exp, Abs, Addr, State] with HasFinalStores[Addr, Abs] {
@@ -226,7 +227,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
    * Checks whether the given (successor) state is a eval-state. If so, adds an EvaluatingExpression
    * annotation to the list of edge annotations.
    */
-  def addSuccStateEdgeAnnotation(s: State, edgeInfos: List[EdgeAnnotation]): List[EdgeAnnotation] = s.control match {
+  def addSuccStateEdgeAnnotation(s: State, edgeInfos: List[EdgeFilterAnnotation]): List[EdgeFilterAnnotation] = s.control match {
     case ControlEval(exp, _) =>
       EvaluatingExpression(exp) :: edgeInfos
     case ControlKont(v) =>
@@ -254,7 +255,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
              visited: Set[State],
              halted: Set[State],
              startingTime: Long,
-             graph: Graph[State, (List[EdgeAnnotation], List[ActionT[Exp, Abs, Addr]])]): AAMOutput = {
+             graph: Graph[State, (List[EdgeFilterAnnotation], List[ActionT[Exp, Abs, Addr]])]): AAMOutput = {
       if (timeout.exists(System.nanoTime - startingTime > _)) {
         AAMOutput(halted,
                   visited.size,
@@ -274,7 +275,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                * states but leads to non-determinism due to the non-determinism
                * of Scala's headOption (it seems so at least).
                * We do have to add an edge from the current state to the subsumed state. */
-              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, (List[EdgeAnnotation], List[ActionT[Exp, Abs, Addr]])]](graph)({
+              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, (List[EdgeFilterAnnotation], List[ActionT[Exp, Abs, Addr]])]](graph)({
                 case (graph, s2) =>
                   if (s2.subsumes(s))
                     graph.addEdge(s, (List(StateSubsumed), Nil), s2)
@@ -373,6 +374,10 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                          timeout)
 
   object ActionTApplier extends ActionTApplier[Exp, Abs, Addr, State] {
+
+    import scala.annotation.tailrec
+    import ConcreteConcreteLattice.ConcreteValue
+
     override def applyActionT(state: State, action: ActionT[Exp, Abs, Addr])
                              (implicit sabs: IsSchemeLattice[Abs]): Set[State] = action match {
       case a: ActionAllocAddressesT[Exp, Abs, Addr] =>
@@ -392,9 +397,11 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         val value = state.store.lookup(a.a).get
         Set(state.copy(control = ControlKont(value)))
       case a: ActionPrimCallT[SchemeExp, Abs, Addr] =>
+        Logger.log(s"Applying primitive $a, vStack is ${state.vStack}", Logger.U)
         val values = state.vStack.take(a.n)
         val newVStack = state.vStack.drop(a.n)
         val operands = values.init
+        Logger.log(s"Primitive being applied on operands $operands", Logger.U)
         val operator = values.last
         val primitives = sabs.getPrimitives[Addr, Abs](operator)
         primitives.flatMap((primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store,
@@ -406,8 +413,9 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
           err =>
             Set(state.copy(control = ControlError(err)))))
       case a: ActionPushValT[Exp, Abs, Addr] =>
-        assert(state.control.isInstanceOf[ControlKont])
+        assert(state.control.isInstanceOf[ControlKont], s"Control is ${state.control}")
         val value = state.control.asInstanceOf[ControlKont].v
+        Logger.log(s"Pushing value $value", Logger.U)
         Set(state.copy(vStack = value :: state.vStack))
       case a: ActionReachedValueT[Exp, Abs, Addr] =>
         Set(state.copy(control = ControlKont(a.v)))
@@ -416,5 +424,29 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         val value = state.control.asInstanceOf[ControlKont].v
         Set(state.copy(store = state.store.update(a.adress, value)))
     }
+
+    @tailrec
+    private def constructVStack(vStack: VStack, kstore: KontStore[KontAddr], ka: KontAddr): VStack = ka match {
+      case HaltKontAddress =>
+        vStack
+      case _ =>
+        val konts = kstore.lookup(ka)
+        assert(konts.size == 1, "Cannot handle joined continuation frames yet")
+        val Kont(frame, next) = konts.head
+        Logger.log(s"constructVStack, frame $frame", Logger.U)
+        val savedValues = frame.savedValues[Abs]
+        constructVStack(vStack ++ savedValues, kstore, next)
+    }
+
+    override def prepareState(state: State)
+                             (implicit sabs: IsSchemeLattice[Abs]): State = {
+      val vStack = constructVStack(Nil, state.kstore, state.a)
+      Logger.log(s"Prepared state with vStack $vStack", Logger.U)
+      state.copy(vStack = vStack)
+    }
+
+    override def subsumes(s1: State, s2: State): Boolean = s1.subsumes(s2)
+
+    override def halted(state: State): Boolean = state.halted
   }
 }
