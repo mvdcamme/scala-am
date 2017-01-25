@@ -114,8 +114,7 @@ class PointsToAnalysisLauncher[
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]
 
-  val pointsToAnalysis =
-    new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
+  val pointsToAnalysis = new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
 
   def runStaticAnalysisGeneric(
       currentProgramState: PS,
@@ -123,8 +122,7 @@ class PointsToAnalysisLauncher[
       toDotFile: Option[String]): StaticAnalysisResult = {
     wrapRunAnalysis(
       () => {
-        val startStates =
-          convertStateAAM(aam, concSem, abstSem, currentProgramState)
+        val startState = convertStateAAM(aam, concSem, abstSem, currentProgramState)
         val result =
           pointsToAnalysis.analyze(toDotFile,
                                    aam,
@@ -132,7 +130,7 @@ class PointsToAnalysisLauncher[
                                    lip.pointsTo,
                                    (addr) =>
                                      !HybridAddress.isAddress.isPrimitive(
-                                       addr))(startStates, false, stepSwitched)
+                                       addr))(startState, false, stepSwitched)
         Logger.log(s"Static points-to analysis result is $result", Logger.D)
         result
       })
@@ -172,7 +170,9 @@ class PointsToAnalysisLauncher[
   def filterReachable(stepCount: Int): Unit =
     incrementalAnalysis.filterReachable(stepCount)
 
-  def applyEdgeActions(stepCount: Int): Unit =
-    incrementalAnalysis.applyEdgeActions(stepCount)
+  def applyEdgeActions(concreteState: PS, stepCount: Int): Unit = {
+    val convertedState = convertStateAAM(aam, concSem, abstSem, concreteState)
+    incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
+  }
 
 }

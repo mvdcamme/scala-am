@@ -332,21 +332,24 @@ class IncrementalPointsToAnalysis[Exp : Expression,
    */
   case class StateCombo(originalState: State, newState: State)
 
+  /*
+   * Keep track of the set of visited originalStates, but not of the set of newStates.
+   */
   private def evalLoop(todo: Set[StateCombo], visited: Set[State]): Unit = todo.headOption match {
     case None =>
     case Some(StateCombo(originalState, newState)) =>
-      Logger.log(s"Incrementally evaluating $newState", Logger.U)
+      Logger.log(s"Incrementally evaluating original state ${initialGraph.get.nodeId(originalState)} with new state $newState", Logger.U)
       if (actionTApplier.halted(newState)) {
         Logger.log("Halted", Logger.U)
-        evalLoop(todo.tail, visited + newState)
-      } else if (visited.contains(newState)) {
-        Logger.log("Already visited", Logger.U)
-        evalLoop(todo.tail, visited)
-      } else if (visited.exists(s2 => actionTApplier.subsumes(s2, newState))) {
-        Logger.log("Already subsumed", Logger.U)
+        evalLoop(todo.tail, visited + originalState)
+      } else if (visited.contains(originalState)) {
+        Logger.log(s"State already visited", Logger.U)
         evalLoop(todo.tail, visited)
       } else {
-        val edges: Set[Edge] = currentGraph.get.edges(originalState)
+        /*
+         * If originalState does not have any outgoing edges, return empty set
+         */
+        val edges: Set[Edge] = currentGraph.get.edges.getOrElse(originalState, Set())
         Logger.log(s"Using edges $edges", Logger.U)
         /*
          * For all edges e, take all actionTs a1, a2 ... ak, and apply them consecutively on newState.
@@ -364,16 +367,16 @@ class IncrementalPointsToAnalysis[Exp : Expression,
             states.flatMap( (state) => actionTApplier.applyActionT(state, actionT)))
           newStates.map(StateCombo(newOriginalState, _))
         })
-        /*
-         * Only add the current newState to the set of visited states if all outgoing edges
-         */
-        val newVisited = if (edges.forall(_._1._2.nonEmpty)) visited + newState else visited
-        evalLoop(todo.tail ++ newStateCombos, newVisited)
+        evalLoop(todo.tail ++ newStateCombos, visited + originalState)
       }
   }
 
-  def applyEdgeActions(stepCount: Int): Unit = {
+  def applyEdgeActions(convertedState: State, stepCount: Int): Unit = {
     assert(currentGraph.isDefined)
-    evalLoop(currentNodes.map( (state) => StateCombo(state, actionTApplier.prepareState(state))), Set())
+    /*
+     * Associate the (one) abstracted concrete state with all states in the CurrentNodes set, as the states in
+     * this set ought to correspond with this concrete state.
+     */
+    evalLoop(currentNodes.map( (state) => StateCombo(state, actionTApplier.prepareState(convertedState))), Set())
   }
 }
