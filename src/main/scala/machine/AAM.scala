@@ -376,7 +376,6 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   object ActionTApplier extends ActionTApplier[Exp, Abs, Addr, State] {
 
     import scala.annotation.tailrec
-    import ConcreteConcreteLattice.ConcreteValue
 
     override def applyActionT(state: State, action: ActionT[Exp, Abs, Addr])
                              (implicit sabs: IsSchemeLattice[Abs]): Set[State] = action match {

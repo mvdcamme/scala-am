@@ -348,22 +348,27 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       } else {
         val edges: Set[Edge] = currentGraph.get.edges(originalState)
         Logger.log(s"Using edges $edges", Logger.U)
-        val newStateCombos = edges.map( (edge) => {
+        /*
+         * For all edges e, take all actionTs a1, a2 ... ak, and apply them consecutively on newState.
+         * Each actionT may produce a set of new newStates.
+         */
+        val newStateCombos = edges.flatMap( (edge) => {
           val actionTs = edge._1._2
           val newOriginalState = edge._2
           Logger.log(s"Using actions $actionTs", Logger.U)
-          /* Compute, for all actions in one particular edge, the state resulting from the consecutive application of
+          /*
+           * Compute, for all actions in one particular edge, the state resulting from the consecutive application of
            * all actions.
            */
-          val newStates = actionTs.foldLeft[State](newState)( (state, actionT) => {
-            val statesApplied = actionTApplier.applyActionT(state, actionT)
-            assert(statesApplied.size == 1, s"Applying $actionT results in states ($statesApplied): not yet " +
-              s"implemented")
-            statesApplied.head
-          })
-          StateCombo(newOriginalState, newState)
+          val newStates = actionTs.foldLeft[Set[State]](Set(newState))( (states, actionT) =>
+            states.flatMap( (state) => actionTApplier.applyActionT(state, actionT)))
+          newStates.map(StateCombo(newOriginalState, _))
         })
-        evalLoop(todo.tail ++ newStateCombos, visited + newState)
+        /*
+         * Only add the current newState to the set of visited states if all outgoing edges
+         */
+        val newVisited = if (edges.forall(_._1._2.nonEmpty)) visited + newState else visited
+        evalLoop(todo.tail ++ newStateCombos, newVisited)
       }
   }
 
