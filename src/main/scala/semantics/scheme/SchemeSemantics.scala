@@ -308,9 +308,12 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       body: List[SchemeExp],
       env: Environment[Addr],
       store: Store[Addr, Abs]): ActionChange[SchemeExp, Abs, Addr] = body match {
-    case Nil => ActionChange(ActionReachedValue(sabs.inject(false), store), Nil)
-    case List(exp) => ActionChange(ActionEval(exp, env, store), Nil)
-    case exp :: rest => ActionChange(ActionPush(FrameBegin(rest, env), exp, env, store), Nil)
+    case Nil =>
+      ActionChange(ActionReachedValue(sabs.inject(false), store), List(ActionReachedValueT(sabs.inject(false))))
+    case List(exp) =>
+      ActionChange(ActionEval(exp, env, store), List(ActionEvalT(exp)))
+    case exp :: rest =>
+      ActionChange(ActionPush(FrameBegin(rest, env), exp, env, store), List(ActionEvalT(exp)))
   }
 
   def convertAbsInFrame[OtherAbs: IsConvertableLattice](
@@ -333,6 +336,9 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     (if (sabs.isTrue(v)) t else Set[ActionChange[SchemeExp, Abs, Addr]]()) ++
     (if (sabs.isFalse(v)) f else Set[ActionChange[SchemeExp, Abs, Addr]]())
 
+  private def addEvalActionT(action: Action[SchemeExp, Abs, Addr], exp: SchemeExp): Set[ActionChange[SchemeExp, Abs, Addr]] =
+    Set(ActionChange(action, List(ActionEvalT(exp))))
+
   def evalCall(function: Abs,
                fexp: SchemeExp,
                argsv: List[(SchemeExp, Abs)],
@@ -345,14 +351,14 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           if (args.length == argsv.length) {
             bindArgs(args.zip(argsv), env1, store, t) match {
               case (env2, store, boundAddresses) =>
-                val actionEdge: ActionT[SchemeExp, Abs, Addr] = ActionDefineAddressesT[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
+                val defAddr: ActionT[SchemeExp, Abs, Addr] = ActionDefineAddressesT[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
                 if (body.length == 1) {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), body.head, env2, store, argsv)
-                  ActionChange[SchemeExp, Abs, Addr](action, List(actionPushVal, actionEdge))
+                  ActionChange[SchemeExp, Abs, Addr](action, List(actionPushVal, defAddr, ActionEvalT(body.head)))
                 }
                 else {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), SchemeBegin(body, pos), env2, store, argsv)
-                  ActionChange[SchemeExp, Abs, Addr](action, List(actionPushVal, actionEdge))
+                  ActionChange[SchemeExp, Abs, Addr](action, List(actionPushVal, defAddr, ActionEvalT(SchemeBegin(body, pos))))
                 }
             }
           } else {
@@ -403,7 +409,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       case Nil => evalCall(f, fexp, args.reverse, store, t)
       case e :: rest =>
         Set(ActionChange(ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env), e, env, store),
-                         List(actionPushVal)))
+                         List(actionPushVal, ActionEvalT(e))))
     }
   protected def funcallArgs(f: Abs,
                             fexp: SchemeExp,
@@ -457,16 +463,16 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val actionEdge = ActionCreateClosureT[SchemeExp, Abs, Addr](λ, Some(env))
       Set(ActionChange(action, List(actionEdge)))
     case SchemeFuncall(f, args, _) =>
-      addNilStateChangeEdges(ActionPush[SchemeExp, Abs, Addr](FrameFuncallOperator(f, args, env), f, env, store))
+      addEvalActionT(ActionPush[SchemeExp, Abs, Addr](FrameFuncallOperator(f, args, env), f, env, store), f)
     case SchemeIf(cond, cons, alt, _) =>
-      addNilStateChangeEdges(ActionPush(FrameIf(cons, alt, env), cond, env, store))
+      addEvalActionT(ActionPush(FrameIf(cons, alt, env), cond, env, store), cond)
     case SchemeLet(Nil, body, _) => Set(evalBody(body, env, store))
     case SchemeLet((v, exp) :: bindings, body, _) =>
-      addNilStateChangeEdges(ActionPush(FrameLet(v, List(), bindings, body, env), exp, env, store))
+      addEvalActionT(ActionPush(FrameLet(v, List(), bindings, body, env), exp, env, store), exp)
     case SchemeLetStar(Nil, body, _) =>
       Set(evalBody(body, env, store))
     case SchemeLetStar((v, exp) :: bindings, body, _) =>
-      addNilStateChangeEdges(ActionPush(FrameLetStar(v, bindings, body, env), exp, env, store))
+      addEvalActionT(ActionPush(FrameLetStar(v, bindings, body, env), exp, env, store), exp)
     case SchemeLetrec(Nil, body, _) =>
       Set(evalBody(body, env, store))
     case SchemeLetrec((v, exp) :: bindings, body, _) =>
@@ -488,27 +494,29 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val action = ActionPush(FrameLetrec(addresses.head, addresses.tail.zip(bindings.map(_._2)), body, env1),
                               exp, env1, store1)
       val actionEdge = ActionAllocAddressesT[SchemeExp, Abs, Addr](addresses)
-      Set(ActionChange(action, List(actionEdge)))
+      Set(ActionChange(action, List(actionEdge, ActionEvalT(exp))))
     case SchemeSet(variable, exp, _) =>
-      addNilStateChangeEdges(ActionPush(FrameSet(variable, env), exp, env, store))
+      addEvalActionT(ActionPush(FrameSet(variable, env), exp, env, store), exp)
     case SchemeBegin(body, _) =>
       Set(evalBody(body, env, store))
     case SchemeCond(Nil, _) =>
       addNilStateChangeEdges(ActionError[SchemeExp, Abs, Addr](NotSupported("cond without clauses")))
     case SchemeCond((cond, cons) :: clauses, _) =>
-      addNilStateChangeEdges(ActionPush(FrameCond(cons, clauses, env), cond, env, store))
+      addEvalActionT(ActionPush(FrameCond(cons, clauses, env), cond, env, store), cond)
     case SchemeCase(key, clauses, default, _) =>
-      addNilStateChangeEdges(ActionPush(FrameCase(clauses, default, env), key, env, store))
+      addEvalActionT(ActionPush(FrameCase(clauses, default, env), key, env, store), key)
     case SchemeAnd(Nil, _) =>
-      addNilStateChangeEdges(ActionReachedValue[SchemeExp, Abs, Addr](sabs.inject(true), store))
+      val valueTrue = sabs.inject(true)
+      Set(ActionChange(ActionReachedValue[SchemeExp, Abs, Addr](valueTrue, store), List(ActionReachedValueT(valueTrue))))
     case SchemeAnd(exp :: exps, _) =>
-      addNilStateChangeEdges(ActionPush(FrameAnd(exps, env), exp, env, store))
+      addEvalActionT(ActionPush(FrameAnd(exps, env), exp, env, store), exp)
     case SchemeOr(Nil, _) =>
-      addNilStateChangeEdges(ActionReachedValue[SchemeExp, Abs, Addr](sabs.inject(false), store))
+      val valueFalse = sabs.inject(false)
+      Set(ActionChange(ActionReachedValue[SchemeExp, Abs, Addr](valueFalse, store), List(ActionReachedValueT(valueFalse))))
     case SchemeOr(exp :: exps, _) =>
-      addNilStateChangeEdges(ActionPush(FrameOr(exps, env), exp, env, store))
+      addEvalActionT(ActionPush(FrameOr(exps, env), exp, env, store), exp)
     case SchemeDefineVariable(name, exp, _) =>
-      addNilStateChangeEdges(ActionPush(FrameDefine(name, env), exp, env, store))
+      addEvalActionT(ActionPush(FrameDefine(name, env), exp, env, store), exp)
     case SchemeDefineFunction(name, args, body, pos) =>
       val a = addr.variable(name, abs.bottom, t)
       val lambda = SchemeLambda(args, body, pos)
@@ -555,8 +563,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         funcallArgs(f, fexp, (exp, v) :: args, toeval, env, store, t)
       case FrameIf(cons, alt, env) =>
         conditional(v,
-                    Set(ActionChange(ActionEval(cons, env, store), Nil)),
-                    Set(ActionChange(ActionEval(alt, env, store), Nil)))
+                    addEvalActionT(ActionEval(cons, env, store), cons),
+                    addEvalActionT(ActionEval(alt, env, store), alt))
       case FrameLet(name, bindings, Nil, body, env) =>
         val variables = name :: bindings.reverse.map(_._1)
         val addresses = variables.map(variable => addr.variable(variable, v, t))
@@ -569,9 +577,9 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         val ActionChange(action, actionEdges) = evalBody(body, env1, store1)
         Set(ActionChange(action, actionPushVal :: ActionDefineAddressesT[SchemeExp, Abs, Addr](addresses) :: actionEdges))
       case FrameLet(name, bindings, (variable, e) :: toeval, body, env) =>
-        val action = ActionPush(FrameLet(variable, (name, v) :: bindings, toeval, body, env),
-                                e, env, store)
-        Set(ActionChange(action, List(actionPushVal)))
+        val frame = FrameLet(variable, (name, v) :: bindings, toeval, body, env)
+        val action = ActionPush(frame, e, env, store)
+        Set(ActionChange(action, List(actionPushVal, ActionEvalT(e))))
       case FrameLetStar(name, bindings, body, env) =>
         val a = addr.variable(name, abs.bottom, t)
         val env1 = env.extend(name, a)
@@ -583,19 +591,20 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             Set(ActionChange(actions, actionEdges ++ actionEdges2))
           case (variable, exp) :: rest =>
             val action = ActionPush(FrameLetStar(variable, rest, body, env1), exp, env1, store1)
-            Set(ActionChange(action, actionEdges))
+            Set(ActionChange(action, actionEdges :+ ActionEvalT(exp)))
         }
       case FrameLetrec(a, Nil, body, env) =>
         val ActionChange(action, actionEdges) = evalBody(body, env, store.update(a, v))
         Set(ActionChange(action, ActionSetAddressT[SchemeExp, Abs, Addr](a) :: actionEdges))
       case FrameLetrec(a, (a1, exp) :: rest, body, env) =>
         Set(ActionChange(ActionPush(FrameLetrec(a1, rest, body, env), exp, env, store.update(a, v)),
-                         List(ActionSetAddressT(a))))
+                         List(ActionSetAddressT(a), ActionEvalT(exp))))
       case FrameSet(name, env) =>
         env.lookup(name) match {
           case Some(a) =>
-            Set(ActionChange(ActionReachedValue(sabs.inject(false), store.update(a, v), Set(EffectWriteVariable(a))),
-                             List(ActionSetAddressT(a))))
+            val valueFalse = sabs.inject(false)
+            Set(ActionChange(ActionReachedValue(valueFalse, store.update(a, v), Set(EffectWriteVariable(a))),
+                             List(ActionSetAddressT(a), ActionReachedValueT(valueFalse))))
           case None => addNilStateChangeEdges(ActionError[SchemeExp, Abs, Addr](UnboundVariable(name)))
         }
       case FrameBegin(body, env) =>
@@ -610,7 +619,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             case Nil =>
               Set(ActionChange(ActionReachedValue(falseValue, store), List(ActionReachedValueT(falseValue))))
             case (exp, cons2) :: rest =>
-              addNilStateChangeEdges(ActionPush(FrameCond(cons2, rest, env), exp, env, store))
+              addEvalActionT(ActionPush(FrameCond(cons2, rest, env), exp, env, store), exp)
           })
       case FrameCase(clauses, default, env) =>
         val fromClauses = clauses.flatMap({
@@ -636,7 +645,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       case FrameAnd(e :: rest, env) =>
         val falseValue = sabs.inject(false)
         conditional(v,
-                    addNilStateChangeEdges(ActionPush(FrameAnd(rest, env), e, env, store)),
+                    addEvalActionT(ActionPush(FrameAnd(rest, env), e, env, store), e),
                     Set(ActionChange(ActionReachedValue(falseValue, store), List(ActionReachedValueT(falseValue)))))
       case FrameOr(Nil, env) =>
         val falseValue = sabs.inject(false)
@@ -646,7 +655,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       case FrameOr(e :: rest, env) =>
         conditional(v,
                     Set(ActionChange(ActionReachedValue(v, store), List(ActionReachedValueT(v)))),
-                    addNilStateChangeEdges(ActionPush(FrameOr(rest, env), e, env, store)))
+                    addEvalActionT(ActionPush(FrameOr(rest, env), e, env, store), e))
       case FrameDefine(name, env) =>
         throw new Exception(
           s"TODO: define not handled (no global environment)")
@@ -720,7 +729,7 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
               ActionChange(addEffects(actionChange.action, effs), actionChange.actionEdge) )
         case None =>
           Set(ActionChange(ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env), e, env, store),
-                           List(actionPushVal)))
+                           List(actionPushVal, ActionEvalT(e))))
       }
   }
 
