@@ -269,18 +269,18 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             if (visited.contains(s)) {
               /* If we already visited the state, we ignore it. */
               loop(todo.tail, visited, halted, startingTime, graph)
-            } else if (visited.exists(s2 => s2.subsumes(s))) {
-              /* If the state is subsumed by another already visited state,
-               * we ignore it. The subsumption part reduces the number of visited
-               * states but leads to non-determinism due to the non-determinism
-               * of Scala's headOption (it seems so at least).
-               * We do have to add an edge from the current state to the subsumed state. */
-              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, (List[EdgeFilterAnnotation], List[ActionT[Exp, Abs, Addr]])]](graph)({
-                case (graph, s2) =>
-                  if (s2.subsumes(s))
-                    graph.addEdge(s, (List(StateSubsumed), Nil), s2)
-                  else
-                    graph}))
+//            } else if (visited.exists(s2 => s2.subsumes(s))) {
+//              /* If the state is subsumed by another already visited state,
+//               * we ignore it. The subsumption part reduces the number of visited
+//               * states but leads to non-determinism due to the non-determinism
+//               * of Scala's headOption (it seems so at least).
+//               * We do have to add an edge from the current state to the subsumed state. */
+//              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, (List[EdgeFilterAnnotation], List[ActionT[Exp, Abs, Addr]])]](graph)({
+//                case (graph, s2) =>
+//                  if (s2.subsumes(s))
+//                    graph.addEdge(s, (List(StateSubsumed), Nil), s2)
+//                  else
+//                    graph}))
             } else if (s.halted || stopEval.fold(false)(pred => pred(s))) {
               /* If the state is a final state or the stopEval predicate determines the machine can stop exploring
                * this state, add it to the list of final states and continue exploring the graph */
@@ -309,8 +309,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     }
     val startingTime = System.nanoTime
     implicit val stateDescriptor = new StateDescriptor()
-    loop(Set(initialState), Set(), Set(), startingTime, new HyperlinkedGraph().addNode
-    (initialState))
+    loop(Set(initialState), Set(), Set(), startingTime, new HyperlinkedGraph().addNode(initialState))
   }
 
   def kickstartAnalysis[L](analysis: Analysis[L, Exp, Abs, Addr, Time],
@@ -377,6 +376,8 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
 
     import scala.annotation.tailrec
 
+    val emptyEnvironment = Environment.empty[Addr] // Move creation of the environment outside of applyActionMethod
+
     override def applyActionT(state: State, action: ActionT[Exp, Abs, Addr])
                              (implicit sabs: IsSchemeLattice[Abs]): Set[State] = action match {
       case a: ActionAllocAddressesT[Exp, Abs, Addr] =>
@@ -392,15 +393,17 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         val addressValues = a.addresses.zip(values)
         val newStore = addressValues.foldLeft(state.store)( (store, tuple) => store.extend(tuple._1, tuple._2))
         Set(state.copy(store = newStore, vStack = newVStack))
+      /* ActionEvalT is only used for debugging purposes: we don't care about control-flow, only about data-flow. */
+      case a: ActionEvalT[Exp, Abs, Addr] =>
+        /* As this action is only used for debugging, we don't care which environment we use. */
+        Set(state.copy(control = ControlEval(a.e, emptyEnvironment)))
       case a: ActionLookupAddressT[Exp, Abs, Addr] =>
         val value = state.store.lookup(a.a).get
         Set(state.copy(control = ControlKont(value)))
       case a: ActionPrimCallT[SchemeExp, Abs, Addr] =>
-        Logger.log(s"Applying primitive $a, vStack is ${state.vStack}", Logger.U)
         val values = state.vStack.take(a.n)
         val newVStack = state.vStack.drop(a.n)
-        val operands = values.init
-        Logger.log(s"Primitive being applied on operands $operands", Logger.U)
+        val operands = values.init.reverse
         val operator = values.last
         val primitives = sabs.getPrimitives[Addr, Abs](operator)
         primitives.flatMap((primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store,
@@ -414,7 +417,6 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       case a: ActionPushValT[Exp, Abs, Addr] =>
         assert(state.control.isInstanceOf[ControlKont], s"Control is ${state.control}")
         val value = state.control.asInstanceOf[ControlKont].v
-        Logger.log(s"Pushing value $value", Logger.U)
         Set(state.copy(vStack = value :: state.vStack))
       case a: ActionReachedValueT[Exp, Abs, Addr] =>
         Set(state.copy(control = ControlKont(a.v)))
@@ -432,7 +434,6 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         val konts = kstore.lookup(ka)
         assert(konts.size == 1, "Cannot handle joined continuation frames yet")
         val Kont(frame, next) = konts.head
-        Logger.log(s"constructVStack, frame $frame", Logger.U)
         val savedValues = frame.savedValues[Abs]
         constructVStack(vStack ++ savedValues, kstore, next)
     }
@@ -440,7 +441,6 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     override def prepareState(state: State)
                              (implicit sabs: IsSchemeLattice[Abs]): State = {
       val vStack = constructVStack(Nil, state.kstore, state.a)
-      Logger.log(s"Prepared state with vStack $vStack", Logger.U)
       state.copy(vStack = vStack)
     }
 

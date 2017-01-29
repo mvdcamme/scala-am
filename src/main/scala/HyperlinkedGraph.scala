@@ -13,7 +13,6 @@ class HyperlinkedGraph[Node, Annotation](ids: Map[Node, Int],
       Map[Node, Set[(Annotation, Node)]]())
   }
 
-
   def this(node: Node)(implicit nodeDescriptor: Descriptor[Node]) =
     this(Map[Node, Int]() + (node -> 0),
       1,

@@ -395,7 +395,7 @@ case class ProgramState[Exp: Expression](
           })
         ActionStep(ProgramState(control, ρ1, σ1, kstore, a, newT, v, vStack),
                    action)
-      case ActionCreateClosureT(λ) =>
+      case ActionCreateClosureT(λ, _) =>
         val newClosure = sabs.inject[Exp, HybridAddress.A]((λ, ρ))
         ActionStep(
           ProgramState(control, ρ, σ, kstore, a, newT, newClosure, vStack),
@@ -891,6 +891,9 @@ case class ProgramState[Exp: Expression](
         case TracingControlKont(ka) =>
           ConvertedControlKont[Exp, ConcreteValue, HybridAddress.A](v)
       }
+    reached = Set[HybridAddress.A]()
+    val storeAddressReachable = reachesStoreAddresses(concBaseSem, σ)(mappedControl, ρ, mappedKStore, v, convertedA)
+    val GCedStore = σ.gc(storeAddressReachable)
 
     val convertedControl = mappedControl match {
       case c: ConvertedControlEval[Exp, ConcreteValue, HybridAddress.A] =>
@@ -899,22 +902,10 @@ case class ProgramState[Exp: Expression](
         ConvertedControlKont[Exp, AbstL, HybridAddress.A](convertValueFun(c.v))
     }
 
-    reached = Set[HybridAddress.A]()
-    val storeAddressReachable = reachesStoreAddresses(concBaseSem, σ)(
-      mappedControl,
-      ρ,
-      mappedKStore,
-      v,
-      convertedA)
-    val GCedStore = σ.gc(storeAddressReachable)
     Logger.log(s"Size of original store ${σ.toSet.size}; size of gc-ed store: ${GCedStore.toSet.size}", Logger.U)
     val convertedStore = convertStore(GCedStore, convertValueFun)
     val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
-    (convertedControl,
-     convertedStore,
-     convertedKStore,
-     convertedA,
-     newT)
+    (convertedControl, convertedStore, convertedKStore, convertedA, newT)
   }
 
   def generateTraceInformation(

@@ -957,7 +957,7 @@ class SchemeTraceOptimizer[Abs: ConstantableLatticeInfoProvider](
             .getOrElse(false)
         /* Creating a closure comes down to creating a constant value.
          * TODO closure environment might cause problems: check what happens if the closure environment changes  */
-        case ActionCreateClosureT(_) => true
+        case ActionCreateClosureT(_, _) => true
         case _ => false
       }
     }

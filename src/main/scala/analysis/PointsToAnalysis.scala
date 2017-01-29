@@ -107,6 +107,7 @@ class PointsToAnalysisLauncher[
     extends AnalysisLauncher[Abs] {
 
   val aam: SpecAAM = new SpecAAM()
+  implicit val stateDescriptor = new aam.StateDescriptor()
 
   implicit val stateChangeEdgeApplier = aam.ActionTApplier
   val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, HybridAddress.A, aam.GraphNode]
