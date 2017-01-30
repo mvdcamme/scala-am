@@ -378,7 +378,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
 
     val emptyEnvironment = Environment.empty[Addr] // Move creation of the environment outside of applyActionMethod
 
-    override def applyActionT(state: State, action: ActionT[Exp, Abs, Addr])
+    def applyActionT(state: State, action: ActionT[Exp, Abs, Addr])
                              (implicit sabs: IsSchemeLattice[Abs]): Set[State] = action match {
       case a: ActionAllocAddressesT[Exp, Abs, Addr] =>
         val newStore = a.addresses.foldLeft(state.store)( (store, address) => store.extend(address, abs.bottom))
@@ -438,14 +438,28 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         constructVStack(vStack ++ savedValues, kstore, next)
     }
 
-    override def prepareState(state: State)
+    def prepareState(state: State)
                              (implicit sabs: IsSchemeLattice[Abs]): State = {
       val vStack = constructVStack(Nil, state.kstore, state.a)
       state.copy(vStack = vStack)
     }
 
-    override def subsumes(s1: State, s2: State): Boolean = s1.subsumes(s2)
+    def subsumes(s1: State, s2: State): Boolean = s1.subsumes(s2)
 
-    override def halted(state: State): Boolean = state.halted
+    def halted(state: State): Boolean = state.halted
+
+    def evaluatedFalse(state: State)(implicit sabs: IsSchemeLattice[Abs]): Boolean = state.control match {
+      case ControlKont(v) =>
+        sabs.isFalse(v)
+      case _ =>
+        false
+    }
+
+    def evaluatedTrue(state: State)(implicit sabs: IsSchemeLattice[Abs]): Boolean = state.control match {
+      case ControlKont(v) =>
+        sabs.isTrue(v)
+      case _ =>
+        false
+    }
   }
 }

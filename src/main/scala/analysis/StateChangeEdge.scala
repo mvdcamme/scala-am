@@ -12,6 +12,11 @@ trait ActionTApplier[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]] {
 
   def halted(state: State): Boolean
 
+  def evaluatedFalse(state: State)
+                    (implicit sabs: IsSchemeLattice[Abs]): Boolean
+  def evaluatedTrue(state: State)
+                   (implicit sabs: IsSchemeLattice[Abs]): Boolean
+
 }
 
 abstract class StoreChangeSemantics[Abs : JoinLattice, Addr : Address]
