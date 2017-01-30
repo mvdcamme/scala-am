@@ -59,7 +59,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       * one.
       */
     private def integrate(a: KontAddr,
-                          actionChanges: Set[ActionChange[Exp, Abs, Addr]])
+                          actionChanges: Set[EdgeInformation[Exp, Abs, Addr]])
     : Set[EdgeComponents] =
       actionChanges.map( (actionChange) => {
         val actionEdges = actionChange.actionEdge

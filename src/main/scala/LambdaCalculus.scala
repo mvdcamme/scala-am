@@ -114,7 +114,7 @@ class LamSemantics[Abs: LamLattice, Addr: Address, Time: Timestamp]
 
   /** The stepEval function defines how to perform an evaluation step on an
     * expression */
-  def stepEval(e: LamExp, env: Env, store: Sto, t: Time) = addNilStateChangeEdges(e match {
+  def stepEval(e: LamExp, env: Env, store: Sto, t: Time) = simpleAction(e match {
     /* A lambda evaluate to a closure by pairing it with the current environment,
      * and injecting this in the abstract domain */
     case Lam(_, _, _) => ActionReachedValue[LamExp, Abs, Addr](labs.inject((e, env)), store)
@@ -137,7 +137,7 @@ class LamSemantics[Abs: LamLattice, Addr: Address, Time: Timestamp]
     * have frame as the top continuation on the stack */
   def stepKont(v: Abs, frame: Frame, store: Sto, t: Time) = frame match {
     /* We have evaluated the operator v but still need to evaluate the operator e */
-    case FrameArg(e, env) => addNilStateChangeEdges(ActionPush[LamExp, Abs, Addr](FrameFun(v), e, env, store))
+    case FrameArg(e, env) => simpleAction(ActionPush[LamExp, Abs, Addr](FrameFun(v), e, env, store))
     /* We have evaluated both the operator (fun) and the operand (v). We go through
      * the possible closures bound to the operator and for each of them, we
      * have to evaluate their body by extending their environment with their
@@ -148,7 +148,7 @@ class LamSemantics[Abs: LamLattice, Addr: Address, Time: Timestamp]
         .map({
           case (Lam(x, e, _), env) => {
             val a = addr.variable(x, v, t)
-            ActionChange(ActionEval[LamExp, Abs, Addr](e, env.extend(x, a), store.extend(a, v)), Nil)
+            noEdgeInfos(ActionEval[LamExp, Abs, Addr](e, env.extend(x, a), store.extend(a, v)), Nil)
           }
         })
   }

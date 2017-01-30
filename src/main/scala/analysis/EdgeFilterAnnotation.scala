@@ -1,5 +1,8 @@
 trait EdgeFilterAnnotation
 
+case object ElseBranchTaken extends EdgeFilterAnnotation
+case object ThenBranchTaken extends EdgeFilterAnnotation
+
 /*
  * Control-flow split due to spurious return: check continuation frame used.
  */

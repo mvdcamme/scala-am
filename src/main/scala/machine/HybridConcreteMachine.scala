@@ -392,9 +392,10 @@ class HybridConcreteMachine[
           }
         }
 
-        type StepSucceeded = (State,
-                              List[EdgeFilterAnnotation],
-                              List[ActionT[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A]])
+        case class StepSucceeded(state: State,
+                                 initialFilters: List[EdgeFilterAnnotation],
+                                 actionTs: List[ActionT[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A]],
+                                 secondaryFilters: List[EdgeFilterAnnotation])
 
         def step(control: Control): Either[ConcreteMachineOutput, StepSucceeded] =
           control
@@ -403,25 +404,29 @@ class HybridConcreteMachine[
             val edges = sem.stepEval(e, env, store, t)
             if (edges.size == 1) {
               edges.head match {
-                case ActionChange(ActionReachedValue(v, store2, _), actionEdges) =>
-                  Right((State(ControlKont(v), store2, kstore, a, time.tick(t)),
-                         maybeAddReachedConcreteValue(v, Nil),
-                         actionEdges))
-                case ActionChange(ActionPush(frame, e, env, store2, _), actionEdges) =>
+                case EdgeInformation(ActionReachedValue(v, store2, _), actionEdges, secondaryFilters) =>
+                  Right(StepSucceeded(State(ControlKont(v), store2, kstore, a, time.tick(t)),
+                                      maybeAddReachedConcreteValue(v, Nil),
+                                      actionEdges,
+                                      secondaryFilters))
+                case EdgeInformation(ActionPush(frame, e, env, store2, _), actionEdges, secondaryFilters) =>
                   val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                   val kont = Kont(frame, a)
-                  Right((State(ControlEval(e, env), store2, kstore.extend(next, kont), next, time.tick(t)),
-                         List(KontAddrPushed(next), EvaluatingExpression(e)),
-                         actionEdges))
-                case ActionChange(ActionEval(e, env, store2, _), actionEdges) =>
-                  Right((State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
-                         EvaluatingExpression(e) :: Nil,
-                         actionEdges))
-                case ActionChange(ActionStepIn(fexp, _, e, env, store2, _, _), actionEdges) =>
-                  Right((State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
-                         EvaluatingExpression(e) :: Nil,
-                         actionEdges))
-                case ActionChange(ActionError(err), actionEdges) =>
+                  Right(StepSucceeded(State(ControlEval(e, env), store2, kstore.extend(next, kont), next, time.tick(t)),
+                                      List(KontAddrPushed(next), EvaluatingExpression(e)),
+                                      actionEdges,
+                                      secondaryFilters))
+                case EdgeInformation(ActionEval(e, env, store2, _), actionEdges, secondaryFilters) =>
+                  Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
+                                      EvaluatingExpression(e) :: Nil,
+                                      actionEdges,
+                                      secondaryFilters))
+                case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actionEdges, secondaryFilters) =>
+                  Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
+                                      EvaluatingExpression(e) :: Nil,
+                                      actionEdges,
+                                      secondaryFilters))
+                case EdgeInformation(ActionError(err), actionEdges, secondaryFilters) =>
                   Left(ConcreteMachineOutputError(
                     (System.nanoTime - start) / Math.pow(10, 9),
                     count,
@@ -451,38 +456,30 @@ class HybridConcreteMachine[
                 val edges = sem.stepKont(v, frame, store, t)
                 if (edges.size == 1) {
                   edges.head match {
-                    case ActionChange(ActionReachedValue(v, store2, _), actionEdges) =>
-                      Right((State(ControlKont(v), store2, kstore, a, time.tick(t)),
-                             KontAddrPopped(oldA, a) ::
-                               maybeAddReachedConcreteValue(v,
-                               FrameFollowed[ConcreteValue](originFrameCast) :: Nil),
-                               actionEdges))
-                    case ActionChange(ActionPush(frame, e, env, store2, _), actionEdges) =>
+                    case EdgeInformation(ActionReachedValue(v, store2, _), actionEdges, secondaryFilters) =>
+                      Right(StepSucceeded(State(ControlKont(v), store2, kstore, a, time.tick(t)),
+                                          KontAddrPopped(oldA, a) :: maybeAddReachedConcreteValue(v, FrameFollowed[ConcreteValue](originFrameCast) :: Nil),
+                                          actionEdges,
+                                          secondaryFilters))
+                    case EdgeInformation(ActionPush(frame, e, env, store2, _), actionEdges, secondaryFilters) =>
                       val kont = Kont(frame, a)
                       val destinationFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
                       val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
-                      Right((State(ControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
-                             KontAddrPushed(next) ::
-                               KontAddrPopped(oldA, a) ::
-                               EvaluatingExpression(e) ::
-                               FrameFollowed(originFrameCast) ::
-                               Nil,
-                               actionEdges))
-                    case ActionChange(ActionEval(e, env, store2, _), actionEdges) =>
-                      Right((State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
-                             KontAddrPopped(oldA, a) ::
-                               EvaluatingExpression(e) ::
-                               FrameFollowed[ConcreteValue](originFrameCast) ::
-                               Nil,
-                               actionEdges))
-                    case ActionChange(ActionStepIn(fexp, _, e, env, store2, _, _), actionEdges) =>
-                      Right((State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
-                             KontAddrPopped(oldA, a) ::
-                               EvaluatingExpression(e) ::
-                               FrameFollowed[ConcreteValue](originFrameCast) ::
-                               Nil,
-                               actionEdges))
-                    case ActionChange(ActionError(err), actionEdges) =>
+                      Right(StepSucceeded(State(ControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
+                                          List(KontAddrPushed(next), KontAddrPopped(oldA, a), EvaluatingExpression(e), FrameFollowed(originFrameCast)),
+                                          actionEdges,
+                                          secondaryFilters))
+                    case EdgeInformation(ActionEval(e, env, store2, _), actionEdges, secondaryFilters) =>
+                      Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
+                                          List(KontAddrPopped(oldA, a), EvaluatingExpression(e), FrameFollowed[ConcreteValue](originFrameCast)),
+                                          actionEdges,
+                                          secondaryFilters))
+                    case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actionEdges, secondaryFilters) =>
+                      Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
+                                          List(KontAddrPopped(oldA, a), EvaluatingExpression(e), FrameFollowed[ConcreteValue](originFrameCast)),
+                                          actionEdges,
+                                          secondaryFilters))
+                    case EdgeInformation(ActionError(err), actionEdges, secondaryFilters) =>
                       Left(ConcreteMachineOutputError(
                         (System.nanoTime - start) / Math.pow(10, 9),
                         count,
@@ -515,7 +512,7 @@ class HybridConcreteMachine[
             output.toDotFile("concrete.dot")
             pointsToAnalysisLauncher.end
             output
-          case Right((succState, edgeAnnotations, actionEdges)) =>
+          case Right(StepSucceeded(succState, edgeAnnotations, actionEdges, secondaryFilters)) =>
             def convertFrameFun(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                 abstSem: BaseSchemeSemantics[PAbs, HybridAddress.A, HybridTimestamp.T],
                                 convertValueFun: ConcreteValue => PAbs):

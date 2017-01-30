@@ -48,17 +48,29 @@ trait BasicSemantics[Exp, Abs, Addr, Time] {
   def parse(program: String): Exp
 }
 
-case class ActionChange[Exp : Expression, Abs : JoinLattice, Addr : Address]
-  (action: Action[Exp, Abs, Addr], actionEdge: List[ActionT[Exp, Abs, Addr]])
+case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address]
+  (action: Action[Exp, Abs, Addr], actionEdge: List[ActionT[Exp, Abs, Addr]], edgeFilterInfo: List[EdgeFilterAnnotation])
 
 trait Semantics[Exp, Abs, Addr, Time]
     extends BasicSemantics[Exp, Abs, Addr, Time] {
 
-  def addNilStateChangeEdges(action: Action[Exp, Abs, Addr]): Set[ActionChange[Exp, Abs, Addr]] =
-    addNilStateChangeEdges(Set(action))
+  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionTs: List[ActionT[Exp, Abs, Addr]]): EdgeInformation[Exp, Abs, Addr] =
+    EdgeInformation(action, actionTs, Nil)
 
-  def addNilStateChangeEdges(actions: Set[Action[Exp, Abs, Addr]]): Set[ActionChange[Exp, Abs, Addr]] =
-    actions.map(ActionChange(_, Nil))
+  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionT: ActionT[Exp, Abs, Addr]): EdgeInformation[Exp, Abs, Addr] =
+    noEdgeInfos(action, List(actionT))
+
+  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionTs: List[ActionT[Exp, Abs, Addr]]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    Set(noEdgeInfos(action, actionTs))
+
+  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionT: ActionT[Exp, Abs, Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    noEdgeInfosSet(action, List(actionT))
+
+  def simpleAction(action: Action[Exp, Abs, Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    simpleAction(Set(action))
+
+  def simpleAction(actions: Set[Action[Exp, Abs, Addr]]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    actions.map(EdgeInformation(_, Nil, Nil))
 
   /**
     * Defines what actions should be taken when an expression e needs to be
@@ -67,7 +79,7 @@ trait Semantics[Exp, Abs, Addr, Time]
   def stepEval(e: Exp,
                env: Environment[Addr],
                store: Store[Addr, Abs],
-               t: Time): Set[ActionChange[Exp, Abs, Addr]]
+               t: Time): Set[EdgeInformation[Exp, Abs, Addr]]
 
   /**
     * Defines what actions should be taken when a value v has been reached, and
@@ -76,7 +88,7 @@ trait Semantics[Exp, Abs, Addr, Time]
   def stepKont(v: Abs,
                frame: Frame,
                store: Store[Addr, Abs],
-               t: Time): Set[ActionChange[Exp, Abs, Addr]]
+               t: Time): Set[EdgeInformation[Exp, Abs, Addr]]
 
   /** Defines the elements in the initial environment/store */
   def initialBindings: Iterable[(String, Addr, Abs)] = List()
