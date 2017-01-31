@@ -1,3 +1,5 @@
+import scala.annotation.tailrec
+
 class IncrementalPointsToAnalysis[Exp : Expression,
                                   AbstL : IsSchemeLattice,
                                   Addr : Address,
@@ -112,8 +114,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         None
     }
 
-  type ConcreteFrame =
-    SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
+  type ConcreteFrame = SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
   type AbstractFrame = SchemeFrame[AbstL, HybridAddress.A, HybridTimestamp.T]
 
   def filterFrameEdges(convertedFrame: AbstractFrame,
@@ -336,18 +337,13 @@ class IncrementalPointsToAnalysis[Exp : Expression,
   /*
    * Keep track of the set of visited originalStates, but not of the set of newStates.
    */
-  private def evalLoop(todo: Set[StateCombo], visited: Set[State], graph: Option[Graph[State, List[ActionT[Exp, AbstL, Addr]]]]): Unit =
-    todo
-    .headOption
+  private def evalLoop(todo: Set[StateCombo], visited: Set[State], graph: Option[Graph[StateCombo, EdgeAnnotation]]):
+  Option[Graph[StateCombo, EdgeAnnotation]] =
+    todo.headOption
   match {
     case None =>
-      if (graph.isDefined)
-        graph.get.toDotFile(s"incremental_graph $debugStepCount.dot",
-                            node => List(scala.xml.Text(node.toString.take(40))),
-                            (s) => Colors.Green,
-                            node => List(scala.xml.Text(node.mkString(", ").take(300))),
-                            None)
-    case Some(StateCombo(originalState, newState)) =>
+      graph
+    case Some(sc@StateCombo(originalState, newState)) =>
       if (graph.isDefined) {
         Logger.log(s"Incrementally evaluating original state ${initialGraph.get.nodeId(originalState)} " +
           s"(currentID: ${currentGraph.get.nodeId(originalState)}) " +
@@ -382,29 +378,110 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         })
         evalLoop(todo.tail ++ newStateCombos.map(_._2), visited + originalState, graph.map(_.addEdges(newStateCombos
           .map({
-          case (edgeAnnotation, StateCombo(_, newNewState)) =>
-            (newState, edgeAnnotation._2, newNewState) } ))))
+          case (edgeAnnotation, StateCombo(x, newNewState)) =>
+            (sc, edgeAnnotation, StateCombo(x, newNewState)) } ))))
       }
+  }
+
+  def applySecondaryFilter(graph: Graph[StateCombo, EdgeAnnotation], nodesTodo: List[StateCombo]):
+  Graph[StateCombo,
+    EdgeAnnotation] = {
+
+    def hasEdgeAnnot(edge: (EdgeAnnotation, StateCombo), edgeAnnotation: EdgeFilterAnnotation): Boolean =
+      edge._1._1.exists({
+        case annot if annot == edgeAnnotation => true
+        case _ => false
+      })
+
+    @tailrec
+    def loop(nodesTodo: List[StateCombo], prunedGraph: Graph[StateCombo, EdgeAnnotation], visited: Set[StateCombo])
+    : Graph[StateCombo, EdgeAnnotation] = nodesTodo match {
+      case Nil =>
+        prunedGraph
+      case (sc@StateCombo(originalState, updatedState)) :: rest =>
+        if (visited.contains(sc)) {
+          loop(rest, prunedGraph, visited)
+        } else {
+          val edges = graph.edges(sc)
+          /*
+           * If there is a ThenBranchTaken-annotation and current state did NOT evaluate to true, take all edges not
+           * containing a ThenBranchTaken-annotation.
+           */
+          val filteredTrue: Set[(EdgeAnnotation, StateCombo)] = if (edges.exists(hasEdgeAnnot(_, ThenBranchTaken)) &&
+            (! actionTApplier.evaluatedTrue(updatedState))) {
+            edges.filter(hasEdgeAnnot(_, ThenBranchTaken))
+          } else {
+            edges
+          }
+          /*
+           * If there is an ElseBranchTaken-annotation and current state did NOT evaluate to false, take all edges not
+           * containing an ElseBranchTaken-annotation.
+           */
+          val filteredFalse: Set[(EdgeAnnotation, StateCombo)] = if (edges.exists(hasEdgeAnnot(_, ElseBranchTaken)) &&
+            (! actionTApplier.evaluatedFalse(updatedState))) {
+            edges.filter(hasEdgeAnnot(_, ElseBranchTaken))
+          } else {
+            edges
+          }
+          val filteredEdges = filteredTrue.intersect(filteredFalse)
+          val newEdges = filteredEdges.map( (edge) => (sc, edge._1, edge._2))
+          loop(rest, prunedGraph.addEdges(newEdges), visited + sc)
+        }
+    }
+    loop(nodesTodo, new Graph[StateCombo, EdgeAnnotation](), Set())
+  }
+
+  def convertGraph[Node : Descriptor, EdgeAnnotation, NewEdgeAnnotation](g: Graph[Node, EdgeAnnotation],
+                                                                         f: EdgeAnnotation => NewEdgeAnnotation): Graph[Node, NewEdgeAnnotation] = {
+    val newValues: Map[Node, Set[(NewEdgeAnnotation, Node)]] = g.edges.mapValues( (value: Set[(EdgeAnnotation, Node)]) =>
+      value.map( (value: (EdgeAnnotation, Node)) => (f(value._1), value._2)))
+    new HyperlinkedGraph[Node, NewEdgeAnnotation](g.ids, g.next, g.nodes, newValues)
   }
 
   def applyEdgeActions(convertedState: State, stepCount: Int): Unit = {
     assert(currentGraph.isDefined)
     // TODO debugging
     if (stepCount == debugStepCount) {
-      val g = currentGraph.get
-      val debugGraph =
-        new HyperlinkedGraph[State, List[ActionT[Exp, AbstL, Addr]]](g.ids, g.next, g.nodes, g.edges.mapValues( (value: Set[(EdgeAnnotation, State)]) => value.map( (value: (EdgeAnnotation, State)) => (value._1._2, value._2))))
-      debugGraph.toDotFile(s"current_graph $debugStepCount.dot", node => List(scala.xml.Text(node.toString.take(40))),
+      val g = convertGraph[State, EdgeAnnotation, List[ActionT[Exp, AbstL, Addr]]](currentGraph.get, (edge: EdgeAnnotation) => edge._2)
+      g.toDotFile(s"current_graph $debugStepCount.dot", node => List(scala.xml.Text(node.toString.take(40))),
         (s) => Colors.Green,
         node => List(scala.xml.Text(node.mkString(", ").take(300))),
         None)
     }
-    if (stepCount == debugStepCount) currentNodes.foreach( (node) => Logger.log(s"node id: ${currentGraph.get.nodeId(node)}", Logger.N))
-    /*
-     * Associate the (one) abstracted concrete state with all states in the CurrentNodes set, as the states in
-     * this set ought to correspond with this concrete state.
-     */
-    evalLoop(currentNodes.map( (state) => StateCombo(state, actionTApplier.prepareState(convertedState))), Set(), if
-    (stepCount == debugStepCount) Some(new Graph[State, List[ActionT[Exp, AbstL, Addr]]]) else None)
+    if (stepCount == debugStepCount) {
+      currentNodes.foreach( (node) => Logger.log(s"node id: ${currentGraph.get.nodeId(node)}", Logger.N))
+      /*
+       * Associate the (one) abstracted concrete state with all states in the CurrentNodes set, as the states in
+       * this set ought to correspond with this concrete state.
+       */
+      val rootNodes = currentNodes.map( (state) => StateCombo(state, actionTApplier.prepareState(convertedState)))
+      val updatedGraph = evalLoop(rootNodes, Set(),
+        if (stepCount == debugStepCount)
+          Some(new Graph[StateCombo, EdgeAnnotation])
+        else None)
+      if (updatedGraph.isDefined) {
+        implicit val descriptor = new Descriptor[StateCombo] {
+          def describe[U >: StateCombo](x: U) = x match {
+            case StateCombo(originalState, updatedState) =>
+              implicitly[Descriptor[State]].describe(updatedState)
+            case _ =>
+              x.toString
+          }
+        }
+        //      val g = convertGraph[StateCombo, EdgeAnnotation, List[ActionT[Exp, AbstL, Addr]]](updatedGraph.get, (edge:
+        //                                                                                                       EdgeAnnotation) => edge._2)
+        val prunedGraph = applySecondaryFilter(updatedGraph.get, rootNodes.toList)
+        //      g.toDotFile(s"incremental_graph $debugStepCount.dot",
+        //        node => List(scala.xml.Text(node.toString.take(40))),
+        //        (s) => Colors.Green,
+        //        node => List(scala.xml.Text(node.mkString(", ").take(300))),
+        //        None)
+        prunedGraph.toDotFile(s"pruned_graph $debugStepCount.dot",
+          node => List(scala.xml.Text(node.toString.take(40))),
+          (s) => Colors.Green,
+          node => List(scala.xml.Text(node._1.mkString(", ").take(300))),
+          None)
+      }
+    }
   }
 }
