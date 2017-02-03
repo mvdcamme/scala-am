@@ -246,9 +246,9 @@ class SchemeTraceOptimizer[Abs: ConstantableLatticeInfoProvider](
     *                                          CONSTANT FOLDING OPTIMIZATION                                           *
    ********************************************************************************************************************/
   case class ActionStartOptimizedBlock[Exp: Expression, Abs: JoinLattice]()
-      extends ActionT[Exp, Abs, HybridAddress.A]
+      extends ActionTrace[Exp, Abs, HybridAddress.A]
   case class ActionEndOptimizedBlock[Exp: Expression, Abs: JoinLattice]()
-      extends ActionT[Exp, Abs, HybridAddress.A]
+      extends ActionTrace[Exp, Abs, HybridAddress.A]
 
   private def findNextPushVal(trace: Trace): Option[Trace] = {
     val updatedTrace = trace.dropWhile({
@@ -565,13 +565,13 @@ class SchemeTraceOptimizer[Abs: ConstantableLatticeInfoProvider](
     var variablesConverted: List[(String, Integer)] = Nil
 
     def replaceVariableLookups(
-        action: ActionT[SchemeExp, ConcreteValue, HybridAddress.A],
-        varName: String,
-        generateRegisterLookupAction: (Int) => ActionT[SchemeExp,
+                                action: ActionTrace[SchemeExp, ConcreteValue, HybridAddress.A],
+                                varName: String,
+                                generateRegisterLookupAction: (Int) => ActionTrace[SchemeExp,
                                                        ConcreteValue,
                                                        HybridAddress.A],
-        infos: CombinedInfos[ConcreteValue, HybridAddress.A],
-        boundAddresses: Set[HybridAddress.A]): TraceInstructionInfo = {
+                                infos: CombinedInfos[ConcreteValue, HybridAddress.A],
+                                boundAddresses: Set[HybridAddress.A]): TraceInstructionInfo = {
 
       def generateIndex(address: HybridAddress.A): Option[Integer] = {
         if (registerIndex < RegisterStore.MAX_REGISTERS) {
@@ -584,7 +584,7 @@ class SchemeTraceOptimizer[Abs: ConstantableLatticeInfoProvider](
       }
 
       def generateAction(address: HybridAddress.A)
-        : ActionT[SchemeExp, ConcreteValue, HybridAddress.A] = {
+        : ActionTrace[SchemeExp, ConcreteValue, HybridAddress.A] = {
         val defaultAction = action
         variablesConverted.find(_._1 == varName) match {
           case Some((_, index)) =>
@@ -605,7 +605,7 @@ class SchemeTraceOptimizer[Abs: ConstantableLatticeInfoProvider](
       }
 
       val someNewTraceInfo =
-        infos.find[(ActionT[SchemeExp, ConcreteValue, HybridAddress.A],
+        infos.find[(ActionTrace[SchemeExp, ConcreteValue, HybridAddress.A],
                     CombinedInfos[ConcreteValue, HybridAddress.A])]({
           case VariableLookedUp(_, address, _) => true
           case _ => false
@@ -633,14 +633,14 @@ class SchemeTraceOptimizer[Abs: ConstantableLatticeInfoProvider](
         replaceVariableLookups(
           action,
           varName,
-          ActionLookupRegister[SchemeExp, ConcreteValue, HybridAddress.A](_),
+          ActionLookupRegisterT[SchemeExp, ConcreteValue, HybridAddress.A](_),
           infos,
           boundAddresses)
       case (action @ ActionLookupVariablePushT(varName, _, _), infos) =>
         replaceVariableLookups(
           action,
           varName,
-          ActionLookupRegisterPush[SchemeExp, ConcreteValue, HybridAddress.A](
+          ActionLookupRegisterPushT[SchemeExp, ConcreteValue, HybridAddress.A](
             _),
           infos,
           boundAddresses)
@@ -648,9 +648,9 @@ class SchemeTraceOptimizer[Abs: ConstantableLatticeInfoProvider](
     })
 
     val putRegisterActions: List[
-      ActionT[SchemeExp, ConcreteValue, HybridAddress.A]] =
+      ActionTrace[SchemeExp, ConcreteValue, HybridAddress.A]] =
       variablesConverted.map(tuple =>
-        ActionPutRegister[SchemeExp, ConcreteValue, HybridAddress.A](tuple._1,
+        ActionPutRegisterT[SchemeExp, ConcreteValue, HybridAddress.A](tuple._1,
                                                                      tuple._2))
 
     TraceFull(traceFull.info,

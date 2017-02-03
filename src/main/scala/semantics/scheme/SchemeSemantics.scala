@@ -362,14 +362,14 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           if (args.length == argsv.length) {
             bindArgs(args.zip(argsv), env1, store, t) match {
               case (env2, store, boundAddresses) =>
-                val defAddr: ActionT[SchemeExp, Abs, Addr] = ActionDefineAddressesT[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
+                val defAddr: ActionReplay[SchemeExp, Abs, Addr] = ActionDefineAddressesR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
                 if (body.length == 1) {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), body.head, env2, store, argsv)
                   noEdgeInfos(action, List(actionPushVal, defAddr, ActionEvalT(body.head)))
                 }
                 else {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), SchemeBegin(body, pos), env2, store, argsv)
-                  noEdgeInfos(action, List[ActionT[SchemeExp, Abs, Addr]](actionPushVal, defAddr, ActionEvalT(SchemeBegin(body, pos))))
+                  noEdgeInfos(action, List[ActionReplay[SchemeExp, Abs, Addr]](actionPushVal, defAddr, ActionEvalT(SchemeBegin(body, pos))))
                 }
             }
           } else {
@@ -504,7 +504,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       })
       val action = ActionPush(FrameLetrec(addresses.head, addresses.tail.zip(bindings.map(_._2)), body, env1),
                               exp, env1, store1)
-      val actionEdge = ActionAllocAddressesT[SchemeExp, Abs, Addr](addresses)
+      val actionEdge = ActionAllocAddressesR[SchemeExp, Abs, Addr](addresses)
       noEdgeInfosSet(action, List(actionEdge, ActionEvalT(exp)))
     case SchemeSet(variable, exp, _) =>
       addPushActionT(ActionPush(FrameSet(variable, env), exp, env, store))
@@ -535,7 +535,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val action = ActionReachedValue[SchemeExp, Abs, Addr](v, store)
       val actionEdges = List(ActionCreateClosureT[SchemeExp, Abs, Addr](lambda, Some(env)),
                              actionPushVal,
-                             ActionDefineAddressesT[SchemeExp, Abs, Addr](List(a)))
+                             ActionDefineAddressesR[SchemeExp, Abs, Addr](List(a)))
       noEdgeInfosSet(action, actionEdges)
     case SchemeIdentifier(name, _) =>
       env.lookup(name) match {
@@ -543,7 +543,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           store.lookup(a) match {
             case Some(v) =>
               val action = ActionReachedValue[SchemeExp, Abs, Addr](v, store, Set(EffectReadVariable(a)))
-              noEdgeInfosSet(action, ActionLookupAddressT[SchemeExp, Abs, Addr](a))
+              noEdgeInfosSet(action, ActionLookupAddressR[SchemeExp, Abs, Addr](a))
             case None => simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundAddress(a.toString)))
           }
         case None => simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundVariable(name)))
@@ -584,7 +584,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
               (env.extend(variable, a), store.extend(a, value))
           })
         val EdgeInformation(action, actionEdges, filters) = evalBody(body, env1, store1)
-        Set(EdgeInformation(action, actionPushVal :: ActionDefineAddressesT[SchemeExp, Abs, Addr](addresses) :: actionEdges, filters))
+        Set(EdgeInformation(action, actionPushVal :: ActionDefineAddressesR[SchemeExp, Abs, Addr](addresses) :: actionEdges, filters))
       case FrameLet(name, bindings, (variable, e) :: toeval, body, env) =>
         val frame = FrameLet(variable, (name, v) :: bindings, toeval, body, env)
         val action = ActionPush(frame, e, env, store)
@@ -593,7 +593,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         val a = addr.variable(name, abs.bottom, t)
         val env1 = env.extend(name, a)
         val store1 = store.extend(a, v)
-        val actionEdges = List(actionPushVal, ActionDefineAddressesT[SchemeExp, Abs, Addr](List(a)))
+        val actionEdges = List(actionPushVal, ActionDefineAddressesR[SchemeExp, Abs, Addr](List(a)))
         bindings match {
           case Nil =>
             val EdgeInformation(actions, actionEdges2, edgeInfos) = evalBody(body, env1, store1)
@@ -604,16 +604,16 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         }
       case FrameLetrec(a, Nil, body, env) =>
         val EdgeInformation(action, actionEdges, edgeInfos) = evalBody(body, env, store.update(a, v))
-        Set(EdgeInformation(action, ActionSetAddressT[SchemeExp, Abs, Addr](a) :: actionEdges, edgeInfos))
+        Set(EdgeInformation(action, ActionSetAddressR[SchemeExp, Abs, Addr](a) :: actionEdges, edgeInfos))
       case FrameLetrec(a, (a1, exp) :: rest, body, env) =>
         noEdgeInfosSet(ActionPush(FrameLetrec(a1, rest, body, env), exp, env, store.update(a, v)),
-                       List[ActionT[SchemeExp, Abs, Addr]](ActionSetAddressT(a), ActionEvalT(exp)))
+                       List[ActionReplay[SchemeExp, Abs, Addr]](ActionSetAddressR(a), ActionEvalT(exp)))
       case FrameSet(name, env) =>
         env.lookup(name) match {
           case Some(a) =>
             val valueFalse = sabs.inject(false)
             noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueFalse, store.update(a, v), Set(EffectWriteVariable(a))),
-                           List[ActionT[SchemeExp, Abs, Addr]](ActionSetAddressT(a), ActionReachedValueT(valueFalse)))
+                           List[ActionReplay[SchemeExp, Abs, Addr]](ActionSetAddressR(a), ActionReachedValueT(valueFalse)))
           case None => simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundVariable(name)))
         }
       case FrameBegin(body, env) =>

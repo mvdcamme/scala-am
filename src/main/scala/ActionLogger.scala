@@ -6,7 +6,7 @@ object ActionLogger {
    */
   var ACTIONS_EXECUTED: List[Object] = List()
 
-  def logAction[Exp, Abs, Addr](action: ActionT[Exp, Abs, Addr]): Unit = {
+  def logAction[Exp, Abs, Addr](action: ActionTrace[Exp, Abs, Addr]): Unit = {
     if (GlobalFlags.PRINT_ACTIONS_EXECUTED) {
       ACTIONS_EXECUTED = ACTIONS_EXECUTED :+ action
     }

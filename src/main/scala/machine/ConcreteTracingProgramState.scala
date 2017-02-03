@@ -13,7 +13,7 @@ case class ActionStep[Exp: Expression,
                       Time: Timestamp,
                       State <: TracingProgramState[Exp, Addr, Time]](
     newState: State,
-    action: ActionT[Exp, ConcreteValue, Addr])
+    action: ActionTrace[Exp, ConcreteValue, Addr])
     extends ActionReturn[Exp, ConcreteValue, Addr, Time, State] {
   override def getState: State = newState
 }
@@ -222,7 +222,7 @@ case class ProgramState[Exp: Expression](
                                      ConcreteValue,
                                      HybridAddress.A,
                                      HybridTimestamp.T],
-                assertions: List[ActionT[Exp, ConcreteValue, HybridAddress.A]])
+                assertions: List[ActionTrace[Exp, ConcreteValue, HybridAddress.A]])
     : Option[ProgramState[Exp]] = {
     assertions.foldLeft(Some(this): Option[ProgramState[Exp]])({
       (someProgramState, action) =>
@@ -242,7 +242,7 @@ case class ProgramState[Exp: Expression](
                            ConcreteValue,
                            HybridAddress.A,
                            HybridTimestamp.T],
-      action: ActionT[Exp, ConcreteValue, HybridAddress.A])
+      action: ActionTrace[Exp, ConcreteValue, HybridAddress.A])
     : ProgramState[Exp] = action match {
     case ActionStepInT(fexp, bodyHead, _, argsv, n, frame, _, _) =>
       val (vals, poppedVStack) = popStackItems(vStack, n)
@@ -286,7 +286,7 @@ case class ProgramState[Exp: Expression](
                            ConcreteValue,
                            HybridAddress.A,
                            HybridTimestamp.T],
-      action: ActionT[Exp, ConcreteValue, HybridAddress.A])
+      action: ActionTrace[Exp, ConcreteValue, HybridAddress.A])
     : ProgramState[Exp] =
     doActionStepInTraced(sem, action)
 
@@ -333,7 +333,7 @@ case class ProgramState[Exp: Expression](
                                        ConcreteValue,
                                        HybridAddress.A,
                                        HybridTimestamp.T],
-                  action: ActionT[Exp, ConcreteValue, HybridAddress.A])
+                  action: ActionTrace[Exp, ConcreteValue, HybridAddress.A])
     : ActionReturn[Exp,
                    ConcreteValue,
                    HybridAddress.A,
@@ -565,15 +565,15 @@ case class ProgramState[Exp: Expression](
       /* When a function is stepped in, we also go to an eval state */
       case ActionStepInT(fexp, e, args, argsv, n, frame, _, _) =>
         ActionStep(doActionStepInTraced(sem, action), action)
-      case ActionPutRegister(varName, registerIndex) =>
+      case ActionPutRegisterT(varName, registerIndex) =>
         val value = σ.lookup(ρ.lookup(varName).get).get
         RegisterStore.setRegister(registerIndex, value)
         ActionStep(this, action)
-      case ActionLookupRegister(registerIndex) =>
+      case ActionLookupRegisterT(registerIndex) =>
         val value = RegisterStore.getRegister(registerIndex)
         ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, value, vStack),
                    action)
-      case ActionLookupRegisterPush(registerIndex) =>
+      case ActionLookupRegisterPushT(registerIndex) =>
         val value = RegisterStore.getRegister(registerIndex)
         ActionStep(
           ProgramState(
@@ -909,7 +909,7 @@ case class ProgramState[Exp: Expression](
   }
 
   def generateTraceInformation(
-      action: ActionT[Exp, ConcreteValue, HybridAddress.A])
+      action: ActionTrace[Exp, ConcreteValue, HybridAddress.A])
     : CombinedInfos[ConcreteValue, HybridAddress.A] = action match {
     case ActionAllocVarsT(variables) =>
       val addresses = variables.map((variable) => ρ.lookup(variable).get)

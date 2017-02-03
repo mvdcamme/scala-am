@@ -38,8 +38,8 @@ Time: Timestamp](primitives: SchemePrimitives[Addr, Abs])
           interpreterStep(
             List(ActionPushFailKontT(FrameAmbT(rest)), ActionEvalT(exp))))
       case UndoActionFrame(action) =>
-        val actions: List[ActionT[SchemeExp, Abs, Addr]] = List(
-          action.asInstanceOf[ActionT[SchemeExp, Abs, Addr]],
+        val actions: List[ActionTrace[SchemeExp, Abs, Addr]] = List(
+          action.asInstanceOf[ActionTrace[SchemeExp, Abs, Addr]],
           ActionPopFailKontT())
         Set(interpreterStep(actions))
       case _ => super.stepKont(v, frame, σ, t)

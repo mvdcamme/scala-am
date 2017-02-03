@@ -394,7 +394,7 @@ class HybridConcreteMachine[
 
         case class StepSucceeded(state: State,
                                  initialFilters: List[EdgeFilterAnnotation],
-                                 actionTs: List[ActionT[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A]],
+                                 actionTs: List[ActionReplay[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A]],
                                  secondaryFilters: List[EdgeFilterAnnotation])
 
         def step(control: Control): Either[ConcreteMachineOutput, StepSucceeded] =

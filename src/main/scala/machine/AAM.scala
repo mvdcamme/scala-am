@@ -51,7 +51,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     def subsumes(that: State): Boolean =
       control.subsumes(that.control) && store.subsumes(that.store) && a == that.a && kstore.subsumes(that.kstore) && t == that.t
 
-    type EdgeComponents = (State, List[EdgeFilterAnnotation], List[ActionT[Exp, Abs, Addr]])
+    type EdgeComponents = (State, List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])
 
     /**
       * Integrates a set of actions (returned by the semantics, see
@@ -180,7 +180,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   case class AAMOutput(halted: Set[State],
                        numberOfStates: Int,
                        time: Double,
-                       graph: Graph[State, (List[EdgeFilterAnnotation], List[ActionT[Exp, Abs, Addr]])],
+                       graph: Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])],
                        timedOut: Boolean,
                        stepSwitched: Option[Int])
       extends Output[Abs] with HasGraph[Exp, Abs, Addr, State] with HasFinalStores[Addr, Abs] {
@@ -256,7 +256,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
              visited: Set[State],
              halted: Set[State],
              startingTime: Long,
-             graph: Graph[State, (List[EdgeFilterAnnotation], List[ActionT[Exp, Abs, Addr]])]): AAMOutput = {
+             graph: Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])]): AAMOutput = {
       if (timeout.exists(System.nanoTime - startingTime > _)) {
         AAMOutput(halted,
                   visited.size,
@@ -373,21 +373,21 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                          sem,
                          timeout)
 
-  object ActionTApplier extends ActionTApplier[Exp, Abs, Addr, State] {
+  object ActionReplayApplier extends ActionReplayApplier[Exp, Abs, Addr, State] {
 
     import scala.annotation.tailrec
 
     val emptyEnvironment = Environment.empty[Addr] // Move creation of the environment outside of applyActionMethod
 
-    def applyActionT(state: State, action: ActionT[Exp, Abs, Addr])
-                             (implicit sabs: IsSchemeLattice[Abs]): Set[State] = action match {
-      case a: ActionAllocAddressesT[Exp, Abs, Addr] =>
+    def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr])
+                         (implicit sabs: IsSchemeLattice[Abs]): Set[State] = action match {
+      case a: ActionAllocAddressesR[Exp, Abs, Addr] =>
         val newStore = a.addresses.foldLeft(state.store)( (store, address) => store.extend(address, abs.bottom))
         Set(state.copy(store = newStore))
       case a: ActionCreateClosureT[Exp, Abs, Addr] =>
         val closure = sabs.inject[Exp, Addr]((a.λ, a.env.get))
         Set(state.copy(control = ControlKont(closure)))
-      case a: ActionDefineAddressesT[Exp, Abs, Addr] =>
+      case a: ActionDefineAddressesR[Exp, Abs, Addr] =>
         val n = a.addresses.size
         val values = state.vStack.take(n)
         val newVStack = state.vStack.drop(n)
@@ -402,7 +402,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         val next = NormalKontAddress[Exp, Time](e, state.t)
         val kont = Kont(frame, state.a)
         Set(State(ControlEval(e, env), state.store, state.kstore.extend(next, kont), next, time.tick(state.t), Nil))
-      case a: ActionLookupAddressT[Exp, Abs, Addr] =>
+      case a: ActionLookupAddressR[Exp, Abs, Addr] =>
         val value = state.store.lookup(a.a).get
         Set(state.copy(control = ControlKont(value)))
       case ActionPopKontT() =>
@@ -429,7 +429,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         Set(state.copy(vStack = value :: state.vStack))
       case a: ActionReachedValueT[Exp, Abs, Addr] =>
         Set(state.copy(control = ControlKont(a.v)))
-      case a: ActionSetAddressT[Exp, Abs, Addr] =>
+      case a: ActionSetAddressR[Exp, Abs, Addr] =>
         assert(state.control.isInstanceOf[ControlKont])
         val value = state.control.asInstanceOf[ControlKont].v
         Set(state.copy(store = state.store.update(a.adress, value)))

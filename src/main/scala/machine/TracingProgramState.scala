@@ -36,7 +36,7 @@ trait TracingProgramState[Exp, Addr, Time]
   def step(sem: SemanticsTraced[Exp, ConcreteValue, Addr, Time])
   : Option[InterpreterStep[Exp, ConcreteValue, Addr]]
   def applyAction(sem: SemanticsTraced[Exp, ConcreteValue, Addr, Time],
-                  action: ActionT[Exp, ConcreteValue, Addr])
+                  action: ActionTrace[Exp, ConcreteValue, Addr])
   : ActionReturn[Exp,
     ConcreteValue,
     Addr,
@@ -48,9 +48,9 @@ trait TracingProgramState[Exp, Addr, Time]
 
   def runHeader(
                  sem: SemanticsTraced[Exp, ConcreteValue, HybridAddress.A, Time],
-                 assertions: List[ActionT[Exp, ConcreteValue, Addr]])
+                 assertions: List[ActionTrace[Exp, ConcreteValue, Addr]])
   : Option[TracingProgramState[Exp, Addr, Time]]
 
-  def generateTraceInformation(action: ActionT[Exp, ConcreteValue, Addr])
+  def generateTraceInformation(action: ActionTrace[Exp, ConcreteValue, Addr])
   : CombinedInfos[ConcreteValue, HybridAddress.A]
 }

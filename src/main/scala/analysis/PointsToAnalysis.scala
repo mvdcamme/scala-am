@@ -109,7 +109,7 @@ class PointsToAnalysisLauncher[
   val aam: SpecAAM = new SpecAAM()
   implicit val stateDescriptor = new aam.StateDescriptor()
 
-  implicit val stateChangeEdgeApplier = aam.ActionTApplier
+  implicit val stateChangeEdgeApplier = aam.ActionReplayApplier
   val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, HybridAddress.A, aam.GraphNode]
 
   val abs = implicitly[IsConvertableLattice[Abs]]

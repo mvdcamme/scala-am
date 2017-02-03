@@ -35,7 +35,7 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
                                            ConcreteValue,
                                            HybridAddress.A,
                                            HybridTimestamp.T],
-                      action: ActionT[Exp, ConcreteValue, HybridAddress.A])
+                      action: ActionTrace[Exp, ConcreteValue, HybridAddress.A])
     : ActionReturn[Exp,
                    ConcreteValue,
                    HybridAddress.A,
@@ -59,12 +59,12 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
     }
 
   def addFailAction(
-      sem: SemanticsTraced[Exp,
+                     sem: SemanticsTraced[Exp,
                            ConcreteValue,
                            HybridAddress.A,
                            HybridTimestamp.T],
-      action: ActionT[Exp, ConcreteValue, HybridAddress.A],
-      failAction: ActionSingleT[Exp, ConcreteValue, HybridAddress.A])
+                     action: ActionTrace[Exp, ConcreteValue, HybridAddress.A],
+                     failAction: ActionSingleT[Exp, ConcreteValue, HybridAddress.A])
     : ActionReturn[Exp,
                    ConcreteValue,
                    HybridAddress.A,
@@ -74,12 +74,12 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
   }
 
   def addFailActions(
-      sem: SemanticsTraced[Exp,
+                      sem: SemanticsTraced[Exp,
                            ConcreteValue,
                            HybridAddress.A,
                            HybridTimestamp.T],
-      action: ActionT[Exp, ConcreteValue, HybridAddress.A],
-      failActions: List[ActionSingleT[Exp, ConcreteValue, HybridAddress.A]])
+                      action: ActionTrace[Exp, ConcreteValue, HybridAddress.A],
+                      failActions: List[ActionSingleT[Exp, ConcreteValue, HybridAddress.A]])
     : ActionReturn[Exp,
                    ConcreteValue,
                    HybridAddress.A,
@@ -126,7 +126,7 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
                                      ConcreteValue,
                                      HybridAddress.A,
                                      HybridTimestamp.T],
-                assertions: List[ActionT[Exp, ConcreteValue, HybridAddress.A]])
+                assertions: List[ActionTrace[Exp, ConcreteValue, HybridAddress.A]])
     : Option[AmbProgramState[Exp]] =
     normalState
       .runHeader(sem, assertions)
@@ -191,7 +191,7 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
                                        ConcreteValue,
                                        HybridAddress.A,
                                        HybridTimestamp.T],
-                  action: ActionT[Exp, ConcreteValue, HybridAddress.A])
+                  action: ActionTrace[Exp, ConcreteValue, HybridAddress.A])
     : ActionReturn[Exp,
                    ConcreteValue,
                    HybridAddress.A,
@@ -321,7 +321,7 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
   }
 
   def generateTraceInformation(
-      action: ActionT[Exp, ConcreteValue, HybridAddress.A])
+      action: ActionTrace[Exp, ConcreteValue, HybridAddress.A])
     : CombinedInfos[ConcreteValue, HybridAddress.A] =
     normalState.generateTraceInformation(action)
 

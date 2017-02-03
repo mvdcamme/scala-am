@@ -25,5 +25,5 @@ case class SignalStartAnalysis[
  * Interpreter return
  */
 case class InterpreterStep[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    trace: List[ActionT[Exp, Abs, Addr]],
-    tracingSignal: TracingSignal[Exp, Abs, Addr])
+                                                                              trace: List[ActionTrace[Exp, Abs, Addr]],
+                                                                              tracingSignal: TracingSignal[Exp, Abs, Addr])

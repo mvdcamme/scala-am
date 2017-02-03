@@ -4,11 +4,11 @@ class IncrementalPointsToAnalysis[Exp : Expression,
                                   AbstL : IsSchemeLattice,
                                   Addr : Address,
                                   State <: StateTrait[Exp, AbstL, Addr, _] : Descriptor]
-                                 (implicit actionTApplier: ActionTApplier[Exp, AbstL, Addr, State]) {
+                                 (implicit actionTApplier: ActionReplayApplier[Exp, AbstL, Addr, State]) {
 
   val debugStepCount = 95
 
-  type EdgeAnnotation = (List[EdgeFilterAnnotation], List[ActionT[Exp, AbstL, Addr]])
+  type EdgeAnnotation = (List[EdgeFilterAnnotation], List[ActionReplay[Exp, AbstL, Addr]])
   type Edge = (EdgeAnnotation, State)
   type AbstractGraph = Graph[State, EdgeAnnotation]
 
@@ -419,7 +419,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
            * all actions.
            */
           val newStates = actionTs.foldLeft[Set[State]](Set(newState))( (states, actionT) =>
-            states.flatMap( (state) => actionTApplier.applyActionT(state, actionT)))
+            states.flatMap( (state) => actionTApplier.applyActionReplay(state, actionT)))
           newStates.map( (newState) => (edgeAnnotation, StateCombo(newOriginalState, newState)))
         })
         if (graph.isDefined) Logger.log(s"newStateCombos = ${newStateCombos.map( (sc: (EdgeAnnotation, StateCombo)) => currentGraph
@@ -442,7 +442,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
     assert(currentGraph.isDefined)
     // TODO debugging
     if (stepCount == debugStepCount) {
-      val g = convertGraph[State, EdgeAnnotation, List[ActionT[Exp, AbstL, Addr]]](currentGraph.get, (edge: EdgeAnnotation) => edge._2)
+      val g = convertGraph[State, EdgeAnnotation, List[ActionReplay[Exp, AbstL, Addr]]](currentGraph.get, (edge: EdgeAnnotation) => edge._2)
       g.toDotFile(s"current_graph $debugStepCount.dot", node => List(scala.xml.Text(node.toString.take(40))),
         (s) => Colors.Green,
         node => List(scala.xml.Text(node.mkString(", ").take(300))),

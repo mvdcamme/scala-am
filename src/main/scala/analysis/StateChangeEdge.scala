@@ -1,9 +1,9 @@
 trait StateChangeEdge[+State <: StateTrait[_, _, _, _]]
 
-trait ActionTApplier[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]] {
+trait ActionReplayApplier[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]] {
 
-  def applyActionT(state: State, action: ActionT[Exp, Abs, Addr])
-                  (implicit sabs: IsSchemeLattice[Abs]): Set[State]
+  def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr])
+                       (implicit sabs: IsSchemeLattice[Abs]): Set[State]
 
   def prepareState(state: State)
                   (implicit sabs: IsSchemeLattice[Abs]): State

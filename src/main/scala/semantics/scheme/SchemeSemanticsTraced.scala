@@ -203,15 +203,15 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
     */
   protected def evalBody(body: List[SchemeExp],
                          frameGen: List[SchemeExp] => Frame)
-    : List[ActionT[SchemeExp, Abs, Addr]] = body match {
+    : List[ActionTrace[SchemeExp, Abs, Addr]] = body match {
     case Nil => List(actionPopKont)
     case exp :: rest =>
       List(actionSaveEnv, ActionEvalPushT(exp, frameGen(rest)))
   }
 
   def conditional(v: Abs,
-                  t: List[ActionT[SchemeExp, Abs, Addr]],
-                  f: List[ActionT[SchemeExp, Abs, Addr]])
+                  t: List[ActionTrace[SchemeExp, Abs, Addr]],
+                  f: List[ActionTrace[SchemeExp, Abs, Addr]])
     : Set[InterpreterStep[SchemeExp, Abs, Addr]] =
     (if (sabs.isTrue(v))
        Set[InterpreterStep[SchemeExp, Abs, Addr]](
@@ -226,9 +226,9 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
    * TODO: Debugging: run tests only using if-expressions. Remove function ASAP and use function "conditional" instead!
    */
   def conditionalIf(v: Abs,
-                    t: List[ActionT[SchemeExp, Abs, Addr]],
+                    t: List[ActionTrace[SchemeExp, Abs, Addr]],
                     tRestart: RestartPoint[SchemeExp, Abs, Addr],
-                    f: List[ActionT[SchemeExp, Abs, Addr]],
+                    f: List[ActionTrace[SchemeExp, Abs, Addr]],
                     fRestart: RestartPoint[SchemeExp, Abs, Addr])
     : Set[InterpreterStep[SchemeExp, Abs, Addr]] =
     (if (sabs.isTrue(v)) {
@@ -262,7 +262,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
      */
     val valsToPop = actualPars.length + 1
 
-    val commonActions: List[ActionT[SchemeExp, Abs, Addr]] =
+    val commonActions: List[ActionTrace[SchemeExp, Abs, Addr]] =
       List(actionRestoreEnv, actionPushVal)
 
     val fromClo: Set[InterpreterStep[SchemeExp, Abs, Addr]] = sabs
@@ -346,7 +346,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
 
   protected def evalQuoted(
       exp: SExp,
-      t: Time): (Abs, List[ActionT[SchemeExp, Abs, Addr]]) = exp match {
+      t: Time): (Abs, List[ActionTrace[SchemeExp, Abs, Addr]]) = exp match {
     case SExpIdentifier(sym, _) => (sabs.injectSymbol(sym), List())
     case SExpPair(car, cdr, _) => {
       val care: SchemeExp = SchemeIdentifier(car.toString, car.pos)
@@ -469,7 +469,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
   protected def evalWhileBody(
       condition: SchemeExp,
       body: List[SchemeExp],
-      exps: List[SchemeExp]): List[ActionT[SchemeExp, Abs, Addr]] =
+      exps: List[SchemeExp]): List[ActionTrace[SchemeExp, Abs, Addr]] =
     exps match {
       case Nil =>
         List(actionSaveEnv,
@@ -501,7 +501,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
                 }))
               /* TODO: precision could be improved by restricting v to v2 */
               Set[InterpreterStep[SchemeExp, Abs, Addr]](
-                interpreterStep(List[ActionT[SchemeExp, Abs, Addr]](
+                interpreterStep(List[ActionTrace[SchemeExp, Abs, Addr]](
                   actionRestoreEnv) ++ evalBody(body, FrameBeginT)))
             else
               Set[InterpreterStep[SchemeExp, Abs, Addr]](
@@ -554,20 +554,20 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
                    e,
                    FrameLetT(variable, name :: bindings, toeval, body)))))
       case FrameLetrecT(a, Nil, body) =>
-        val actions: List[ActionT[SchemeExp, Abs, Addr]] = List(
+        val actions: List[ActionTrace[SchemeExp, Abs, Addr]] = List(
             actionRestoreEnv,
             ActionSetVarT[SchemeExp, Abs, Addr](a)) ++
             evalBody(body, FrameBeginT)
         Set(InterpreterStep(actions, new SignalFalse))
       case FrameLetrecT(var1, (var2, exp) :: rest, body) =>
-        val actions: List[ActionT[SchemeExp, Abs, Addr]] = List(
+        val actions: List[ActionTrace[SchemeExp, Abs, Addr]] = List(
           actionRestoreEnv,
           ActionSetVarT(var1),
           ActionEvalPushT(exp, FrameLetrecT(var2, rest, body)),
           actionSaveEnv)
         Set(InterpreterStep(actions, new SignalFalse))
       case FrameLetStarT(name, bindings, body) =>
-        val actions: List[ActionT[SchemeExp, Abs, Addr]] = List(
+        val actions: List[ActionTrace[SchemeExp, Abs, Addr]] = List(
           actionRestoreEnv,
           actionPushVal,
           ActionExtendEnvT[SchemeExp, Abs, Addr](name))
@@ -660,8 +660,8 @@ Time: Timestamp](primitives: SchemePrimitives[Addr, Abs])
     abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time])
     : SchemeFrame[OtherAbs, Addr, Time] = ???
 
-  protected def addRead(action: ActionT[SchemeExp, Abs, Addr],
-                        read: Set[Addr]): ActionT[SchemeExp, Abs, Addr] =
+  protected def addRead(action: ActionTrace[SchemeExp, Abs, Addr],
+                        read: Set[Addr]): ActionTrace[SchemeExp, Abs, Addr] =
     action match {
       case ActionReachedValueT(v, read2, write) =>
         ActionReachedValueT(v, read ++ read2, write)

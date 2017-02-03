@@ -49,22 +49,22 @@ trait BasicSemantics[Exp, Abs, Addr, Time] {
 }
 
 case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address]
-  (action: Action[Exp, Abs, Addr], actionEdge: List[ActionT[Exp, Abs, Addr]], edgeFilterAnnotations: List[EdgeFilterAnnotation])
+  (action: Action[Exp, Abs, Addr], actionEdge: List[ActionReplay[Exp, Abs, Addr]], edgeFilterAnnotations: List[EdgeFilterAnnotation])
 
 trait Semantics[Exp, Abs, Addr, Time]
     extends BasicSemantics[Exp, Abs, Addr, Time] {
 
-  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionTs: List[ActionT[Exp, Abs, Addr]]): EdgeInformation[Exp, Abs, Addr] =
-    EdgeInformation(action, actionTs, Nil)
+  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionRs: List[ActionReplay[Exp, Abs, Addr]]): EdgeInformation[Exp, Abs, Addr] =
+    EdgeInformation(action, actionRs, Nil)
 
-  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionT: ActionT[Exp, Abs, Addr]): EdgeInformation[Exp, Abs, Addr] =
-    noEdgeInfos(action, List(actionT))
+  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionR: ActionReplay[Exp, Abs, Addr]): EdgeInformation[Exp, Abs, Addr] =
+    noEdgeInfos(action, List(actionR))
 
-  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionTs: List[ActionT[Exp, Abs, Addr]]): Set[EdgeInformation[Exp, Abs, Addr]] =
-    Set(noEdgeInfos(action, actionTs))
+  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionRs: List[ActionReplay[Exp, Abs, Addr]]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    Set(noEdgeInfos(action, actionRs))
 
-  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionT: ActionT[Exp, Abs, Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
-    noEdgeInfosSet(action, List(actionT))
+  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionR: ActionReplay[Exp, Abs, Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    noEdgeInfosSet(action, List(actionR))
 
   def simpleAction(action: Action[Exp, Abs, Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
     simpleAction(Set(action))
@@ -140,18 +140,18 @@ trait SemanticsTraced[Exp, Abs, Addr, Time]
       extends InstructionReturn
   case class LoopTrace() extends InstructionReturn
 
-  val endTraceInstruction: RestartPoint[Exp, Abs, Addr] => ActionT[Exp,
+  val endTraceInstruction: RestartPoint[Exp, Abs, Addr] => ActionTrace[Exp,
                                                                    Abs,
                                                                    Addr] =
     new ActionEndTrace(_)
 
-  protected def interpreterStep(actions: List[ActionT[Exp, Abs, Addr]])
+  protected def interpreterStep(actions: List[ActionTrace[Exp, Abs, Addr]])
     : InterpreterStep[Exp, Abs, Addr] =
     new InterpreterStep(actions, new SignalFalse)
 
   protected def interpreterStepStart(
-      actions: List[ActionT[Exp, Abs, Addr]],
-      label: List[Exp]): InterpreterStep[Exp, Abs, Addr] =
+                                      actions: List[ActionTrace[Exp, Abs, Addr]],
+                                      label: List[Exp]): InterpreterStep[Exp, Abs, Addr] =
     new InterpreterStep(actions, new SignalStartLoop(label))
 
   /**
@@ -374,305 +374,3 @@ Addr: Address, Time: Timestamp](val primitives: Primitives[Addr, Abs])
   def exp = implicitly[Expression[Exp]]
   def time = implicitly[Timestamp[Time]]
 }
-
-/**********************************************************************************************************************
- *                                                   TRACED ACTIONS                                                   *
- **********************************************************************************************************************/
-abstract class ActionT[Exp: Expression, Abs: JoinLattice, Addr: Address]() {
-  def isGuard: Boolean = false
-
-  def popsVStack: Boolean = false
-  def pushesVStack: Boolean = false
-
-  def restoresEnv: Boolean = false
-  def savesEnv: Boolean = false
-
-  def popsValue: Boolean = false
-  def pushesValue: Boolean = false
-
-  def popsKStack: Boolean = false
-  def pushesKStack: Boolean = false
-
-  def changesValueReg = false
-
-  def startsFunCallBlock = false
-  def endsFunCallBlock = false
-}
-
-trait IsGuard[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
-  override def isGuard = true
-}
-
-trait PopsValue[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
-  override def popsVStack = true
-  override def popsValue = true
-}
-
-trait PushesValue[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
-  override def pushesVStack = true
-  override def pushesValue = true
-}
-
-trait RestoresEnv[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
-  override def popsVStack = true
-  override def restoresEnv = true
-}
-
-trait SavesEnv[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
-  override def pushesVStack = true
-  override def savesEnv = true
-}
-
-trait PopsKStack[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
-  override def popsKStack = true
-}
-
-trait PushesKStack[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
-  override def pushesKStack = true
-}
-
-trait ChangesValueReg[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
-  override def changesValueReg = true
-}
-
-trait StartsFunCall[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
-  override def startsFunCallBlock = true
-}
-
-trait EndsFunCall[Exp, Abs, Addr] extends ActionT[Exp, Abs, Addr] {
-  override def endsFunCallBlock = true
-}
-
-trait RestartPoint[Exp, Abs, Addr]
-
-case class RestartAssertion[Exp: Expression, Abs: JoinLattice, Addr: Address]()
-    extends RestartPoint[Exp, Abs, Addr]
-case class RestartFromControl[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    newControl: Exp)
-    extends RestartPoint[Exp, Abs, Addr]
-case class RestartGuardDifferentClosure[Exp: Expression, Abs: JoinLattice,
-Addr: Address](action: ActionStepInT[Exp, Abs, Addr])
-    extends RestartPoint[Exp, Abs, Addr]
-case class RestartSpecializedPrimitive[Exp: Expression,
-                                       Abs: JoinLattice,
-                                       Addr: Address](
-    originalPrimitive: Primitive[Addr, Abs],
-    n: Int,
-    fExp: Exp,
-    argsExps: List[Exp])
-    extends RestartPoint[Exp, Abs, Addr]
-case class RestartTraceEnded[Exp, Abs, Addr]()
-    extends RestartPoint[Exp, Abs, Addr]
-
-abstract class ActionGuardT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    val rp: RestartPoint[Exp, Abs, Addr],
-    val id: Integer)
-    extends ActionT[Exp, Abs, Addr]
-    with IsGuard[Exp, Abs, Addr]
-
-/*
- * Extend store with the given addresses, initialized to the bottom value.
- */
-case class ActionAllocAddressesT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    addresses: List[Addr])
-    extends ActionT[Exp, Abs, Addr]
-case class ActionAllocVarsT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    varNames: List[String])
-    extends ActionT[Exp, Abs, Addr]
-case class ActionCreateClosureT[Exp: Expression, Abs: JoinLattice, Addr: Address]
-    (λ: Exp, env: Option[Environment[Addr]] = None)
-    extends ActionT[Exp, Abs, Addr]
-    with ChangesValueReg[Exp, Abs, Addr]
-/*
- * Extend store with these addresses and initialize them to their corresponding value on the stack.
- */
-case class ActionDefineAddressesT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    addresses: List[Addr])
-    extends ActionT[Exp, Abs, Addr]
-case class ActionEndClosureCallT[
-    Exp: Expression, Abs: JoinLattice, Addr: Address]()
-    extends ActionT[Exp, Abs, Addr]
-    with EndsFunCall[Exp, Abs, Addr]
-case class ActionEndPrimCallT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
-    extends ActionT[Exp, Abs, Addr]
-    with EndsFunCall[Exp, Abs, Addr]
-case class ActionEndTrace[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    restartPoint: RestartPoint[Exp, Abs, Addr])
-    extends ActionT[Exp, Abs, Addr]
-
-/**
-  * An error has been reached
-  */
-case class ActionErrorT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    error: SemanticError)
-    extends ActionT[Exp, Abs, Addr]
-
-/**
-  * A frame needs to be pushed on the stack, and the interpretation continues by
-  * evaluating expression e.
-  */
-case class ActionEvalPushT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    e: Exp,
-    frame: Frame,
-    read: Set[Addr] = Set[Addr](),
-    write: Set[Addr] = Set[Addr]())
-    extends ActionT[Exp, Abs, Addr]
-    with PushesKStack[Exp, Abs, Addr]
-
-/**
-  * A frame needs to be pushed on the stack, and the interpretation continues by
-  * evaluating expression e in environment ρ.
-  */
-case class ActionEvalPushR[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    e: Exp,
-    env: Environment[Addr],
-    frame: Frame)
-  extends ActionT[Exp, Abs, Addr]
-  with PushesKStack[Exp, Abs, Addr]
-
-/**
-  * Evaluation continues with expression e in environment ρ
-  */
-case class ActionEvalT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    e: Exp,
-    read: Set[Addr] = Set[Addr](),
-    write: Set[Addr] = Set[Addr]())
-    extends ActionT[Exp, Abs, Addr]
-case class ActionExtendEnvT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    varName: String)
-    extends ActionT[Exp, Abs, Addr]
-    with PopsValue[Exp, Abs, Addr]
-case class ActionExtendStoreT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    addr: Addr,
-    lit: Abs)
-    extends ActionT[Exp, Abs, Addr]
-case class ActionGuardFalseT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    override val rp: RestartPoint[Exp, Abs, Addr],
-    override val id: Integer)
-    extends ActionGuardT[Exp, Abs, Addr](rp, id)
-case class ActionGuardTrueT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    override val rp: RestartPoint[Exp, Abs, Addr],
-    override val id: Integer)
-    extends ActionGuardT[Exp, Abs, Addr](rp, id)
-case class ActionGuardSameClosure[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    recordedClosure: Abs,
-    override val rp: RestartGuardDifferentClosure[Exp, Abs, Addr],
-    override val id: Integer)
-    extends ActionGuardT[Exp, Abs, Addr](rp, id)
-case class ActionGuardSpecializedPrimitive[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    expectedType: SimpleTypes.Value,
-    numberOfOperands: Int,
-    override val rp: RestartSpecializedPrimitive[Exp, Abs, Addr],
-    override val id: Integer)
-    extends ActionGuardT[Exp, Abs, Addr](rp, id)
-case class ActionLookupAddressT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    a: Addr)
-    extends ActionT[Exp, Abs, Addr]
-case class ActionLookupVariableT[Exp: Expression, Abs: JoinLattice, Addr: Address]
-    (varName: String,
-     read: Set[Addr] = Set[Addr](),
-     write: Set[Addr] = Set[Addr]())
-    extends ActionT[Exp, Abs, Addr]
-    with ChangesValueReg[Exp, Abs, Addr]
-case class ActionLookupVariablePushT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    varName: String,
-    read: Set[Addr] = Set[Addr](),
-    write: Set[Addr] = Set[Addr]())
-    extends ActionT[Exp, Abs, Addr]
-    with ChangesValueReg[Exp, Abs, Addr]
-    with PushesValue[Exp, Abs, Addr]
-case class ActionPopKontT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
-    extends ActionT[Exp, Abs, Addr]
-    with PopsKStack[Exp, Abs, Addr]
-case class ActionPrimCallT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    n: Integer,
-    fExp: Exp,
-    argsExps: List[Exp])
-    extends ActionT[Exp, Abs, Addr]
-    with ChangesValueReg[Exp, Abs, Addr]
-    with PopsValue[Exp, Abs, Addr]
-case class ActionPushValT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
-    extends ActionT[Exp, Abs, Addr]
-    with PushesValue[Exp, Abs, Addr]
-
-/**
-  * A value is reached by the interpreter. As a result, a continuation will be
-  * popped with the given reached value.
-  */
-case class ActionReachedValueT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    v: Abs,
-    read: Set[Addr] = Set[Addr](),
-    write: Set[Addr] = Set[Addr]())
-    extends ActionT[Exp, Abs, Addr]
-    with ChangesValueReg[Exp, Abs, Addr]
-case class ActionReachedValuePushT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    v: Abs,
-    read: Set[Addr] = Set[Addr](),
-    write: Set[Addr] = Set[Addr]())
-    extends ActionT[Exp, Abs, Addr]
-    with ChangesValueReg[Exp, Abs, Addr]
-    with PushesValue[Exp, Abs, Addr]
-case class ActionRemoveKontT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    a: KontAddr,
-    k: Kont[KontAddr])
-    extends ActionT[Exp, Abs, Addr]
-case class ActionRestoreEnvT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
-    extends ActionT[Exp, Abs, Addr]
-    with RestoresEnv[Exp, Abs, Addr]
-case class ActionRestoreSaveEnvT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
-    extends ActionT[Exp, Abs, Addr]
-    with RestoresEnv[Exp, Abs, Addr]
-    with SavesEnv[Exp, Abs, Addr]
-case class ActionSaveEnvT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
-    extends ActionT[Exp, Abs, Addr]
-    with SavesEnv[Exp, Abs, Addr]
-case class ActionSetAddressT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    adress: Addr)
-    extends ActionT[Exp, Abs, Addr]
-case class ActionSetVarT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    variable: String)
-    extends ActionT[Exp, Abs, Addr]
-case class ActionSpecializePrimitive[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    expectedType: SimpleTypes.Value,
-    primitive: Primitive[Addr, Abs],
-    n: Integer,
-    fExp: Exp,
-    argsExps: List[Exp])
-    extends ActionT[Exp, Abs, Addr]
-    with ChangesValueReg[Exp, Abs, Addr]
-    with PopsValue[Exp, Abs, Addr]
-
-/**
-  * Similar to ActionEval, but only used when stepping inside a function's body
-  * (clo is therefore the function stepped into). The number of arguments should
-  * also be provided, as they can be needed by the abstract machine.
-  */
-case class ActionStepInT[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    fexp: Exp,
-    e: Exp,
-    args: List[String],
-    argsv: List[Exp],
-    n: Integer,
-    frame: Frame,
-    read: Set[Addr] = Set[Addr](),
-    write: Set[Addr] = Set[Addr]())
-    extends ActionT[Exp, Abs, Addr]
-    with PopsValue[Exp, Abs, Addr]
-    with SavesEnv[Exp, Abs, Addr]
-case class ActionStartFunCallT[
-    Exp: Expression, Abs: JoinLattice, Addr: Address]()
-    extends ActionT[Exp, Abs, Addr]
-    with StartsFunCall[Exp, Abs, Addr]
-
-case class ActionLookupRegister[Exp: Expression, Abs: JoinLattice,
-Addr: Address](index: Integer)
-    extends ActionT[Exp, Abs, Addr]
-    with ChangesValueReg[Exp, Abs, Addr]
-case class ActionLookupRegisterPush[Exp: Expression, Abs: JoinLattice,
-Addr: Address](index: Integer)
-    extends ActionT[Exp, Abs, Addr]
-    with ChangesValueReg[Exp, Abs, Addr]
-case class ActionPutRegister[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    variable: String,
-    index: Integer)
-    extends ActionT[Exp, Abs, Addr]

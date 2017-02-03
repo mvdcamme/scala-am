@@ -14,7 +14,7 @@ trait Tracer[Exp, Abs, Addr, Time] {
   /* An opaque type storing bookkeeping information for the actual, concrete tracer */
   type TracerContext
 
-  type TraceInstruction = ActionT[Exp, Abs, Addr]
+  type TraceInstruction = ActionTrace[Exp, Abs, Addr]
   type TraceWithoutStates = List[TraceInstruction]
   type TraceInstructionInfo = (TraceInstruction, CombinedInfos[Abs, Addr])
   type TraceWithInfos = List[TraceInstructionInfo]
@@ -107,6 +107,6 @@ case class TraceFull[Exp: Expression,
                      Abs: JoinLattice,
                      Addr: Address,
                      Time: Timestamp](
-    info: TraceInfo[Exp, Addr, Time],
-    assertions: List[ActionT[Exp, Abs, Addr]],
-    trace: List[(ActionT[Exp, Abs, Addr], CombinedInfos[Abs, Addr])])
+                                       info: TraceInfo[Exp, Addr, Time],
+                                       assertions: List[ActionTrace[Exp, Abs, Addr]],
+                                       trace: List[(ActionTrace[Exp, Abs, Addr], CombinedInfos[Abs, Addr])])
