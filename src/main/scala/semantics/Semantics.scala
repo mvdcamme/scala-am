@@ -49,7 +49,7 @@ trait BasicSemantics[Exp, Abs, Addr, Time] {
 }
 
 case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address]
-  (action: Action[Exp, Abs, Addr], actionEdge: List[ActionT[Exp, Abs, Addr]], edgeFilterInfo: List[EdgeFilterAnnotation])
+  (action: Action[Exp, Abs, Addr], actionEdge: List[ActionT[Exp, Abs, Addr]], edgeFilterAnnotations: List[EdgeFilterAnnotation])
 
 trait Semantics[Exp, Abs, Addr, Time]
     extends BasicSemantics[Exp, Abs, Addr, Time] {

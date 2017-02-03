@@ -328,6 +328,42 @@ class IncrementalPointsToAnalysis[Exp : Expression,
     graphSize = graphSize :+ (stepCount, newEdgesSize)
   }
 
+  private def filterWithStore(newState: State, edges: Set[Edge]): Set[Edge] = {
+
+    def hasEdgeAnnot(edge: (EdgeAnnotation, State), edgeAnnotation: EdgeFilterAnnotation): Boolean =
+      edge._1._1.exists({
+        case annot if annot == edgeAnnotation => true
+        case _ => false
+      })
+    /*
+ * If there is a ThenBranchTaken-annotation and current state did NOT evaluate to true, take all edges not
+ * containing a ThenBranchTaken-annotation.
+ */
+    val filteredTrue: Set[(EdgeAnnotation, State)] = if (edges.exists(hasEdgeAnnot(_, ThenBranchTaken)) &&
+      (!actionTApplier.evaluatedTrue(newState))) {
+      edges.filter(!hasEdgeAnnot(_, ThenBranchTaken))
+    } else {
+      edges
+    }
+    /*
+     * If there is an ElseBranchTaken-annotation and current state did NOT evaluate to false, take all edges not
+     * containing an ElseBranchTaken-annotation.
+     */
+    val filteredFalse: Set[(EdgeAnnotation, State)] = if (edges.exists(hasEdgeAnnot(_, ElseBranchTaken)) &&
+      (!actionTApplier.evaluatedFalse(newState))) {
+      edges.filter(!hasEdgeAnnot(_, ElseBranchTaken))
+    } else {
+      edges
+    }
+
+    val filteredEdges = filteredTrue.intersect(filteredFalse)
+    if (filteredEdges.size != edges.size) {
+      Logger.log(s"## Difference between edges and filteredEdges! ##", Logger.U)
+    }
+
+    filteredEdges
+  }
+
   /*
    * originalState: The original state that was present in the initial abstract graph.
    * newState: the new state that was computed by following the ActionTs
@@ -337,34 +373,45 @@ class IncrementalPointsToAnalysis[Exp : Expression,
   /*
    * Keep track of the set of visited originalStates, but not of the set of newStates.
    */
-  private def evalLoop(todo: Set[StateCombo], visited: Set[State], graph: Option[Graph[StateCombo, EdgeAnnotation]]):
-  Option[Graph[StateCombo, EdgeAnnotation]] =
+  private def evalLoop(todo: Set[StateCombo], visited: Set[State], graph: Option[Graph[State, EdgeAnnotation]]):
+  Option[Graph[State, EdgeAnnotation]] =
     todo.headOption
   match {
     case None =>
-      graph
-    case Some(sc@StateCombo(originalState, newState)) =>
+      if (graph.isDefined)
+        graph.get.toDotFile(s"incremental_graph $debugStepCount.dot",
+          node => List(scala.xml.Text(node.toString.take(40))),
+          (s) => Colors.Green,
+          node => List(scala.xml.Text(node._2.mkString(", ").take(300))),
+          None)
+    graph
+    case Some(StateCombo(originalState, newState)) =>
+
       if (graph.isDefined) {
         Logger.log(s"Incrementally evaluating original state ${initialGraph.get.nodeId(originalState)} " +
           s"(currentID: ${currentGraph.get.nodeId(originalState)}) " +
-          s"$originalState with new state $newState", Logger.N)
+          s"$originalState with new state $newState", Logger.U)
       }
       if (actionTApplier.halted(newState)) {
         evalLoop(todo.tail, visited + originalState, graph)
       } else if (visited.contains(originalState)) {
-        if (graph.isDefined) Logger.log(s"State already visited", Logger.N)
+        if (graph.isDefined) Logger.log(s"State already visited", Logger.U)
         evalLoop(todo.tail, visited, graph)
       } else {
         /*
          * If originalState does not have any outgoing edges, return empty set
          */
-        val edges: Set[Edge] = currentGraph.get.edges.getOrElse(originalState, Set())
-        if (graph.isDefined) Logger.log(s"Using edges $edges", Logger.D)
+
+        val edges: Set[Edge] = currentGraph.get.edges.getOrElse(originalState, Set()) // All outgoing edges in abstract graph
+        val filteredEdges = filterWithStore(newState, edges)
+
+        if (graph.isDefined) Logger.log(s"Using edges $edges", Logger.U)
+        if (graph.isDefined) Logger.log(s"Using filteredEdges $filteredEdges", Logger.U)
         /*
-         * For all edges e, take all actionTs a1, a2 ... ak, and apply them consecutively on newState.
+         * For all filteredEdges e, take all actionTs a1, a2 ... ak, and apply them consecutively on newState.
          * Each actionT may produce a set of new newStates.
          */
-        val newStateCombos: Set[(EdgeAnnotation, StateCombo)] = edges.flatMap( (edge) => {
+        val newStateCombos: Set[(EdgeAnnotation, StateCombo)] = filteredEdges.flatMap( (edge) => {
           val edgeAnnotation = edge._1
           val actionTs = edgeAnnotation._2
           val newOriginalState = edge._2
@@ -376,59 +423,13 @@ class IncrementalPointsToAnalysis[Exp : Expression,
             states.flatMap( (state) => actionTApplier.applyActionT(state, actionT)))
           newStates.map( (newState) => (edgeAnnotation, StateCombo(newOriginalState, newState)))
         })
+        if (graph.isDefined) Logger.log(s"newStateCombos = ${newStateCombos.map( (sc: (EdgeAnnotation, StateCombo)) => currentGraph
+        .get.nodeId(sc._2.originalState))}", Logger.U)
         evalLoop(todo.tail ++ newStateCombos.map(_._2), visited + originalState, graph.map(_.addEdges(newStateCombos
           .map({
-          case (edgeAnnotation, StateCombo(x, newNewState)) =>
-            (sc, edgeAnnotation, StateCombo(x, newNewState)) } ))))
+          case (edgeAnnotation, StateCombo(_, newNewState)) =>
+            (newState, edgeAnnotation, newNewState) } ))))
       }
-  }
-
-  def applySecondaryFilter(graph: Graph[StateCombo, EdgeAnnotation], nodesTodo: List[StateCombo]):
-  Graph[StateCombo,
-    EdgeAnnotation] = {
-
-    def hasEdgeAnnot(edge: (EdgeAnnotation, StateCombo), edgeAnnotation: EdgeFilterAnnotation): Boolean =
-      edge._1._1.exists({
-        case annot if annot == edgeAnnotation => true
-        case _ => false
-      })
-
-    @tailrec
-    def loop(nodesTodo: List[StateCombo], prunedGraph: Graph[StateCombo, EdgeAnnotation], visited: Set[StateCombo])
-    : Graph[StateCombo, EdgeAnnotation] = nodesTodo match {
-      case Nil =>
-        prunedGraph
-      case (sc@StateCombo(originalState, updatedState)) :: rest =>
-        if (visited.contains(sc)) {
-          loop(rest, prunedGraph, visited)
-        } else {
-          val edges = graph.edges(sc)
-          /*
-           * If there is a ThenBranchTaken-annotation and current state did NOT evaluate to true, take all edges not
-           * containing a ThenBranchTaken-annotation.
-           */
-          val filteredTrue: Set[(EdgeAnnotation, StateCombo)] = if (edges.exists(hasEdgeAnnot(_, ThenBranchTaken)) &&
-            (! actionTApplier.evaluatedTrue(updatedState))) {
-            edges.filter(hasEdgeAnnot(_, ThenBranchTaken))
-          } else {
-            edges
-          }
-          /*
-           * If there is an ElseBranchTaken-annotation and current state did NOT evaluate to false, take all edges not
-           * containing an ElseBranchTaken-annotation.
-           */
-          val filteredFalse: Set[(EdgeAnnotation, StateCombo)] = if (edges.exists(hasEdgeAnnot(_, ElseBranchTaken)) &&
-            (! actionTApplier.evaluatedFalse(updatedState))) {
-            edges.filter(hasEdgeAnnot(_, ElseBranchTaken))
-          } else {
-            edges
-          }
-          val filteredEdges = filteredTrue.intersect(filteredFalse)
-          val newEdges = filteredEdges.map( (edge) => (sc, edge._1, edge._2))
-          loop(rest, prunedGraph.addEdges(newEdges), visited + sc)
-        }
-    }
-    loop(nodesTodo, new Graph[StateCombo, EdgeAnnotation](), Set())
   }
 
   def convertGraph[Node : Descriptor, EdgeAnnotation, NewEdgeAnnotation](g: Graph[Node, EdgeAnnotation],
@@ -449,16 +450,13 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         None)
     }
     if (stepCount == debugStepCount) {
-      currentNodes.foreach( (node) => Logger.log(s"node id: ${currentGraph.get.nodeId(node)}", Logger.N))
+      currentNodes.foreach( (node) => Logger.log(s"node id: ${currentGraph.get.nodeId(node)}", Logger.U))
       /*
        * Associate the (one) abstracted concrete state with all states in the CurrentNodes set, as the states in
        * this set ought to correspond with this concrete state.
        */
       val rootNodes = currentNodes.map( (state) => StateCombo(state, actionTApplier.prepareState(convertedState)))
-      val updatedGraph = evalLoop(rootNodes, Set(),
-        if (stepCount == debugStepCount)
-          Some(new Graph[StateCombo, EdgeAnnotation])
-        else None)
+      val updatedGraph = evalLoop(rootNodes, Set(), if (stepCount == debugStepCount) Some(new Graph[State, EdgeAnnotation]) else None)
       if (updatedGraph.isDefined) {
         implicit val descriptor = new Descriptor[StateCombo] {
           def describe[U >: StateCombo](x: U) = x match {
@@ -470,17 +468,6 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         }
         //      val g = convertGraph[StateCombo, EdgeAnnotation, List[ActionT[Exp, AbstL, Addr]]](updatedGraph.get, (edge:
         //                                                                                                       EdgeAnnotation) => edge._2)
-        val prunedGraph = applySecondaryFilter(updatedGraph.get, rootNodes.toList)
-        //      g.toDotFile(s"incremental_graph $debugStepCount.dot",
-        //        node => List(scala.xml.Text(node.toString.take(40))),
-        //        (s) => Colors.Green,
-        //        node => List(scala.xml.Text(node.mkString(", ").take(300))),
-        //        None)
-        prunedGraph.toDotFile(s"pruned_graph $debugStepCount.dot",
-          node => List(scala.xml.Text(node.toString.take(40))),
-          (s) => Colors.Green,
-          node => List(scala.xml.Text(node._1.mkString(", ").take(300))),
-          None)
       }
     }
   }
