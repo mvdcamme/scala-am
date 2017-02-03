@@ -509,7 +509,7 @@ case class ActionErrorT[Exp: Expression, Abs: JoinLattice, Addr: Address](
 
 /**
   * A frame needs to be pushed on the stack, and the interpretation continues by
-  * evaluating expression e in environment ρ.
+  * evaluating expression e.
   */
 case class ActionEvalPushT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     e: Exp,
@@ -518,6 +518,17 @@ case class ActionEvalPushT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     write: Set[Addr] = Set[Addr]())
     extends ActionT[Exp, Abs, Addr]
     with PushesKStack[Exp, Abs, Addr]
+
+/**
+  * A frame needs to be pushed on the stack, and the interpretation continues by
+  * evaluating expression e in environment ρ.
+  */
+case class ActionEvalPushR[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    e: Exp,
+    env: Environment[Addr],
+    frame: Frame)
+  extends ActionT[Exp, Abs, Addr]
+  with PushesKStack[Exp, Abs, Addr]
 
 /**
   * Evaluation continues with expression e in environment ρ

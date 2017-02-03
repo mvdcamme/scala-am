@@ -344,8 +344,11 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     (if (sabs.isFalse(v)) addEdgeAnnot(f, ElseBranchTaken) else Set[EdgeInformation[SchemeExp, Abs, Addr]]())
   }
 
-  private def addEvalActionT(action: Action[SchemeExp, Abs, Addr], exp: SchemeExp): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
-    noEdgeInfosSet(action, ActionEvalT(exp))
+  private def addEvalActionT(action: ActionEval[SchemeExp, Abs, Addr]): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
+    noEdgeInfosSet(action, ActionEvalT(action.e))
+
+  private def addPushActionT(action: ActionPush[SchemeExp, Abs, Addr]): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
+    noEdgeInfosSet(action, ActionEvalPushR(action.e, action.env, action.frame))
 
   def evalCall(function: Abs,
                fexp: SchemeExp,
@@ -471,16 +474,16 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val actionEdge = ActionCreateClosureT[SchemeExp, Abs, Addr](λ, Some(env))
       noEdgeInfosSet(action, actionEdge)
     case SchemeFuncall(f, args, _) =>
-      addEvalActionT(ActionPush[SchemeExp, Abs, Addr](FrameFuncallOperator(f, args, env), f, env, store), f)
+      addPushActionT(ActionPush[SchemeExp, Abs, Addr](FrameFuncallOperator(f, args, env), f, env, store))
     case SchemeIf(cond, cons, alt, _) =>
-      addEvalActionT(ActionPush(FrameIf(cons, alt, env), cond, env, store), cond)
+      addPushActionT(ActionPush(FrameIf(cons, alt, env), cond, env, store))
     case SchemeLet(Nil, body, _) => Set(evalBody(body, env, store))
     case SchemeLet((v, exp) :: bindings, body, _) =>
-      addEvalActionT(ActionPush(FrameLet(v, List(), bindings, body, env), exp, env, store), exp)
+      addPushActionT(ActionPush(FrameLet(v, List(), bindings, body, env), exp, env, store))
     case SchemeLetStar(Nil, body, _) =>
       Set(evalBody(body, env, store))
     case SchemeLetStar((v, exp) :: bindings, body, _) =>
-      addEvalActionT(ActionPush(FrameLetStar(v, bindings, body, env), exp, env, store), exp)
+      addPushActionT(ActionPush(FrameLetStar(v, bindings, body, env), exp, env, store))
     case SchemeLetrec(Nil, body, _) =>
       Set(evalBody(body, env, store))
     case SchemeLetrec((v, exp) :: bindings, body, _) =>
@@ -504,27 +507,27 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val actionEdge = ActionAllocAddressesT[SchemeExp, Abs, Addr](addresses)
       noEdgeInfosSet(action, List(actionEdge, ActionEvalT(exp)))
     case SchemeSet(variable, exp, _) =>
-      addEvalActionT(ActionPush(FrameSet(variable, env), exp, env, store), exp)
+      addPushActionT(ActionPush(FrameSet(variable, env), exp, env, store))
     case SchemeBegin(body, _) =>
       Set(evalBody(body, env, store))
     case SchemeCond(Nil, _) =>
       simpleAction(ActionError[SchemeExp, Abs, Addr](NotSupported("cond without clauses")))
     case SchemeCond((cond, cons) :: clauses, _) =>
-      addEvalActionT(ActionPush(FrameCond(cons, clauses, env), cond, env, store), cond)
+      addPushActionT(ActionPush(FrameCond(cons, clauses, env), cond, env, store))
     case SchemeCase(key, clauses, default, _) =>
-      addEvalActionT(ActionPush(FrameCase(clauses, default, env), key, env, store), key)
+      addPushActionT(ActionPush(FrameCase(clauses, default, env), key, env, store))
     case SchemeAnd(Nil, _) =>
       val valueTrue = sabs.inject(true)
       noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueTrue, store), ActionReachedValueT[SchemeExp, Abs, Addr](valueTrue))
     case SchemeAnd(exp :: exps, _) =>
-      addEvalActionT(ActionPush(FrameAnd(exps, env), exp, env, store), exp)
+      addPushActionT(ActionPush(FrameAnd(exps, env), exp, env, store))
     case SchemeOr(Nil, _) =>
       val valueFalse = sabs.inject(false)
       noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueFalse, store), ActionReachedValueT[SchemeExp, Abs, Addr](valueFalse))
     case SchemeOr(exp :: exps, _) =>
-      addEvalActionT(ActionPush(FrameOr(exps, env), exp, env, store), exp)
+      addPushActionT(ActionPush(FrameOr(exps, env), exp, env, store))
     case SchemeDefineVariable(name, exp, _) =>
-      addEvalActionT(ActionPush(FrameDefine(name, env), exp, env, store), exp)
+      addPushActionT(ActionPush(FrameDefine(name, env), exp, env, store))
     case SchemeDefineFunction(name, args, body, pos) =>
       val a = addr.variable(name, abs.bottom, t)
       val lambda = SchemeLambda(args, body, pos)
@@ -570,9 +573,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       case FrameFuncallOperands(f, fexp, exp, args, toeval, env) =>
         funcallArgs(f, fexp, (exp, v) :: args, toeval, env, store, t)
       case FrameIf(cons, alt, env) =>
-        conditional(v,
-                    addEvalActionT(ActionEval(cons, env, store), cons),
-                    addEvalActionT(ActionEval(alt, env, store), alt))
+        conditional(v, addEvalActionT(ActionEval(cons, env, store)), addEvalActionT(ActionEval(alt, env, store)))
       case FrameLet(name, bindings, Nil, body, env) =>
         val variables = name :: bindings.reverse.map(_._1)
         val addresses = variables.map(variable => addr.variable(variable, v, t))
@@ -627,7 +628,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             case Nil =>
               noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store), ActionReachedValueT[SchemeExp, Abs, Addr](falseValue))
             case (exp, cons2) :: rest =>
-              addEvalActionT(ActionPush(FrameCond(cons2, rest, env), exp, env, store), exp)
+              addPushActionT(ActionPush(FrameCond(cons2, rest, env), exp, env, store))
           })
       case FrameCase(clauses, default, env) =>
         val fromClauses = clauses.flatMap({
@@ -653,7 +654,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       case FrameAnd(e :: rest, env) =>
         val falseValue = sabs.inject(false)
         conditional(v,
-                    addEvalActionT(ActionPush(FrameAnd(rest, env), e, env, store), e),
+                    addPushActionT(ActionPush(FrameAnd(rest, env), e, env, store)),
                     noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store), ActionReachedValueT[SchemeExp, Abs, Addr](falseValue)))
       case FrameOr(Nil, env) =>
         val falseValue = sabs.inject(false)
@@ -663,7 +664,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       case FrameOr(e :: rest, env) =>
         conditional(v,
                     noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store), ActionReachedValueT[SchemeExp, Abs, Addr](v)),
-                    addEvalActionT(ActionPush(FrameOr(rest, env), e, env, store), e))
+                    addPushActionT(ActionPush(FrameOr(rest, env), e, env, store)))
       case FrameDefine(name, env) =>
         throw new Exception(
           s"TODO: define not handled (no global environment)")

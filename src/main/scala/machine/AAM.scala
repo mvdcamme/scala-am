@@ -398,9 +398,17 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       case a: ActionEvalT[Exp, Abs, Addr] =>
         /* As this action is only used for debugging, we don't care which environment we use. */
         Set(state.copy(control = ControlEval(a.e, emptyEnvironment)))
+      case ActionEvalPushR(e, env, frame) =>
+        val next = NormalKontAddress[Exp, Time](e, state.t)
+        val kont = Kont(frame, state.a)
+        Set(State(ControlEval(e, env), state.store, state.kstore.extend(next, kont), next, time.tick(state.t), Nil))
       case a: ActionLookupAddressT[Exp, Abs, Addr] =>
         val value = state.store.lookup(a.a).get
         Set(state.copy(control = ControlKont(value)))
+      case ActionPopKontT() =>
+        val konts = state.kstore.lookup(state.a)
+        val nexts = konts.map(_.next)
+        nexts.map( (next: KontAddr) => state.copy(a = next))
       case a: ActionPrimCallT[SchemeExp, Abs, Addr] =>
         val values = state.vStack.take(a.n)
         val newVStack = state.vStack.drop(a.n)

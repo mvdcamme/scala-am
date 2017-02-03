@@ -360,7 +360,6 @@ class IncrementalPointsToAnalysis[Exp : Expression,
     if (filteredEdges.size != edges.size) {
       Logger.log(s"## Difference between edges and filteredEdges! ##", Logger.U)
     }
-
     filteredEdges
   }
 
