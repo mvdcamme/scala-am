@@ -117,7 +117,8 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                     KontAddrPopped(a, next) ::
                     FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) ::
                     edgeAnnotations
-                  (succState, replacedEdgeAnnot, actionEdges)
+                  val replacedActions = ActionPopKontT() :: actionEdges
+                  (succState, replacedEdgeAnnot, replacedActions)
                 })
             })
         /* In an error state, the state is not able to make a step */
