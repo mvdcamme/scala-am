@@ -291,7 +291,8 @@ case class FrameOr[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
 }
 
 case class FrameDefine[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
-    variable: String, env: Environment[Addr])
+    variable: String,
+    env: Environment[Addr])
     extends SchemeFrame[Abs, Addr, Time] {
 
   override def savesEnv: Option[Environment[Address]] = Some(env)

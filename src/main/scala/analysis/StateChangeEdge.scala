@@ -5,9 +5,6 @@ trait ActionReplayApplier[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]
   def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr])
                        (implicit sabs: IsSchemeLattice[Abs]): Set[State]
 
-  def prepareState(state: State)
-                  (implicit sabs: IsSchemeLattice[Abs]): State
-
   def subsumes(s1: State, s2: State): Boolean
 
   def halted(state: State): Boolean

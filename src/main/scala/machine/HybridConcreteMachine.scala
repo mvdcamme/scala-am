@@ -356,11 +356,12 @@ class HybridConcreteMachine[
       tracingFlags.RUNTIME_ANALYSIS_INTERVAL match {
         case NoRunTimeAnalysis =>
         case RunTimeAnalysisEvery(analysis_interval) =>
-          if (stepCount % analysis_interval == 0) {
-            Logger.log(s"stepCount: $stepCount", Logger.U)
-            pointsToAnalysisLauncher.filterReachable(stepCount)
+          Logger.log(s"stepCount: $stepCount", Logger.U)
+//          if (stepCount % analysis_interval == 0) {     original
+          pointsToAnalysisLauncher.filterReachable(stepCount)
+          if (stepCount == 95) {
             pointsToAnalysisLauncher.applyEdgeActions(state, stepCount)
-//            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
+//          pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
           }
       }
 

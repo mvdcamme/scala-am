@@ -8,9 +8,9 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     extends BaseSemantics[SchemeExp, Abs, Addr, Time]
     with ConvertableSemantics[SchemeExp, Abs, Addr, Time] {
 
-  val actionPushVal = ActionPushValT[SchemeExp, Abs, Addr]()
-
   def sabs = implicitly[IsSchemeLattice[Abs]]
+
+  val actionPopKont = ActionPopKontT[SchemeExp, Abs, Addr]
 
   def convertToAbsSemanticsFrame(frame: Frame,
                                  ρ: Environment[Addr],
@@ -24,7 +24,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       store: Store[Addr, Abs]): EdgeInformation[SchemeExp, Abs, Addr] = body match {
     case Nil =>
       noEdgeInfos(ActionReachedValue[SchemeExp, Abs, Addr](sabs.inject(false), store),
-                  ActionReachedValueT[SchemeExp, Abs, Addr](sabs.inject(false)))
+                  List(ActionReachedValueT[SchemeExp, Abs, Addr](sabs.inject(false)), actionPopKont))
     case List(exp) =>
       noEdgeInfos(ActionEval(exp, env, store), ActionEvalT(exp))
     case exp :: rest =>
@@ -58,10 +58,10 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     (if (sabs.isFalse(v)) addEdgeAnnot(f, ElseBranchTaken) else Set[EdgeInformation[SchemeExp, Abs, Addr]]())
   }
 
-  private def addEvalActionT(action: ActionEval[SchemeExp, Abs, Addr]): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
+  protected def addEvalActionT(action: ActionEval[SchemeExp, Abs, Addr]): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
     noEdgeInfosSet(action, ActionEvalT(action.e))
 
-  private def addPushActionT(action: ActionPush[SchemeExp, Abs, Addr]): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
+  protected def addPushActionT(action: ActionPush[SchemeExp, Abs, Addr]): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
     noEdgeInfosSet(action, ActionEvalPushR(action.e, action.env, action.frame))
 
   def evalCall(function: Abs,
@@ -79,11 +79,11 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                 val defAddr: ActionReplay[SchemeExp, Abs, Addr] = ActionDefineAddressesR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
                 if (body.length == 1) {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), body.head, env2, store, argsv)
-                  noEdgeInfos(action, List(actionPushVal, defAddr, ActionEvalT(body.head)))
+                  noEdgeInfos(action, List(defAddr, ActionEvalT(body.head)))
                 }
                 else {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), SchemeBegin(body, pos), env2, store, argsv)
-                  noEdgeInfos(action, List[ActionReplay[SchemeExp, Abs, Addr]](actionPushVal, defAddr, ActionEvalT(SchemeBegin(body, pos))))
+                  noEdgeInfos(action, List[ActionReplay[SchemeExp, Abs, Addr]](defAddr, ActionEvalT(SchemeBegin(body, pos))))
                 }
             }
           } else {
@@ -104,7 +104,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                          val n = argsv.size + 1 // Number of values to pop: all arguments + the operator
                          val applyPrim = ActionPrimCallT[SchemeExp, Abs, Addr](argsv.size + 1, fexp, argsv.map(_._1))
                          val action = ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects)
-                         noEdgeInfosSet(action, List(actionPushVal, applyPrim))
+                         noEdgeInfosSet(action, List(applyPrim, actionPopKont))
                      },
                      err =>
                        simpleAction(ActionError[SchemeExp, Abs, Addr](err))))
@@ -131,10 +131,10 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                             store: Store[Addr, Abs],
                             t: Time): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
     toeval match {
-      case Nil => evalCall(f, fexp, args.reverse, store, t)
+      case Nil =>
+        evalCall(f, fexp, args.reverse, store, t)
       case e :: rest =>
-        noEdgeInfosSet(ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env), e, env, store),
-                       List(actionPushVal, ActionEvalT(e)))
+        addPushActionT(ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env), e, env, store))
     }
   protected def funcallArgs(f: Abs,
                             fexp: SchemeExp,
@@ -185,13 +185,14 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                t: Time) = e match { // Cases in stepEval shouldn't generate any splits in abstract graph
     case λ: SchemeLambda =>
       val action = ActionReachedValue[SchemeExp, Abs, Addr](sabs.inject[SchemeExp, Addr]((λ, env)), store)
-      val actionEdge = ActionCreateClosureT[SchemeExp, Abs, Addr](λ, Some(env))
+      val actionEdge = List(ActionCreateClosureT[SchemeExp, Abs, Addr](λ, Some(env)), actionPopKont)
       noEdgeInfosSet(action, actionEdge)
     case SchemeFuncall(f, args, _) =>
       addPushActionT(ActionPush[SchemeExp, Abs, Addr](FrameFuncallOperator(f, args, env), f, env, store))
     case SchemeIf(cond, cons, alt, _) =>
       addPushActionT(ActionPush(FrameIf(cons, alt, env), cond, env, store))
-    case SchemeLet(Nil, body, _) => Set(evalBody(body, env, store))
+    case SchemeLet(Nil, body, _) =>
+      Set(evalBody(body, env, store))
     case SchemeLet((v, exp) :: bindings, body, _) =>
       addPushActionT(ActionPush(FrameLet(v, List(), bindings, body, env), exp, env, store))
     case SchemeLetStar(Nil, body, _) =>
@@ -219,7 +220,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val action = ActionPush(FrameLetrec(addresses.head, addresses.tail.zip(bindings.map(_._2)), body, env1),
                               exp, env1, store1)
       val actionEdge = ActionAllocAddressesR[SchemeExp, Abs, Addr](addresses)
-      noEdgeInfosSet(action, List(actionEdge, ActionEvalT(exp)))
+      noEdgeInfosSet(action, List(actionEdge, ActionEvalPushR(exp, action.env, action.frame)))
     case SchemeSet(variable, exp, _) =>
       addPushActionT(ActionPush(FrameSet(variable, env), exp, env, store))
     case SchemeBegin(body, _) =>
@@ -232,12 +233,14 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       addPushActionT(ActionPush(FrameCase(clauses, default, env), key, env, store))
     case SchemeAnd(Nil, _) =>
       val valueTrue = sabs.inject(true)
-      noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueTrue, store), ActionReachedValueT[SchemeExp, Abs, Addr](valueTrue))
+      noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueTrue, store),
+                     List(ActionReachedValueT[SchemeExp, Abs, Addr](valueTrue), actionPopKont))
     case SchemeAnd(exp :: exps, _) =>
       addPushActionT(ActionPush(FrameAnd(exps, env), exp, env, store))
     case SchemeOr(Nil, _) =>
       val valueFalse = sabs.inject(false)
-      noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueFalse, store), ActionReachedValueT[SchemeExp, Abs, Addr](valueFalse))
+      noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueFalse, store),
+                     List(ActionReachedValueT[SchemeExp, Abs, Addr](valueFalse), actionPopKont))
     case SchemeOr(exp :: exps, _) =>
       addPushActionT(ActionPush(FrameOr(exps, env), exp, env, store))
     case SchemeDefineVariable(name, exp, _) =>
@@ -248,8 +251,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val v = sabs.inject[SchemeExp, Addr]((lambda, env))
       val action = ActionReachedValue[SchemeExp, Abs, Addr](v, store)
       val actionEdges = List(ActionCreateClosureT[SchemeExp, Abs, Addr](lambda, Some(env)),
-                             actionPushVal,
-                             ActionDefineAddressesR[SchemeExp, Abs, Addr](List(a)))
+                             ActionDefineAddressesR[SchemeExp, Abs, Addr](List(a)),
+                             actionPopKont)
       noEdgeInfosSet(action, actionEdges)
     case SchemeIdentifier(name, _) =>
       env.lookup(name) match {
@@ -257,7 +260,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           store.lookup(a) match {
             case Some(v) =>
               val action = ActionReachedValue[SchemeExp, Abs, Addr](v, store, Set(EffectReadVariable(a)))
-              noEdgeInfosSet(action, ActionLookupAddressR[SchemeExp, Abs, Addr](a))
+              noEdgeInfosSet(action, List(ActionLookupAddressR[SchemeExp, Abs, Addr](a), actionPopKont))
             case None => simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundAddress(a.toString)))
           }
         case None => simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundVariable(name)))
@@ -266,17 +269,19 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       evalQuoted(quoted, store, t) match {
         case (value, store2, stateChanges) =>
           val action = ActionReachedValue[SchemeExp, Abs, Addr](value, store2)
-          val actionEdge = ActionReachedValueT[SchemeExp, Abs, Addr](value)
-          noEdgeInfosSet(action, actionEdge)
+          val actionEdges = List(ActionReachedValueT[SchemeExp, Abs, Addr](value), actionPopKont)
+          noEdgeInfosSet(action, actionEdges)
       }
     /* The start-analysis expression only has an effect in the SchemeSemanticsTraced; in these semantics, it just
      * evaluates to #f. */
     case SchemeStartAnalysis(_) =>
-      simpleAction(ActionReachedValue[SchemeExp, Abs, Addr](sabs.inject(false), store))
+      noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](sabs.inject(false), store), List(actionPopKont))
     case SchemeValue(v, _) =>
       evalValue(v) match {
-        case Some(v) => noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store), ActionReachedValueT[SchemeExp, Abs, Addr](v))
-        case None => noEdgeInfosSet(ActionError[SchemeExp, Abs, Addr](NotSupported(s"Unhandled value: $v")), Nil)
+        case Some(v) => noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store),
+                                       List(ActionReachedValueT[SchemeExp, Abs, Addr](v), actionPopKont))
+        case None => noEdgeInfosSet(ActionError[SchemeExp, Abs, Addr](NotSupported(s"Unhandled value: $v")),
+                                    List(actionPopKont))
       }
   }
 
@@ -299,56 +304,64 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                 (env.extend(variable, a), store.extend(a, value))
             })
           val EdgeInformation(action, actionEdges, filters) = evalBody(frame.body, env1, store1)
-          Set(EdgeInformation(action, actionPushVal :: ActionDefineAddressesR[SchemeExp, Abs, Addr](addresses) :: actionEdges, filters))
+          Set(EdgeInformation(action, ActionDefineAddressesR[SchemeExp, Abs, Addr](addresses) :: actionEdges, filters))
         case (variable, e) :: toeval =>
           val newFrame = FrameLet(variable, (frame.variable, v) :: frame.bindings, toeval, frame.body, frame.env)
           val action = ActionPush(newFrame, e, frame.env, store)
-          noEdgeInfosSet(action, List(actionPushVal, ActionEvalT(e)))
+          addPushActionT(action)
       }
       case frame: FrameLetStar[Abs, Addr, Time] =>
         val a = addr.variable(frame.variable, abs.bottom, t)
         val env1 = frame.env.extend(frame.variable, a)
         val store1 = store.extend(a, v)
-        val actionEdges = List(actionPushVal, ActionDefineAddressesR[SchemeExp, Abs, Addr](List(a)))
+        val actionEdges = List(ActionDefineAddressesR[SchemeExp, Abs, Addr](List(a)))
         frame.bindings match {
           case Nil =>
             val EdgeInformation(actions, actionEdges2, edgeInfos) = evalBody(frame.body, env1, store1)
             Set(EdgeInformation(actions, actionEdges ++ actionEdges2, edgeInfos))
           case (variable, exp) :: rest =>
             val action = ActionPush(FrameLetStar(variable, rest, frame.body, env1), exp, env1, store1)
-            noEdgeInfosSet(action, actionEdges :+ ActionEvalT(exp))
+            noEdgeInfosSet(action, actionEdges :+ ActionEvalPushR(exp, action.env, action.frame))
         }
       case frame: FrameLetrec[Abs, Addr, Time] => frame.bindings match {
         case Nil =>
           val EdgeInformation(action, actionEdges, edgeInfos) = evalBody(frame.body, frame.env, store.update(frame.addr, v))
           Set(EdgeInformation(action, ActionSetAddressR[SchemeExp, Abs, Addr](frame.addr) :: actionEdges, edgeInfos))
         case (a1, exp) :: rest =>
-          noEdgeInfosSet(ActionPush(FrameLetrec(a1, rest, frame.body, frame.env), exp, frame.env, store.update(frame.addr, v)),
-                         List[ActionReplay[SchemeExp, Abs, Addr]](ActionSetAddressR(frame.addr), ActionEvalT(exp)))
+          val action = ActionPush(FrameLetrec(a1, rest, frame.body, frame.env), exp, frame.env, store.update(frame.addr, v))
+          val actionEdges = List[ActionReplay[SchemeExp, Abs, Addr]](ActionSetAddressR(frame.addr),
+                                                                     ActionEvalPushR(exp, action.env, action.frame))
+          noEdgeInfosSet(action, actionEdges)
       }
       case frame: FrameSet[Abs, Addr, Time] =>
         frame.env.lookup(frame.variable) match {
           case Some(a) =>
             val valueFalse = sabs.inject(false)
+            val actionEdges = List[ActionReplay[SchemeExp, Abs, Addr]](ActionSetAddressR(a),
+                                                                       ActionReachedValueT(valueFalse),
+                                                                       actionPopKont)
             noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueFalse, store.update(a, v), Set(EffectWriteVariable(a))),
-                           List[ActionReplay[SchemeExp, Abs, Addr]](ActionSetAddressR(a), ActionReachedValueT(valueFalse)))
-          case None => simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundVariable(frame.variable)))
+                           actionEdges)
+          case None => noEdgeInfosSet(ActionError[SchemeExp, Abs, Addr](UnboundVariable(frame.variable)), List(actionPopKont))
         }
       case frame: FrameBegin[Abs, Addr, Time] =>
         Set(evalBody(frame.rest, frame.env, store))
       case frame: FrameCond[Abs, Addr, Time] =>
         val falseValue = sabs.inject(false)
-        conditional(
-          v,
-          if (frame.cons.isEmpty) { noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store),
-            ActionReachedValueT[SchemeExp, Abs, Addr](v)) }
-          else { Set(evalBody(frame.cons, frame.env, store)) },
-          frame.clauses match {
-            case Nil =>
-              noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store), ActionReachedValueT[SchemeExp, Abs, Addr](falseValue))
-            case (exp, cons2) :: rest =>
-              addPushActionT(ActionPush(FrameCond(cons2, rest, frame.env), exp, frame.env, store))
-          })
+        conditional(v,
+                    if (frame.cons.isEmpty) {
+                      noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store),
+                                     List(ActionReachedValueT[SchemeExp, Abs, Addr](v), actionPopKont))
+                    } else {
+                      Set(evalBody(frame.cons, frame.env, store))
+                    },
+                    frame.clauses match {
+                      case Nil =>
+                        noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store),
+                                       List(ActionReachedValueT[SchemeExp, Abs, Addr](falseValue), actionPopKont))
+                      case (exp, cons2) :: rest =>
+                        addPushActionT(ActionPush(FrameCond(cons2, rest, frame.env), exp, frame.env, store))
+                    })
       case frame: FrameCase[Abs, Addr, Time] =>
         val fromClauses = frame.clauses.flatMap({
           case (values, body) =>
@@ -362,30 +375,35 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             else
               Set[EdgeInformation[SchemeExp, Abs, Addr]]()
         })
-        /* TODO: precision could be improved in cases where we know that default is not
-         * reachable */
+        /* TODO: precision could be improved in cases where we know that default is not reachable */
         fromClauses.toSet + evalBody(frame.default, frame.env, store)
       case frame: FrameAnd[Abs, Addr, Time] => frame.rest match {
         case Nil =>
           val falseValue = sabs.inject(false)
           conditional(v,
-            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store), ActionReachedValueT[SchemeExp, Abs, Addr](v)),
-            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store), ActionReachedValueT[SchemeExp, Abs, Addr](falseValue)))
+                      noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store),
+                                     List(ActionReachedValueT[SchemeExp, Abs, Addr](v), actionPopKont)),
+                      noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store),
+                                     List(ActionReachedValueT[SchemeExp, Abs, Addr](falseValue), actionPopKont)))
         case e :: rest =>
           val falseValue = sabs.inject(false)
           conditional(v,
-            addPushActionT(ActionPush(FrameAnd(rest, frame.env), e, frame.env, store)),
-            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store), ActionReachedValueT[SchemeExp, Abs, Addr](falseValue)))
+                      addPushActionT(ActionPush(FrameAnd(rest, frame.env), e, frame.env, store)),
+                      noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store),
+                                     List(ActionReachedValueT[SchemeExp, Abs, Addr](falseValue), actionPopKont)))
       }
       case frame: FrameOr[Abs, Addr, Time] => frame.rest match {
         case Nil =>
           val falseValue = sabs.inject(false)
           conditional(v,
-            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store), ActionReachedValueT[SchemeExp, Abs, Addr](v)),
-            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store), ActionReachedValueT[SchemeExp, Abs, Addr](falseValue)))
+            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store),
+                           List(ActionReachedValueT[SchemeExp, Abs, Addr](v), actionPopKont)),
+            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store),
+                           List(ActionReachedValueT[SchemeExp, Abs, Addr](falseValue), actionPopKont)))
         case e :: rest =>
           conditional(v,
-            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store), ActionReachedValueT[SchemeExp, Abs, Addr](v)),
+            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store),
+                           List(ActionReachedValueT[SchemeExp, Abs, Addr](v), actionPopKont)),
             addPushActionT(ActionPush(FrameOr(rest, frame.env), e, frame.env, store)))
       }
       case frame: FrameDefine[Abs, Addr, Time] =>
@@ -459,8 +477,7 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             .map( (actionChange: EdgeInformation[SchemeExp, Abs, Addr]) =>
               noEdgeInfos(addEffects(actionChange.action, effs), actionChange.actionEdge) )
         case None =>
-          noEdgeInfosSet(ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env), e, env, store),
-                         List(actionPushVal, ActionEvalT(e)))
+          addPushActionT(ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env), e, env, store))
       }
   }
 

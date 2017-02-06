@@ -372,30 +372,32 @@ class IncrementalPointsToAnalysis[Exp : Expression,
   /*
    * Keep track of the set of visited originalStates, but not of the set of newStates.
    */
-  private def evalLoop(todo: Set[StateCombo], visited: Set[State], graph: Option[Graph[State, EdgeAnnotation]]):
+  private def evalLoop(todo: Set[StateCombo],
+                       visited: Set[State],
+                       graph: Option[Graph[State, EdgeAnnotation]],
+                       stepCount: Int):
   Option[Graph[State, EdgeAnnotation]] =
     todo.headOption
   match {
     case None =>
       if (graph.isDefined)
-        graph.get.toDotFile(s"incremental_graph $debugStepCount.dot",
+        graph.get.toDotFile(s"incremental_graph $stepCount.dot",
           node => List(scala.xml.Text(node.toString.take(40))),
           (s) => Colors.Green,
           node => List(scala.xml.Text(node._2.mkString(", ").take(300))),
           None)
     graph
     case Some(StateCombo(originalState, newState)) =>
-
       if (graph.isDefined) {
         Logger.log(s"Incrementally evaluating original state ${initialGraph.get.nodeId(originalState)} " +
           s"(currentID: ${currentGraph.get.nodeId(originalState)}) " +
           s"$originalState with new state $newState", Logger.U)
       }
       if (actionTApplier.halted(newState)) {
-        evalLoop(todo.tail, visited + originalState, graph)
+        evalLoop(todo.tail, visited + originalState, graph, stepCount)
       } else if (visited.contains(originalState)) {
         if (graph.isDefined) Logger.log(s"State already visited", Logger.U)
-        evalLoop(todo.tail, visited, graph)
+        evalLoop(todo.tail, visited, graph, stepCount)
       } else {
         /*
          * If originalState does not have any outgoing edges, return empty set
@@ -427,7 +429,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         evalLoop(todo.tail ++ newStateCombos.map(_._2), visited + originalState, graph.map(_.addEdges(newStateCombos
           .map({
           case (edgeAnnotation, StateCombo(_, newNewState)) =>
-            (newState, edgeAnnotation, newNewState) } ))))
+            (newState, edgeAnnotation, newNewState) } ))), stepCount)
       }
   }
 
@@ -441,21 +443,18 @@ class IncrementalPointsToAnalysis[Exp : Expression,
   def applyEdgeActions(convertedState: State, stepCount: Int): Unit = {
     assert(currentGraph.isDefined)
     // TODO debugging
-    if (stepCount == debugStepCount) {
       val g = convertGraph[State, EdgeAnnotation, List[ActionReplay[Exp, AbstL, Addr]]](currentGraph.get, (edge: EdgeAnnotation) => edge._2)
-      g.toDotFile(s"current_graph $debugStepCount.dot", node => List(scala.xml.Text(node.toString.take(40))),
+      g.toDotFile(s"current_graph $stepCount.dot", node => List(scala.xml.Text(node.toString.take(40))),
         (s) => Colors.Green,
         node => List(scala.xml.Text(node.mkString(", ").take(300))),
         None)
-    }
-    if (stepCount == debugStepCount) {
       currentNodes.foreach( (node) => Logger.log(s"node id: ${currentGraph.get.nodeId(node)}", Logger.U))
       /*
        * Associate the (one) abstracted concrete state with all states in the CurrentNodes set, as the states in
        * this set ought to correspond with this concrete state.
        */
-      val rootNodes = currentNodes.map( (state) => StateCombo(state, actionTApplier.prepareState(convertedState)))
-      val updatedGraph = evalLoop(rootNodes, Set(), if (stepCount == debugStepCount) Some(new Graph[State, EdgeAnnotation]) else None)
+      val rootNodes = currentNodes.map( (state) => StateCombo(state, convertedState))
+      val updatedGraph = evalLoop(rootNodes, Set(), Some(new Graph[State, EdgeAnnotation]), stepCount)
       if (updatedGraph.isDefined) {
         implicit val descriptor = new Descriptor[StateCombo] {
           def describe[U >: StateCombo](x: U) = x match {
@@ -468,6 +467,5 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         //      val g = convertGraph[StateCombo, EdgeAnnotation, List[ActionT[Exp, AbstL, Addr]]](updatedGraph.get, (edge:
         //                                                                                                       EdgeAnnotation) => edge._2)
       }
-    }
   }
 }

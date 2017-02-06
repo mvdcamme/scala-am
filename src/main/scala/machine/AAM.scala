@@ -24,8 +24,6 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   type GraphNode = State
   override type MachineOutput = AAMOutput
 
-  type VStack = List[Abs]
-
   def name = "AAM"
 
   /**
@@ -37,8 +35,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                    store: Store[Addr, Abs],
                    kstore: KontStore[KontAddr],
                    a: KontAddr,
-                   t: Time,
-                   vStack: VStack)
+                   t: Time)
     extends StateTrait[Exp, Abs, Addr, Time] {
     override def toString = control.toString
 
@@ -67,30 +64,30 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         actionChange.action match {
           /* When a value is reached, we go to a continuation state */
           case ActionReachedValue(v, store, _) =>
-            (State(ControlKont(v), store, kstore, a, time.tick(t), Nil),
+            (State(ControlKont(v), store, kstore, a, time.tick(t)),
               edgeFilterAnnots,
               actionEdges)
           /* When a continuation needs to be pushed, push it in the continuation store */
           case ActionPush(frame, e, env, store, _) => {
             val next = NormalKontAddress[Exp, Time](e, t)
             val kont = Kont(frame, a)
-            (State(ControlEval(e, env), store, kstore.extend(next, kont), next, time.tick(t), Nil),
+            (State(ControlEval(e, env), store, kstore.extend(next, kont), next, time.tick(t)),
               KontAddrPushed(next) :: edgeFilterAnnots,
               actionEdges)
           }
           /* When a value needs to be evaluated, we go to an eval state */
           case ActionEval(e, env, store, _) =>
-            (State(ControlEval(e, env), store, kstore, a, time.tick(t), Nil),
+            (State(ControlEval(e, env), store, kstore, a, time.tick(t)),
               edgeFilterAnnots,
               actionEdges)
           /* When a function is stepped in, we also go to an eval state */
           case ActionStepIn(fexp, _, e, env, store, _, _) =>
-            (State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp), Nil),
+            (State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)),
               edgeFilterAnnots,
               actionEdges)
           /* When an error is reached, we go to an error state */
           case ActionError(err) =>
-            (State(ControlError(err), store, kstore, a, time.tick(t), Nil),
+            (State(ControlError(err), store, kstore, a, time.tick(t)),
               edgeFilterAnnots,
               actionEdges)
         }
@@ -117,8 +114,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                     KontAddrPopped(a, next) ::
                     FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) ::
                     edgeAnnotations
-                  val replacedActions = ActionPopKontT() :: actionEdges
-                  (succState, replacedEdgeAnnot, replacedActions)
+                  (succState, replacedEdgeAnnot, actionEdges)
                 })
             })
         /* In an error state, the state is not able to make a step */
@@ -160,13 +156,12 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             Store.initial[Addr, Abs](store),
             KontStore.empty[KontAddr],
             HaltKontAddress,
-            time.initial(""),
-            Nil)
+            time.initial(""))
   }
 
   class StateDescriptor extends Descriptor[State] {
     def describe[U >: State](state: U): String = state match {
-      case State(control, store, kstore, a, t, _) =>
+      case State(control, store, kstore, a, t) =>
           putIntoCollapsableList(List(
             control.descriptor.describe(control),
             store.descriptor.describe(store),
@@ -380,6 +375,22 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
 
     val emptyEnvironment = Environment.empty[Addr] // Move creation of the environment outside of applyActionMethod
 
+    private def frameSavedValues(a: KontAddr, kstore: KontStore[KontAddr]): Set[List[Abs]] =
+      kstore.lookup(a).map(_.frame match {
+        case frame: FrameFuncallOperands[Abs, Addr, Time] =>
+          frame.f :: frame.args.map(_._2)
+        case frame: FrameLet[Abs, Addr, Time] =>
+          frame.bindings.map(_._2)
+        case _ =>
+          List()
+      })
+
+    protected def popKont(state: State): Set[State] = {
+      val konts = state.kstore.lookup(state.a)
+      val nexts = konts.map(_.next)
+      nexts.map( (next: KontAddr) => state.copy(a = next))
+    }
+
     def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr])
                          (implicit sabs: IsSchemeLattice[Abs]): Set[State] = action match {
       case a: ActionAllocAddressesR[Exp, Abs, Addr] =>
@@ -389,12 +400,13 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         val closure = sabs.inject[Exp, Addr]((a.λ, a.env.get))
         Set(state.copy(control = ControlKont(closure)))
       case a: ActionDefineAddressesR[Exp, Abs, Addr] =>
-        val n = a.addresses.size
-        val values = state.vStack.take(n)
-        val newVStack = state.vStack.drop(n)
-        val addressValues = a.addresses.zip(values)
-        val newStore = addressValues.foldLeft(state.store)( (store, tuple) => store.extend(tuple._1, tuple._2))
-        Set(state.copy(store = newStore, vStack = newVStack))
+        val valuesSet = frameSavedValues(state.a, state.kstore)
+        valuesSet.map( (values) => {
+          assert(values.length == a.addresses.length, s"Length of ${a.addresses} does not match length of $values")
+          val addressValues = a.addresses.zip(values)
+          val newStore = addressValues.foldLeft(state.store)( (store, tuple) => store.extend(tuple._1, tuple._2))
+          state.copy(store = newStore)
+        })
       /* ActionEvalT is only used for debugging purposes: we don't care about control-flow, only about data-flow. */
       case a: ActionEvalT[Exp, Abs, Addr] =>
         /* As this action is only used for debugging, we don't care which environment we use. */
@@ -402,56 +414,34 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       case ActionEvalPushR(e, env, frame) =>
         val next = NormalKontAddress[Exp, Time](e, state.t)
         val kont = Kont(frame, state.a)
-        Set(State(ControlEval(e, env), state.store, state.kstore.extend(next, kont), next, time.tick(state.t), Nil))
+        Set(State(ControlEval(e, env), state.store, state.kstore.extend(next, kont), next, time.tick(state.t)))
       case a: ActionLookupAddressR[Exp, Abs, Addr] =>
         val value = state.store.lookup(a.a).get
         Set(state.copy(control = ControlKont(value)))
       case ActionPopKontT() =>
-        val konts = state.kstore.lookup(state.a)
-        val nexts = konts.map(_.next)
-        nexts.map( (next: KontAddr) => state.copy(a = next))
+        popKont(state)
       case a: ActionPrimCallT[SchemeExp, Abs, Addr] =>
-        val values = state.vStack.take(a.n)
-        val newVStack = state.vStack.drop(a.n)
-        val operands = values.init.reverse
-        val operator = values.last
-        val primitives = sabs.getPrimitives[Addr, Abs](operator)
-        primitives.flatMap((primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store,
-          state.t)
-          .collect({
-          case (res, store2, effects) =>
-            Set(state.copy(control = ControlKont(res), store = store2, vStack = newVStack))
-        },
-          err =>
-            Set(state.copy(control = ControlError(err)))))
-      case a: ActionPushValT[Exp, Abs, Addr] =>
-        assert(state.control.isInstanceOf[ControlKont], s"Control is ${state.control}")
-        val value = state.control.asInstanceOf[ControlKont].v
-        Set(state.copy(vStack = value :: state.vStack))
+        val valuesSet = frameSavedValues(state.a, state.kstore)
+        valuesSet.flatMap( (values) => {
+          assert(values.length == a.argsExps.length, s"Length of ${a.argsExps} does not match length of $values")
+          val operator = values.head
+          val operands = values.tail
+          val primitives = sabs.getPrimitives[Addr, Abs](operator)
+          primitives.flatMap((primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store,
+            state.t)
+            .collect({
+              case (res, store2, effects) =>
+                Set(state.copy(control = ControlKont(res), store = store2))
+            },
+              err =>
+                Set(state.copy(control = ControlError(err)))))
+        })
       case a: ActionReachedValueT[Exp, Abs, Addr] =>
         Set(state.copy(control = ControlKont(a.v)))
       case a: ActionSetAddressR[Exp, Abs, Addr] =>
         assert(state.control.isInstanceOf[ControlKont])
         val value = state.control.asInstanceOf[ControlKont].v
         Set(state.copy(store = state.store.update(a.adress, value)))
-    }
-
-    @tailrec
-    private def constructVStack(vStack: VStack, kstore: KontStore[KontAddr], ka: KontAddr): VStack = ka match {
-      case HaltKontAddress =>
-        vStack
-      case _ =>
-        val konts = kstore.lookup(ka)
-        assert(konts.size == 1, "Cannot handle joined continuation frames yet")
-        val Kont(frame, next) = konts.head
-        val savedValues = frame.savedValues[Abs]
-        constructVStack(vStack ++ savedValues, kstore, next)
-    }
-
-    def prepareState(state: State)
-                             (implicit sabs: IsSchemeLattice[Abs]): State = {
-      val vStack = constructVStack(Nil, state.kstore, state.a)
-      state.copy(vStack = vStack)
     }
 
     def subsumes(s1: State, s2: State): Boolean = s1.subsumes(s2)

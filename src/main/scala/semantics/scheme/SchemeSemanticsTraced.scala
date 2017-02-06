@@ -193,7 +193,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
         popEnvFromVStack(FrameLetStar(variable, bindings, body, _),
                          vStack)
       case FrameSetT(variable) =>
-        popEnvFromVStack(§FrameSet(variable, _), vStack)
+        popEnvFromVStack(FrameSet(variable, _), vStack)
     }
 
   /**
@@ -391,8 +391,8 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
     case SchemeDefineVariable(name, exp, _) =>
       Set(interpreterStep(List(ActionEvalPushT(exp, FrameDefineT(name)))))
     case SchemeDefineFunction(name, args, body, pos) =>
-      val v = sabs.inject[SchemeExp, Addr]((SchemeLambda(args, body, pos), ρ))
-      Set(interpreterStep(List(ActionReachedValueT(v), actionPopKont)))
+      val λ = SchemeLambda(args, body, pos)
+      Set(interpreterStep(List(ActionCreateClosureT(λ), actionPopKont)))
     case SchemeFuncall(f, args, _) =>
       Set(
         interpreterStep(
