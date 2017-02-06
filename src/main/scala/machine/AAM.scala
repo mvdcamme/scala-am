@@ -114,7 +114,19 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                     KontAddrPopped(a, next) ::
                     FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) ::
                     edgeAnnotations
-                  (succState, replacedEdgeAnnot, actionEdges)
+                  val actionPopKont = ActionPopKontT[Exp, Abs, Addr]
+                  /*
+                   * If a frame is pushed, the pop should happen before the frame is pushed, so that you don't just
+                   * pop the newly pushed frame. Otherwise, the pop should happen afterwards: if the top frame is e.g.,
+                   * a FrameFuncallOperands for some primitive application, the frame contains important information
+                   * such as the values of the operands and hence should only be popped after the primitive has been
+                   * applied.
+                   */
+                  val replacedActionEdges = if (actionEdges.exists({
+                    case _: ActionEvalPushR[Exp, Abs, Addr] => true
+                    case _ => false
+                  })) { actionPopKont :: actionEdges } else { actionEdges :+ actionPopKont }
+                  (succState, replacedEdgeAnnot, replacedActionEdges)
                 })
             })
         /* In an error state, the state is not able to make a step */
