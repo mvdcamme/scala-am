@@ -387,10 +387,18 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
 
     val emptyEnvironment = Environment.empty[Addr] // Move creation of the environment outside of applyActionMethod
 
-    private def frameSavedValues(a: KontAddr, kstore: KontStore[KontAddr]): Set[List[Abs]] =
+    private def frameSavedOperands(a: KontAddr, kstore: KontStore[KontAddr]): Set[List[Abs]] =
       kstore.lookup(a).map(_.frame match {
         case frame: FrameFuncallOperands[Abs, Addr, Time] =>
           frame.f :: frame.args.map(_._2)
+        case frame =>
+          throw new Exception(s"Retrieving operands of non-FrameFunCallOperands $frame")
+      })
+
+    private def frameSavedValues(a: KontAddr, kstore: KontStore[KontAddr]): Set[List[Abs]] =
+      kstore.lookup(a).map(_.frame match {
+        case frame: FrameFuncallOperands[Abs, Addr, Time] =>
+          frame.args.map(_._2)
         case frame: FrameLet[Abs, Addr, Time] =>
           frame.bindings.map(_._2)
         case _ =>
@@ -403,6 +411,12 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       nexts.map( (next: KontAddr) => state.copy(a = next))
     }
 
+    protected def addControlKontValue(state: State, valuesSet: Set[List[Abs]]): Set[List[Abs]] = {
+      assert(state.control.isInstanceOf[ControlKont])
+      val extraValue = state.control.asInstanceOf[ControlKont].v
+      valuesSet.map(_ :+ extraValue)
+    }
+
     def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr])
                          (implicit sabs: IsSchemeLattice[Abs]): Set[State] = action match {
       case a: ActionAllocAddressesR[Exp, Abs, Addr] =>
@@ -412,7 +426,8 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         val closure = sabs.inject[Exp, Addr]((a.λ, a.env.get))
         Set(state.copy(control = ControlKont(closure)))
       case a: ActionDefineAddressesR[Exp, Abs, Addr] =>
-        val valuesSet = frameSavedValues(state.a, state.kstore)
+        val incompleteValuesSet = frameSavedValues(state.a, state.kstore)
+        val valuesSet = addControlKontValue(state, incompleteValuesSet)
         valuesSet.map( (values) => {
           assert(values.length == a.addresses.length, s"Length of ${a.addresses} does not match length of $values")
           val addressValues = a.addresses.zip(values)
@@ -433,9 +448,10 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       case ActionPopKontT() =>
         popKont(state)
       case a: ActionPrimCallT[SchemeExp, Abs, Addr] =>
-        val valuesSet = frameSavedValues(state.a, state.kstore)
+        val incompleteValuesSet = frameSavedOperands(state.a, state.kstore)
+        val valuesSet = addControlKontValue(state, incompleteValuesSet)
         valuesSet.flatMap( (values) => {
-          assert(values.length == a.argsExps.length, s"Length of ${a.argsExps} does not match length of $values")
+          assert(values.length == a.argsExps.length + 1, s"Length of ${a.argsExps} does not match length of $values")
           val operator = values.head
           val operands = values.tail
           val primitives = sabs.getPrimitives[Addr, Abs](operator)
