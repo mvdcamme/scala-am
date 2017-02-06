@@ -73,21 +73,19 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
                                    HybridAddress.A,
                                    HybridTimestamp.T],
       convertValue: (Abs) => (OtherAbs)): Frame = frame match {
-    case concBaseSem.FrameFuncallOperands(f, fexp, cur, args, toeval, env) =>
-      abstSem.FrameFuncallOperands(
-        convertValue(f),
-        fexp,
-        cur,
-        args.map((tuple) => (tuple._1, convertValue(tuple._2))),
-        toeval,
-        env)
-    case concBaseSem.FrameLet(variable, bindings, toeval, body, env) =>
-      abstSem.FrameLet(
-        variable,
-        bindings.map((tuple) => (tuple._1, convertValue(tuple._2))),
-        toeval,
-        body,
-        env)
+    case frame: FrameFuncallOperands[Abs, HybridAddress.A, HybridTimestamp.T] =>
+      FrameFuncallOperands[OtherAbs, HybridAddress.A, HybridTimestamp.T](convertValue(frame.f),
+                                                                         frame.fexp,
+                                                                         frame.cur,
+                                                                         frame.args.map((tuple) => (tuple._1, convertValue(tuple._2))),
+                                                                         frame.toeval,
+                                                                         frame.env)
+    case frame: FrameLet[Abs, HybridAddress.A, HybridTimestamp.T] =>
+      FrameLet[OtherAbs, HybridAddress.A, HybridTimestamp.T](frame.variable,
+                                                             frame.bindings.map((tuple) => (tuple._1, convertValue(tuple._2))),
+                                                             frame.toeval,
+                                                             frame.body,
+                                                             frame.env)
     case _ => frame
   }
 
@@ -145,31 +143,31 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
           case Nil =>
             popEmptyFrameBeginFromVStack(vStack)
           case _ =>
-            popEnvFromVStack(absSem.FrameBegin(rest, _), vStack)
+            popEnvFromVStack(FrameBegin(rest, _), vStack)
         }
       case FrameCaseT(clauses, default) =>
-        popEnvFromVStack(absSem.FrameCase(clauses, default, _), vStack)
+        popEnvFromVStack(FrameCase(clauses, default, _), vStack)
       case FrameDefineT(variable) =>
         /* A FrameDefineT is not handled by these semantics:
          * neither the vStack nor the environment therefore have to be updated */
-        (Some(absSem.FrameDefine(variable, ρ)), vStack, ρ)
+        (Some(FrameDefine(variable, ρ)), vStack, ρ)
       case FrameFunBodyT(body, toeval) =>
         if (toeval.isEmpty) {
           popEmptyFrameBeginFromVStack(vStack)
         } else {
-          popEnvFromVStack(absSem.FrameBegin(toeval, _), vStack)
+          popEnvFromVStack(FrameBegin(toeval, _), vStack)
         }
       case FrameFuncallOperandsT(f, fexp, cur, args, toeval) =>
         val n = args.length + 1 /* We have to add 1 because the operator has also been pushed onto the vstack */
         val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
           val newArgs = args.zip(values)
-          absSem.FrameFuncallOperands(f, fexp, cur, newArgs, toeval, ρ)
+          FrameFuncallOperands(f, fexp, cur, newArgs, toeval, ρ)
         }
         popEnvAndValuesFromVStack(generateFrameFun, n, vStack)
       case FrameFuncallOperatorT(fexp, args) =>
-        popEnvFromVStack(absSem.FrameFuncallOperator(fexp, args, _), vStack)
+        popEnvFromVStack(FrameFuncallOperator(fexp, args, _), vStack)
       case FrameIfT(cons, alt) =>
-        popEnvFromVStack(absSem.FrameIf(cons, alt, _), vStack)
+        popEnvFromVStack(FrameIf(cons, alt, _), vStack)
       case FrameLetT(variable, bindings, toeval, body) =>
         /* When pushing a FrameLetT continuation on the continuation stack, we possibly push a value on the value stack,
          * in case we have just evaluated an expression for the let-bindings, and we always push an environment.
@@ -178,7 +176,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
         val n = bindings.length
         val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
           val newBindings = bindings.zip(values)
-          absSem.FrameLet(variable, newBindings, toeval, body, ρ)
+          FrameLet(variable, newBindings, toeval, body, ρ)
         }
         popEnvAndValuesFromVStack(generateFrameFun, n, vStack)
       case FrameLetrecT(variable, bindings, body) =>
@@ -186,16 +184,16 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
         val updatedBindings = bindings.map({
           case (variable, exp) => (ρ.lookup(variable).get, exp)
         })
-        popEnvFromVStack(absSem.FrameLetrec(addr, updatedBindings, body, _),
+        popEnvFromVStack(FrameLetrec(addr, updatedBindings, body, _),
                          vStack)
       case FrameLetStarT(variable, bindings, body) =>
         /* When evaluating a FrameLetStarT continuation, we also push the value v on the stack (similar to the case for
          * FrameLetT, but this is immediately followed by an ActionExtendEnv which pops this value back from the stack.
          * There are therefore never any values for the let* bindings on the value stack. */
-        popEnvFromVStack(absSem.FrameLetStar(variable, bindings, body, _),
+        popEnvFromVStack(FrameLetStar(variable, bindings, body, _),
                          vStack)
       case FrameSetT(variable) =>
-        popEnvFromVStack(absSem.FrameSet(variable, _), vStack)
+        popEnvFromVStack(§FrameSet(variable, _), vStack)
     }
 
   /**

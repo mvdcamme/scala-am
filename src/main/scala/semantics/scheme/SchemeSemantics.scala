@@ -1,23 +1,5 @@
 import SchemeOps._
 
-trait SchemeFrame[Abs, Addr, Time] extends Frame {
-  type Address = Addr
-
-  def subsumes(that: Frame) = that.equals(this)
-  override def toString = s"${this.getClass.getSimpleName}"
-
-  def convert[OtherAbs: IsSchemeLattice](
-      convertValue: (Abs) => OtherAbs,
-      convertEnv: Environment[Addr] => Environment[Addr],
-      abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time])
-    : SchemeFrame[OtherAbs, Addr, Time]
-
-  def reaches(valueReaches: Abs => Set[Addr],
-              envReaches: Environment[Addr] => Set[Addr],
-              addressReaches: Addr => Set[Addr]): Set[Addr]
-
-}
-
 /**
   * Basic Scheme semantics, without any optimization
   */
@@ -29,274 +11,6 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   val actionPushVal = ActionPushValT[SchemeExp, Abs, Addr]()
 
   def sabs = implicitly[IsSchemeLattice[Abs]]
-  case class FrameFuncallOperator(fexp: SchemeExp,
-                                  args: List[SchemeExp],
-                                  env: Environment[Addr])
-      extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv: Option[Environment[Address]] = Some(env)
-    override def savedValues[Abs] = Nil
-
-    def convert[OtherAbs: IsSchemeLattice](
-        convertValue: (Abs) => OtherAbs,
-        convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-      abstSem.FrameFuncallOperator(fexp, args, convertEnv(env))
-
-    def reaches(valueReaches: Abs => Set[Addr],
-                envReaches: Environment[Addr] => Set[Addr],
-                addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
-
-  }
-  case class FrameFuncallOperands(f: Abs,
-                                  fexp: SchemeExp,
-                                  cur: SchemeExp,
-                                  args: List[(SchemeExp, Abs)],
-                                  toeval: List[SchemeExp],
-                                  env: Environment[Addr])
-      extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv: Option[Environment[Address]] = Some(env)
-    override def savedValues[Abs] = args.map(_._2.asInstanceOf[Abs]) :+ f.asInstanceOf[Abs]
-
-    override def toString: String = s"FrameFuncallOperands($f, $args, $env)"
-
-    override def meaningfullySubsumes = true
-    override def subsumes(that: Frame): Boolean = that match {
-      case that: FrameFuncallOperands =>
-        fexp == that.fexp &&
-        cur == that.cur &&
-        toeval == that.toeval &&
-        sabs.subsumes(f, that.f) &&
-        args.zip(that.args).forall( (zipped) =>
-          /* Check whether they have evaluated the same argument expression */
-          zipped._1._1 == zipped._2._1 &&
-          /* and whether the results of this subsume those of that. */
-          sabs.subsumes(zipped._1._2, zipped._2._2)) &&
-        env.subsumes(that.env)
-      case _ =>
-        false
-    }
-
-    def convert[OtherAbs: IsSchemeLattice](
-        convertValue: (Abs) => OtherAbs,
-        convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-      abstSem.FrameFuncallOperands(
-        convertValue(f),
-        fexp,
-        cur,
-        args.map((arg) => (arg._1, convertValue(arg._2))),
-        toeval,
-        convertEnv(env))
-
-    def reaches(valueReaches: Abs => Set[Addr],
-                envReaches: Environment[Addr] => Set[Addr],
-                addressReaches: Addr => Set[Addr]): Set[Addr] =
-      valueReaches(f) ++ args.foldLeft[Set[Addr]](Set[Addr]())((acc, arg) =>
-        acc ++ valueReaches(arg._2)) ++
-        envReaches(env)
-  }
-  case class FrameIf(cons: SchemeExp, alt: SchemeExp, env: Environment[Addr])
-      extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv: Option[Environment[Address]] = Some(env)
-
-    override def meaningfullySubsumes = true
-    override def subsumes(that: Frame): Boolean = that match {
-      case FrameIf(thatCons, thatAlt, thatEnv) =>
-        cons == thatCons &&
-        alt == thatAlt &&
-        env.subsumes(thatEnv)
-      case _ => false
-
-    }
-
-    def convert[OtherAbs: IsSchemeLattice](
-        convertValue: (Abs) => OtherAbs,
-        convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-      abstSem.FrameIf(cons, alt, convertEnv(env))
-
-    def reaches(valueReaches: Abs => Set[Addr],
-                envReaches: Environment[Addr] => Set[Addr],
-                addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
-  }
-  case class FrameLet(variable: String,
-                      bindings: List[(String, Abs)],
-                      toeval: List[(String, SchemeExp)],
-                      body: List[SchemeExp],
-                      env: Environment[Addr])
-      extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv: Option[Environment[Address]] = Some(env)
-    override def savedValues[Abs] = bindings.map(_._2.asInstanceOf[Abs])
-
-    def convert[OtherAbs: IsSchemeLattice](
-        convertValue: (Abs) => OtherAbs,
-        convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-      abstSem.FrameLet(
-        variable,
-        bindings.map((binding) => (binding._1, convertValue(binding._2))),
-        toeval,
-        body,
-        convertEnv(env))
-
-    def reaches(valueReaches: Abs => Set[Addr],
-                envReaches: Environment[Addr] => Set[Addr],
-                addressReaches: Addr => Set[Addr]): Set[Addr] =
-      bindings.foldLeft[Set[Addr]](Set[Addr]())((acc, binding) =>
-        acc ++ valueReaches(binding._2)) ++
-        envReaches(env)
-  }
-  case class FrameLetStar(variable: String,
-                          bindings: List[(String, SchemeExp)],
-                          body: List[SchemeExp],
-                          env: Environment[Addr])
-      extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv: Option[Environment[Address]] = Some(env)
-
-    def convert[OtherAbs: IsSchemeLattice](
-        convertValue: (Abs) => OtherAbs,
-        convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-      abstSem.FrameLetStar(variable, bindings, body, convertEnv(env))
-
-    def reaches(valueReaches: Abs => Set[Addr],
-                envReaches: Environment[Addr] => Set[Addr],
-                addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
-  }
-  case class FrameLetrec(addr: Addr,
-                         bindings: List[(Addr, SchemeExp)],
-                         body: List[SchemeExp],
-                         env: Environment[Addr])
-      extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv: Option[Environment[Address]] = Some(env)
-
-    def convert[OtherAbs: IsSchemeLattice](
-        convertValue: (Abs) => OtherAbs,
-        convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) = {
-      val addressConverter = new DefaultHybridAddressConverter[SchemeExp]()
-      abstSem.FrameLetrec(
-        addressConverter.convertAddress(addr.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr],
-        bindings.map(
-          (binding) =>
-            (addressConverter.convertAddress(binding._1.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr], binding._2)),
-        body,
-        convertEnv(env))
-    }
-
-    def reaches(valueReaches: Abs => Set[Addr],
-                envReaches: Environment[Addr] => Set[Addr],
-                addressReaches: Addr => Set[Addr]): Set[Addr] =
-      addressReaches(addr) ++ envReaches(env)
-  }
-  case class FrameSet(variable: String, env: Environment[Addr])
-      extends SchemeFrame[Abs, Addr, Time] {
-
-    override def writeEffectsFor(): Set[Address] = env.lookup(variable) match {
-      case Some(a) => Set(a)
-      case None => Set()
-    }
-
-    override def savesEnv: Option[Environment[Address]] = Some(env)
-
-    def convert[OtherAbs: IsSchemeLattice](
-        convertValue: (Abs) => OtherAbs,
-        convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-      abstSem.FrameSet(variable, convertEnv(env))
-
-    def reaches(valueReaches: Abs => Set[Addr],
-                envReaches: Environment[Addr] => Set[Addr],
-                addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
-  }
-  case class FrameBegin(rest: List[SchemeExp], env: Environment[Addr])
-      extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv: Option[Environment[Address]] = Some(env)
-
-    def convert[OtherAbs: IsSchemeLattice](
-        convertValue: (Abs) => OtherAbs,
-        convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-      abstSem.FrameBegin(rest, convertEnv(env))
-
-    def reaches(valueReaches: Abs => Set[Addr],
-                envReaches: Environment[Addr] => Set[Addr],
-                addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
-  }
-  case class FrameCond(cons: List[SchemeExp],
-                       clauses: List[(SchemeExp, List[SchemeExp])],
-                       env: Environment[Addr])
-      extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv: Option[Environment[Address]] = Some(env)
-
-    def convert[OtherAbs: IsSchemeLattice](
-        convertValue: (Abs) => OtherAbs,
-        convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-      abstSem.FrameCond(cons, clauses, convertEnv(env))
-
-    def reaches(valueReaches: Abs => Set[Addr],
-                envReaches: Environment[Addr] => Set[Addr],
-                addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
-  }
-  case class FrameCase(clauses: List[(List[SchemeValue], List[SchemeExp])],
-                       default: List[SchemeExp],
-                       env: Environment[Addr])
-      extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv: Option[Environment[Address]] = Some(env)
-
-    def convert[OtherAbs: IsSchemeLattice](
-        convertValue: (Abs) => OtherAbs,
-        convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-      abstSem.FrameCase(clauses, default, convertEnv(env))
-
-    def reaches(valueReaches: Abs => Set[Addr],
-                envReaches: Environment[Addr] => Set[Addr],
-                addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
-  }
-  case class FrameAnd(rest: List[SchemeExp], env: Environment[Addr])
-      extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv: Option[Environment[Address]] = Some(env)
-
-    def convert[OtherAbs: IsSchemeLattice](
-        convertValue: (Abs) => OtherAbs,
-        convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-      abstSem.FrameAnd(rest, convertEnv(env))
-
-    def reaches(valueReaches: Abs => Set[Addr],
-                envReaches: Environment[Addr] => Set[Addr],
-                addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
-  }
-  case class FrameOr(rest: List[SchemeExp], env: Environment[Addr])
-      extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv: Option[Environment[Address]] = Some(env)
-
-    def convert[OtherAbs: IsSchemeLattice](
-        convertValue: (Abs) => OtherAbs,
-        convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-      abstSem.FrameOr(rest, convertEnv(env))
-
-    def reaches(valueReaches: Abs => Set[Addr],
-                envReaches: Environment[Addr] => Set[Addr],
-                addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
-  }
-  case class FrameDefine(variable: String, env: Environment[Addr])
-      extends SchemeFrame[Abs, Addr, Time] {
-    override def savesEnv: Option[Environment[Address]] = Some(env)
-
-    def convert[OtherAbs: IsSchemeLattice](
-        convertValue: (Abs) => OtherAbs,
-        convertEnv: Environment[Addr] => Environment[Addr],
-        abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-      abstSem.FrameDefine(variable, convertEnv(env))
-
-    def reaches(valueReaches: Abs => Set[Addr],
-                envReaches: Environment[Addr] => Set[Addr],
-                addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
-  }
 
   def convertToAbsSemanticsFrame(frame: Frame,
                                  ρ: Environment[Addr],
@@ -568,106 +282,114 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
 
   def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time) =
     frame match {
-      case FrameFuncallOperator(fexp, args, env) =>
-        funcallArgs(v, fexp, args, env, store, t)
-      case FrameFuncallOperands(f, fexp, exp, args, toeval, env) =>
-        funcallArgs(f, fexp, (exp, v) :: args, toeval, env, store, t)
-      case FrameIf(cons, alt, env) =>
-        conditional(v, addEvalActionT(ActionEval(cons, env, store)), addEvalActionT(ActionEval(alt, env, store)))
-      case FrameLet(name, bindings, Nil, body, env) =>
-        val variables = name :: bindings.reverse.map(_._1)
-        val addresses = variables.map(variable => addr.variable(variable, v, t))
-        val (env1, store1) = ((name, v) :: bindings)
-          .zip(addresses)
-          .foldLeft((env, store))({
-            case ((env, store), ((variable, value), a)) =>
-              (env.extend(variable, a), store.extend(a, value))
-          })
-        val EdgeInformation(action, actionEdges, filters) = evalBody(body, env1, store1)
-        Set(EdgeInformation(action, actionPushVal :: ActionDefineAddressesR[SchemeExp, Abs, Addr](addresses) :: actionEdges, filters))
-      case FrameLet(name, bindings, (variable, e) :: toeval, body, env) =>
-        val frame = FrameLet(variable, (name, v) :: bindings, toeval, body, env)
-        val action = ActionPush(frame, e, env, store)
-        noEdgeInfosSet(action, List(actionPushVal, ActionEvalT(e)))
-      case FrameLetStar(name, bindings, body, env) =>
-        val a = addr.variable(name, abs.bottom, t)
-        val env1 = env.extend(name, a)
+      case frame: FrameFuncallOperator[Abs, Addr, Time] =>
+        funcallArgs(v, frame.fexp, frame.args, frame.env, store, t)
+      case frame: FrameFuncallOperands[Abs, Addr, Time] =>
+        funcallArgs(frame.f, frame.fexp, (frame.cur, v) :: frame.args, frame.toeval, frame.env, store, t)
+      case frame: FrameIf[Abs, Addr, Time] =>
+        conditional(v, addEvalActionT(ActionEval(frame.cons, frame.env, store)), addEvalActionT(ActionEval(frame.alt, frame.env, store)))
+      case frame: FrameLet[Abs, Addr, Time] => frame.toeval match {
+        case Nil =>
+          val variables = frame.variable :: frame.bindings.reverse.map(_._1)
+          val addresses = variables.map(variable => addr.variable(variable, v, t))
+          val (env1, store1) = ((frame.variable, v) :: frame.bindings)
+            .zip(addresses)
+            .foldLeft((frame.env, store))({
+              case ((env, store), ((variable, value), a)) =>
+                (env.extend(variable, a), store.extend(a, value))
+            })
+          val EdgeInformation(action, actionEdges, filters) = evalBody(frame.body, env1, store1)
+          Set(EdgeInformation(action, actionPushVal :: ActionDefineAddressesR[SchemeExp, Abs, Addr](addresses) :: actionEdges, filters))
+        case (variable, e) :: toeval =>
+          val newFrame = FrameLet(variable, (frame.variable, v) :: frame.bindings, toeval, frame.body, frame.env)
+          val action = ActionPush(newFrame, e, frame.env, store)
+          noEdgeInfosSet(action, List(actionPushVal, ActionEvalT(e)))
+      }
+      case frame: FrameLetStar[Abs, Addr, Time] =>
+        val a = addr.variable(frame.variable, abs.bottom, t)
+        val env1 = frame.env.extend(frame.variable, a)
         val store1 = store.extend(a, v)
         val actionEdges = List(actionPushVal, ActionDefineAddressesR[SchemeExp, Abs, Addr](List(a)))
-        bindings match {
+        frame.bindings match {
           case Nil =>
-            val EdgeInformation(actions, actionEdges2, edgeInfos) = evalBody(body, env1, store1)
+            val EdgeInformation(actions, actionEdges2, edgeInfos) = evalBody(frame.body, env1, store1)
             Set(EdgeInformation(actions, actionEdges ++ actionEdges2, edgeInfos))
           case (variable, exp) :: rest =>
-            val action = ActionPush(FrameLetStar(variable, rest, body, env1), exp, env1, store1)
+            val action = ActionPush(FrameLetStar(variable, rest, frame.body, env1), exp, env1, store1)
             noEdgeInfosSet(action, actionEdges :+ ActionEvalT(exp))
         }
-      case FrameLetrec(a, Nil, body, env) =>
-        val EdgeInformation(action, actionEdges, edgeInfos) = evalBody(body, env, store.update(a, v))
-        Set(EdgeInformation(action, ActionSetAddressR[SchemeExp, Abs, Addr](a) :: actionEdges, edgeInfos))
-      case FrameLetrec(a, (a1, exp) :: rest, body, env) =>
-        noEdgeInfosSet(ActionPush(FrameLetrec(a1, rest, body, env), exp, env, store.update(a, v)),
-                       List[ActionReplay[SchemeExp, Abs, Addr]](ActionSetAddressR(a), ActionEvalT(exp)))
-      case FrameSet(name, env) =>
-        env.lookup(name) match {
+      case frame: FrameLetrec[Abs, Addr, Time] => frame.bindings match {
+        case Nil =>
+          val EdgeInformation(action, actionEdges, edgeInfos) = evalBody(frame.body, frame.env, store.update(frame.addr, v))
+          Set(EdgeInformation(action, ActionSetAddressR[SchemeExp, Abs, Addr](frame.addr) :: actionEdges, edgeInfos))
+        case (a1, exp) :: rest =>
+          noEdgeInfosSet(ActionPush(FrameLetrec(a1, rest, frame.body, frame.env), exp, frame.env, store.update(frame.addr, v)),
+                         List[ActionReplay[SchemeExp, Abs, Addr]](ActionSetAddressR(frame.addr), ActionEvalT(exp)))
+      }
+      case frame: FrameSet[Abs, Addr, Time] =>
+        frame.env.lookup(frame.variable) match {
           case Some(a) =>
             val valueFalse = sabs.inject(false)
             noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueFalse, store.update(a, v), Set(EffectWriteVariable(a))),
                            List[ActionReplay[SchemeExp, Abs, Addr]](ActionSetAddressR(a), ActionReachedValueT(valueFalse)))
-          case None => simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundVariable(name)))
+          case None => simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundVariable(frame.variable)))
         }
-      case FrameBegin(body, env) =>
-        Set(evalBody(body, env, store))
-      case FrameCond(cons, clauses, env) =>
+      case frame: FrameBegin[Abs, Addr, Time] =>
+        Set(evalBody(frame.rest, frame.env, store))
+      case frame: FrameCond[Abs, Addr, Time] =>
         val falseValue = sabs.inject(false)
         conditional(
           v,
-          if (cons.isEmpty) { noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store), ActionReachedValueT[SchemeExp, Abs, Addr](v)) }
-          else { Set(evalBody(cons, env, store)) },
-          clauses match {
+          if (frame.cons.isEmpty) { noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store),
+            ActionReachedValueT[SchemeExp, Abs, Addr](v)) }
+          else { Set(evalBody(frame.cons, frame.env, store)) },
+          frame.clauses match {
             case Nil =>
               noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store), ActionReachedValueT[SchemeExp, Abs, Addr](falseValue))
             case (exp, cons2) :: rest =>
-              addPushActionT(ActionPush(FrameCond(cons2, rest, env), exp, env, store))
+              addPushActionT(ActionPush(FrameCond(cons2, rest, frame.env), exp, frame.env, store))
           })
-      case FrameCase(clauses, default, env) =>
-        val fromClauses = clauses.flatMap({
+      case frame: FrameCase[Abs, Addr, Time] =>
+        val fromClauses = frame.clauses.flatMap({
           case (values, body) =>
             if (values.exists(v2 =>
-                  evalValue(v2.value) match {
-                    case None => false
-                    case Some(v2) => sabs.subsumes(v, v2)
-                }))
-              /* TODO: precision could be improved by restricting v to v2 */
-              Set[EdgeInformation[SchemeExp, Abs, Addr]](evalBody(body, env, store))
+              evalValue(v2.value) match {
+                case None => false
+                case Some(v2) => sabs.subsumes(v, v2)
+              }))
+            /* TODO: precision could be improved by restricting v to v2 */
+              Set[EdgeInformation[SchemeExp, Abs, Addr]](evalBody(body, frame.env, store))
             else
               Set[EdgeInformation[SchemeExp, Abs, Addr]]()
         })
         /* TODO: precision could be improved in cases where we know that default is not
          * reachable */
-        fromClauses.toSet + evalBody(default, env, store)
-      case FrameAnd(Nil, env) =>
-        val falseValue = sabs.inject(false)
-        conditional(v,
-                    noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store), ActionReachedValueT[SchemeExp, Abs, Addr](v)),
-                    noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store), ActionReachedValueT[SchemeExp, Abs, Addr](falseValue)))
-      case FrameAnd(e :: rest, env) =>
-        val falseValue = sabs.inject(false)
-        conditional(v,
-                    addPushActionT(ActionPush(FrameAnd(rest, env), e, env, store)),
-                    noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store), ActionReachedValueT[SchemeExp, Abs, Addr](falseValue)))
-      case FrameOr(Nil, env) =>
-        val falseValue = sabs.inject(false)
-        conditional(v,
-                    noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store), ActionReachedValueT[SchemeExp, Abs, Addr](v)),
-                    noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store), ActionReachedValueT[SchemeExp, Abs, Addr](falseValue)))
-      case FrameOr(e :: rest, env) =>
-        conditional(v,
-                    noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store), ActionReachedValueT[SchemeExp, Abs, Addr](v)),
-                    addPushActionT(ActionPush(FrameOr(rest, env), e, env, store)))
-      case FrameDefine(name, env) =>
-        throw new Exception(
-          s"TODO: define not handled (no global environment)")
+        fromClauses.toSet + evalBody(frame.default, frame.env, store)
+      case frame: FrameAnd[Abs, Addr, Time] => frame.rest match {
+        case Nil =>
+          val falseValue = sabs.inject(false)
+          conditional(v,
+            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store), ActionReachedValueT[SchemeExp, Abs, Addr](v)),
+            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store), ActionReachedValueT[SchemeExp, Abs, Addr](falseValue)))
+        case e :: rest =>
+          val falseValue = sabs.inject(false)
+          conditional(v,
+            addPushActionT(ActionPush(FrameAnd(rest, frame.env), e, frame.env, store)),
+            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store), ActionReachedValueT[SchemeExp, Abs, Addr](falseValue)))
+      }
+      case frame: FrameOr[Abs, Addr, Time] => frame.rest match {
+        case Nil =>
+          val falseValue = sabs.inject(false)
+          conditional(v,
+            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store), ActionReachedValueT[SchemeExp, Abs, Addr](v)),
+            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, store), ActionReachedValueT[SchemeExp, Abs, Addr](falseValue)))
+        case e :: rest =>
+          conditional(v,
+            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store), ActionReachedValueT[SchemeExp, Abs, Addr](v)),
+            addPushActionT(ActionPush(FrameOr(rest, frame.env), e, frame.env, store)))
+      }
+      case frame: FrameDefine[Abs, Addr, Time] =>
+        throw new Exception("TODO: define not handled (no global environment)")
     }
 
   def parse(program: String): SchemeExp = Scheme.parse(program)
