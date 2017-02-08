@@ -216,24 +216,20 @@ class IncrementalPointsToAnalysis[Exp : Expression,
                        convertFrameFun: ConcreteFrame => AbstractFrame,
                        edgeInfos: List[EdgeFilterAnnotation],
                        stepNumber: Int) = {
-    Logger.log(s"in step $stepNumber \nbefore: currentNodes = ${currentNodes.zip(currentNodes.map(initialGraph.get.nodeId))} " +
+    Logger.log(s"In step $stepNumber before: currentNodes = ${currentNodes.zip(currentNodes.map(initialGraph.get.nodeId))} " +
                s"\nconcreteEdgeInfos = $edgeInfos", Logger.D)
     addNodesVisited(currentNodes)
     /* First follow all StateSubsumed edges before trying to use the concrete edge information */
-    val nodesSubsumedEdgesFollowed =
-      currentNodes.flatMap(followStateSubsumedEdges)
+    val nodesSubsumedEdgesFollowed = currentNodes.flatMap(followStateSubsumedEdges)
+    Logger.log(s"In step $stepNumber, followed subsumption edges: ${nodesSubsumedEdgesFollowed.map(initialGraph.get.nodeId)}", Logger.D)
     addNodesVisited(nodesSubsumedEdgesFollowed)
-    val succNodes = nodesSubsumedEdgesFollowed.flatMap(
-      computeSuccNode(convertValueFun, convertFrameFun, _, edgeInfos))
+    val succNodes = nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(convertValueFun, convertFrameFun, _, edgeInfos))
     addNodesVisited(succNodes)
-    Logger.log(
-      s"succNodes = ${succNodes.zip(succNodes.map(initialGraph.get.nodeId))}",
-      Logger.D)
+    Logger.log(s"succNodes = ${succNodes.zip(succNodes.map(initialGraph.get.nodeId))}", Logger.D)
+    Logger.log(s"In step $stepNumber, succNodes before subsumption edges: ${succNodes.map(initialGraph.get.nodeId)}", Logger.D)
     currentNodes = succNodes.flatMap(followStateSubsumedEdges)
-    concreteNodes = concreteNodes :+ (stepNumber, currentNodes.size, currentNodes.toList
-        .map(initialGraph.get.nodeId))
-    Logger.log(s"in step $stepNumber, after: currentNodes = ${currentNodes.zip(
-      currentNodes.map(initialGraph.get.nodeId))}", Logger.D)
+    concreteNodes = concreteNodes :+ (stepNumber, currentNodes.size, currentNodes.toList.map(initialGraph.get.nodeId))
+    Logger.log(s"In step $stepNumber after: currentNodes = ${currentNodes.zip(currentNodes.map(initialGraph.get.nodeId))}", Logger.D)
   }
 
   private def saveTraversedGraph(): Unit = {
@@ -380,7 +376,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
     todo.headOption
   match {
     case None =>
-      graph.get.toDotFile(s"incremental_graph $stepCount.dot",
+      graph.get.toDotFile(s"Analysis/Incremental/incremental_graph_$stepCount.dot",
         node => List(scala.xml.Text(node.toString.take(40))),
         (s) => Colors.Green,
         node => List(scala.xml.Text(node._2.mkString(", ").take(300))),
@@ -388,19 +384,17 @@ class IncrementalPointsToAnalysis[Exp : Expression,
     graph
     case Some(sc@(StateCombo(originalState, newState))) =>
       val originalStateId = currentGraph.get.nodeId(originalState)
-      if (graph.isDefined) {
         Logger.log(s"Incrementally evaluating original state ${initialGraph.get.nodeId(originalState)} " +
-          s"(currentID: $originalStateId) " +
-          s"$originalState with new state $newState", Logger.U)
-      }
+                   s"(currentID: $originalStateId) " +
+                   s"$originalState with new state $newState", Logger.D)
       if (actionTApplier.halted(newState)) {
-        Logger.log(s"State halted", Logger.U)
+        Logger.log(s"State halted", Logger.D)
         evalLoop(todo.tail, visited + newState, graph, stepCount)
       } else if (visited.exists( (s2) => actionTApplier.subsumes(s2, newState) )) {
-        Logger.log(s"State subsumed", Logger.U)
+        Logger.log(s"State subsumed", Logger.D)
         evalLoop(todo.tail, visited + newState, graph, stepCount)
       } else if (visited.contains(newState)) {
-        Logger.log(s"State already visited", Logger.U)
+        Logger.log(s"State already visited", Logger.D)
         evalLoop(todo.tail, visited, graph, stepCount)
       } else {
         /*
@@ -410,8 +404,11 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         val edges: Set[Edge] = currentGraph.get.edges.getOrElse(originalState, Set()) // All outgoing edges in abstract graph
         val filteredEdges = filterWithStore(newState, edges)
 
-        Logger.log(s"Using edges $edges", Logger.U)
-        Logger.log(s"Using filteredEdges $filteredEdges", Logger.U)
+        Logger.log(s"Using edges $edges", Logger.D)
+        Logger.log(s"Using filteredEdges $filteredEdges", Logger.D)
+
+        var somethingChanged = false
+
         /*
          * For all filteredEdges e, take all actionTs a1, a2 ... ak, and apply them consecutively on newState.
          * Each actionT may produce a set of new newStates.
@@ -424,14 +421,16 @@ class IncrementalPointsToAnalysis[Exp : Expression,
            * Compute, for all actions in one particular edge, the state resulting from the consecutive application of
            * all actions.
            */
-          val newStates = actionTs.foldLeft[Set[State]](Set(newState))( (states, actionT) =>
-            states.flatMap( (state) => actionTApplier.applyActionReplay(state, actionT)))
+          val newStates = actionTs.foldLeft[Set[State]](Set(newState))( (states, actionT) => {
+            somethingChanged = true
+            states.flatMap( (state) => actionTApplier.applyActionReplay(state, actionT))
+          })
           newStates.map( (newState) => (edgeAnnotation, StateCombo(newOriginalState, newState)))
         })
         Logger.log(s"newStateCombos = ${newStateCombos.map( (sc: (EdgeAnnotation, StateCombo)) => currentGraph
-        .get.nodeId(sc._2.originalState))}", Logger.U)
-        evalLoop(todo.tail ++ newStateCombos.map(_._2), visited + newState, graph.map(_.addEdges(newStateCombos
-          .map({
+        .get.nodeId(sc._2.originalState))}", Logger.D)
+        val newVisited = if (somethingChanged) visited + newState else visited
+        evalLoop(todo.tail ++ newStateCombos.map(_._2), newVisited, graph.map(_.addEdges(newStateCombos.map({
           case (edgeAnnotation, StateCombo(_, newNewState)) =>
             (newState, edgeAnnotation, newNewState) } ))), stepCount)
       }
@@ -448,7 +447,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
     assert(currentGraph.isDefined)
     // TODO debugging
       val g = convertGraph[State, EdgeAnnotation, List[ActionReplay[Exp, AbstL, Addr]]](currentGraph.get, (edge: EdgeAnnotation) => edge._2)
-      g.toDotFile(s"current_graph $stepCount.dot", node => List(scala.xml.Text(node.toString.take(40))),
+      g.toDotFile(s"Analysis/Incremental/current_graph_$stepCount.dot", node => List(scala.xml.Text(node.toString.take(40))),
         (s) => Colors.Green,
         node => List(scala.xml.Text(node.mkString(", ").take(300))),
         None)

@@ -357,11 +357,10 @@ class HybridConcreteMachine[
         case NoRunTimeAnalysis =>
         case RunTimeAnalysisEvery(analysis_interval) =>
           Logger.log(s"stepCount: $stepCount", Logger.U)
-//          if (stepCount % analysis_interval == 0) {     original
-          pointsToAnalysisLauncher.filterReachable(stepCount)
-          if (stepCount == 95) {
+          if (stepCount % analysis_interval == 0) {
+            pointsToAnalysisLauncher.filterReachable(stepCount)
             pointsToAnalysisLauncher.applyEdgeActions(state, stepCount)
-//          pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
+//            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
           }
       }
 

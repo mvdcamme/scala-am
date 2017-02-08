@@ -89,9 +89,8 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
       startState: machine.MachineState,
       isInitial: Boolean,
       stepSwitched: Option[Int]): StaticAnalysisResult = {
-    Logger.log(s"Starting static points-to analysis", Logger.I)
-    val result =
-      machine.kickstartEval(startState, sem, None, None, stepSwitched)
+    Logger.log(s"Starting static points-to analysis", Logger.U)
+    val result = machine.kickstartEval(startState, sem, None, None, stepSwitched)
     toDot.foreach(result.toDotFile)
     analyzeOutput(machine, pointsTo, relevantAddress)(result)
     AnalysisOutputGraph[Exp, L, Addr, machine.GraphNode](result)
