@@ -24,6 +24,16 @@ case class ActionEvalPushR[Exp: Expression, Abs: JoinLattice, Addr: Address](
     extends ActionReplay[Exp, Abs, Addr]
     with PushesKStack[Exp, Abs, Addr]
 
+/**
+  * To be used when saving a frame that stores data.
+  */
+case class ActionEvalPushDataR[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    e: Exp,
+    env: Environment[Addr],
+    frameGenerator: Abs => Frame)
+    extends ActionReplay[Exp, Abs, Addr]
+    with PushesKStack[Exp, Abs, Addr]
+
 case class ActionLookupAddressR[Exp: Expression, Abs: JoinLattice, Addr: Address](
     a: Addr)
     extends ActionReplay[Exp, Abs, Addr]

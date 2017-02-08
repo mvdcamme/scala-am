@@ -124,6 +124,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                    */
                   val replacedActionEdges = if (actionEdges.exists({
                     case _: ActionEvalPushR[Exp, Abs, Addr] => true
+                    case _: ActionEvalPushDataR[Exp, Abs, Addr] => true
                     case _ => false
                   })) { actionPopKont :: actionEdges } else { actionEdges :+ actionPopKont }
                   (succState, replacedEdgeAnnot, replacedActionEdges)
@@ -411,9 +412,13 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       nexts.map( (next: KontAddr) => state.copy(a = next))
     }
 
-    protected def addControlKontValue(state: State, valuesSet: Set[List[Abs]]): Set[List[Abs]] = {
+    protected def getControlKontValue(state: State): Abs = {
       assert(state.control.isInstanceOf[ControlKont])
-      val extraValue = state.control.asInstanceOf[ControlKont].v
+      state.control.asInstanceOf[ControlKont].v
+    }
+
+    protected def addControlKontValue(state: State, valuesSet: Set[List[Abs]]): Set[List[Abs]] = {
+      val extraValue = getControlKontValue(state)
       valuesSet.map(_ :+ extraValue)
     }
 
@@ -430,7 +435,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         val valuesSet = addControlKontValue(state, incompleteValuesSet)
         valuesSet.map( (values) => {
           assert(values.length == a.addresses.length, s"Length of ${a.addresses} does not match length of $values")
-          val addressValues = a.addresses.zip(values)
+          val addressValues = a.addresses.reverse.zip(values) //TODO why do we need to reverse the arguments???
           val newStore = addressValues.foldLeft(state.store)( (store, tuple) => store.extend(tuple._1, tuple._2))
           state.copy(store = newStore)
         })
@@ -440,6 +445,12 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         Set(state.copy(control = ControlEval(a.e, emptyEnvironment)))
       case ActionEvalPushR(e, env, frame) =>
         val next = NormalKontAddress[Exp, Time](e, state.t)
+        val kont = Kont(frame, state.a)
+        Set(State(ControlEval(e, env), state.store, state.kstore.extend(next, kont), next, time.tick(state.t)))
+      case ActionEvalPushDataR(e, env, frameGenerator) =>
+        val next = NormalKontAddress[Exp, Time](e, state.t)
+        val currentValue = getControlKontValue(state)
+        val frame = frameGenerator(currentValue)
         val kont = Kont(frame, state.a)
         Set(State(ControlEval(e, env), state.store, state.kstore.extend(next, kont), next, time.tick(state.t)))
       case a: ActionLookupAddressR[Exp, Abs, Addr] =>
