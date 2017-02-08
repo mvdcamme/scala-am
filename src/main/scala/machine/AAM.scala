@@ -261,6 +261,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                     stopEval: Option[State => Boolean],
                     timeout: Option[Long],
                     stepSwitched: Option[Int]): AAMOutput = {
+    val checkSubsumes = true
     def loop(todo: Set[State],
              visited: Set[State],
              halted: Set[State],
@@ -279,18 +280,18 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             if (visited.contains(s)) {
               /* If we already visited the state, we ignore it. */
               loop(todo.tail, visited, halted, startingTime, graph)
-//            } else if (visited.exists(s2 => s2.subsumes(s))) {
-//              /* If the state is subsumed by another already visited state,
-//               * we ignore it. The subsumption part reduces the number of visited
-//               * states but leads to non-determinism due to the non-determinism
-//               * of Scala's headOption (it seems so at least).
-//               * We do have to add an edge from the current state to the subsumed state. */
-//              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, (List[EdgeFilterAnnotation], List[ActionT[Exp, Abs, Addr]])]](graph)({
-//                case (graph, s2) =>
-//                  if (s2.subsumes(s))
-//                    graph.addEdge(s, (List(StateSubsumed), Nil), s2)
-//                  else
-//                    graph}))
+            } else if (checkSubsumes && visited.exists(s2 => s2.subsumes(s))) {
+              /* If the state is subsumed by another already visited state,
+               * we ignore it. The subsumption part reduces the number of visited
+               * states but leads to non-determinism due to the non-determinism
+               * of Scala's headOption (it seems so at least).
+               * We do have to add an edge from the current state to the subsumed state. */
+              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])]](graph)({
+                case (graph, s2) =>
+                  if (s2.subsumes(s))
+                    graph.addEdge(s, (List(StateSubsumed), Nil), s2)
+                  else
+                    graph}))
             } else if (s.halted || stopEval.fold(false)(pred => pred(s))) {
               /* If the state is a final state or the stopEval predicate determines the machine can stop exploring
                * this state, add it to the list of final states and continue exploring the graph */
