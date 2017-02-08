@@ -6,6 +6,6 @@ case class ConstantAddresses[Addr: Address](constants: Set[Addr],
     extends StaticAnalysisResult
 case class PointsToSet[Addr: Address](pointsTo: List[(Addr, Option[Int])])
     extends StaticAnalysisResult
-case class AnalysisGraph[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]]
-  (graph:Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])])
-  extends StaticAnalysisResult
+case class AnalysisOutputGraph[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]](
+    output: Output[Abs] with HasGraph[Exp, Abs, Addr, State])
+    extends StaticAnalysisResult

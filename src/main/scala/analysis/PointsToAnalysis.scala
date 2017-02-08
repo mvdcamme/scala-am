@@ -94,7 +94,7 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
       machine.kickstartEval(startState, sem, None, None, stepSwitched)
     toDot.foreach(result.toDotFile)
     analyzeOutput(machine, pointsTo, relevantAddress)(result)
-    AnalysisGraph[Exp, L, Addr, machine.GraphNode](result.graph)
+    AnalysisOutputGraph[Exp, L, Addr, machine.GraphNode](result)
   }
 }
 
@@ -147,8 +147,9 @@ class PointsToAnalysisLauncher[
     runStaticAnalysisGeneric(currentProgramState,
                              None,
                              Some("initial_graph.dot")) match {
-      case result: AnalysisGraph[SchemeExp, Abs, HybridAddress.A, aam.GraphNode] =>
-        incrementalAnalysis.initializeGraph(result.graph)
+      case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.GraphNode] =>
+//        result.output.toDotFile("initial_graph.dot")
+        incrementalAnalysis.initializeGraph(result.output.graph)
       case other =>
         throw new Exception(
           s"Expected initial analysis to produce a graph, got $other instead")
