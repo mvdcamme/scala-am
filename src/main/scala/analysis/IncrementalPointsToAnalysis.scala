@@ -386,16 +386,21 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         node => List(scala.xml.Text(node._2.mkString(", ").take(300))),
         None)
     graph
-    case Some(StateCombo(originalState, newState)) =>
+    case Some(sc@(StateCombo(originalState, newState))) =>
+      val originalStateId = currentGraph.get.nodeId(originalState)
       if (graph.isDefined) {
         Logger.log(s"Incrementally evaluating original state ${initialGraph.get.nodeId(originalState)} " +
-          s"(currentID: ${currentGraph.get.nodeId(originalState)}) " +
+          s"(currentID: $originalStateId) " +
           s"$originalState with new state $newState", Logger.U)
       }
       if (actionTApplier.halted(newState)) {
-        evalLoop(todo.tail, visited + originalState, graph, stepCount)
-      } else if (visited.contains(originalState)) {
-        if (graph.isDefined) Logger.log(s"State already visited", Logger.U)
+        Logger.log(s"State halted", Logger.U)
+        evalLoop(todo.tail, visited + newState, graph, stepCount)
+      } else if (visited.exists( (s2) => actionTApplier.subsumes(s2, newState) )) {
+        Logger.log(s"State subsumed", Logger.U)
+        evalLoop(todo.tail, visited + newState, graph, stepCount)
+      } else if (visited.contains(newState)) {
+        Logger.log(s"State already visited", Logger.U)
         evalLoop(todo.tail, visited, graph, stepCount)
       } else {
         /*
@@ -425,7 +430,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         })
         Logger.log(s"newStateCombos = ${newStateCombos.map( (sc: (EdgeAnnotation, StateCombo)) => currentGraph
         .get.nodeId(sc._2.originalState))}", Logger.U)
-        evalLoop(todo.tail ++ newStateCombos.map(_._2), visited + originalState, graph.map(_.addEdges(newStateCombos
+        evalLoop(todo.tail ++ newStateCombos.map(_._2), visited + newState, graph.map(_.addEdges(newStateCombos
           .map({
           case (edgeAnnotation, StateCombo(_, newNewState)) =>
             (newState, edgeAnnotation, newNewState) } ))), stepCount)
@@ -453,7 +458,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
        * this set ought to correspond with this concrete state.
        */
       val rootNodes = currentNodes.map( (state) => StateCombo(state, convertedState))
-      val updatedGraph = evalLoop(rootNodes, Set(), Some(new Graph[State, EdgeAnnotation]), stepCount)
+      val updatedGraph = evalLoop(rootNodes, Set(), Some(new HyperlinkedGraph[State, EdgeAnnotation]), stepCount)
       if (updatedGraph.isDefined) {
         implicit val descriptor = new Descriptor[StateCombo] {
           def describe[U >: StateCombo](x: U) = x match {
