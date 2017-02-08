@@ -380,12 +380,11 @@ class IncrementalPointsToAnalysis[Exp : Expression,
     todo.headOption
   match {
     case None =>
-      if (graph.isDefined)
-        graph.get.toDotFile(s"incremental_graph $stepCount.dot",
-          node => List(scala.xml.Text(node.toString.take(40))),
-          (s) => Colors.Green,
-          node => List(scala.xml.Text(node._2.mkString(", ").take(300))),
-          None)
+      graph.get.toDotFile(s"incremental_graph $stepCount.dot",
+        node => List(scala.xml.Text(node.toString.take(40))),
+        (s) => Colors.Green,
+        node => List(scala.xml.Text(node._2.mkString(", ").take(300))),
+        None)
     graph
     case Some(StateCombo(originalState, newState)) =>
       if (graph.isDefined) {
@@ -406,8 +405,8 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         val edges: Set[Edge] = currentGraph.get.edges.getOrElse(originalState, Set()) // All outgoing edges in abstract graph
         val filteredEdges = filterWithStore(newState, edges)
 
-        if (graph.isDefined) Logger.log(s"Using edges $edges", Logger.U)
-        if (graph.isDefined) Logger.log(s"Using filteredEdges $filteredEdges", Logger.U)
+        Logger.log(s"Using edges $edges", Logger.U)
+        Logger.log(s"Using filteredEdges $filteredEdges", Logger.U)
         /*
          * For all filteredEdges e, take all actionTs a1, a2 ... ak, and apply them consecutively on newState.
          * Each actionT may produce a set of new newStates.
@@ -424,7 +423,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
             states.flatMap( (state) => actionTApplier.applyActionReplay(state, actionT)))
           newStates.map( (newState) => (edgeAnnotation, StateCombo(newOriginalState, newState)))
         })
-        if (graph.isDefined) Logger.log(s"newStateCombos = ${newStateCombos.map( (sc: (EdgeAnnotation, StateCombo)) => currentGraph
+        Logger.log(s"newStateCombos = ${newStateCombos.map( (sc: (EdgeAnnotation, StateCombo)) => currentGraph
         .get.nodeId(sc._2.originalState))}", Logger.U)
         evalLoop(todo.tail ++ newStateCombos.map(_._2), visited + originalState, graph.map(_.addEdges(newStateCombos
           .map({
