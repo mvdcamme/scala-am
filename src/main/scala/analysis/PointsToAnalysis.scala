@@ -172,8 +172,11 @@ class PointsToAnalysisLauncher[
     incrementalAnalysis.filterReachable(stepCount)
 
   def applyEdgeActions(concreteState: PS, stepCount: Int): Unit = {
-    val convertedState = convertStateAAM(aam, concSem, abstSem, concreteState)
-    incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
+    val applyEdgeActions = () => {
+      val convertedState = convertStateAAM(aam, concSem, abstSem, concreteState)
+      incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
+    }
+    wrapAbstractEvaluation(applyEdgeActions)
   }
 
 }

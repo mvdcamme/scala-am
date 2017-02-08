@@ -30,13 +30,17 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
     HybridTimestamp.switchToConcrete()
   }
 
+  protected def wrapAbstractEvaluation[Result](doSomething: () => Result): Result = {
+    switchToAbstract()
+    val result = doSomething()
+    switchToConcrete()
+    result
+  }
+
   protected def wrapRunAnalysis(
       runAnalysis: () => StaticAnalysisResult): StaticAnalysisResult = {
     Logger.log("analyzing", Logger.I)
-    switchToAbstract()
-    val result = runAnalysis()
-    switchToConcrete()
-    result
+    wrapAbstractEvaluation[StaticAnalysisResult](runAnalysis)
   }
 
   /**
