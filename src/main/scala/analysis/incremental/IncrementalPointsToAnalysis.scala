@@ -1,5 +1,3 @@
-import scala.annotation.tailrec
-
 class IncrementalPointsToAnalysis[Exp : Expression,
                                   AbstL : IsSchemeLattice,
                                   Addr : Address,
