@@ -229,7 +229,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                              case ControlError(_) => Colors.Red
                            }
                         },
-                      node => List(scala.xml.Text(node._1.mkString(", ").take(300))),
+                      node => List(scala.xml.Text(("[" + node._1.mkString(", ") + "] [" + node._2.mkString(", ") + "]").take(300))),
                       None)
   }
 

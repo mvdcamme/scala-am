@@ -379,7 +379,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       graph.get.toDotFile(s"Analysis/Incremental/incremental_graph_$stepCount.dot",
         node => List(scala.xml.Text(node.toString.take(40))),
         (s) => Colors.Green,
-        node => List(scala.xml.Text(node._2.mkString(", ").take(300))),
+        node => List(scala.xml.Text(("[" + node._1.mkString(", ") + "], [" + node._2.mkString(", ") + "]").take(300))),
         None)
     graph
     case Some(sc@(StateCombo(originalState, newState))) =>
