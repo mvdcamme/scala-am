@@ -440,10 +440,8 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
           val newStore = addressValues.foldLeft(state.store)( (store, tuple) => store.extend(tuple._1, tuple._2))
           state.copy(store = newStore)
         })
-      /* ActionEvalT is only used for debugging purposes: we don't care about control-flow, only about data-flow. */
-      case a: ActionEvalT[Exp, Abs, Addr] =>
-        /* As this action is only used for debugging, we don't care which environment we use. */
-        Set(state.copy(control = ControlEval(a.e, emptyEnvironment)))
+      case a: ActionEvalR[Exp, Abs, Addr] =>
+        Set(state.copy(control = ControlEval(a.e, a.env)))
       case ActionEvalPushR(e, env, frame) =>
         val next = NormalKontAddress[Exp, Time](e, state.t)
         val kont = Kont(frame, state.a)

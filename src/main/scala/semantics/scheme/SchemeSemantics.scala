@@ -24,9 +24,9 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       noEdgeInfos(ActionReachedValue[SchemeExp, Abs, Addr](sabs.inject(false), store),
                   List(ActionReachedValueT[SchemeExp, Abs, Addr](sabs.inject(false))))
     case List(exp) =>
-      noEdgeInfos(ActionEval(exp, env, store), ActionEvalT(exp))
+      noEdgeInfos(ActionEval(exp, env, store), ActionEvalR(exp, env))
     case exp :: rest =>
-      noEdgeInfos(ActionPush(FrameBegin(rest, env), exp, env, store), ActionEvalT(exp))
+      noEdgeInfos(ActionPush(FrameBegin(rest, env), exp, env, store), ActionEvalR(exp, env))
   }
 
   def convertAbsInFrame[OtherAbs: IsConvertableLattice](
@@ -57,7 +57,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   }
 
   protected def addEvalActionT(action: ActionEval[SchemeExp, Abs, Addr]): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
-    noEdgeInfosSet(action, ActionEvalT(action.e))
+    noEdgeInfosSet(action, ActionEvalR(action.e, action.env))
 
   protected def addPushActionT(action: ActionPush[SchemeExp, Abs, Addr]): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
     noEdgeInfosSet(action, ActionEvalPushR(action.e, action.env, action.frame))
@@ -86,11 +86,11 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                 val defAddr: ActionReplay[SchemeExp, Abs, Addr] = ActionDefineAddressesR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
                 if (body.length == 1) {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), body.head, env2, store, argsv)
-                  noEdgeInfos(action, List(defAddr, ActionEvalT(body.head)))
+                  noEdgeInfos(action, List(defAddr, ActionEvalR(body.head, env2)))
                 }
                 else {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), SchemeBegin(body, pos), env2, store, argsv)
-                  noEdgeInfos(action, List[ActionReplay[SchemeExp, Abs, Addr]](defAddr, ActionEvalT(SchemeBegin(body, pos))))
+                  noEdgeInfos(action, List[ActionReplay[SchemeExp, Abs, Addr]](defAddr, ActionEvalR(SchemeBegin(body, pos), env2)))
                 }
             }
           } else {

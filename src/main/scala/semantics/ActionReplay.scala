@@ -15,6 +15,16 @@ case class ActionDefineAddressesR[Exp: Expression, Abs: JoinLattice, Addr: Addre
     extends ActionReplay[Exp, Abs, Addr]
 
 /**
+  * Evaluation continues with expression e in environment env.
+  */
+case class ActionEvalR[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    e: Exp,
+    env: Environment[Addr],
+    read: Set[Addr] = Set[Addr](),
+    write: Set[Addr] = Set[Addr]())
+  extends ActionReplay[Exp, Abs, Addr]
+
+/**
   * frame is pushed on the stack, and the interpretation continues by evaluating expression e in environment ρ.
   */
 case class ActionEvalPushR[Exp: Expression, Abs: JoinLattice, Addr: Address](

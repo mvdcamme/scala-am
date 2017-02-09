@@ -130,13 +130,13 @@ case class ActionEvalPushT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     with PushesKStack[Exp, Abs, Addr]
 
 /**
-  * Evaluation continues with expression e in environment ρ
+  * Evaluation continues with expression e.
   */
 case class ActionEvalT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     e: Exp,
     read: Set[Addr] = Set[Addr](),
     write: Set[Addr] = Set[Addr]())
-    extends ActionTrace[Exp, Abs, Addr] with ActionReplay[Exp, Abs, Addr]
+    extends ActionTrace[Exp, Abs, Addr]
 case class ActionExtendEnvT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     varName: String)
     extends ActionTrace[Exp, Abs, Addr]
