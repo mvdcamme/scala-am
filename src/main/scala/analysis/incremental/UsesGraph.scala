@@ -1,7 +1,7 @@
 class UsesGraph[Exp : Expression,
                 AbstL : IsSchemeLattice,
                 Addr : Address,
-                State <: StateTrait[Exp, AbstL, Addr, _] : Descriptor] {
+                State <: StateTrait[Exp, AbstL, Addr, _]] {
 
   type EdgeAnnotation = (List[EdgeFilterAnnotation], List[ActionReplay[Exp, AbstL, Addr]])
   type Edge = (EdgeAnnotation, State)

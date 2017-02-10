@@ -112,7 +112,8 @@ class PropagateRunTimeInfo[Exp : Expression,
             })
             newStates.map( (newState) => (edgeAnnotation, StateCombo(newOriginalState, newState)))
           })
-          Logger.log(s"newStateCombos = ${newStateCombos.map( (sc: (EdgeAnnotation, StateCombo)) => currentGraph.nodeId(sc._2.originalState))}", Logger.D)
+          Logger.log(s"newStateCombos = ${newStateCombos.map( (sc: (EdgeAnnotation, StateCombo)) =>
+            currentGraph.nodeId(sc._2.originalState))}", Logger.D)
           val newVisited = if (somethingChanged) visited + newState else visited
           evalLoop(todo.tail ++ newStateCombos.map(_._2), newVisited, graph.map(_.addEdges(newStateCombos.map({
             case (edgeAnnotation, StateCombo(_, newNewState)) =>
@@ -143,7 +144,7 @@ class PropagateRunTimeInfo[Exp : Expression,
      * this set ought to correspond with this concrete state.
      */
     val rootNodes = currentNodes.map((state) => StateCombo(state, convertedState))
-    val updatedGraph = evalLoop(rootNodes, Set(), Some(new HyperlinkedGraph[State, EdgeAnnotation]), stepCount, initialGraph, currentGraph)
+    evalLoop(rootNodes, Set(), Some(new HyperlinkedGraph[State, EdgeAnnotation]), stepCount, initialGraph, currentGraph)
   }
 
 
