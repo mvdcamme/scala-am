@@ -3,7 +3,7 @@ trait StateChangeEdge[+State <: StateTrait[_, _, _, _]]
 trait ActionReplayApplier[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]] {
 
   def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr])
-                       (implicit sabs: IsSchemeLattice[Abs]): Set[State]
+                       (implicit sabs: IsSchemeLattice[Abs]): Set[(State, List[EdgeFilterAnnotation])]
 
   def subsumes(s1: State, s2: State): Boolean
 

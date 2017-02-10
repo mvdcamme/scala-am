@@ -108,7 +108,7 @@ class PropagateRunTimeInfo[Exp : Expression,
              */
             val newStates = actionTs.foldLeft[Set[State]](Set(newState))( (states, actionT) => {
               somethingChanged = true
-              states.flatMap( (state) => actionTApplier.applyActionReplay(state, actionT))
+              states.flatMap( (state) => actionTApplier.applyActionReplay(state, actionT).map(_._1))
             })
             newStates.map( (newState) => (edgeAnnotation, StateCombo(newOriginalState, newState)))
           })

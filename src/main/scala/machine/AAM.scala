@@ -384,9 +384,12 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
 
   object ActionReplayApplier extends ActionReplayApplier[Exp, Abs, Addr, State] {
 
-    import scala.annotation.tailrec
-
-    val emptyEnvironment = Environment.empty[Addr] // Move creation of the environment outside of applyActionMethod
+    protected def noEdgeFilters(state: State): (State, List[EdgeFilterAnnotation]) = (state, Nil)
+    protected def addEvaluateExp(exp: Exp): EvaluatingExpression[Exp] = EvaluatingExpression(exp)
+    protected def addFrameFollowed(frame: Frame): FrameFollowed[Abs] =
+      FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]])
+    protected def addKontAddrPopped(a: KontAddr, next: KontAddr): KontAddrPopped = KontAddrPopped(a, next)
+    protected def addKontAddrPushed(next: KontAddr): KontAddrPushed = KontAddrPushed(next)
 
     private def frameSavedOperands(a: KontAddr, kstore: KontStore[KontAddr]): Set[List[Abs]] =
       kstore.lookup(a).map(_.frame match {
@@ -406,10 +409,15 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
           List()
       })
 
-    protected def popKont(state: State): Set[State] = {
+    protected def popKont(state: State): Set[(State, List[EdgeFilterAnnotation])] = {
       val konts = state.kstore.lookup(state.a)
-      val nexts = konts.map(_.next)
-      nexts.map( (next: KontAddr) => state.copy(a = next))
+      konts.map( (kont: Kont[KontAddr]) => {
+        val frame = kont.frame
+        val next = kont.next
+        val kontPopped = addKontAddrPopped(state.a, next)
+        val frameFollowed = addFrameFollowed(frame)
+        (state.copy(a = next), List(kontPopped, frameFollowed))
+      })
     }
 
     protected def getControlKontValue(state: State): Abs = {
@@ -423,13 +431,13 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     }
 
     def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr])
-                         (implicit sabs: IsSchemeLattice[Abs]): Set[State] = action match {
+                         (implicit sabs: IsSchemeLattice[Abs]): Set[(State, List[EdgeFilterAnnotation])] = action match {
       case a: ActionAllocAddressesR[Exp, Abs, Addr] =>
         val newStore = a.addresses.foldLeft(state.store)( (store, address) => store.extend(address, abs.bottom))
-        Set(state.copy(store = newStore))
+        Set(noEdgeFilters(state.copy(store = newStore)))
       case a: ActionCreateClosureT[Exp, Abs, Addr] =>
         val closure = sabs.inject[Exp, Addr]((a.λ, a.env.get))
-        Set(state.copy(control = ControlKont(closure)))
+        Set(noEdgeFilters(state.copy(control = ControlKont(closure))))
       case a: ActionDefineAddressesR[Exp, Abs, Addr] =>
         val incompleteValuesSet = frameSavedValues(state.a, state.kstore)
         val valuesSet = addControlKontValue(state, incompleteValuesSet)
@@ -437,23 +445,30 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
           assert(values.length == a.addresses.length, s"Length of ${a.addresses} does not match length of $values")
           val addressValues = a.addresses.reverse.zip(values) //TODO why do we need to reverse the arguments???
           val newStore = addressValues.foldLeft(state.store)( (store, tuple) => store.extend(tuple._1, tuple._2))
-          state.copy(store = newStore)
+          noEdgeFilters(state.copy(store = newStore))
         })
       case a: ActionEvalR[Exp, Abs, Addr] =>
-        Set(state.copy(control = ControlEval(a.e, a.env)))
+        val evaluatingExp = addEvaluateExp(a.e)
+        Set((state.copy(control = ControlEval(a.e, a.env)), List(evaluatingExp)))
       case ActionEvalPushR(e, env, frame) =>
         val next = NormalKontAddress[Exp, Time](e, state.t)
         val kont = Kont(frame, state.a)
-        Set(State(ControlEval(e, env), state.store, state.kstore.extend(next, kont), next, time.tick(state.t)))
+        val evaluatingExp = addEvaluateExp(e)
+        val pushedAddr = addKontAddrPushed(next)
+        val newState = State(ControlEval(e, env), state.store, state.kstore.extend(next, kont), next, time.tick(state.t))
+        Set((newState, List(evaluatingExp, pushedAddr)))
       case ActionEvalPushDataR(e, env, frameGenerator) =>
         val next = NormalKontAddress[Exp, Time](e, state.t)
         val currentValue = getControlKontValue(state)
         val frame = frameGenerator(currentValue)
         val kont = Kont(frame, state.a)
-        Set(State(ControlEval(e, env), state.store, state.kstore.extend(next, kont), next, time.tick(state.t)))
+        val evaluatingExp = addEvaluateExp(e)
+        val pushedAddr = addKontAddrPushed(next)
+        val newState = State(ControlEval(e, env), state.store, state.kstore.extend(next, kont), next, time.tick(state.t))
+        Set((newState, List(evaluatingExp, pushedAddr)))
       case a: ActionLookupAddressR[Exp, Abs, Addr] =>
         val value = state.store.lookup(a.a).get
-        Set(state.copy(control = ControlKont(value)))
+        Set(noEdgeFilters(state.copy(control = ControlKont(value))))
       case ActionPopKontT() =>
         popKont(state)
       case a: ActionPrimCallT[SchemeExp, Abs, Addr] =>
@@ -468,17 +483,17 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             state.t)
             .collect({
               case (res, store2, effects) =>
-                Set(state.copy(control = ControlKont(res), store = store2))
+                Set(noEdgeFilters(state.copy(control = ControlKont(res), store = store2)))
             },
               err =>
-                Set(state.copy(control = ControlError(err)))))
+                Set(noEdgeFilters(state.copy(control = ControlError(err))))))
         })
       case a: ActionReachedValueT[Exp, Abs, Addr] =>
-        Set(state.copy(control = ControlKont(a.v)))
+        Set(noEdgeFilters(state.copy(control = ControlKont(a.v))))
       case a: ActionSetAddressR[Exp, Abs, Addr] =>
         assert(state.control.isInstanceOf[ControlKont])
         val value = state.control.asInstanceOf[ControlKont].v
-        Set(state.copy(store = state.store.update(a.adress, value)))
+        Set(noEdgeFilters(state.copy(store = state.store.update(a.adress, value))))
     }
 
     def subsumes(s1: State, s2: State): Boolean = s1.subsumes(s2)
