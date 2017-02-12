@@ -162,7 +162,7 @@ class PointsToAnalysisLauncher[
                      edgeInfos: List[EdgeFilterAnnotation],
                      stepNumber: Int) = {
     val convertValueFun = convertValue(abstSem.primitives)
-    incrementalAnalysis.computeSuccNodes(convertValueFun, convertFrame(concSem, abstSem, convertValueFun), edgeInfos, stepNumber)
+    incrementalAnalysis.computeSuccNodes(convertFrame(concSem, abstSem, convertValueFun), edgeInfos, stepNumber)
   }
 
   def end(): Unit = incrementalAnalysis.end()

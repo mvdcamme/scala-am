@@ -32,12 +32,11 @@ class IncrementalPointsToAnalysis[Exp : Expression,
     currentGraph.get.nodeId(node) != -1
   }
 
-  def computeSuccNodes(convertValueFun: ConcreteConcreteLattice.L => AbstL,
-                       convertFrameFun: ConcreteFrame => AbstractFrame,
+  def computeSuccNodes(convertFrameFun: ConcreteFrame => AbstractFrame,
                        edgeInfos: List[EdgeFilterAnnotation],
                        stepNumber: Int): Unit = {
     assertInitialized()
-    currentNodes = pruneUnreachableNodes.computeSuccNodes(convertValueFun, convertFrameFun, edgeInfos, stepNumber, currentNodes, initialGraph.get, currentGraph.get)
+    currentNodes = pruneUnreachableNodes.computeSuccNodes(convertFrameFun, edgeInfos, stepNumber, currentNodes, initialGraph.get, currentGraph.get)
   }
 
   def end(): Unit = pruneUnreachableNodes.end(initialGraph.get)

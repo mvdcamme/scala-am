@@ -47,8 +47,7 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
   }
 
   private def frameUsedSubsumes(getFrameFromInfo: EdgeFilterAnnotation => Option[AbstractFrame])
-                               (info: EdgeFilterAnnotation,
-                                convertedFrame: AbstractFrame)
+                               (info: EdgeFilterAnnotation, convertedFrame: AbstractFrame)
   : Option[AbstractFrame] =
     getFrameFromInfo(info) match {
       case Some(abstractFrame) =>
@@ -64,8 +63,7 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
     }
 
   def filterFrameEdges(convertedFrame: AbstractFrame,
-                       subsumesFrame: (EdgeFilterAnnotation,
-                         AbstractFrame) => Option[AbstractFrame],
+                       subsumesFrame: (EdgeFilterAnnotation, AbstractFrame) => Option[AbstractFrame],
                        abstractEdges: Set[Edge]): Set[Edge] = {
     if (!convertedFrame.meaningfullySubsumes) {
       // TODO hack: implement a proper subsumes method for every frame
@@ -98,14 +96,12 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
     }
   }
 
-  def filterSingleEdgeInfo(convertValueFun: ConcreteConcreteLattice.L => AbstL,
-                           convertFrameFun: ConcreteFrame => AbstractFrame,
-                           abstractEdges: Set[Edge],
+  def filterSingleEdgeInfo(abstractEdges: Set[Edge],
                            concreteEdgeInfo: EdgeFilterAnnotation): Set[Edge] =
     concreteEdgeInfo match {
 
-      case info: FrameFollowed[ConcreteConcreteLattice.L] =>
-        filterFrameEdges(convertFrameFun(info.frame), frameUsedSubsumes({
+      case info: FrameFollowed[AbstL] =>
+        filterFrameEdges(info.frame, frameUsedSubsumes({
           case info: FrameFollowed[AbstL] =>
             Some(info.frame)
           case _ =>
@@ -130,15 +126,9 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
         })
     }
 
-  def filterAllEdgeInfos(convertValueFun: ConcreteConcreteLattice.L => AbstL,
-                         convertFrameFun: ConcreteFrame => AbstractFrame,
-                         abstractEdges: Set[Edge],
-                         concreteEdgeInfos: List[EdgeFilterAnnotation]): Set[Edge] = {
+  def filterAllEdgeInfos(abstractEdges: Set[Edge], concreteEdgeInfos: List[EdgeFilterAnnotation]): Set[Edge] = {
     concreteEdgeInfos.foldLeft[Set[Edge]](abstractEdges)(
-      (filteredAbstractEdges, concreteEdgeInfo) => filterSingleEdgeInfo(convertValueFun,
-        convertFrameFun,
-        filteredAbstractEdges,
-        concreteEdgeInfo))
+      (filteredAbstractEdges, concreteEdgeInfo) => filterSingleEdgeInfo(filteredAbstractEdges, concreteEdgeInfo))
   }
 
 }

@@ -1,3 +1,5 @@
+import ConcreteConcreteLattice.ConcreteValue
+
 class PruneUnreachableNodes[Exp : Expression,
                             AbstL : IsSchemeLattice,
                             Addr : Address,
@@ -36,14 +38,19 @@ class PruneUnreachableNodes[Exp : Expression,
         })
     }
 
-  def computeSuccNode(convertValueFun: ConcreteConcreteLattice.L => AbstL,
-                      convertFrameFun: ConcreteFrame => AbstractFrame,
+  def computeSuccNode(convertFrameFun: ConcreteFrame => AbstractFrame,
                       node: State,
                       concreteEdgeInfos: List[EdgeFilterAnnotation],
                       currentGraph: AbstractGraph): Set[State] = {
     val abstractEdges = currentGraph.nodeEdges(node)
     Logger.log(s"abstractEdgeInfos = ${abstractEdges.map(_._1)}", Logger.D)
-    val filteredAbstractEdges = filterEdgeFilterAnnotations.filterAllEdgeInfos(convertValueFun, convertFrameFun, abstractEdges, concreteEdgeInfos)
+    val frameConvertedConcreteEdgeFilters = concreteEdgeInfos.map({
+      case filter: FrameFollowed[ConcreteValue] =>
+        FrameFollowed[AbstL](convertFrameFun(filter.frame))
+      case other =>
+        other
+    })
+    val filteredAbstractEdges = filterEdgeFilterAnnotations.filterAllEdgeInfos(abstractEdges, frameConvertedConcreteEdgeFilters)
     addEdgesVisited(node, filteredAbstractEdges)
     filteredAbstractEdges.map(_._2)
   }
@@ -57,8 +64,7 @@ class PruneUnreachableNodes[Exp : Expression,
   private def addEdgesVisited(node: State, edges: Set[Edge]): Unit =
     edges.foreach((tuple) => edgesVisited += ((node, tuple._1, tuple._2)))
 
-  def computeSuccNodes(convertValueFun: ConcreteConcreteLattice.L => AbstL,
-                       convertFrameFun: ConcreteFrame => AbstractFrame,
+  def computeSuccNodes(convertFrameFun: ConcreteFrame => AbstractFrame,
                        edgeInfos: List[EdgeFilterAnnotation],
                        stepNumber: Int,
                        currentNodes: Set[State],
@@ -72,7 +78,7 @@ class PruneUnreachableNodes[Exp : Expression,
     val nodesSubsumedEdgesFollowed = currentNodes.flatMap(followStateSubsumedEdges(_, currentGraph))
     Logger.log(s"In step $stepNumber, followed subsumption edges: ${nodesSubsumedEdgesFollowed.map(initialGraph.nodeId)}", Logger.D)
     addNodesVisited(nodesSubsumedEdgesFollowed)
-    val succNodes = nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(convertValueFun, convertFrameFun, _, edgeInfos, currentGraph))
+    val succNodes = nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(convertFrameFun, _, edgeInfos, currentGraph))
     addNodesVisited(succNodes)
     Logger.log(s"succNodes = ${succNodes.zip(succNodes.map(initialGraph.nodeId))}", Logger.D)
     Logger.log(s"In step $stepNumber, succNodes before subsumption edges: ${succNodes.map(initialGraph.nodeId)}", Logger.D)
