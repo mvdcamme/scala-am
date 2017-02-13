@@ -53,6 +53,73 @@ class PropagateRunTimeInfo[Exp : Expression,
    */
   case class StateCombo(originalState: State, newState: State)
 
+  case class StepEval(newStateCombos: Set[(EdgeAnnotation, StateCombo)], newVisited: Set[State])
+
+  protected def stepEval(sc: StateCombo,
+                         visited: Set[State],
+                         currentGraph: AbstractGraph): StepEval = {
+
+    val StateCombo(originalState, newState) = sc
+    /*
+     * If originalState does not have any outgoing edges, return empty set
+     */
+    val edges: Set[Edge] = currentGraph.edges.getOrElse(originalState, Set()) // All outgoing edges in abstract graph
+    val filteredEdges = filterWithStore(newState, edges)
+
+    Logger.log(s"Using edges $edges", Logger.D)
+    Logger.log(s"Using filteredEdges $filteredEdges", Logger.D)
+
+    /* The combination of action-edges from all edges. */
+    val mergedActionEdges: Set[ActionEdge] = filteredEdges.map(_._1._2)
+
+    var somethingChanged = false
+
+    /*
+     * Compute the set of new states via the set of merged action edges, and, while applying the action edges,
+     * collect the filter edge for each of the applied action edges.
+     */
+    val results: Set[(State, FilterEdge)] = mergedActionEdges.flatMap((actionEdge) =>
+      /*
+       * For each action edge, take all actionRs a1, a2 ... ak, and apply them consecutively on newState.
+       * Each actionR may produce a set of new newStates.
+       */
+      actionEdge.foldLeft[Set[(State, FilterEdge)]](Set((newState, Nil)))(
+        (intermediaryStates: Set[(State, FilterEdge)], actionR: ActionReplay[Exp, AbstL, Addr]) =>
+          intermediaryStates.flatMap((intermediaryState: (State, FilterEdge)) => {
+            somethingChanged = true
+            val intermediaryFilters = intermediaryState._2
+            val nextIntermediaryStepSet = actionTApplier.applyActionReplay(intermediaryState._1, actionR)
+            nextIntermediaryStepSet.map({ case (nextIntermediaryState, nextIntermediaryFilters) =>
+              (nextIntermediaryState, intermediaryFilters ++ nextIntermediaryFilters)
+            })
+          })
+      )
+    )
+    /*
+     * Using the filter edges gathered while applying the action edges, find the appropriate edge in the original
+     * graph. This edge then provides an EdgeAnnotation (used to print text over the edge in the outputted graph)
+     * and a StateCombo, consisting of the state at the end of the edge in the initial graph and the newly computed
+     * state.
+     */
+    val newStateCombos: Set[(EdgeAnnotation, StateCombo)] = results.flatMap({
+      case (newNewState, filterEdge) =>
+        val initialGraphFilteredEdge: Set[Edge] = filterEdgeFilterAnnotations.filterAllEdgeInfos(filteredEdges, filterEdge)
+        Logger.log(s"|results| is ${results.size} FilterEdge for state $newNewState and concrete-ish $filterEdge " +
+          s"is $initialGraphFilteredEdge", Logger.D)
+        initialGraphFilteredEdge.map( (edge) => {
+          val edgeAnnotation = edge._1
+          val newOriginalState = edge._2
+          (edgeAnnotation, StateCombo(newOriginalState, newNewState))
+        })
+    })
+
+    Logger.log(s"newStateCombos = ${newStateCombos.map((sc: (EdgeAnnotation, StateCombo)) =>
+      currentGraph.nodeId(sc._2.originalState))
+    }", Logger.D)
+    val newVisited = if (somethingChanged) visited + newState else visited
+    StepEval(newStateCombos, newVisited)
+  }
+
   /*
    * Keep track of the set of visited originalStates, but not of the set of newStates.
    */
@@ -86,59 +153,12 @@ class PropagateRunTimeInfo[Exp : Expression,
           Logger.log(s"State already visited", Logger.D)
           evalLoop(todo.tail, visited, graph, stepCount, initialGraph, currentGraph)
         } else {
-          /*
-           * If originalState does not have any outgoing edges, return empty set
-           */
-
-          val edges: Set[Edge] = currentGraph.edges.getOrElse(originalState, Set()) // All outgoing edges in abstract graph
-          val filteredEdges = filterWithStore(newState, edges)
-
-          Logger.log(s"Using edges $edges", Logger.D)
-          Logger.log(s"Using filteredEdges $filteredEdges", Logger.D)
-
-          /* The combination of action-edges from all edges. */
-          val mergedActionEdges: Set[ActionEdge] = filteredEdges.map(_._1._2)
-
-          var somethingChanged = false
-
-          /*
-           * For all filteredEdges e, take all actionRs a1, a2 ... ak, and apply them consecutively on newState.
-           * Each actionR may produce a set of new newStates.
-           */
-          val results: Set[(State, FilterEdge)] = mergedActionEdges.flatMap((actionEdge) =>
-            actionEdge.foldLeft[Set[(State, FilterEdge)]](Set((newState, Nil)))(
-              (intermediaryStates: Set[(State, FilterEdge)], actionR: ActionReplay[Exp, AbstL, Addr]) =>
-                intermediaryStates.flatMap((intermediaryState: (State, FilterEdge)) => {
-                  somethingChanged = true
-                  val intermediaryFilters = intermediaryState._2
-                  val nextIntermediaryStepSet = actionTApplier.applyActionReplay(intermediaryState._1, actionR)
-                  nextIntermediaryStepSet.map({ case (nextIntermediaryState, nextIntermediaryFilters) =>
-                    (nextIntermediaryState, intermediaryFilters ++ nextIntermediaryFilters)
-                  })
-                })
-            )
-          )
-
-          val newStateCombos: Set[(EdgeAnnotation, StateCombo)] = results.flatMap({
-            case (newNewState, filterEdge) =>
-              val initialGraphFilteredEdge: Set[Edge] = filterEdgeFilterAnnotations.filterAllEdgeInfos(filteredEdges, filterEdge)
-              Logger.log(s"|results| is ${results.size} FilterEdge for state $newNewState and concrete-ish $filterEdge " +
-                         s"is $initialGraphFilteredEdge", Logger.D)
-              initialGraphFilteredEdge.map( (edge) => {
-                val edgeAnnotation = edge._1
-                val newOriginalState = edge._2
-                (edgeAnnotation, StateCombo(newOriginalState, newNewState))
-              })
-          })
-
-          Logger.log(s"newStateCombos = ${newStateCombos.map((sc: (EdgeAnnotation, StateCombo)) =>
-            currentGraph.nodeId(sc._2.originalState))
-          }", Logger.D)
-          val newVisited = if (somethingChanged) visited + newState else visited
-          evalLoop(todo.tail ++ newStateCombos.map(_._2), newVisited, graph.map(_.addEdges(newStateCombos.map({
-            case (edgeAnnotation, StateCombo(_, newNewState)) =>
-              (newState, edgeAnnotation, newNewState)
-          }))), stepCount, initialGraph, currentGraph)
+          val stepEvalResult = stepEval(sc, visited, currentGraph)
+          evalLoop(todo.tail ++ stepEvalResult.newStateCombos.map(_._2), stepEvalResult.newVisited,
+                   graph.map(_.addEdges(stepEvalResult.newStateCombos.map({
+                     case (edgeAnnotation, StateCombo(_, newNewState)) =>
+                       (newState, edgeAnnotation, newNewState)
+                   }))), stepCount, initialGraph, currentGraph)
         }
     }
 
