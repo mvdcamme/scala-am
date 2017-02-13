@@ -186,7 +186,9 @@ case class ActionPrimCallT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     argsExps: List[Exp])
     extends ActionTrace[Exp, Abs, Addr] with ActionReplay[Exp, Abs, Addr]
     with ChangesValueReg[Exp, Abs, Addr]
-    with PopsValue[Exp, Abs, Addr]
+    with PopsValue[Exp, Abs, Addr] {
+  override def popsKont = true
+}
 case class ActionPushValT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
     extends ActionTrace[Exp, Abs, Addr] with ActionReplay[Exp, Abs, Addr]
     with PushesValue[Exp, Abs, Addr]

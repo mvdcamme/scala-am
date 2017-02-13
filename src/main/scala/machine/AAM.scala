@@ -92,6 +92,36 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         }
       })
 
+    def addActionPopKontT(actionEdge: List[ActionReplay[Exp, Abs, Addr]]): List[ActionReplay[Exp, Abs, Addr]] =
+      if (actionEdge.exists((actionR) => actionR.popsKont)) {
+        /*
+         * One of the actionReplays in the edge already pops the topmost continuation,
+         * so no need to add an ActionPopKontT.
+         */
+        actionEdge
+      } else if (actionEdge.exists({
+        /*
+         * Otherwise, definitely add an ActionPopKontT: add it to the front of the edge if there's
+         * some new continuation frame going to be pushed:
+         *
+         * If a frame is pushed, the pop should happen before the frame is pushed, so that you don't just
+         * pop the newly pushed frame. Otherwise, the pop should happen afterwards: if the top frame is e.g.,
+         * a FrameFuncallOperands for some primitive application, the frame contains important information
+         * such as the values of the operands and hence should only be popped after the primitive has been
+         * applied.
+         */
+        case _: ActionEvalPushR[Exp, Abs, Addr] => true
+        case _: ActionEvalPushDataR[Exp, Abs, Addr] => true
+        case _ => false
+      })) {
+        ActionPopKontT[Exp, Abs, Addr]() :: actionEdge
+      } else {
+        /*
+         * If no new continuation frame is going to be pushed, add the ActionPopKontT to the back of the edge.
+         */
+        actionEdge :+ ActionPopKontT[Exp, Abs, Addr]()
+      }
+
     /**
       * Computes the set of states that follow the current state
       */
@@ -107,26 +137,14 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             .flatMap({
               case Kont(frame, next) =>
                 val edgeInfos = integrate(next, sem.stepKont(v, frame, store, t))
-                edgeInfos.map({ case (succState, edgeAnnotations, actionEdges) =>
+                edgeInfos.map({ case (succState, edgeAnnotations, actionEdge) =>
                   /* If step did not generate any EdgeAnnotation, place a FrameFollowed EdgeAnnotation */
                   val replacedEdgeAnnot =
                     KontAddrPopped(a, next) ::
                     FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) ::
                     edgeAnnotations
-                  val actionPopKont = ActionPopKontT[Exp, Abs, Addr]
-                  /*
-                   * If a frame is pushed, the pop should happen before the frame is pushed, so that you don't just
-                   * pop the newly pushed frame. Otherwise, the pop should happen afterwards: if the top frame is e.g.,
-                   * a FrameFuncallOperands for some primitive application, the frame contains important information
-                   * such as the values of the operands and hence should only be popped after the primitive has been
-                   * applied.
-                   */
-                  val replacedActionEdges = if (actionEdges.exists({
-                    case _: ActionEvalPushR[Exp, Abs, Addr] => true
-                    case _: ActionEvalPushDataR[Exp, Abs, Addr] => true
-                    case _ => false
-                  })) { actionPopKont :: actionEdges } else { actionEdges :+ actionPopKont }
-                  (succState, replacedEdgeAnnot, replacedActionEdges)
+                  val replacedActionEdge = addActionPopKontT(actionEdge)
+                  (succState, replacedEdgeAnnot, replacedActionEdge)
                 })
             })
         /* In an error state, the state is not able to make a step */
@@ -391,10 +409,12 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     protected def addKontAddrPopped(a: KontAddr, next: KontAddr): KontAddrPopped = KontAddrPopped(a, next)
     protected def addKontAddrPushed(next: KontAddr): KontAddrPushed = KontAddrPushed(next)
 
-    private def frameSavedOperands(a: KontAddr, kstore: KontStore[KontAddr]): Set[List[Abs]] =
-      kstore.lookup(a).map(_.frame match {
+    private def frameSavedOperands(state: State): Set[(List[Abs], Kont[KontAddr])] =
+      state.kstore.lookup(state.a).map( (kont) => kont.frame match {
         case frame: FrameFuncallOperands[Abs, Addr, Time] =>
-          frame.f :: frame.args.map(_._2)
+          val savedOperands = frame.f :: frame.args.map(_._2)
+          val allOperands = addControlKontValue(state, savedOperands)
+          (allOperands, kont)
         case frame =>
           throw new Exception(s"Retrieving operands of non-FrameFunCallOperands $frame")
       })
@@ -423,6 +443,11 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     protected def getControlKontValue(state: State): Abs = {
       assert(state.control.isInstanceOf[ControlKont])
       state.control.asInstanceOf[ControlKont].v
+    }
+
+    protected def addControlKontValue(state: State, values: List[Abs]): List[Abs] = {
+      val extraValue = getControlKontValue(state)
+      values :+ extraValue
     }
 
     protected def addControlKontValue(state: State, valuesSet: Set[List[Abs]]): Set[List[Abs]] = {
@@ -472,21 +497,28 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       case ActionPopKontT() =>
         popKont(state)
       case a: ActionPrimCallT[SchemeExp, Abs, Addr] =>
-        val incompleteValuesSet = frameSavedOperands(state.a, state.kstore)
-        val valuesSet = addControlKontValue(state, incompleteValuesSet)
-        valuesSet.flatMap( (values) => {
+        val savedOperandsKontsSet: Set[(List[Abs], Kont[KontAddr])] = frameSavedOperands(state)
+        //val valuesSet = addControlKontValue(state, savedOperandsKontsSet)
+        savedOperandsKontsSet.flatMap({ case (values, kont) =>
           assert(values.length == a.argsExps.length + 1, s"Length of ${a.argsExps} does not match length of $values")
           val operator = values.head
-          val operands = values.tail
+          val operands = values.tail :+ getControlKontValue(state)
           val primitives = sabs.getPrimitives[Addr, Abs](operator)
+
+          val frame = kont.frame
+          val next = kont.next
+          val kontPopped = addKontAddrPopped(state.a, next)
+          val frameFollowed = addFrameFollowed(frame)
+          val filterEdge = List(kontPopped, frameFollowed)
+
           primitives.flatMap((primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store,
             state.t)
             .collect({
               case (res, store2, effects) =>
-                Set(noEdgeFilters(state.copy(control = ControlKont(res), store = store2)))
+                Set((state.copy(control = ControlKont(res), store = store2, a = next), filterEdge))
             },
               err =>
-                Set(noEdgeFilters(state.copy(control = ControlError(err))))))
+                Set((state.copy(control = ControlError(err), a = next), filterEdge))))
         })
       case a: ActionReachedValueT[Exp, Abs, Addr] =>
         Set(noEdgeFilters(state.copy(control = ControlKont(a.v))))

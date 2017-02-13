@@ -1,4 +1,6 @@
-trait ActionReplay[Exp, Abs, Addr]
+trait ActionReplay[Exp, Abs, Addr] {
+    def popsKont: Boolean = false
+}
 
 /*
  * Extend store with the given addresses, initialized to the bottom value.
