@@ -1,2 +1,0 @@
-Frame pushen:
-Moet sowieso next meegeven in annotatie, maar moet het vorige kont address ook meegegeven worden? Kan gewoon uit de huidige abstracte staat gehaald worden, maar stel dat er een push wordt gedaan nadat er eerst een pop werd gedaan -> moet er dan voor zorgen dat annotaties in de juiste volgorde staan
