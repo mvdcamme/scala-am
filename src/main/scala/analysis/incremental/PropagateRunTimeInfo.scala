@@ -7,6 +7,11 @@ class PropagateRunTimeInfo[Exp : Expression,
   val usesGraph = new UsesGraph[Exp, AbstL, Addr, State]
   import usesGraph._
 
+  val filterEdgeFilterAnnotations = new FilterEdgeFilterAnnotations[Exp, AbstL, Addr, State]
+
+  type ActionEdge = List[ActionReplay[Exp, AbstL, Addr]]
+  type FilterEdge = List[EdgeFilterAnnotation]
+
   private def filterWithStore(newState: State, edges: Set[Edge]): Set[Edge] = {
 
     def hasEdgeAnnot(edge: (EdgeAnnotation, State), edgeAnnotation: EdgeFilterAnnotation): Boolean =
@@ -70,12 +75,11 @@ class PropagateRunTimeInfo[Exp : Expression,
       case Some(sc@(StateCombo(originalState, newState))) =>
         val originalStateId = currentGraph.nodeId(originalState)
         Logger.log(s"Incrementally evaluating original state ${initialGraph.nodeId(originalState)} " +
-          s"(currentID: $originalStateId) " +
-          s"$originalState with new state $newState", Logger.D)
+          s"(currentID: $originalStateId) $originalState with new state $newState", Logger.D)
         if (actionTApplier.halted(newState)) {
           Logger.log(s"State halted", Logger.D)
           evalLoop(todo.tail, visited + newState, graph, stepCount, initialGraph, currentGraph)
-        } else if (visited.exists( (s2) => actionTApplier.subsumes(s2, newState) )) {
+        } else if (visited.exists((s2) => actionTApplier.subsumes(s2, newState))) {
           Logger.log(s"State subsumed", Logger.D)
           evalLoop(todo.tail, visited + newState, graph, stepCount, initialGraph, currentGraph)
         } else if (visited.contains(newState)) {
@@ -92,13 +96,41 @@ class PropagateRunTimeInfo[Exp : Expression,
           Logger.log(s"Using edges $edges", Logger.D)
           Logger.log(s"Using filteredEdges $filteredEdges", Logger.D)
 
+          /* The combination of action-edges from all edges. */
+          val mergedActionEdges: Set[ActionEdge] = filteredEdges.map(_._1._2)
+
+          val results: Set[(State, FilterEdge)] = mergedActionEdges.flatMap((actionEdge) =>
+            actionEdge.foldLeft[Set[(State, FilterEdge)]](Set((newState, Nil)))(
+              (intermediaryStates: Set[(State, FilterEdge)], actionR: ActionReplay[Exp, AbstL, Addr]) =>
+                intermediaryStates.flatMap((intermediaryState: (State, FilterEdge)) => {
+                  val intermediaryFilters = intermediaryState._2
+                  val nextIntermediaryStepSet = actionTApplier.applyActionReplay(intermediaryState._1, actionR)
+                  nextIntermediaryStepSet.map({ case (nextIntermediaryState, nextIntermediaryFilters) =>
+                    (nextIntermediaryState, intermediaryFilters ++ nextIntermediaryFilters)
+                  })
+                })
+            )
+          )
+
+          // Results is nog steeds 4 groot: probleem kan mss opgelost worden door ActionPopKontT te verwijderen
+          // en in de plaats automatisch de continuation te poppen als dat nodig is voor andere ActionReplays,
+          // zoals ActionPrimCall of ActionLookupVar
+
+          results.foreach({
+            case (state, filterEdge) =>
+              val initialFilteredEdge = filterEdgeFilterAnnotations.filterAllEdgeInfos(filteredEdges, filterEdge)
+              Logger.log(s"|results| is ${results.size} FilterEdge for state $state and concrete-ish $filterEdge " +
+                s"is $initialFilteredEdge", Logger.U)
+          })
+
+
           var somethingChanged = false
 
           /*
            * For all filteredEdges e, take all actionTs a1, a2 ... ak, and apply them consecutively on newState.
            * Each actionT may produce a set of new newStates.
            */
-          val newStateCombos: Set[(EdgeAnnotation, StateCombo)] = filteredEdges.flatMap( (edge) => {
+          val newStateCombos: Set[(EdgeAnnotation, StateCombo)] = filteredEdges.flatMap((edge) => {
             val edgeAnnotation = edge._1
             val actionTs = edgeAnnotation._2
             val newOriginalState = edge._2
@@ -106,18 +138,21 @@ class PropagateRunTimeInfo[Exp : Expression,
              * Compute, for all actions in one particular edge, the state resulting from the consecutive application of
              * all actions.
              */
-            val newStates = actionTs.foldLeft[Set[State]](Set(newState))( (states, actionT) => {
+            val newStates = actionTs.foldLeft[Set[State]](Set(newState))((states, actionT) => {
               somethingChanged = true
-              states.flatMap( (state) => actionTApplier.applyActionReplay(state, actionT).map(_._1))
+              states.flatMap((state) => actionTApplier.applyActionReplay(state, actionT).map(_._1))
             })
-            newStates.map( (newState) => (edgeAnnotation, StateCombo(newOriginalState, newState)))
+            newStates.map((newState) => (edgeAnnotation, StateCombo(newOriginalState, newState)))
           })
-          Logger.log(s"newStateCombos = ${newStateCombos.map( (sc: (EdgeAnnotation, StateCombo)) =>
-            currentGraph.nodeId(sc._2.originalState))}", Logger.D)
+          Logger.log(s"newStateCombos = ${
+            newStateCombos.map((sc: (EdgeAnnotation, StateCombo)) =>
+              currentGraph.nodeId(sc._2.originalState))
+          }", Logger.D)
           val newVisited = if (somethingChanged) visited + newState else visited
           evalLoop(todo.tail ++ newStateCombos.map(_._2), newVisited, graph.map(_.addEdges(newStateCombos.map({
             case (edgeAnnotation, StateCombo(_, newNewState)) =>
-              (newState, edgeAnnotation, newNewState) } ))), stepCount, initialGraph, currentGraph)
+              (newState, edgeAnnotation, newNewState)
+          }))), stepCount, initialGraph, currentGraph)
         }
     }
 
