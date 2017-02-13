@@ -99,10 +99,17 @@ class PropagateRunTimeInfo[Exp : Expression,
           /* The combination of action-edges from all edges. */
           val mergedActionEdges: Set[ActionEdge] = filteredEdges.map(_._1._2)
 
+          var somethingChanged = false
+
+          /*
+           * For all filteredEdges e, take all actionRs a1, a2 ... ak, and apply them consecutively on newState.
+           * Each actionR may produce a set of new newStates.
+           */
           val results: Set[(State, FilterEdge)] = mergedActionEdges.flatMap((actionEdge) =>
             actionEdge.foldLeft[Set[(State, FilterEdge)]](Set((newState, Nil)))(
               (intermediaryStates: Set[(State, FilterEdge)], actionR: ActionReplay[Exp, AbstL, Addr]) =>
                 intermediaryStates.flatMap((intermediaryState: (State, FilterEdge)) => {
+                  somethingChanged = true
                   val intermediaryFilters = intermediaryState._2
                   val nextIntermediaryStepSet = actionTApplier.applyActionReplay(intermediaryState._1, actionR)
                   nextIntermediaryStepSet.map({ case (nextIntermediaryState, nextIntermediaryFilters) =>
@@ -112,41 +119,20 @@ class PropagateRunTimeInfo[Exp : Expression,
             )
           )
 
-          // Results is nog steeds 4 groot: probleem kan mss opgelost worden door ActionPopKontT te verwijderen
-          // en in de plaats automatisch de continuation te poppen als dat nodig is voor andere ActionReplays,
-          // zoals ActionPrimCall of ActionLookupVar
-
-          results.foreach({
-            case (state, filterEdge) =>
-              val initialFilteredEdge = filterEdgeFilterAnnotations.filterAllEdgeInfos(filteredEdges, filterEdge)
-              Logger.log(s"|results| is ${results.size} FilterEdge for state $state and concrete-ish $filterEdge " +
-                s"is $initialFilteredEdge", Logger.U)
+          val newStateCombos: Set[(EdgeAnnotation, StateCombo)] = results.flatMap({
+            case (newNewState, filterEdge) =>
+              val initialGraphFilteredEdge: Set[Edge] = filterEdgeFilterAnnotations.filterAllEdgeInfos(filteredEdges, filterEdge)
+              Logger.log(s"|results| is ${results.size} FilterEdge for state $newNewState and concrete-ish $filterEdge " +
+                         s"is $initialGraphFilteredEdge", Logger.D)
+              initialGraphFilteredEdge.map( (edge) => {
+                val edgeAnnotation = edge._1
+                val newOriginalState = edge._2
+                (edgeAnnotation, StateCombo(newOriginalState, newNewState))
+              })
           })
 
-
-          var somethingChanged = false
-
-          /*
-           * For all filteredEdges e, take all actionTs a1, a2 ... ak, and apply them consecutively on newState.
-           * Each actionT may produce a set of new newStates.
-           */
-          val newStateCombos: Set[(EdgeAnnotation, StateCombo)] = filteredEdges.flatMap((edge) => {
-            val edgeAnnotation = edge._1
-            val actionTs = edgeAnnotation._2
-            val newOriginalState = edge._2
-            /*
-             * Compute, for all actions in one particular edge, the state resulting from the consecutive application of
-             * all actions.
-             */
-            val newStates = actionTs.foldLeft[Set[State]](Set(newState))((states, actionT) => {
-              somethingChanged = true
-              states.flatMap((state) => actionTApplier.applyActionReplay(state, actionT).map(_._1))
-            })
-            newStates.map((newState) => (edgeAnnotation, StateCombo(newOriginalState, newState)))
-          })
-          Logger.log(s"newStateCombos = ${
-            newStateCombos.map((sc: (EdgeAnnotation, StateCombo)) =>
-              currentGraph.nodeId(sc._2.originalState))
+          Logger.log(s"newStateCombos = ${newStateCombos.map((sc: (EdgeAnnotation, StateCombo)) =>
+            currentGraph.nodeId(sc._2.originalState))
           }", Logger.D)
           val newVisited = if (somethingChanged) visited + newState else visited
           evalLoop(todo.tail ++ newStateCombos.map(_._2), newVisited, graph.map(_.addEdges(newStateCombos.map({
