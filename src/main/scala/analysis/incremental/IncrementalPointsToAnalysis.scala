@@ -48,6 +48,15 @@ class IncrementalPointsToAnalysis[Exp : Expression,
 
   def applyEdgeActions(convertedState: State, stepCount: Int): Unit = {
     assertInitialized()
-    propagateRunTimeInfo.applyEdgeActions(convertedState, stepCount, currentNodes, initialGraph.get, currentGraph.get)
+    val optionGraph = propagateRunTimeInfo.applyEdgeActions(convertedState,
+                                                            stepCount,
+                                                            currentNodes,
+                                                            initialGraph.get,
+                                                            currentGraph.get)
+    if (stepCount == 0) {
+      val areEqual = graphsEqual(initialGraph.get, optionGraph.get)
+      Logger.log(s"Graphs equal? $areEqual", Logger.U)
+    }
+  }
   }
 }

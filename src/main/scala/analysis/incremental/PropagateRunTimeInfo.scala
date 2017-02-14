@@ -57,6 +57,7 @@ class PropagateRunTimeInfo[Exp : Expression,
 
   protected def stepEval(sc: StateCombo,
                          visited: Set[State],
+                         graph: AbstractGraph,
                          currentGraph: AbstractGraph): StepEval = {
 
     val StateCombo(originalState, newState) = sc
@@ -103,9 +104,10 @@ class PropagateRunTimeInfo[Exp : Expression,
      */
     val newStateCombos: Set[(EdgeAnnotation, StateCombo)] = results.flatMap({
       case (newNewState, filterEdge) =>
+        val currentId = graph.nodeId(newState)
         val initialGraphFilteredEdge: Set[Edge] = filterEdgeFilterAnnotations.filterAllEdgeInfos(filteredEdges, filterEdge)
-        Logger.log(s"|results| is ${results.size} FilterEdge for state $newNewState and concrete-ish $filterEdge " +
-          s"is $initialGraphFilteredEdge", Logger.D)
+        Logger.log(s"FilterEdge for state $newNewState (current ID $currentId) and concrete-ish " +
+                   s"$filterEdge is $initialGraphFilteredEdge", Logger.U)
         initialGraphFilteredEdge.map( (edge) => {
           val edgeAnnotation = edge._1
           val newOriginalState = edge._2
@@ -113,7 +115,7 @@ class PropagateRunTimeInfo[Exp : Expression,
         })
     })
 
-    Logger.log(s"newStateCombos = ${newStateCombos.map((sc: (EdgeAnnotation, StateCombo)) =>
+    Logger.log(s"newStateCombos = ${newStateCombos.map( (sc: (EdgeAnnotation, StateCombo)) =>
       currentGraph.nodeId(sc._2.originalState))
     }", Logger.D)
     val newVisited = if (somethingChanged) visited + newState else visited
@@ -129,7 +131,8 @@ class PropagateRunTimeInfo[Exp : Expression,
                        stepCount: Int,
                        initialGraph: AbstractGraph,
                        currentGraph: AbstractGraph):
-  Option[Graph[State, EdgeAnnotation]] =
+  Option[Graph[State, EdgeAnnotation]] = {
+    val checkSubsumes = false
     todo.headOption
     match {
       case None =>
@@ -142,25 +145,32 @@ class PropagateRunTimeInfo[Exp : Expression,
       case Some(sc@(StateCombo(originalState, newState))) =>
         val originalStateId = currentGraph.nodeId(originalState)
         Logger.log(s"Incrementally evaluating original state ${initialGraph.nodeId(originalState)} " +
-          s"(currentID: $originalStateId) $originalState with new state $newState", Logger.D)
+          s"(currentID: $originalStateId) $originalState with new state $newState", Logger.U)
         if (actionTApplier.halted(newState)) {
-          Logger.log(s"State halted", Logger.D)
+          Logger.log(s"State halted", Logger.U)
           evalLoop(todo.tail, visited + newState, graph, stepCount, initialGraph, currentGraph)
-        } else if (visited.exists((s2) => actionTApplier.subsumes(s2, newState))) {
-          Logger.log(s"State subsumed", Logger.D)
-          evalLoop(todo.tail, visited + newState, graph, stepCount, initialGraph, currentGraph)
+        } else if (checkSubsumes && visited.exists((s2) => actionTApplier.subsumes(s2, newState))) {
+          Logger.log(s"State subsumed", Logger.U)
+          val updatedGraph = graph.map(visited.foldLeft[AbstractGraph](_)({
+            case (graph, s2) =>
+              if ( actionTApplier.subsumes(s2, newState))
+                graph.addEdge(newState, (List(StateSubsumed), Nil), s2)
+              else
+                graph}))
+          evalLoop(todo.tail, visited, updatedGraph, stepCount, initialGraph, currentGraph)
         } else if (visited.contains(newState)) {
           Logger.log(s"State already visited", Logger.D)
           evalLoop(todo.tail, visited, graph, stepCount, initialGraph, currentGraph)
         } else {
-          val stepEvalResult = stepEval(sc, visited, currentGraph)
+          val stepEvalResult = stepEval(sc, visited, graph.get, currentGraph)
           evalLoop(todo.tail ++ stepEvalResult.newStateCombos.map(_._2), stepEvalResult.newVisited,
-                   graph.map(_.addEdges(stepEvalResult.newStateCombos.map({
-                     case (edgeAnnotation, StateCombo(_, newNewState)) =>
-                       (newState, edgeAnnotation, newNewState)
-                   }))), stepCount, initialGraph, currentGraph)
+            graph.map(_.addEdges(stepEvalResult.newStateCombos.map({
+              case (edgeAnnotation, StateCombo(_, newNewState)) =>
+                (newState, edgeAnnotation, newNewState)
+            }))), stepCount, initialGraph, currentGraph)
         }
     }
+  }
 
   def convertGraph[Node : Descriptor, EdgeAnnotation, NewEdgeAnnotation](g: Graph[Node, EdgeAnnotation],
                                                                          f: EdgeAnnotation => NewEdgeAnnotation): Graph[Node, NewEdgeAnnotation] = {
@@ -173,7 +183,7 @@ class PropagateRunTimeInfo[Exp : Expression,
                        stepCount: Int,
                        currentNodes: Set[State],
                        initialGraph: AbstractGraph,
-                       currentGraph: AbstractGraph): Unit = {
+                       currentGraph: AbstractGraph): Option[AbstractGraph] = {
     val g = convertGraph[State, EdgeAnnotation, List[ActionReplay[Exp, AbstL, Addr]]](currentGraph, (edge: EdgeAnnotation) => edge._2)
     g.toDotFile(s"Analysis/Incremental/current_graph_$stepCount.dot", node => List(scala.xml.Text(node.toString.take(40))),
       (s) => Colors.Green,
