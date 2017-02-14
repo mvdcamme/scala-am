@@ -104,9 +104,12 @@ class PointsToAnalysisLauncher[
                                   HybridAddress.A,
                                   HybridTimestamp.T])
     extends AnalysisLauncher[Abs] {
-
+  
   val aam: SpecAAM = new SpecAAM()
   implicit val stateDescriptor = new aam.StateDescriptor()
+
+  val usesGraph = new UsesGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
+  import usesGraph._
 
   implicit val stateChangeEdgeApplier = aam.ActionReplayApplier
   val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, HybridAddress.A, aam.GraphNode]
@@ -173,7 +176,15 @@ class PointsToAnalysisLauncher[
   def applyEdgeActions(concreteState: PS, stepCount: Int): Unit = {
     val applyEdgeActions = () => {
       val convertedState = convertStateAAM(aam, concSem, abstSem, concreteState)
-      incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
+      val incrementalGraph: AbstractGraph = incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
+      val completelyNewGraph: AbstractGraph = runStaticAnalysis(concreteState, Some(stepCount)) match {
+        case AnalysisOutputGraph(output) =>
+          output.toDotFile(s"Analysis/Run_time/run_time_$stepCount.dot")
+          output.graph.asInstanceOf[AbstractGraph]
+      }
+      val areEqual = incrementalAnalysis.graphsEqual(completelyNewGraph, incrementalGraph)
+      Logger.log(s"Graphs equal? $areEqual", Logger.U)
+      assert(areEqual)
     }
     wrapAbstractEvaluation(applyEdgeActions)
   }

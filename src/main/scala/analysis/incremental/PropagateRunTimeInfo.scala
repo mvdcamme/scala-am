@@ -107,7 +107,7 @@ class PropagateRunTimeInfo[Exp : Expression,
         val currentId = graph.nodeId(newState)
         val initialGraphFilteredEdge: Set[Edge] = filterEdgeFilterAnnotations.filterAllEdgeInfos(filteredEdges, filterEdge)
         Logger.log(s"FilterEdge for state $newNewState (current ID $currentId) and concrete-ish " +
-                   s"$filterEdge is $initialGraphFilteredEdge", Logger.U)
+                   s"$filterEdge is $initialGraphFilteredEdge", Logger.D)
         initialGraphFilteredEdge.map( (edge) => {
           val edgeAnnotation = edge._1
           val newOriginalState = edge._2
@@ -145,12 +145,12 @@ class PropagateRunTimeInfo[Exp : Expression,
       case Some(sc@(StateCombo(originalState, newState))) =>
         val originalStateId = currentGraph.nodeId(originalState)
         Logger.log(s"Incrementally evaluating original state ${initialGraph.nodeId(originalState)} " +
-          s"(currentID: $originalStateId) $originalState with new state $newState", Logger.U)
+          s"(currentID: $originalStateId) $originalState with new state $newState", Logger.D)
         if (actionTApplier.halted(newState)) {
-          Logger.log(s"State halted", Logger.U)
+          Logger.log(s"State halted", Logger.D)
           evalLoop(todo.tail, visited + newState, graph, stepCount, initialGraph, currentGraph)
         } else if (checkSubsumes && visited.exists((s2) => actionTApplier.subsumes(s2, newState))) {
-          Logger.log(s"State subsumed", Logger.U)
+          Logger.log(s"State subsumed", Logger.D)
           val updatedGraph = graph.map(visited.foldLeft[AbstractGraph](_)({
             case (graph, s2) =>
               if ( actionTApplier.subsumes(s2, newState))
@@ -189,7 +189,7 @@ class PropagateRunTimeInfo[Exp : Expression,
       (s) => Colors.Green,
       node => List(scala.xml.Text(node.mkString(", ").take(300))),
       None)
-    currentNodes.foreach((node) => Logger.log(s"node id: ${currentGraph.nodeId(node)}", Logger.U))
+    currentNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.U))
     /*
      * Associate the (one) abstracted concrete state with all states in the CurrentNodes set, as the states in
      * this set ought to correspond with this concrete state.

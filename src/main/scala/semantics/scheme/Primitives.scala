@@ -648,7 +648,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     }
   }
 
-  class CarCdrOperation(override val name: String)
+  case class CarCdrOperation(override val name: String)
       extends StoreOperation(name, Some(1)) {
     trait Spec
     case object Car extends Spec

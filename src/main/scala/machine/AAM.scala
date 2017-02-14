@@ -544,6 +544,22 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     }
 
     def subsumes(s1: State, s2: State): Boolean = s1.subsumes(s2)
+    def statesEqual(s1: State, s2: State): Boolean = {
+      val control = s1.control == s2.control
+      val a = s1.a == s2.a
+      val t = s1.t == s2.t
+      val kstore = s1.kstore == s2.kstore
+      val store = s1.store.toSet == s2.store.toSet
+//      val store = s1.store.toSet.size == s2.store.toSet.size &&
+//                  s1.store.toSet.forall( (tuple) =>
+//                    if (s2.store.toSet.contains(tuple)) {
+//                      Logger.log("hier", Logger.U)
+//                      true
+//                    } else {
+//                      false
+//                    })
+      control && a && t && kstore && store
+    }
 
     def halted(state: State): Boolean = state.halted
 

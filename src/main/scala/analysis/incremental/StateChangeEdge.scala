@@ -6,6 +6,7 @@ trait ActionReplayApplier[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]
                        (implicit sabs: IsSchemeLattice[Abs]): Set[(State, List[EdgeFilterAnnotation])]
 
   def subsumes(s1: State, s2: State): Boolean
+  def statesEqual(s1: State, s2: State): Boolean
 
   def halted(state: State): Boolean
 
