@@ -419,14 +419,14 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
           throw new Exception(s"Retrieving operands of non-FrameFunCallOperands $frame")
       })
 
-    private def frameSavedValues(a: KontAddr, kstore: KontStore[KontAddr]): Set[List[Abs]] =
-      kstore.lookup(a).map(_.frame match {
+    private def frameSavedValues(a: KontAddr, kstore: KontStore[KontAddr]): Set[(List[Abs], Kont[KontAddr])] =
+      kstore.lookup(a).map( (kont) => kont.frame match {
         case frame: FrameFuncallOperands[Abs, Addr, Time] =>
-          frame.args.map(_._2)
+          (frame.args.map(_._2), kont)
         case frame: FrameLet[Abs, Addr, Time] =>
-          frame.bindings.map(_._2)
+          (frame.bindings.map(_._2), kont)
         case _ =>
-          List()
+          (List(), kont)
       })
 
     protected def popKont(state: State): Set[(State, List[EdgeFilterAnnotation])] = {
@@ -455,6 +455,25 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       valuesSet.map(_ :+ extraValue)
     }
 
+    protected def addKontFilterAnnotations(currentAddr: KontAddr, kont: Kont[KontAddr]): List[EdgeFilterAnnotation] = {
+      val frame = kont.frame
+      val next = kont.next
+      val kontPopped = addKontAddrPopped(currentAddr, next)
+      val frameFollowed = addFrameFollowed(frame)
+      List(kontPopped, frameFollowed)
+    }
+
+    protected def defineAddresses(state: State, addresses: List[Addr]): Set[(State, Kont[KontAddr])] = {
+      val incompleteValuesKontsSet = frameSavedValues(state.a, state.kstore)
+      incompleteValuesKontsSet.map({ case (values, kont) =>
+        val completeValues = addControlKontValue(state, values)
+        assert(completeValues.length == addresses.length, s"Length of $addresses does not match length of $completeValues")
+        val addressValues = addresses.reverse.zip(completeValues) //TODO why do we need to reverse the arguments???
+        val newStore = addressValues.foldLeft(state.store)((store, tuple) => store.extend(tuple._1, tuple._2))
+        (state.copy(store = newStore), kont)
+      })
+    }
+
     def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr])
                          (implicit sabs: IsSchemeLattice[Abs]): Set[(State, List[EdgeFilterAnnotation])] = action match {
       case a: ActionAllocAddressesR[Exp, Abs, Addr] =>
@@ -463,15 +482,15 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       case a: ActionCreateClosureT[Exp, Abs, Addr] =>
         val closure = sabs.inject[Exp, Addr]((a.λ, a.env.get))
         Set(noEdgeFilters(state.copy(control = ControlKont(closure))))
-      case a: ActionDefineAddressesR[Exp, Abs, Addr] =>
-        val incompleteValuesSet = frameSavedValues(state.a, state.kstore)
-        val valuesSet = addControlKontValue(state, incompleteValuesSet)
-        valuesSet.map( (values) => {
-          assert(values.length == a.addresses.length, s"Length of ${a.addresses} does not match length of $values")
-          val addressValues = a.addresses.reverse.zip(values) //TODO why do we need to reverse the arguments???
-          val newStore = addressValues.foldLeft(state.store)( (store, tuple) => store.extend(tuple._1, tuple._2))
-          noEdgeFilters(state.copy(store = newStore))
+      case a: ActionDefineAddressesPopR[Exp, Abs, Addr] =>
+        val statesKonts = defineAddresses(state, a.addresses)
+        statesKonts.map({ case (state, kont) =>
+          val filterEdge = addKontFilterAnnotations(state.a, kont)
+          (state.copy(a = kont.next), filterEdge)
         })
+      case a: ActionDefineAddressesR[Exp, Abs, Addr] =>
+        val statesKonts = defineAddresses(state, a.addresses)
+        statesKonts.map( (stateKont) => noEdgeFilters(stateKont._1))
       case a: ActionEvalR[Exp, Abs, Addr] =>
         val evaluatingExp = addEvaluateExp(a.e)
         Set((state.copy(control = ControlEval(a.e, a.env)), List(evaluatingExp)))
@@ -505,20 +524,16 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
           val operands = values.tail :+ getControlKontValue(state)
           val primitives = sabs.getPrimitives[Addr, Abs](operator)
 
-          val frame = kont.frame
-          val next = kont.next
-          val kontPopped = addKontAddrPopped(state.a, next)
-          val frameFollowed = addFrameFollowed(frame)
-          val filterEdge = List(kontPopped, frameFollowed)
+          val filterEdge = addKontFilterAnnotations(state.a, kont)
 
           primitives.flatMap((primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store,
             state.t)
             .collect({
               case (res, store2, effects) =>
-                Set((state.copy(control = ControlKont(res), store = store2, a = next), filterEdge))
+                Set((state.copy(control = ControlKont(res), store = store2, a = kont.next), filterEdge))
             },
               err =>
-                Set((state.copy(control = ControlError(err), a = next), filterEdge))))
+                Set((state.copy(control = ControlError(err), a = kont.next), filterEdge))))
         })
       case a: ActionReachedValueT[Exp, Abs, Addr] =>
         Set(noEdgeFilters(state.copy(control = ControlKont(a.v))))

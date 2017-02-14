@@ -83,7 +83,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           if (args.length == argsv.length) {
             bindArgs(args.zip(argsv), env1, store, t) match {
               case (env2, store, boundAddresses) =>
-                val defAddr: ActionReplay[SchemeExp, Abs, Addr] = ActionDefineAddressesR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
+                val defAddr: ActionReplay[SchemeExp, Abs, Addr] = ActionDefineAddressesPopR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
                 if (body.length == 1) {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), body.head, env2, store, argsv)
                   noEdgeInfos(action, List(defAddr, ActionEvalR(body.head, env2)))
@@ -339,7 +339,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                 (env.extend(variable, a), store.extend(a, value))
             })
           val EdgeInformation(action, actionEdges, filters) = evalBody(frame.body, env1, store1)
-          Set(EdgeInformation(action, ActionDefineAddressesR[SchemeExp, Abs, Addr](addresses) :: actionEdges, filters))
+          Set(EdgeInformation(action, ActionDefineAddressesPopR[SchemeExp, Abs, Addr](addresses) :: actionEdges, filters))
         case (variable, e) :: toeval =>
           val newFrameGenerator =
             (value: Abs) => FrameLet(variable, (frame.variable, value) :: frame.bindings, toeval, frame.body, frame.env)
@@ -350,7 +350,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         val a = addr.variable(frame.variable, abs.bottom, t)
         val env1 = frame.env.extend(frame.variable, a)
         val store1 = store.extend(a, v)
-        val actionEdges = List(ActionDefineAddressesR[SchemeExp, Abs, Addr](List(a)))
+        val actionEdges = List(ActionDefineAddressesPopR[SchemeExp, Abs, Addr](List(a)))
         frame.bindings match {
           case Nil =>
             val EdgeInformation(actions, actionEdges2, edgeInfos) = evalBody(frame.body, env1, store1)

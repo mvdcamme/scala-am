@@ -11,6 +11,16 @@ case class ActionAllocAddressesR[Exp: Expression, Abs: JoinLattice, Addr: Addres
 
 /*
  * Extend store with these addresses and initialize them to their corresponding value on the stack.
+ * Also pop the topmost continuation frame from the stack.
+ */
+case class ActionDefineAddressesPopR[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    addresses: List[Addr])
+    extends ActionReplay[Exp, Abs, Addr] {
+  override def popsKont = true
+}
+
+/*
+ * Extend store with these addresses and initialize them to their corresponding value on the stack.
  */
 case class ActionDefineAddressesR[Exp: Expression, Abs: JoinLattice, Addr: Address](
     addresses: List[Addr])
