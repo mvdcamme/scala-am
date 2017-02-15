@@ -62,6 +62,15 @@ class IncrementalPointsToAnalysis[Exp : Expression,
   def graphsEqual(graph1: AbstractGraph, graph2: AbstractGraph): Boolean = {
     def nodeToString(node: State, graph: AbstractGraph): String =
       s"$node (id: ${graph.nodeId(node)})"
+    def filterBranchTakenFilters(edges: Set[Edge]): Set[Edge] =
+      edges.map( (edge) => {
+        val filterEdge = edge._1._1
+        val filteredFilterEdge = filterEdge.filter({
+          case ElseBranchTaken | ThenBranchTaken=> false
+          case _ => true
+        })
+        ((filteredFilterEdge, edge._1._2), edge._2)
+      })
 
     def breadthFirst(todo: List[State], visited: Set[State]): Boolean = {
       if (todo.isEmpty) {
@@ -73,8 +82,9 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         if (visited.contains(node)) {
           breadthFirst(todo.tail, visited)
         } else {
-          val edges1 = graph1.edges.getOrElse(node, Set()) // .getOrElse as the node might not have any outgoing edges
-          val edges2 = graph2.edges.getOrElse(node, Set())
+          /* .getOrElse as the node might not have any outgoing edges */
+          val edges1 = filterBranchTakenFilters(graph1.edges.getOrElse(node, Set()))
+          val edges2 = filterBranchTakenFilters(graph2.edges.getOrElse(node, Set()))
           val edgesWithoutActionRs1 = edges1.map((edge) => (edge._1._1, edge._2))
           val edgesWithoutActionRs2 = edges2.map((edge) => (edge._1._1, edge._2))
           if (edges1.size == edges2.size) {
