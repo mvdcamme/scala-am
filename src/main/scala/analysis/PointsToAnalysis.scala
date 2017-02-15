@@ -75,7 +75,7 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
       s"resulting value is ${output.finalValues}\n" +
       s"resulting set equals $result\n" +
       s"metrics equals $metrics\n",
-      Logger.U)
+      Logger.E)
     possiblyWriteMetrics(output.stepSwitched.getOrElse(-1), metrics)
     result
   }
@@ -89,7 +89,7 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
       startState: machine.MachineState,
       isInitial: Boolean,
       stepSwitched: Option[Int]): StaticAnalysisResult = {
-    Logger.log(s"Starting static points-to analysis", Logger.U)
+    Logger.log(s"Starting static points-to analysis", Logger.E)
     val result = machine.kickstartEval(startState, sem, None, None, stepSwitched)
     toDot.foreach(result.toDotFile)
     analyzeOutput(machine, pointsTo, relevantAddress)(result)

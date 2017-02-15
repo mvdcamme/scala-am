@@ -66,7 +66,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       edges.map( (edge) => {
         val filterEdge = edge._1._1
         val filteredFilterEdge = filterEdge.filter({
-          case ElseBranchTaken | ThenBranchTaken=> false
+          case ElseBranchTaken | ThenBranchTaken => false
           case _ => true
         })
         ((filteredFilterEdge, edge._1._2), edge._2)
