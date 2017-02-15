@@ -104,7 +104,7 @@ class PointsToAnalysisLauncher[
                                   HybridAddress.A,
                                   HybridTimestamp.T])
     extends AnalysisLauncher[Abs] {
-  
+
   val aam: SpecAAM = new SpecAAM()
   implicit val stateDescriptor = new aam.StateDescriptor()
 

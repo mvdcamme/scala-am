@@ -137,10 +137,13 @@ class PropagateRunTimeInfo[Exp : Expression,
     match {
       case None =>
         graph.get.toDotFile(s"Analysis/Incremental/incremental_graph_$stepCount.dot",
-          node => List(scala.xml.Text(node.toString.take(40))),
-          (s) => Colors.Green,
-          node => List(scala.xml.Text(("[" + node._1.mkString(", ") + "], [" + node._2.mkString(", ") + "]").take(300))),
-          None)
+                            node => List(scala.xml.Text(node.toString.take(40))),
+                            (s) => Colors.Green,
+                            node => {
+                              val fullString = s"[${node._1.mkString(", ")}], [${node._2.mkString(", ")}]"
+                              List(scala.xml.Text(fullString.take(300)))
+                            },
+                            None)
         graph
       case Some(sc@(StateCombo(originalState, newState))) =>
         val originalStateId = currentGraph.nodeId(originalState)
@@ -184,11 +187,14 @@ class PropagateRunTimeInfo[Exp : Expression,
                        currentNodes: Set[State],
                        initialGraph: AbstractGraph,
                        currentGraph: AbstractGraph): Option[AbstractGraph] = {
-    val g = convertGraph[State, EdgeAnnotation, List[ActionReplay[Exp, AbstL, Addr]]](currentGraph, (edge: EdgeAnnotation) => edge._2)
-    g.toDotFile(s"Analysis/Incremental/current_graph_$stepCount.dot", node => List(scala.xml.Text(node.toString.take(40))),
-      (s) => Colors.Green,
-      node => List(scala.xml.Text(node.mkString(", ").take(300))),
-      None)
+    currentGraph.toDotFile(s"Analysis/Incremental/current_graph_$stepCount.dot",
+                           node => List(scala.xml.Text(node.toString.take(40))),
+                           (s) => Colors.Green,
+                           node => {
+                             val fullString = s"[${node._1.mkString(", ")}], [${node._2.mkString(", ")}]"
+                             List(scala.xml.Text(fullString.take(300)))
+                           },
+                           None)
     currentNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.U))
     /*
      * Associate the (one) abstracted concrete state with all states in the CurrentNodes set, as the states in
