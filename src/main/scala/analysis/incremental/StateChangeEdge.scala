@@ -15,13 +15,12 @@ trait ActionReplayApplier[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]
   def evaluatedTrue(state: State)
                    (implicit sabs: IsSchemeLattice[Abs]): Boolean
 
-  case class JoinedInfo(finalValue: Abs, store: Store[Addr, Abs], kstore: KontStore[KontAddr])
+  case class JoinedInfo(finalValue: Abs, store: Store[Addr, Abs])
                        (implicit abs: JoinLattice[Abs]) {
     def join(other: JoinedInfo): JoinedInfo = {
       val joinedFinalValue = abs.join(finalValue, other.finalValue)
       val joinedStore = store.join(other.store)
-      val joinedKStore = kstore.join(other.kstore)
-      JoinedInfo(joinedFinalValue, joinedStore, joinedKStore)
+      JoinedInfo(joinedFinalValue, joinedStore)
     }
   }
   def joinStates(states: Set[State]): JoinedInfo

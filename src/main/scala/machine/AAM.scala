@@ -578,10 +578,10 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     }
 
     def joinStates(states: Set[State]): JoinedInfo = {
-      val initialInfo = JoinedInfo(abs.bottom, Store.empty, KontStore.empty)
+      val initialInfo = JoinedInfo(abs.bottom, Store.empty)
       states.foldLeft(initialInfo)( (joinedInfo, state) => {
         val stateFinalValue = getControlKontValue(state)
-        val stateInfo = JoinedInfo(stateFinalValue, state.store, state.kstore)
+        val stateInfo = JoinedInfo(stateFinalValue, state.store)
         joinedInfo.join(stateInfo)
       })
     }
