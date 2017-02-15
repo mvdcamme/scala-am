@@ -34,6 +34,9 @@ abstract class KontStore[KontAddr: KontAddress] {
   def subsumes(that: KontStore[KontAddr]): Boolean
   def fastEq(that: KontStore[KontAddr]): Boolean = this == that
 
+  /** Returns a KontStore containing items that differ between the two stores */
+  def diff(that: KontStore[KontAddr]): KontStore[KontAddr]
+
   /**
     * Maps all frames AND all KontAddr variables, i.e., both the KontAddr keys as well as the KontAddr pointers to next
     * frames, in the store via the given function f.
@@ -82,6 +85,11 @@ case class BasicKontStore[KontAddr: KontAddress](
       case (a, ks) =>
         ks.forall((k1) => lookup(a).exists(k2 => k2.subsumes(k1)))
     })
+
+  def diff(that: KontStore[KontAddr]) =
+    this.copy(content = content.filter({
+      case (ka, konts) => that.lookup(ka) != konts
+    }))
 
   def map[KAddr <: KontAddr : KontAddress](f: KontAddr => KAddr, g: Frame => Frame): KontStore[KAddr] = {
     val mappedContent = content.foldLeft[Map[KAddr, Set[Kont[KAddr]]]](
@@ -170,6 +178,11 @@ case class TimestampedKontStore[KontAddr: KontAddress](
     } else {
       false
     }
+
+  def diff(that: KontStore[KontAddr]) =
+    this.copy(content = content.filter({
+      case (ka, konts) => that.lookup(ka) != konts
+    }))
 
   def map[KAddr <: KontAddr : KontAddress](f: KontAddr => KAddr, g: Frame => Frame): KontStore[KAddr] = {
     val mappedContent = content.foldLeft[Map[KAddr, Set[Kont[KAddr]]]](
