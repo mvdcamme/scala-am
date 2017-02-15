@@ -94,11 +94,15 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         }
       }
     }
-    val node1 = graph1.getNode(0)
-    val node2 = graph2.getNode(0)
-    assert(node1.isDefined && node2.isDefined)
-    assert(actionTApplier.statesEqual(node1.get, node2.get), s"node1: ${node1.get}, node2: ${node2.get}")
-//    assert(node1.get == node2.get, s"node1: ${node1.get}, node2: ${node2.get}")
-    breadthFirst(List(node1.get), Set())
+    if (graph1.size == 0 && graph2.size == 0) {
+      true
+    } else {
+      val node1 = graph1.getNode(0)
+      val node2 = graph2.getNode(0)
+      assert(node1.isDefined && node2.isDefined)
+//      assert(actionTApplier.statesEqual(node1.get, node2.get), s"node1: ${node1.get}, node2: ${node2.get}")
+      assert(node1.get == node2.get, s"node1: ${node1.get}, node2: ${node2.get}")
+      breadthFirst(List(node1.get), Set())
+    }
   }
 }
