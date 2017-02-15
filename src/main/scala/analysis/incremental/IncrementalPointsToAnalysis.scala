@@ -59,6 +59,27 @@ class IncrementalPointsToAnalysis[Exp : Expression,
 //    assert(areEqual)
   }
 
+  def subsumedGraphsEqual(graph1: AbstractGraph, graph2: AbstractGraph): Boolean = {
+    if (graph1.size == 0 && graph2.size == 0) {
+      true
+    } else if (graph1.size == 0 || graph2.size == 0) {
+      Logger.log(s"Graphs have a different size: graph1 ${graph1.nodes}, graph2: ${graph2.nodes}", Logger.U)
+      false
+    } else {
+      val haltedStates1= graph1.nodes.filter(actionTApplier.halted)
+      val haltedStates2= graph2.nodes.filter(actionTApplier.halted)
+      val joinedState1 = actionTApplier.joinStates(haltedStates1)
+      val joinedState2 = actionTApplier.joinStates(haltedStates2)
+      val result = joinedState1 == joinedState2
+      if (! result) {
+        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: ${joinedState1.kstore.diff(joinedState2.kstore)}\n" +
+                   s"kstore2 - kstore1: ${joinedState2.kstore.diff(joinedState1.kstore)}", Logger.U)
+        Logger.log(s"Graphs are not the same:\n$joinedState1\n$joinedState2", Logger.U)
+      }
+      result
+    }
+  }
+
   def graphsEqual(graph1: AbstractGraph, graph2: AbstractGraph): Boolean = {
     def nodeToString(node: State, graph: AbstractGraph): String =
       s"$node (id: ${graph.nodeId(node)})"
