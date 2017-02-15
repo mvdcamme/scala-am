@@ -11,13 +11,13 @@ class IncrementalPointsToAnalysis[Exp : Expression,
   val propagateRunTimeInfo = new PropagateRunTimeInfo[Exp, AbstL, Addr, State]
 
   var initialGraph: Option[AbstractGraph] = None
-  var currentGraph: Option[AbstractGraph] = initialGraph
+  var prunedGraph: Option[AbstractGraph] = initialGraph
   var currentNodes: Set[State] = Set()
 
-  def hasInitialGraph: Boolean = currentGraph.isDefined
+  def hasInitialGraph: Boolean = prunedGraph.isDefined
   def initializeGraph(graph: AbstractGraph) = {
     initialGraph = Some(graph)
-    currentGraph = initialGraph
+    prunedGraph = initialGraph
     val someStartNode = graph.getNode(0)
     assert(someStartNode.isDefined)
     currentNodes = Set(someStartNode.get)
@@ -25,25 +25,25 @@ class IncrementalPointsToAnalysis[Exp : Expression,
 
   def assertInitialized(): Unit = {
     assert(initialGraph.isDefined)
-    assert(currentGraph.isDefined)
+    assert(prunedGraph.isDefined)
   }
 
   def containsNode(node: State): Boolean = {
-    currentGraph.get.nodeId(node) != -1
+    prunedGraph.get.nodeId(node) != -1
   }
 
   def computeSuccNodes(convertFrameFun: ConcreteFrame => AbstractFrame,
                        edgeInfos: List[EdgeFilterAnnotation],
                        stepNumber: Int): Unit = {
     assertInitialized()
-    currentNodes = pruneUnreachableNodes.computeSuccNodes(convertFrameFun, edgeInfos, stepNumber, currentNodes, initialGraph.get, currentGraph.get)
+    currentNodes = pruneUnreachableNodes.computeSuccNodes(convertFrameFun, edgeInfos, stepNumber, currentNodes, initialGraph.get, prunedGraph.get)
   }
 
   def end(): Unit = pruneUnreachableNodes.end(initialGraph.get)
 
   def filterReachable(stepCount: Int): Unit = {
     assertInitialized()
-    currentGraph = Some(pruneUnreachableNodes.filterReachable(stepCount, currentNodes, currentGraph.get))
+    prunedGraph = Some(pruneUnreachableNodes.filterReachable(stepCount, currentNodes, prunedGraph.get))
   }
 
   def applyEdgeActions(convertedState: State, stepCount: Int): AbstractGraph = {
@@ -52,9 +52,9 @@ class IncrementalPointsToAnalysis[Exp : Expression,
                                                             stepCount,
                                                             currentNodes,
                                                             initialGraph.get,
-                                                            currentGraph.get)
+                                                            prunedGraph.get)
     optionGraph.get
-//    val areEqual = graphsEqual(currentGraph.get, optionGraph.get)
+//    val areEqual = graphsEqual(prunedGraph.get, optionGraph.get)
 //    Logger.log(s"Graphs equal? $areEqual", Logger.U)
 //    assert(areEqual)
   }
@@ -110,8 +110,8 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       val node1 = graph1.getNode(0)
       val node2 = graph2.getNode(0)
       assert(node1.isDefined && node2.isDefined)
-//      assert(actionTApplier.statesEqual(node1.get, node2.get), s"node1: ${node1.get}, node2: ${node2.get}")
-      assert(node1.get == node2.get, s"node1: ${node1.get}, node2: ${node2.get}")
+      assert(actionTApplier.statesEqual(node1.get, node2.get), s"node1: ${node1.get}, node2: ${node2.get}")
+//      assert(node1.get == node2.get, s"node1: ${node1.get}, node2: ${node2.get}")
       breadthFirst(List(node1.get), Set())
     }
   }

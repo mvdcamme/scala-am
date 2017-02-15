@@ -21,18 +21,18 @@ class PruneUnreachableNodes[Exp : Expression,
    * the first state (the state from which the edge originates) will be a dead end, matching of
    * the concrete state should proceed with the state that subsumes the 'dead' state.
    */
-  def followStateSubsumedEdges(node: State, currentGraph: AbstractGraph): Set[State] =
-    if (currentGraph.nodeEdges(node).isEmpty) {
+  def followStateSubsumedEdges(node: State, prunedGraph: AbstractGraph): Set[State] =
+    if (prunedGraph.nodeEdges(node).isEmpty) {
       Set(node)
     } else {
-      currentGraph.nodeEdges(node).flatMap((edge) =>
+      prunedGraph.nodeEdges(node).flatMap((edge) =>
         if (edge._1._1.contains(StateSubsumed)) {
           /* Make sure that an edge is ONLY annotated with StateSubsumed. It should not be possible
            * to have a StateSubsumed edge with any other annotation. */
           assert(edge._1._1.size == 1,
             s"StateSubsumed edge contains more than 1 edge: ${edge._1}")
           addEdgesVisited(node, Set(edge))
-          followStateSubsumedEdges(edge._2, currentGraph)
+          followStateSubsumedEdges(edge._2, prunedGraph)
         } else {
           Set(node)
         })
@@ -41,8 +41,8 @@ class PruneUnreachableNodes[Exp : Expression,
   def computeSuccNode(convertFrameFun: ConcreteFrame => AbstractFrame,
                       node: State,
                       concreteEdgeInfos: List[EdgeFilterAnnotation],
-                      currentGraph: AbstractGraph): Set[State] = {
-    val abstractEdges = currentGraph.nodeEdges(node)
+                      prunedGraph: AbstractGraph): Set[State] = {
+    val abstractEdges = prunedGraph.nodeEdges(node)
     Logger.log(s"abstractEdgeInfos = ${abstractEdges.map(_._1)}", Logger.D)
     val frameConvertedConcreteEdgeFilters = concreteEdgeInfos.map({
       case filter: FrameFollowed[ConcreteValue] =>
@@ -69,20 +69,20 @@ class PruneUnreachableNodes[Exp : Expression,
                        stepNumber: Int,
                        currentNodes: Set[State],
                        initialGraph: AbstractGraph,
-                       currentGraph: AbstractGraph): Set[State] = {
+                       prunedGraph: AbstractGraph): Set[State] = {
     Logger.log(s"In step $stepNumber before: currentNodes = " +
                s"${currentNodes.zip(currentNodes.map(initialGraph.nodeId))}\n" +
                s"concreteEdgeInfos = $edgeInfos, $edgeInfos", Logger.D)
     addNodesVisited(currentNodes)
     /* First follow all StateSubsumed edges before trying to use the concrete edge information */
-    val nodesSubsumedEdgesFollowed = currentNodes.flatMap(followStateSubsumedEdges(_, currentGraph))
+    val nodesSubsumedEdgesFollowed = currentNodes.flatMap(followStateSubsumedEdges(_, prunedGraph))
     Logger.log(s"In step $stepNumber, followed subsumption edges: ${nodesSubsumedEdgesFollowed.map(initialGraph.nodeId)}", Logger.D)
     addNodesVisited(nodesSubsumedEdgesFollowed)
-    val succNodes = nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(convertFrameFun, _, edgeInfos, currentGraph))
+    val succNodes = nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(convertFrameFun, _, edgeInfos, prunedGraph))
     addNodesVisited(succNodes)
     Logger.log(s"succNodes = ${succNodes.zip(succNodes.map(initialGraph.nodeId))}", Logger.D)
     Logger.log(s"In step $stepNumber, succNodes before subsumption edges: ${succNodes.map(initialGraph.nodeId)}", Logger.D)
-    val newCurrentNodes = succNodes.flatMap(followStateSubsumedEdges(_, currentGraph))
+    val newCurrentNodes = succNodes.flatMap(followStateSubsumedEdges(_, prunedGraph))
     concreteNodes = concreteNodes :+ (stepNumber, currentNodes.size, currentNodes.toList.map(initialGraph.nodeId))
     Logger.log(s"In step $stepNumber after: currentNodes = ${currentNodes.zip(currentNodes.map(initialGraph.nodeId))}", Logger.D)
     newCurrentNodes
@@ -139,12 +139,12 @@ class PruneUnreachableNodes[Exp : Expression,
    */
   def addReachableEdges(reachables: ReachablesIntermediateResult,
                         node: State,
-                        currentGraph: AbstractGraph): ReachablesIntermediateResult = {
+                        prunedGraph: AbstractGraph): ReachablesIntermediateResult = {
     val graph = reachables.graph
     val todoQueue = reachables.todoQueue
     val nodesDone = reachables.nodesDone
     if (!nodesDone.contains(node)) {
-      val edges = currentGraph.nodeEdges(node)
+      val edges = prunedGraph.nodeEdges(node)
       val newGraphTodo =
         edges.foldLeft((graph, todoQueue))((graphTodo, edge) => {
           (graphTodo._1.addEdge(node, edge._1, edge._2),
@@ -161,22 +161,22 @@ class PruneUnreachableNodes[Exp : Expression,
   }
 
   def breadthFirst(oldReachables: ReachablesIntermediateResult,
-                   currentGraph: AbstractGraph): ReachablesIntermediateResult =
+                   prunedGraph: AbstractGraph): ReachablesIntermediateResult =
     oldReachables.todoQueue match {
       case Nil =>
         oldReachables
       case node :: rest =>
         val reachables = ReachablesIntermediateResult(oldReachables.graph, oldReachables.nodesDone, rest)
-        val newReachables = addReachableEdges(reachables, node, currentGraph)
-        breadthFirst(newReachables, currentGraph)
+        val newReachables = addReachableEdges(reachables, node, prunedGraph)
+        breadthFirst(newReachables, prunedGraph)
     }
 
   def filterReachable(stepCount: Int,
                       currentNodes: Set[State],
-                      currentGraph: AbstractGraph): AbstractGraph = {
+                      prunedGraph: AbstractGraph): AbstractGraph = {
     val reachables = ReachablesIntermediateResult(new HyperlinkedGraph(), Set(), currentNodes.toList)
-    val filteredGraph = breadthFirst(reachables, currentGraph).graph
-    val newEdgesSize = currentGraph.edges.size
+    val filteredGraph = breadthFirst(reachables, prunedGraph).graph
+    val newEdgesSize = prunedGraph.edges.size
     graphSize = graphSize :+ (stepCount, newEdgesSize)
     filteredGraph
   }
