@@ -84,7 +84,7 @@ class PruneUnreachableNodes[Exp : Expression,
     Logger.log(s"In step $stepNumber, succNodes before subsumption edges: ${succNodes.map(initialGraph.nodeId)}", Logger.D)
     val newCurrentNodes = succNodes.flatMap(followStateSubsumedEdges(_, prunedGraph))
     concreteNodes = concreteNodes :+ (stepNumber, currentNodes.size, currentNodes.toList.map(initialGraph.nodeId))
-    Logger.log(s"In step $stepNumber after: currentNodes = ${currentNodes.zip(currentNodes.map(initialGraph.nodeId))}", Logger.D)
+    Logger.log(s"In step $stepNumber after: newCurrentNodes = ${newCurrentNodes.zip(currentNodes.map(initialGraph.nodeId))}", Logger.D)
     newCurrentNodes
   }
 
