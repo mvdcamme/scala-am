@@ -278,7 +278,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                     stopEval: Option[State => Boolean],
                     timeout: Option[Long],
                     stepSwitched: Option[Int]): AAMOutput = {
-    val checkSubsumes = false
+    val checkSubsumes = true
     def loop(todo: Set[State],
              visited: Set[State],
              halted: Set[State],

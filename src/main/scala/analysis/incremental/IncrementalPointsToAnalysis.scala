@@ -46,14 +46,18 @@ class IncrementalPointsToAnalysis[Exp : Expression,
     prunedGraph = Some(pruneUnreachableNodes.filterReachable(stepCount, currentNodes, prunedGraph.get))
   }
 
-  def applyEdgeActions(convertedState: State, stepCount: Int): AbstractGraph = {
+  def applyEdgeActions(convertedState: State, stepCount: Int): Option[AbstractGraph] = {
     assertInitialized()
-    val optionGraph = propagateRunTimeInfo.applyEdgeActions(convertedState,
-                                                            stepCount,
-                                                            currentNodes,
-                                                            initialGraph.get,
-                                                            prunedGraph.get)
-    optionGraph.get
+    if (currentNodes.size == 1) {
+      Logger.log(s"Propagating run-time info for step $stepCount", Logger.U)
+      propagateRunTimeInfo.applyEdgeActions(convertedState,
+                                            stepCount,
+                                            currentNodes,
+                                            initialGraph.get,
+                                            prunedGraph.get)
+    } else {
+      None
+    }
 //    val areEqual = graphsEqual(prunedGraph.get, optionGraph.get)
 //    Logger.log(s"Graphs equal? $areEqual", Logger.U)
 //    assert(areEqual)

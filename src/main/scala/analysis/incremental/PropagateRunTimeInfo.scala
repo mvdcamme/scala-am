@@ -133,7 +133,7 @@ class PropagateRunTimeInfo[Exp : Expression,
                        initialGraph: AbstractGraph,
                        prunedGraph: AbstractGraph):
   Option[Graph[State, EdgeAnnotation]] = {
-    val checkSubsumes = false
+    val checkSubsumes = true
     todo.headOption
     match {
       case None =>
