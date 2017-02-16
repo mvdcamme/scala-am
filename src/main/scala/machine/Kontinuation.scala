@@ -17,7 +17,9 @@ trait Frame {
 //                                          abstSem: BaseSchemeSemantics[OtherAbs, Address, Timestamp])
 //  : Frame
 }
-trait KontAddress[A]
+trait KontAddress[A] {
+  def descriptor: Descriptor[KontAddress[A]] = new BasicDescriptor[KontAddress[A]]
+}
 
 case class Kont[KontAddr: KontAddress](frame: Frame, next: KontAddr) {
   def subsumes(that: Kont[KontAddr]) = that match {
@@ -116,10 +118,27 @@ case class BasicKontStore[KontAddr: KontAddress](
   override def descriptor = new BasicKontStoreDescriptor[KontAddr]
 }
 
-class BasicKontStoreDescriptor[KontAddr] extends Descriptor[BasicKontStore[KontAddr]] {
+class BasicKontStoreDescriptor[KontAddr : KontAddress] extends Descriptor[BasicKontStore[KontAddr]] {
+
+  val kontAddrDescriptor = implicitly[KontAddress[KontAddr]].descriptor
+
+  private def describeKonts(konts: Set[Kont[KontAddr]]): String = {
+    describeCollapsableList(konts, "Konts", (kont: Kont[KontAddr]) => {
+      putIntoCollapsableList(List(kont.frame.toString, kontAddrDescriptor.describe(kont.next)), kont.toString)
+    })
+  }
+
+  private def describeAddressKontTuple(tuple: (KontAddr, Set[Kont[KontAddr]])): String = tuple match {
+    case (ka, konts) =>
+      val kaDescription = kontAddrDescriptor.describe(ka)
+      val kontsDescription = describeKonts(konts)
+      val descriptions = List(kaDescription, kontsDescription)
+      putIntoCollapsableList(descriptions, ka.toString)
+  }
+
   override def describe[U >: BasicKontStore[KontAddr]](kstore: U): String = kstore match {
     case kstore: BasicKontStore[KontAddr] =>
-      describeCollapsableList(kstore.content, "KontStore", divClass = Some("kstore"))
+      describeCollapsableList(kstore.content, "KontStore", describeAddressKontTuple, divClass = Some("kstore"))
     case _ =>
       kstore.toString
   }
