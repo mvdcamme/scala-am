@@ -76,6 +76,8 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       val joinedState2 = actionTApplier.joinStates(haltedStates2)
       val result = joinedState1 == joinedState2
       if (! result) {
+        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: ${joinedState1.kstore.diff(joinedState2.kstore)}\n" +
+                   s"kstore2 - kstore1: ${joinedState2.kstore.diff(joinedState1.kstore)}", Logger.U)
         Logger.log(s"Graphs are not the same:\n$joinedState1\n$joinedState2", Logger.U)
       }
       result
