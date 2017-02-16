@@ -97,11 +97,6 @@ class Graph[Node, Annotation](val ids: Map[Node, Int],
     bw.close()
   }
 
-
   def nodeEdges(node: Node): Set[(Annotation, Node)] =
-    if (edges.contains(node)) {
-      edges(node)
-    } else {
-      Set()
-    }
+    edges.getOrElse(node, Set())
 }
