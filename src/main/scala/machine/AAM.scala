@@ -122,6 +122,13 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         actionEdge :+ ActionPopKontT[Exp, Abs, Addr]()
       }
 
+    def addTimeTickT(actionEdge: List[ActionReplay[Exp, Abs, Addr]]): List[ActionReplay[Exp, Abs, Addr]] =
+      if (actionEdge.exists(_.ticksTime)) {
+        actionEdge
+      } else {
+        actionEdge :+ ActionTimeTickR()
+      }
+
     /**
       * Computes the set of states that follow the current state
       */
@@ -143,8 +150,9 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                     KontAddrPopped(a, next) ::
                     FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) ::
                     edgeAnnotations
-                  val replacedActionEdge = addActionPopKontT(actionEdge)
-                  (succState, replacedEdgeAnnot, replacedActionEdge)
+                  val popKontAddedActionEdge = addActionPopKontT(actionEdge)
+                  val timeTickAddedActionEdge = addTimeTickT(popKontAddedActionEdge)
+                  (succState, replacedEdgeAnnot, timeTickAddedActionEdge)
                 })
             })
         /* In an error state, the state is not able to make a step */
@@ -499,7 +507,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         val kont = Kont(frame, state.a)
         val evaluatingExp = addEvaluateExp(e)
         val pushedAddr = addKontAddrPushed(next)
-        val newState = State(ControlEval(e, env), state.store, state.kstore.extend(next, kont), next, time.tick(state.t))
+        val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
         Set((newState, List(evaluatingExp, pushedAddr)))
       case ActionEvalPushDataR(e, env, frameGenerator) =>
         val next = NormalKontAddress[Exp, Time](e, state.t)
@@ -508,7 +516,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         val kont = Kont(frame, state.a)
         val evaluatingExp = addEvaluateExp(e)
         val pushedAddr = addKontAddrPushed(next)
-        val newState = State(ControlEval(e, env), state.store, state.kstore.extend(next, kont), next, time.tick(state.t))
+        val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
         Set((newState, List(evaluatingExp, pushedAddr)))
       case a: ActionLookupAddressR[Exp, Abs, Addr] =>
         val value = state.store.lookup(a.a).get
@@ -526,8 +534,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
 
           val filterEdge = addKontFilterAnnotations(state.a, kont)
 
-          primitives.flatMap((primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store,
-            state.t)
+          primitives.flatMap((primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store, state.t)
             .collect({
               case (res, store2, effects) =>
                 Set((state.copy(control = ControlKont(res), store = store2, a = kont.next), filterEdge))
@@ -541,6 +548,10 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         assert(state.control.isInstanceOf[ControlKont])
         val value = state.control.asInstanceOf[ControlKont].v
         Set(noEdgeFilters(state.copy(store = state.store.update(a.adress, value))))
+      case ActionTimeTickR() =>
+        Set(noEdgeFilters(state.copy(t = time.tick(state.t))))
+      case ActionTimeTickExpR(fexp) =>
+        Set(noEdgeFilters(state.copy(t = time.tick(state.t, fexp))))
     }
 
     def subsumes(s1: State, s2: State): Boolean = s1.subsumes(s2)

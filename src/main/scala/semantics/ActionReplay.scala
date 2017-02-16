@@ -1,5 +1,6 @@
 trait ActionReplay[Exp, Abs, Addr] {
-    def popsKont: Boolean = false
+  def popsKont: Boolean = false
+  def ticksTime: Boolean = false
 }
 
 /*
@@ -64,3 +65,14 @@ case class ActionLookupAddressR[Exp: Expression, Abs: JoinLattice, Addr: Address
 case class ActionSetAddressR[Exp: Expression, Abs: JoinLattice, Addr: Address](
     adress: Addr)
     extends ActionReplay[Exp, Abs, Addr]
+
+case class ActionTimeTickR[Exp: Expression, Abs: JoinLattice, Addr: Address]()
+    extends ActionReplay[Exp, Abs, Addr] {
+    override def ticksTime = true
+}
+
+case class ActionTimeTickExpR[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    exp: Exp)
+    extends ActionReplay[Exp, Abs, Addr] {
+    override def ticksTime = true
+}
