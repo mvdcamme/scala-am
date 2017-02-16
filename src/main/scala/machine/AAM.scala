@@ -254,7 +254,10 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                              case ControlError(_) => Colors.Red
                            }
                         },
-                      node => List(scala.xml.Text(("[" + node._1.mkString(", ") + "] [" + node._2.mkString(", ") + "]").take(300))),
+                      node => {
+                        val fullString = s"[${node._1.mkString(", ")}], [${node._2.mkString(", ")}]"
+                        List(scala.xml.Text(fullString.take(500)))
+                      },
                       None)
   }
 
@@ -293,12 +296,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
              startingTime: Long,
              graph: Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])]): AAMOutput = {
       if (timeout.exists(System.nanoTime - startingTime > _)) {
-        AAMOutput(halted,
-                  visited.size,
-                  (System.nanoTime - startingTime) / Math.pow(10, 9),
-                  graph,
-                  true,
-                  stepSwitched)
+        AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9), graph, true, stepSwitched)
       } else {
         todo.headOption match {
           case Some(s) =>
@@ -314,7 +312,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
               loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])]](graph)({
                 case (graph, s2) =>
                   if (s2.subsumes(s))
-                    graph.addEdge(s, (List(StateSubsumed), Nil), s2)
+                    graph.addEdge(s, (List(StateSubsumed(s2.store.diff(s.store), s2.kstore.diff(s.kstore))), Nil), s2)
                   else
                     graph}))
             } else if (s.halted || stopEval.fold(false)(pred => pred(s))) {
@@ -554,7 +552,11 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         Set(noEdgeFilters(state.copy(t = time.tick(state.t, fexp))))
     }
 
-    def subsumes(s1: State, s2: State): Boolean = s1.subsumes(s2)
+    def subsumes(s1: State, s2: State): Option[StateSubsumed[Abs, Addr]] = if (s1.subsumes(s2)) {
+      Some(StateSubsumed(s1.store.diff(s2.store), s1.kstore.diff(s2.kstore)))
+    } else {
+      None
+    }
     def statesEqual(s1: State, s2: State): Boolean = {
       val control = s1.control == s2.control
       val a = s1.a == s2.a

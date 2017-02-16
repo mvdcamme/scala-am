@@ -26,7 +26,7 @@ class PruneUnreachableNodes[Exp : Expression,
       Set(node)
     } else {
       prunedGraph.nodeEdges(node).flatMap((edge) =>
-        if (edge._1._1.contains(StateSubsumed)) {
+        if (edge._1._1.exists({ case StateSubsumed(_, _) => true; case _ => false })) {
           /* Make sure that an edge is ONLY annotated with StateSubsumed. It should not be possible
            * to have a StateSubsumed edge with any other annotation. */
           assert(edge._1._1.size == 1,

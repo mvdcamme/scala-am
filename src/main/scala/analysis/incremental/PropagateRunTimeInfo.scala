@@ -142,7 +142,7 @@ class PropagateRunTimeInfo[Exp : Expression,
                             (s) => Colors.Green,
                             node => {
                               val fullString = s"[${node._1.mkString(", ")}], [${node._2.mkString(", ")}]"
-                              List(scala.xml.Text(fullString.take(300)))
+                              List(scala.xml.Text(fullString.take(500)))
                             },
                             None)
         graph
@@ -153,14 +153,13 @@ class PropagateRunTimeInfo[Exp : Expression,
         if (actionTApplier.halted(newState)) {
           Logger.log(s"State halted", Logger.D)
           evalLoop(todo.tail, visited + newState, graph, stepCount, initialGraph, prunedGraph)
-        } else if (checkSubsumes && visited.exists((s2) => actionTApplier.subsumes(s2, newState))) {
+        } else if (checkSubsumes && visited.exists((s2) => actionTApplier.subsumes(s2, newState).isDefined)) {
           Logger.log(s"State subsumed", Logger.D)
           val updatedGraph = graph.map(visited.foldLeft[AbstractGraph](_)({
             case (graph, s2) =>
-              if ( actionTApplier.subsumes(s2, newState))
-                graph.addEdge(newState, (List(StateSubsumed), Nil), s2)
-              else
-                graph}))
+             actionTApplier.subsumes(s2, newState).fold(graph)( (stateSubsumed: StateSubsumed[AbstL, Addr]) =>
+               graph.addEdge(newState, (List(stateSubsumed), Nil), s2)
+              )}))
           evalLoop(todo.tail, visited, updatedGraph, stepCount, initialGraph, prunedGraph)
         } else if (visited.contains(newState)) {
           Logger.log(s"State already visited", Logger.D)

@@ -27,7 +27,9 @@ case class KontAddrPushed(a: KontAddr) extends EdgeFilterAnnotation {
 /*
  * State not explored further because it was already subsumed by another state in the graph.
  */
-case object StateSubsumed extends EdgeFilterAnnotation {
+//TODO should also take into control subsumption into account
+case class StateSubsumed[Abs: JoinLattice, Addr: Address](storeDiff: Store[Addr, Abs], kstoreDiff: KontStore[KontAddr])
+  extends EdgeFilterAnnotation {
   override def toString = "Subsumed by"
 }
 
