@@ -112,7 +112,7 @@ class PointsToAnalysisLauncher[
   import usesGraph._
 
   implicit val stateChangeEdgeApplier = aam.ActionReplayApplier
-  val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, HybridAddress.A, aam.GraphNode]
+  val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, HybridAddress.A, aam.GraphNode](aam.AAMGraphPrinter)
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]

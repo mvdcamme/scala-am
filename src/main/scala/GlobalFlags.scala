@@ -1,11 +1,8 @@
-/**
-  * Created by mvdcamme on 26/02/16.
-  */
 object GlobalFlags {
 
-  val PRINT_ENTIRE_TRACE = false
+  val PRINT_EDGE_ANNOTATIONS_FULL = false
   val PRINT_ACTIONS_EXECUTED = false
-
+  val PRINT_ENTIRE_TRACE = false
   val PRINT_EXECUTION_TIME = false
 
   var ANALYSIS_RESULTS_OUTPUT: Option[String] = None

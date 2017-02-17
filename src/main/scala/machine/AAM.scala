@@ -244,21 +244,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       * Outputs the graph in a dot file
       */
     def toDotFile(path: String) =
-      graph.toDotFile(path,
-                      node => List(scala.xml.Text(node.toString.take(40))),
-                      (s) =>
-                        if (halted.contains(s)) { Colors.Yellow } else {
-                           s.control match {
-                             case ControlEval(_, _) => Colors.Green
-                             case ControlKont(_) => Colors.Pink
-                             case ControlError(_) => Colors.Red
-                           }
-                        },
-                      node => {
-                        val fullString = s"[${node._1.mkString(", ")}], [${node._2.mkString(", ")}]"
-                        List(scala.xml.Text(fullString.take(500)))
-                      },
-                      None)
+      AAMGraphPrinter.printGraph(graph, path)
   }
 
   /*
@@ -405,6 +391,34 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                          State.inject(exp, sem.initialEnv, sem.initialStore),
                          sem,
                          timeout)
+
+  object AAMGraphPrinter
+    extends GraphPrinter[Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])]] {
+
+    def printGraph(graph: Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])],
+                   path: String): Unit = {
+      graph.toDotFile(path,
+        node => List(scala.xml.Text(node.toString.take(40))),
+        (s) =>
+          s.control match {
+            case ControlError(_) => Colors.Red
+            case _ => if (s.halted) Colors.Yellow else { s.control match {
+              case ControlEval(_, _) => Colors.Green
+              case ControlKont(_) => Colors.Pink
+              case _ => Colors.Green
+            } }
+          },
+        node => {
+          val fullString = s"[${node._1.mkString(", ")}], [${node._2.mkString(", ")}]"
+          if (GlobalFlags.PRINT_EDGE_ANNOTATIONS_FULL) {
+            List(scala.xml.Text(fullString))
+          } else {
+            List(scala.xml.Text(fullString.take(40)))
+          }
+        },
+        None)
+    }
+  }
 
   object ActionReplayApplier extends ActionReplayApplier[Exp, Abs, Addr, State] {
 

@@ -2,6 +2,7 @@ class PropagateRunTimeInfo[Exp : Expression,
                            AbstL : IsSchemeLattice,
                            Addr : Address,
                            State <: StateTrait[Exp, AbstL, Addr, _] : Descriptor]
+                          (graphPrinter: GraphPrinter[Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, AbstL, Addr]])]])
                           (implicit actionTApplier: ActionReplayApplier[Exp, AbstL, Addr, State]) {
 
   val usesGraph = new UsesGraph[Exp, AbstL, Addr, State]
@@ -137,14 +138,7 @@ class PropagateRunTimeInfo[Exp : Expression,
     todo.headOption
     match {
       case None =>
-        graph.get.toDotFile(s"Analysis/Incremental/incremental_graph_$stepCount.dot",
-                            node => List(scala.xml.Text(node.toString.take(40))),
-                            (s) => Colors.Green,
-                            node => {
-                              val fullString = s"[${node._1.mkString(", ")}], [${node._2.mkString(", ")}]"
-                              List(scala.xml.Text(fullString.take(500)))
-                            },
-                            None)
+        graphPrinter.printGraph(graph.get, s"Analysis/Incremental/incremental_graph_$stepCount.dot")
         graph
       case Some(sc@(StateCombo(originalState, newState))) =>
         val originalStateId = prunedGraph.nodeId(originalState)
@@ -187,14 +181,7 @@ class PropagateRunTimeInfo[Exp : Expression,
                        currentNodes: Set[State],
                        initialGraph: AbstractGraph,
                        prunedGraph: AbstractGraph): Option[AbstractGraph] = {
-    prunedGraph.toDotFile(s"Analysis/Incremental/pruned_graph_$stepCount.dot",
-                           node => List(scala.xml.Text(node.toString.take(40))),
-                           (s) => Colors.Green,
-                           node => {
-                             val fullString = s"[${node._1.mkString(", ")}], [${node._2.mkString(", ")}]"
-                             List(scala.xml.Text(fullString.take(300)))
-                           },
-                           None)
+    graphPrinter.printGraph(prunedGraph, s"Analysis/Incremental/pruned_graph_$stepCount.dot")
     currentNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.U))
     /*
      * Associate the (one) abstracted concrete state with all states in the CurrentNodes set, as the states in

@@ -183,6 +183,10 @@ Addr: Address, Time: Timestamp](sem: SemanticsTraced[Exp, Abs, Addr, Time])
   def time = implicitly[Timestamp[Time]]
 }
 
+trait GraphPrinter[Graph] {
+  def printGraph(graph: Graph, path: String): Unit
+}
+
 trait HasGraph[Exp, Abs, Addr, Node <: StateTrait[Exp, Abs, Addr, _]] {
   def graph: Graph[Node, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])]
   def toDotFile(path: String): Unit

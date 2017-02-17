@@ -2,13 +2,14 @@ class IncrementalPointsToAnalysis[Exp : Expression,
                                   AbstL : IsSchemeLattice,
                                   Addr : Address,
                                   State <: StateTrait[Exp, AbstL, Addr, _] : Descriptor]
+                                 (graphPrinter: GraphPrinter[Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, AbstL, Addr]])]])
                                  (implicit actionTApplier: ActionReplayApplier[Exp, AbstL, Addr, State]) {
 
   val usesGraph = new UsesGraph[Exp, AbstL, Addr, State]
   import usesGraph._
 
   val pruneUnreachableNodes = new PruneUnreachableNodes[Exp, AbstL, Addr, State]
-  val propagateRunTimeInfo = new PropagateRunTimeInfo[Exp, AbstL, Addr, State]
+  val propagateRunTimeInfo = new PropagateRunTimeInfo[Exp, AbstL, Addr, State](graphPrinter)
 
   var initialGraph: Option[AbstractGraph] = None
   var prunedGraph: Option[AbstractGraph] = initialGraph
