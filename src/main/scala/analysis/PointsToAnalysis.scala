@@ -120,6 +120,8 @@ class PointsToAnalysisLauncher[
   val pointsToAnalysis = new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
   val metricsComputer = new CountClosureCalls[SchemeExp, Abs, HybridAddress.A, aam.State]
 
+  val incrementalMetricsOutputPath = s"Analysis/Closures_Points_To/incremental.txt"
+
   def runStaticAnalysisGeneric(
       currentProgramState: PS,
       stepSwitched: Option[Int],
@@ -146,6 +148,13 @@ class PointsToAnalysisLauncher[
     runStaticAnalysisGeneric(currentProgramState, stepSwitched, None)
   }
 
+  private def initializeAnalyses(graph: AbstractGraph): Unit = {
+    val outputPath = "Analysis/Closures_Points_To/initial_analysis.txt"
+    new BufferedWriter(new FileWriter(new File(outputPath), false))
+    metricsComputer.computeAndWriteMetrics(graph, -1, outputPath)
+    new BufferedWriter(new FileWriter(new File(incrementalMetricsOutputPath), false))
+  }
+
   def runInitialStaticAnalysis(currentProgramState: PS): Unit =
     runStaticAnalysisGeneric(currentProgramState,
                              None,
@@ -153,9 +162,7 @@ class PointsToAnalysisLauncher[
       case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.GraphNode] =>
         result.output.toDotFile("initial_graph.dot")
         incrementalAnalysis.initializeGraph(result.output.graph)
-        val outputPath = "Analysis/Closures_Points_To/initial_analysis.txt"
-        new BufferedWriter(new FileWriter(new File(outputPath), false))
-        metricsComputer.computeAndWriteMetrics(result.output.graph, -1, outputPath)
+        initializeAnalyses(result.output.graph)
       case other =>
         throw new Exception(s"Expected initial analysis to produce a graph, got $other instead")
     }
@@ -180,9 +187,7 @@ class PointsToAnalysisLauncher[
     val applyEdgeActions = () => {
       val convertedState = convertStateAAM(aam, concSem, abstSem, concreteState)
       val optionIncrementalGraph: Option[AbstractGraph] = incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
-      val outputPath = s"Analysis/Closures_Points_To/incremental.txt"
-      new BufferedWriter(new FileWriter(new File(outputPath), false))
-      metricsComputer.computeAndWriteMetrics(optionIncrementalGraph.get, stepCount, outputPath)
+      metricsComputer.computeAndWriteMetrics(optionIncrementalGraph.get, stepCount, incrementalMetricsOutputPath)
       optionIncrementalGraph.foreach((incrementalGraph) => {
         val completelyNewGraph: AbstractGraph = runStaticAnalysis(concreteState, Some(stepCount)) match {
           case AnalysisOutputGraph(output) =>
