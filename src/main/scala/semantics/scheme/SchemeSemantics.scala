@@ -86,15 +86,15 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                 val defAddr = ActionDefineAddressesPopR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
                 val cloCall =  ActionClosureCall[SchemeExp, Abs, Addr]()
                 val timeTick = ActionTimeTickExpR[SchemeExp, Abs, Addr](fexp)
-                val commonActionRs = List(defAddr, cloCall, timeTick)
+                val makeActionRs = (edgeAnnotation: ActionReplay[SchemeExp, Abs, Addr]) => List(defAddr, edgeAnnotation, cloCall, timeTick)
                 if (body.length == 1) {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), body.head, env2, store, argsv)
                   val actionEdge = List()
-                  noEdgeInfos(action, ActionEvalR(body.head, env2) :: commonActionRs)
+                  noEdgeInfos(action, makeActionRs(ActionEvalR(body.head, env2)))
                 }
                 else {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), SchemeBegin(body, pos), env2, store, argsv)
-                  noEdgeInfos(action, ActionEvalR[SchemeExp, Abs, Addr](SchemeBegin(body, pos), env2) :: commonActionRs)
+                  noEdgeInfos(action, makeActionRs(ActionEvalR[SchemeExp, Abs, Addr](SchemeBegin(body, pos), env2)))
                 }
             }
           } else {
