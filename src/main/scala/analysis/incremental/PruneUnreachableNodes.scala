@@ -30,7 +30,7 @@ class PruneUnreachableNodes[Exp : Expression,
           /* Make sure that an edge is ONLY annotated with StateSubsumed. It should not be possible
            * to have a StateSubsumed edge with any other annotation. */
           assert(edge._1._1.size == 1,
-            s"StateSubsumed edge contains more than 1 edge: ${edge._1}")
+          s"StateSubsumed edge contains more than 1 edge: ${edge._1}")
           addEdgesVisited(node, Set(edge))
           followStateSubsumedEdges(edge._2, prunedGraph)
         } else {

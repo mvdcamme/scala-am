@@ -83,14 +83,18 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           if (args.length == argsv.length) {
             bindArgs(args.zip(argsv), env1, store, t) match {
               case (env2, store, boundAddresses) =>
-                val defAddr: ActionReplay[SchemeExp, Abs, Addr] = ActionDefineAddressesPopR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
+                val defAddr = ActionDefineAddressesPopR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
+                val cloCall =  ActionClosureCall[SchemeExp, Abs, Addr]()
+                val timeTick = ActionTimeTickExpR[SchemeExp, Abs, Addr](fexp)
+                val commonActionRs = List(defAddr, cloCall, timeTick)
                 if (body.length == 1) {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), body.head, env2, store, argsv)
-                  noEdgeInfos(action, List(defAddr, ActionEvalR(body.head, env2), ActionTimeTickExpR[SchemeExp, Abs, Addr](fexp)))
+                  val actionEdge = List()
+                  noEdgeInfos(action, ActionEvalR(body.head, env2) :: commonActionRs)
                 }
                 else {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), SchemeBegin(body, pos), env2, store, argsv)
-                  noEdgeInfos(action, List[ActionReplay[SchemeExp, Abs, Addr]](defAddr, ActionEvalR(SchemeBegin(body, pos), env2), ActionTimeTickExpR[SchemeExp, Abs, Addr](fexp)))
+                  noEdgeInfos(action, ActionEvalR[SchemeExp, Abs, Addr](SchemeBegin(body, pos), env2) :: commonActionRs)
                 }
             }
           } else {

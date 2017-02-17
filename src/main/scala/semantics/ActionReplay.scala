@@ -10,6 +10,9 @@ case class ActionAllocAddressesR[Exp: Expression, Abs: JoinLattice, Addr: Addres
     addresses: List[Addr])
     extends ActionReplay[Exp, Abs, Addr]
 
+case class ActionClosureCall[Exp: Expression, Abs: JoinLattice, Addr: Address]()
+    extends ActionReplay[Exp, Abs, Addr]
+
 /*
  * Extend store with these addresses and initialize them to their corresponding value on the stack.
  * Also pop the topmost continuation frame from the stack.
