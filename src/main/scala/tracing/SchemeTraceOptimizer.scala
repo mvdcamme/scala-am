@@ -689,15 +689,10 @@ class SchemeTraceOptimizer[Abs: ConstantableLatticeInfoProvider](
                                         ConcreteValue,
                                         HybridAddress.A](varName, read, write),
               i1.join(i2)) :: acc)
-      case (ActionReachedValueT(lit, read, write), i1) :: (ActionPushValT(),
-                                                           i2) :: rest =>
-        loop(
-          rest,
-          (ActionReachedValuePushT[SchemeExp, ConcreteValue, HybridAddress.A](
-             lit,
-             read,
-             write),
-           i1.join(i2)) :: acc)
+      case (ActionReachedValueT(lit, read, write, storeChanges), i1) :: (ActionPushValT(), i2) :: rest =>
+        loop(rest,
+            (ActionReachedValuePushT[SchemeExp, ConcreteValue, HybridAddress.A](lit, read, write, storeChanges), i1.join
+            (i2)) :: acc)
       case (ActionRestoreEnvT(), i1) :: (ActionSaveEnvT(), i2) :: rest =>
         loop(
           rest,
@@ -931,7 +926,7 @@ class SchemeTraceOptimizer[Abs: ConstantableLatticeInfoProvider](
       val (action, infos) = traceInfo
       action match {
         /* The action puts a literal in the value register. */
-        case ActionReachedValueT(_, _, _) | ActionReachedValuePushT(_, _, _) =>
+        case ActionReachedValueT(_, _, _, _) | ActionReachedValuePushT(_, _, _, _) =>
           true
         /* If the action looks up a variable which is actually constant, this action is constant as well. */
         case ActionLookupVariableT(variable, _, _) =>

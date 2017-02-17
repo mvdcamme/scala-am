@@ -35,15 +35,15 @@ abstract class StoreChangeSemantics[Abs : JoinLattice, Addr : Address]
 }
 
 case class StoreExtendSemantics[Abs : JoinLattice, Addr : Address]
-  (a: Addr, v: Abs)
+  (a: Addr, value: Abs)
   extends StoreChangeSemantics[Abs, Addr] {
-  override implicit def convert[State <: StateTrait[_, Abs, Addr, _]] = StoreExtend[Abs, Addr, State](a, v)
+  override implicit def convert[State <: StateTrait[_, Abs, Addr, _]] = StoreExtend[Abs, Addr, State](a, value)
 }
 
 case class StoreUpdateSemantics[Abs : JoinLattice, Addr : Address]
-  (a: Addr, v: Abs)
+  (a: Addr, value: Abs)
   extends StoreChangeSemantics[Abs, Addr] {
-  override implicit def convert[State <: StateTrait[_, Abs, Addr, _]] = StoreUpdate[Abs, Addr, State](a, v)
+  override implicit def convert[State <: StateTrait[_, Abs, Addr, _]] = StoreUpdate[Abs, Addr, State](a, value)
 }
 
 

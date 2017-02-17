@@ -661,8 +661,8 @@ Time: Timestamp](primitives: SchemePrimitives[Addr, Abs])
   protected def addRead(action: ActionTrace[SchemeExp, Abs, Addr],
                         read: Set[Addr]): ActionTrace[SchemeExp, Abs, Addr] =
     action match {
-      case ActionReachedValueT(v, read2, write) =>
-        ActionReachedValueT(v, read ++ read2, write)
+      case ActionReachedValueT(v, read2, write, storeChanges) =>
+        ActionReachedValueT(v, read ++ read2, write, storeChanges)
       case ActionEvalPushT(e, frame, read2, write) =>
         ActionEvalPushT(e, frame, read ++ read2, write)
       case ActionEvalT(e, read2, write) => ActionEvalT(e, read ++ read2, write)

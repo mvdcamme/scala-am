@@ -200,13 +200,15 @@ case class ActionPushValT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
 case class ActionReachedValueT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     v: Abs,
     read: Set[Addr] = Set[Addr](),
-    write: Set[Addr] = Set[Addr]())
+    write: Set[Addr] = Set[Addr](),
+    storeChanges: List[StoreChangeSemantics[Abs, Addr]] = Nil)
     extends ActionTrace[Exp, Abs, Addr] with ActionReplay[Exp, Abs, Addr]
     with ChangesValueReg[Exp, Abs, Addr]
 case class ActionReachedValuePushT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     v: Abs,
     read: Set[Addr] = Set[Addr](),
-    write: Set[Addr] = Set[Addr]())
+    write: Set[Addr] = Set[Addr](),
+    storeChanges: List[StoreChangeSemantics[Abs, Addr]] = Nil)
     extends ActionTrace[Exp, Abs, Addr] with ActionReplay[Exp, Abs, Addr]
     with ChangesValueReg[Exp, Abs, Addr]
     with PushesValue[Exp, Abs, Addr]

@@ -532,9 +532,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
           val operator = values.head
           val operands = values.tail :+ getControlKontValue(state)
           val primitives = sabs.getPrimitives[Addr, Abs](operator)
-
           val filterEdge = addKontFilterAnnotations(state.a, kont)
-
           primitives.flatMap((primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store, state.t)
             .collect({
               case (res, store2, effects) =>
@@ -544,7 +542,14 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                 Set((state.copy(control = ControlError(err), a = kont.next), filterEdge))))
         })
       case a: ActionReachedValueT[Exp, Abs, Addr] =>
-        Set(noEdgeFilters(state.copy(control = ControlKont(a.v))))
+        val storeChanges = a.storeChanges
+        val newStore = storeChanges.foldLeft[Store[Addr, Abs]](state.store)( (newStore, storeChange) => storeChange match {
+          case storeChange: StoreExtendSemantics[Abs, Addr] =>
+            newStore.extend(storeChange.a, storeChange.value)
+          case StoreUpdateSemantics(a, value) =>
+            newStore.update(a, value)
+        })
+        Set(noEdgeFilters(state.copy(control = ControlKont(a.v), store = newStore)))
       case a: ActionSetAddressR[Exp, Abs, Addr] =>
         assert(state.control.isInstanceOf[ControlKont])
         val value = state.control.asInstanceOf[ControlKont].v

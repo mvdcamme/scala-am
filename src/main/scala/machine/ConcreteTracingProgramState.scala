@@ -513,10 +513,9 @@ case class ProgramState[Exp: Expression](
                        v,
                        StoreVal[ConcreteValue, HybridAddress.A](v) :: vStack),
           action)
-      case ActionReachedValueT(lit, _, _) =>
-        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, lit, vStack),
-                   action)
-      case ActionReachedValuePushT(lit, _, _) =>
+      case ActionReachedValueT(lit, _, _, _) =>
+        ActionStep(ProgramState(control, ρ, σ, kstore, a, newT, lit, vStack), action)
+      case ActionReachedValuePushT(lit, _, _, _) =>
         ActionStep(ProgramState(
                      control,
                      ρ,
