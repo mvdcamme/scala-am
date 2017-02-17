@@ -203,26 +203,19 @@ class HybridConcreteMachine[
 
     var reached = Set[HybridAddress.A]()
 
-    private def reachesValue(concBaseSem: BaseSchemeSemantics[ConcreteValue,
-      HybridAddress.A,
-      HybridTimestamp.T],
-                             sto: Store[HybridAddress.A, ConcreteValue])(
-                              value: ConcreteValue): Set[HybridAddress.A] =
+    private def reachesValue(concBaseSem: BaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                             sto: Store[HybridAddress.A, ConcreteValue])
+                            (value: ConcreteValue): Set[HybridAddress.A] =
       ConcreteConcreteLattice.latticeInfoProvider.reaches[HybridAddress.A](value,
-        reachesEnvironment(concBaseSem, sto),
-        reachesAddress(concBaseSem, sto))
+                                                                           reachesEnvironment(concBaseSem, sto),
+                                                                           reachesAddress(concBaseSem, sto))
 
-    private def reachesAddress(
-                                concBaseSem: BaseSchemeSemantics[ConcreteValue,
-                                  HybridAddress.A,
-                                  HybridTimestamp.T],
-                                sto: Store[HybridAddress.A, ConcreteValue])(
-                                address: HybridAddress.A): Set[HybridAddress.A] = {
+    private def reachesAddress(concBaseSem: BaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                               sto: Store[HybridAddress.A, ConcreteValue])(
+                               address: HybridAddress.A): Set[HybridAddress.A] = {
       if (! reached.contains(address)) {
         reached = reached + address
-        Set(address) ++ sto
-          .lookup(address)
-          .foldLeft[Set[HybridAddress.A]](Set())((_, value) =>
+        Set(address) ++ sto.lookup(address).foldLeft[Set[HybridAddress.A]](Set())((_, value) =>
           reachesValue(concBaseSem, sto)(value))
       } else {
         Set()
@@ -287,6 +280,17 @@ class HybridConcreteMachine[
       reachesControl[KAddr](concBaseSem, sto, kstore)(control) ++ reachesKontAddr[KAddr](concBaseSem, sto, kstore)(ka)
     }
 
+    private def garbageCollectStore[KAddr <: KontAddr]
+                                   (concBaseSem: BaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                                    store: Store[HybridAddress.A, ConcreteValue],
+                                    control: Control,
+                                    kstore: KontStore[KAddr],
+                                    ka: KAddr): Store[HybridAddress.A, ConcreteValue] = {
+      reached = Set()
+      val storeAddressReachable = reachesStoreAddresses[KAddr](concBaseSem, store)(control, kstore, ka)
+      store.gc(storeAddressReachable)
+    }
+
     def convertState[AbstL: IsConvertableLattice,
                      KAddr <: KontAddr: KontAddress](
         concSem: ConvertableSemantics[SchemeExp,
@@ -323,11 +327,8 @@ class HybridConcreteMachine[
               convertValueFun(v))
         }
 
-      val storeAddressReachable = reachesStoreAddresses(concBaseSem, store)(control, kstore, a)
-      val GCedStore = store.gc(storeAddressReachable)
-
+      val GCedStore = garbageCollectStore(concBaseSem, store, control, kstore, a)
       val convertedStore = convertStore(GCedStore, convertValueFun)
-
       val convertedKStore = convertKStore[AbstL, KAddr](mapKontAddress,
                                                         kstore,
                                                         convertValueFun,
