@@ -87,7 +87,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             bindArgs(args.zip(argsv), env1, store, t) match {
               case (env2, store, boundAddresses) =>
                 val defAddr = ActionDefineAddressesPopR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
-                val cloCall =  ActionClosureCall[SchemeExp, Abs, Addr]()
+                val cloCall =  ActionClosureCallR[SchemeExp, Abs, Addr](fexp, function)
                 val timeTick = ActionTimeTickExpR[SchemeExp, Abs, Addr](fexp)
                 val makeActionRs = (edgeAnnotation: ActionReplay[SchemeExp, Abs, Addr]) => List(defAddr, edgeAnnotation, cloCall, timeTick)
                 if (body.length == 1) {
