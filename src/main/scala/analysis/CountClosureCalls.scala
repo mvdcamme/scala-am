@@ -37,7 +37,9 @@ class CountClosureCalls[Exp : Expression,
   def computeAndWriteMetrics(graph: AbstractGraph, stepCount: Int, path: String): Unit = {
     val map = constractClosureCallsMap(graph)
     val results = countClosureCalls(map)
-    val averageNumberOfClosuresPerCall = (results.totalNrOfClosuresPointedTo : Double) / (results.nrOfCalls : Double)
+    val totalNrOfClosuresCalled = GlobalFlags.getConcreteClosuresCalled() + results.nrOfCalls
+    val totalNrOfClosuresPointedTo = GlobalFlags.getConcreteClosuresCalled() + results.totalNrOfClosuresPointedTo
+    val averageNumberOfClosuresPerCall = (totalNrOfClosuresPointedTo : Double) / (totalNrOfClosuresCalled : Double)
     val bw = new BufferedWriter(new FileWriter(new File(path), true))
     bw.write(s"$stepCount; $averageNumberOfClosuresPerCall\n")
     bw.close()

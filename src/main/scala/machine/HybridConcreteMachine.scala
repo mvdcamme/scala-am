@@ -476,6 +476,7 @@ class HybridConcreteMachine[
                                           actionEdges,
                                           secondaryFilters))
                     case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actionEdges, secondaryFilters) =>
+                      GlobalFlags.incConcreteClosuresCalled()
                       Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
                                           List(KontAddrPopped(oldA, a), EvaluatingExpression(e), FrameFollowed[ConcreteValue](originFrameCast)),
                                           actionEdges,
@@ -550,6 +551,7 @@ class HybridConcreteMachine[
         sem.initialStore))
     pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState)
 
+    GlobalFlags.resetConcreteClosuresCalled()
     loop(initialState, System.nanoTime, 0, new Graph[State, List[EdgeFilterAnnotation]]())
   }
 }

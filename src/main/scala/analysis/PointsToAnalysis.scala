@@ -120,6 +120,7 @@ class PointsToAnalysisLauncher[
   val pointsToAnalysis = new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
   val metricsComputer = new CountClosureCalls[SchemeExp, Abs, HybridAddress.A, aam.State]
 
+  val prunedMetricsOutputPath = s"Analysis/Closures_Points_To/pruned.txt"
   val incrementalMetricsOutputPath = s"Analysis/Closures_Points_To/incremental.txt"
 
   def runStaticAnalysisGeneric(
@@ -152,6 +153,7 @@ class PointsToAnalysisLauncher[
     val outputPath = "Analysis/Closures_Points_To/initial_analysis.txt"
     new BufferedWriter(new FileWriter(new File(outputPath), false))
     metricsComputer.computeAndWriteMetrics(graph, -1, outputPath)
+    new BufferedWriter(new FileWriter(new File(prunedMetricsOutputPath), false))
     new BufferedWriter(new FileWriter(new File(incrementalMetricsOutputPath), false))
   }
 
@@ -180,8 +182,10 @@ class PointsToAnalysisLauncher[
 
   def end(): Unit = incrementalAnalysis.end()
 
-  def filterReachable(stepCount: Int): Unit =
-    incrementalAnalysis.filterReachable(stepCount)
+  def filterReachable(stepCount: Int): Unit = {
+    val optionPrunedGraph = incrementalAnalysis.filterReachable(stepCount)
+    metricsComputer.computeAndWriteMetrics(optionPrunedGraph.get, stepCount, prunedMetricsOutputPath)
+  }
 
   def applyEdgeActions(concreteState: PS, stepCount: Int): Unit = {
     val applyEdgeActions = () => {

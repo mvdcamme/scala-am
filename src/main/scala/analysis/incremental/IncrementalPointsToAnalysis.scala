@@ -42,9 +42,10 @@ class IncrementalPointsToAnalysis[Exp : Expression,
 
   def end(): Unit = pruneUnreachableNodes.end(initialGraph.get)
 
-  def filterReachable(stepCount: Int): Unit = {
+  def filterReachable(stepCount: Int): Option[AbstractGraph] = {
     assertInitialized()
     prunedGraph = Some(pruneUnreachableNodes.filterReachable(stepCount, currentNodes, prunedGraph.get))
+    prunedGraph
   }
 
   def applyEdgeActions(convertedState: State, stepCount: Int): Option[AbstractGraph] = {
