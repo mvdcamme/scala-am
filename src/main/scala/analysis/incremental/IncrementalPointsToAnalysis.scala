@@ -121,7 +121,13 @@ class IncrementalPointsToAnalysis[Exp : Expression,
           val edgesWithoutActionRs2 = edges2.map((edge) => (edge._1._1, edge._2))
           if (edges1.size == edges2.size) {
             val newStates = edgesWithoutActionRs1.foldLeft[List[State]](Nil)((states, edgeWithoutActionRs1) => {
-              val edgeWithoutActionRs2 = edgesWithoutActionRs2.filter(edgeWithoutActionRs1 == _)
+              val filterEdge1 = edgeWithoutActionRs1._1
+              val state1 = edgeWithoutActionRs1._2
+              val edgeWithoutActionRs2 = edgesWithoutActionRs2.filter( (edge2) => {
+                val filterEdge2 = edge2._1
+                val state2 = edge2._2
+                state1 == state2 && filterEdge2.forall(filterEdge1.contains)
+              })
               assert(edgeWithoutActionRs2.size == 1,
                      s"Edges of node1 ${nodeToString(node, graph1)} don't match edges of node2 " +
                      s"${nodeToString(node, graph2)}")
