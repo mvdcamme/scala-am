@@ -96,17 +96,21 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
     }
   }
 
+  def findMinimallySubsumesFrameFollowedEdges(edges: Set[Edge], frame: AbstractFrame): Set[Edge] = {
+    filterFrameEdges(frame, frameUsedSubsumes({
+      case info: FrameFollowed[AbstL] =>
+        Some(info.frame)
+      case _ =>
+        None}),
+      edges)
+  }
+
   def filterSingleEdgeInfo(abstractEdges: Set[Edge],
                            concreteEdgeInfo: EdgeFilterAnnotation): Set[Edge] =
     concreteEdgeInfo match {
 
       case info: FrameFollowed[AbstL] =>
-        filterFrameEdges(info.frame, frameUsedSubsumes({
-          case info: FrameFollowed[AbstL] =>
-            Some(info.frame)
-          case _ =>
-            None}),
-          abstractEdges)
+        findMinimallySubsumesFrameFollowedEdges(abstractEdges, info.frame)
 
       case _ =>
         abstractEdges.filter({
