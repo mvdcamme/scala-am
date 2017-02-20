@@ -136,7 +136,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
             breadthFirst(todo.tail ++ newStates, visited + node)
           } else {
             Logger.log(s"Number of edges of ${nodeToString(node, graph1)} does not match number of edges of " +
-              s"${nodeToString(node, graph2)}", Logger.D)
+              s"${nodeToString(node, graph2)}", Logger.U)
             false
           }
         }

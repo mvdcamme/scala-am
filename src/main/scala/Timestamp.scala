@@ -87,22 +87,19 @@ object HybridTimestamp extends TimestampWrapper {
     def name = "Hybrid"
     def initial(seed: String) =
       if (useConcrete) {
-        ConcreteTime(concreteT.isTimestamp.initial(seed),
-                     abstractT.isTimestamp.initial(seed))
+        ConcreteTime(concreteT.isTimestamp.initial(seed), abstractT.isTimestamp.initial(seed))
       } else {
         AbstractTime(abstractT.isTimestamp.initial(seed))
       }
     def tick(t: T) = t match {
       case AbstractTime(a) => AbstractTime(abstractT.isTimestamp.tick(a))
       case ConcreteTime(c, a) =>
-        ConcreteTime(concreteT.isTimestamp.tick(c),
-                     abstractT.isTimestamp.tick(a))
+        ConcreteTime(concreteT.isTimestamp.tick(c), abstractT.isTimestamp.tick(a))
     }
     def tick[Exp](t: T, e: Exp) = t match {
       case AbstractTime(a) => AbstractTime(abstractT.isTimestamp.tick(a, e))
       case ConcreteTime(c, a) =>
-        ConcreteTime(concreteT.isTimestamp.tick(c, e),
-                     abstractT.isTimestamp.tick(a, e))
+        ConcreteTime(concreteT.isTimestamp.tick(c, e), abstractT.isTimestamp.tick(a, e))
     }
   }
 }

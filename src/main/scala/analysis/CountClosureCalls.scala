@@ -29,7 +29,7 @@ class CountClosureCalls[Exp : Expression,
 
   private def countClosureCalls(map: Map[Exp, Set[AbstL]]): CountedClosureCalls = {
     map.foreach( (tuple) => {
-      Logger.log(s"Call site at ${tuple._1} with values ${tuple._2}", Logger.U)
+      Logger.log(s"Call site at ${tuple._1} with values ${tuple._2}", Logger.E)
     })
     CountedClosureCalls(map.size, map.values.foldLeft(0)( (sum, set) => sum + set.size))
   }
