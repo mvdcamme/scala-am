@@ -1,6 +1,6 @@
 trait StateChangeEdge[+State <: StateTrait[_, _, _, _]]
 
-trait ActionReplayApplier[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]] {
+trait ActionReplayApplier[Exp, Abs, Addr, Time, State <: StateTrait[Exp, Abs, Addr, Time]] {
 
   def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr])
                        (implicit sabs: IsSchemeLattice[Abs]): Set[(State, List[EdgeFilterAnnotation])]
@@ -15,13 +15,14 @@ trait ActionReplayApplier[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]
   def evaluatedTrue(state: State)
                    (implicit sabs: IsSchemeLattice[Abs]): Boolean
 
-  case class JoinedInfo(finalValue: Abs, store: Store[Addr, Abs], kstore: KontStore[KontAddr])
+  def getKonts(state: State): Set[Kont[KontAddr]]
+
+  case class JoinedInfo(finalValue: Abs, store: Store[Addr, Abs])
                        (implicit abs: JoinLattice[Abs]) {
     def join(other: JoinedInfo): JoinedInfo = {
       val joinedFinalValue = abs.join(finalValue, other.finalValue)
       val joinedStore = store.join(other.store)
-      val joinedKStore = kstore.join(other.kstore)
-      JoinedInfo(joinedFinalValue, joinedStore, joinedKStore)
+      JoinedInfo(joinedFinalValue, joinedStore)
     }
   }
   def joinStates(states: Set[State]): JoinedInfo

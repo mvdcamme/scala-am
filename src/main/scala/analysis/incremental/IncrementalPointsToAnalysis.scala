@@ -1,15 +1,16 @@
 class IncrementalPointsToAnalysis[Exp : Expression,
                                   AbstL : IsSchemeLattice,
                                   Addr : Address,
-                                  State <: StateTrait[Exp, AbstL, Addr, _] : Descriptor]
+                                  Time : Timestamp,
+                                  State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
                                  (graphPrinter: GraphPrinter[Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, AbstL, Addr]])]])
-                                 (implicit actionTApplier: ActionReplayApplier[Exp, AbstL, Addr, State]) {
+                                 (implicit actionTApplier: ActionReplayApplier[Exp, AbstL, Addr, Time, State]) {
 
   val usesGraph = new UsesGraph[Exp, AbstL, Addr, State]
   import usesGraph._
 
   val pruneUnreachableNodes = new PruneUnreachableNodes[Exp, AbstL, Addr, State]
-  val propagateRunTimeInfo = new PropagateRunTimeInfo[Exp, AbstL, Addr, State](graphPrinter)
+  val propagateRunTimeInfo = new PropagateRunTimeInfo[Exp, AbstL, Addr, Time, State](graphPrinter)
 
   var initialGraph: Option[AbstractGraph] = None
   var prunedGraph: Option[AbstractGraph] = initialGraph
@@ -77,14 +78,19 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       val joinedState1 = actionTApplier.joinStates(haltedStates1)
       val joinedState2 = actionTApplier.joinStates(haltedStates2)
       val result = joinedState1 == joinedState2
+      //      val result = joinedState1.store.subsumes(joinedState2.store) &&
+//                   abs.subsumes(joinedState1.finalValue, joinedState2.finalValue)
       if (! result) {
         val diff1 = joinedState1.store.diff(joinedState2.store)
         val diff2 = joinedState2.store.diff(joinedState1.store)
-        val kdiff1 = joinedState1.kstore.diff(joinedState2.kstore)
-        val kdiff2 = joinedState2.kstore.diff(joinedState1.kstore)
+//        val kdiff1 = joinedState1.kstore.diff(joinedState2.kstore)
+//        val kdiff2 = joinedState2.kstore.diff(joinedState1.kstore)
 //        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: $diff1\nkstore2 - kstore1: $diff2", Logger.U)
-        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: ${kdiff1.descriptor.describe(kdiff1)}\n\n\n\n##########" +
-                   s"\n\n\n\n\n\nkstore2 - kstore1: ${kdiff2.descriptor.describe(kdiff2)}", Logger.U)
+//        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: ${kdiff1.descriptor.describe(kdiff1)}\n\n\n\n##########" +
+//                   s"\n\n\n\n\n\nkstore2 - kstore1: ${kdiff2.descriptor.describe(kdiff2)}", Logger.U)
+//        Logger.log(s"Graphs are not the same:\n$joinedState1\n$joinedState2", Logger.U)
+        Logger.log(s"Diff of store:\nstore1 - store2: $diff1\nstore2 - store1: $diff2", Logger.U)
+//        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: $kdiff1\nkstore2 - kstore1: $kdiff2", Logger.U)
         Logger.log(s"Graphs are not the same:\n$joinedState1\n$joinedState2", Logger.U)
       }
       result

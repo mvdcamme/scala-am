@@ -420,7 +420,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     }
   }
 
-  object ActionReplayApplier extends ActionReplayApplier[Exp, Abs, Addr, State] {
+  object ActionReplayApplier extends ActionReplayApplier[Exp, Abs, Addr, Time, State] {
 
     protected def noEdgeFilters(state: State): (State, List[EdgeFilterAnnotation]) = (state, Nil)
     protected def addEvaluateExp(exp: Exp): EvaluatingExpression[Exp] = EvaluatingExpression(exp)
@@ -612,11 +612,14 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         false
     }
 
+    def getKonts(state: State): Set[Kont[KontAddr]] =
+      state.kstore.lookup(state.a)
+
     def joinStates(states: Set[State]): JoinedInfo = {
-      val initialInfo = JoinedInfo(abs.bottom, Store.empty, KontStore.empty)
+      val initialInfo = JoinedInfo(abs.bottom, Store.empty)
       states.foldLeft(initialInfo)( (joinedInfo, state) => {
         val stateFinalValue = getControlKontValue(state)
-        val stateInfo = JoinedInfo(stateFinalValue, state.store, state.kstore)
+        val stateInfo = JoinedInfo(stateFinalValue, state.store)
         joinedInfo.join(stateInfo)
       })
     }

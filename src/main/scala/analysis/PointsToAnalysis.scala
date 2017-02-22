@@ -112,7 +112,7 @@ class PointsToAnalysisLauncher[
   import usesGraph._
 
   implicit val stateChangeEdgeApplier = aam.ActionReplayApplier
-  val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, HybridAddress.A, aam.GraphNode](aam.AAMGraphPrinter)
+  val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.GraphNode](aam.AAMGraphPrinter)
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]
@@ -120,8 +120,9 @@ class PointsToAnalysisLauncher[
   val pointsToAnalysis = new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
   val metricsComputer = new CountClosureCalls[SchemeExp, Abs, HybridAddress.A, aam.State]
 
-  val prunedMetricsOutputPath = s"Analysis/Closures_Points_To/pruned.txt"
   val incrementalMetricsOutputPath = s"Analysis/Closures_Points_To/incremental.txt"
+  val prunedMetricsOutputPath = s"Analysis/Closures_Points_To/pruned.txt"
+  val runTimeAnalysisMetricsOutputPath = s"Analysis/Closures_Points_To/run_time.txt"
 
   def runStaticAnalysisGeneric(
       currentProgramState: PS,
@@ -153,8 +154,9 @@ class PointsToAnalysisLauncher[
     val outputPath = "Analysis/Closures_Points_To/initial_analysis.txt"
     new BufferedWriter(new FileWriter(new File(outputPath), false))
     metricsComputer.computeAndWriteMetrics(graph, -1, outputPath)
-    new BufferedWriter(new FileWriter(new File(prunedMetricsOutputPath), false))
     new BufferedWriter(new FileWriter(new File(incrementalMetricsOutputPath), false))
+    new BufferedWriter(new FileWriter(new File(prunedMetricsOutputPath), false))
+    new BufferedWriter(new FileWriter(new File(runTimeAnalysisMetricsOutputPath), false))
   }
 
   def runInitialStaticAnalysis(currentProgramState: PS): Unit =
@@ -191,13 +193,14 @@ class PointsToAnalysisLauncher[
     val applyEdgeActions = () => {
       val convertedState = convertStateAAM(aam, concSem, abstSem, concreteState)
       val optionIncrementalGraph: Option[AbstractGraph] = incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
-      metricsComputer.computeAndWriteMetrics(optionIncrementalGraph.get, stepCount, incrementalMetricsOutputPath)
-      optionIncrementalGraph.foreach((incrementalGraph) => {
+      optionIncrementalGraph.foreach( (incrementalGraph) => {
+        metricsComputer.computeAndWriteMetrics(incrementalGraph, stepCount, incrementalMetricsOutputPath)
         val completelyNewGraph: AbstractGraph = runStaticAnalysis(concreteState, Some(stepCount)) match {
           case AnalysisOutputGraph(output) =>
             output.toDotFile(s"Analysis/Run_time/run_time_$stepCount.dot")
             output.graph.asInstanceOf[AbstractGraph]
         }
+        metricsComputer.computeAndWriteMetrics(completelyNewGraph, stepCount, runTimeAnalysisMetricsOutputPath)
         val areEqual = incrementalAnalysis.subsumedGraphsEqual(completelyNewGraph, incrementalGraph)
         Logger.log(s"Graphs equal? $areEqual\n", Logger.U)
         assert(areEqual)
