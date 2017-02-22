@@ -52,57 +52,51 @@ class PropagateRunTimeInfo[Exp: Expression,
 
   private def filterWithKStore(newState: State, edges: Set[Edge]): Set[Edge] = {
 
-    def expInClosureBody(lambda: SchemeLambda, exp: SchemeExp): Boolean = {
-      val body = lambda.body
-      if (body.size == 1) {
-        exp == body.head
-      } else {
-        // exp should be a SchemeBegin
-        exp.asInstanceOf[SchemeBegin].exps == body
-      }
-    }
-
-    //    edges
-
-    //    lookAhead(newState, edges)
-
     type RelevantFrame = FrameFuncallOperands[AbstL, HybridAddress.A, HybridTimestamp.T]
     val sabs = implicitly[IsSchemeLattice[AbstL]]
+    /*
+     * Checks if the given frame directly leads to a closure call. If yes, returns the frame, casted as a RelevantFrame.
+     * If not, returns None.
+     */
+    def frameLeadsToClosureCall(frame: Frame): Option[RelevantFrame] = frame match {
+      case frame: RelevantFrame =>
+        if (sabs.getClosures(frame.f).nonEmpty && frame.toeval.isEmpty) {
+          Some(frame)
+        } else {
+          None
+        }
+      case _ =>
+        None
+    }
 
     val actualKonts = actionTApplier.getKonts(newState)
-    val actualFrames = actualKonts.map(_.frame).filter({
-      case frame: RelevantFrame =>
-        sabs.getClosures(frame.f).nonEmpty && frame.toeval.isEmpty
-      case _ =>
-        false
+    val relevantActualFrames: Set[RelevantFrame] = actualKonts.map(_.frame).flatMap( (frame: Frame) => {
+      val optionRelevantFrame = frameLeadsToClosureCall(frame)
+      optionRelevantFrame.fold[Set[RelevantFrame]](Set())( (relevantFrame: RelevantFrame) => Set(relevantFrame))
     })
 
     /*
-     * edgesWith: all edges that contain a FrameFollowed EdgeAnnotation that uses a FrameFuncallOperands.
+     * edgesWith: all edges that contain a FrameFollowed EdgeAnnotation with a frame that leads to a closure call.
+     * edgesWithout: all edges that don't satisfy the above condition.
      */
     val (edgesWith, edgesWithout) = edges.partition((edge) => {
       val filterEdge = edge._1._1
       filterEdge.exists({
-        case annot: FrameFollowed[AbstL] => annot.frame match {
-          case frame: RelevantFrame =>
-            sabs.getClosures(frame.f).nonEmpty && frame.toeval.isEmpty
-          case _ =>
-            false
-        }
+        case annot: FrameFollowed[AbstL] =>
+          frameLeadsToClosureCall(annot.frame).isDefined
         case _ =>
           false
       })
     })
-    val filteredEdgesWith: Set[Edge] = actualFrames.flatMap((actualFrame) => {
-      val castedActualFrame = actualFrame.asInstanceOf[RelevantFrame]
-      val actualClosures = sabs.getClosures(castedActualFrame.f)
-      val actualLambdas: Set[SchemeLambda] = actualClosures.map(_._1.asInstanceOf[SchemeLambda])
+
+    val filteredEdgesWith: Set[Edge] = relevantActualFrames.flatMap((relevantFrame) => {
+      val actualClosures = sabs.getClosures(relevantFrame.f)
+      val actualLambdas: Set[Exp] = actualClosures.map(_._1)
       val result: Set[Edge] = edgesWith.filter((edge: Edge) => {
-        edge._1._1.exists({
-          case annot: EvaluatingExpression[Exp] =>
-            actualLambdas.exists( (actualLambda: SchemeLambda) => expInClosureBody(actualLambda, annot.exp.asInstanceOf[SchemeExp]))
-          case x =>
-            // Another EdgeFilterAnnotation we're not interested in now
+        edge._1._2.exists({
+          case actionClosureCall: ActionClosureCallR[Exp, AbstL, Addr] =>
+            actualLambdas.contains(actionClosureCall.lambda)
+          case _ =>
             false
         })
       })
@@ -110,109 +104,6 @@ class PropagateRunTimeInfo[Exp: Expression,
     })
       filteredEdgesWith ++ edgesWithout
   }
-
-      //            val edgeFuncallOperandsFrame: RelevantFrame = edge._1._1.foldLeft[Option[RelevantFrame]](None)( (optionFrame, edgeAnnotation) => edgeAnnotation
-      //            match {
-      //              case ff: FrameFollowed[AbstL] => ff.frame match {
-      //                case f: RelevantFrame =>
-      //                  Some(f)
-      //                case _ =>
-      //                  optionFrame
-      //              }
-      //              case _ =>
-      //                optionFrame
-      //            }).get
-      //            val value: AbstL = edgeFuncallOperandsFrame.f
-      //            val edgeClosures = sabs.getClosures(value)
-      //            val edgeClosureExps = edgeClosures.map(_._1)
-      //            false
-      //          })
-      //          sd //all edgesWith that use the same closures contained in fr
-
-//    }
-
-      /*
-       * The subset of edges that minimally subsume the _given_ actualFrame.
-       */
-//      filterEdgeFilterAnnotations.findMinimallySubsumesFrameFollowedEdges(edgesWith, castedActualFrame)
-
-//    val closures = sabs.getClosures()
-
-  /*
-   * Some edges contain a FrameFollowed annotation, others don't. The edges that do contain such an annotation,
-   * should be checked so that only the ones that minimally subsume _some_ actualFrame are used.
-   * The edges that don't include such an annotation should always be kept.
-   */
-
-  //    val (edgesWith, edgesWithout) = edges.partition( (edge) => {
-  //      val filterEdge = edge._1._1
-  //      filterEdge.exists({case FrameFollowed(_) => true; case _ => false})
-  //    })
-
-  //    val filteredEdgesWith = actualFrames.flatMap( (actualFrame) => {
-  //      val castedActualFrame = actualFrame.asInstanceOf[usesGraph.AbstractFrame]
-  //      /*
-  //       * The subset of edges that minimally subsume the _given_ actualFrame.
-  //       */
-  //      filterEdgeFilterAnnotations.findMinimallySubsumesFrameFollowedEdges(edgesWith, castedActualFrame)
-  //    })
-  //    filteredEdgesWith ++ edgesWithout
-
-
-  //    edges.flatMap( (edge: Edge) => {
-  //      val filterEdge = edge._1._1
-  //      if (filterEdge.exists({case FrameFollowed(_) => true; case _ => false})) {
-  //        Set()
-  //      } else {
-  //        Set(edge)
-  //      }
-  //    })
-
-  //    actualFrames.flatMap( (actualFrame) =>
-  //      filterEdgeFilterAnnotations.findMinimallySubsumesFrameFollowedEdges(edges, actualFrame.asInstanceOf[usesGraph.AbstractFrame]))
-
-  //    edges.filter( (edge: Edge) => {
-  //      if (edge._1._1.exists({case FrameFollowed(_) => true; case _ => false})) {
-  //        val allFrameFollowedAnnotations = edge._1._1.filter({case FrameFollowed(_) => true; case _ => false})
-  //        assert(allFrameFollowedAnnotations.size == 1)
-  //        /*
-  //         * The frame that was popped in the initial abstract evalation.
-  //         * This frame may or may not be popped now, during the propagation of run-time info.
-  //         */
-  //        val FrameFollowed(supposedFrame) = allFrameFollowedAnnotations.head
-  //        if (actualFrames.exists( (actualFrame) => {
-  //          actualFrame == supposedFrame || supposedFrame.subsumes(actualFrame)
-  //        })) {
-  //          true
-  //        } else {
-  //          false
-  //        }
-  //      } else {
-  //        true
-  //      }
-  //    })
-
-  //    edges.flatMap( (edge: Edge) => {
-  //      if (edge._1._1.exists({case FrameFollowed(_) => true; case _ => false})) {
-  //        val allFrameFollowedAnnotations = edge._1._1.filter({case FrameFollowed(_) => true; case _ => false})
-  //        assert(allFrameFollowedAnnotations.size == 1)
-  //        /*
-  //         * The frame that was popped in the initial abstract evalation.
-  //         * This frame may or may not be popped now, during the propagation of run-time info.
-  //         */
-  //        val FrameFollowed(supposedFrame) = allFrameFollowedAnnotations.head
-  //        if (actualFrames.exists( (actualFrame) => {
-  //          actualFrame == supposedFrame || supposedFrame.subsumes(actualFrame)
-  //        })) {
-  //          Set(edge)
-  //        } else {
-  //          Set()
-  //        }
-  //      } else {
-  //        Set(edge)
-  //      }
-  //    })
-//}
 
 /*
  * originalState: The original state that was present in the initial abstract graph.

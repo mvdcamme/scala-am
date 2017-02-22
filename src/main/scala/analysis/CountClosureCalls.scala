@@ -18,7 +18,7 @@ class CountClosureCalls[Exp : Expression,
       edges.foldLeft(map)( (map, edge) => {
         val actionEdge = edge._1._2
         actionEdge.foldLeft(map)( (map, actionR) => actionR match {
-          case ActionClosureCallR(fExp, fValue) =>
+          case ActionClosureCallR(fExp, fValue, _) =>
             map + (fExp -> (map.getOrElse(fExp, Set()) + fValue))
           case _ =>
             map

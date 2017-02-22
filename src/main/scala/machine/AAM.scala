@@ -499,7 +499,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       case a: ActionAllocAddressesR[Exp, Abs, Addr] =>
         val newStore = a.addresses.foldLeft(state.store)( (store, address) => store.extend(address, abs.bottom))
         Set(noEdgeFilters(state.copy(store = newStore)))
-      case ActionClosureCallR(_, _) =>
+      case ActionClosureCallR(_, _, _) =>
         /* Don't have to do anything. */
         Set(noEdgeFilters(state))
       case a: ActionCreateClosureT[Exp, Abs, Addr] =>

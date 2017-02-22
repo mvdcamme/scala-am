@@ -11,7 +11,7 @@ case class ActionAllocAddressesR[Exp: Expression, Abs: JoinLattice, Addr: Addres
     extends ActionReplay[Exp, Abs, Addr]
 
 case class ActionClosureCallR[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    fExp: Exp, fValue: Abs)
+    fExp: Exp, fValue: Abs, lambda: Exp)
     extends ActionReplay[Exp, Abs, Addr]
 
 /*
