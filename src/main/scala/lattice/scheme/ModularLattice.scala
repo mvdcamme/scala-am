@@ -563,12 +563,19 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
       def append(x: MayFail[A], y: => MayFail[A]): MayFail[A] = (x, y) match {
         case (MayFailSuccess(x), MayFailSuccess(y)) =>
           MayFailSuccess(monoid.append(x, y))
-        case (MayFailSuccess(x), MayFailError(errs)) => MayFailBoth(x, errs)
+        case (MayFailSuccess(x), MayFailError(errs)) =>
+          MayFailBoth(x, errs)
         case (MayFailSuccess(x), MayFailBoth(y, errs)) =>
           MayFailBoth(monoid.append(x, y), errs)
+        case (MayFailError(errs), MayFailSuccess(x)) =>
+          MayFailBoth(x, errs)
         case (MayFailError(errs1), MayFailError(errs2)) =>
           MayFailError(errs1 ++ errs2)
         case (MayFailError(errs1), MayFailBoth(x, errs2)) =>
+          MayFailBoth(x, errs1 ++ errs2)
+        case (MayFailBoth(x, errs), MayFailSuccess(y)) =>
+          MayFailBoth(monoid.append(x, y), errs)
+        case (MayFailBoth(x, errs1), MayFailError(errs2)) =>
           MayFailBoth(x, errs1 ++ errs2)
         case (MayFailBoth(x, errs1), MayFailBoth(y, errs2)) =>
           MayFailBoth(monoid.append(x, y), errs1 ++ errs2)
