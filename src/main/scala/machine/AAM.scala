@@ -432,9 +432,10 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     private def frameSavedOperands(state: State): Set[(List[Abs], Kont[KontAddr])] =
       state.kstore.lookup(state.a).map( (kont) => kont.frame match {
         case frame: FrameFuncallOperands[Abs, Addr, Time] =>
-          val savedOperands = frame.f :: frame.args.map(_._2)
-          val allOperands = addControlKontValue(state, savedOperands)
-          (allOperands, kont)
+          val savedOperands = frame.args.map(_._2)
+          val allOperands = savedOperands :+ getControlKontValue(state)
+          val allValues = frame.f :: allOperands
+          (allValues, kont)
         case frame =>
           throw new Exception(s"Retrieving operands of non-FrameFunCallOperands $frame")
       })
@@ -467,12 +468,12 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
 
     protected def addControlKontValue(state: State, values: List[Abs]): List[Abs] = {
       val extraValue = getControlKontValue(state)
-      values :+ extraValue
+      extraValue :: values
     }
 
     protected def addControlKontValue(state: State, valuesSet: Set[List[Abs]]): Set[List[Abs]] = {
       val extraValue = getControlKontValue(state)
-      valuesSet.map(_ :+ extraValue)
+      valuesSet.map(extraValue :: _)
     }
 
     protected def addKontFilterAnnotations(currentAddr: KontAddr, kont: Kont[KontAddr]): List[EdgeFilterAnnotation] = {
@@ -488,7 +489,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       incompleteValuesKontsSet.map({ case (values, kont) =>
         val completeValues = addControlKontValue(state, values)
         assert(completeValues.length == addresses.length, s"Length of $addresses does not match length of $completeValues")
-        val addressValues = addresses.reverse.zip(completeValues) //TODO why do we need to reverse the arguments???
+        val addressValues = addresses.zip(completeValues) //TODO why do we need to reverse the arguments???
         val newStore = addressValues.foldLeft(state.store)((store, tuple) => store.extend(tuple._1, tuple._2))
         (state.copy(store = newStore), kont)
       })
