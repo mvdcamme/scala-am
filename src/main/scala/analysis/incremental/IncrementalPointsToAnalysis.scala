@@ -59,6 +59,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
                                             initialGraph.get,
                                             prunedGraph.get)
     } else {
+      Logger.log(s"Not propagating run-time info for step $stepCount", Logger.U)
       None
     }
 //    val areEqual = graphsEqual(prunedGraph.get, optionGraph.get)
@@ -73,8 +74,9 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       Logger.log(s"Graphs have a different size: graph1 ${graph1.nodes}, graph2: ${graph2.nodes}", Logger.U)
       false
     } else {
-      val haltedStates1= graph1.nodes.filter(actionTApplier.halted)
-      val haltedStates2= graph2.nodes.filter(actionTApplier.halted)
+      val haltedStates1 = graph1.nodes.filter(actionTApplier.halted)
+      val haltedStates2 = graph2.nodes.filter(actionTApplier.halted)
+      Logger.log(s"haltedStates2: $haltedStates2", Logger.U)
       val joinedState1 = actionTApplier.joinStates(haltedStates1)
       val joinedState2 = actionTApplier.joinStates(haltedStates2)
       val result = joinedState1 == joinedState2

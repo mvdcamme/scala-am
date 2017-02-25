@@ -1,6 +1,6 @@
 object GlobalFlags {
 
-  val PRINT_EDGE_ANNOTATIONS_FULL = false
+  val PRINT_EDGE_ANNOTATIONS_FULL = true
   val PRINT_ACTIONS_EXECUTED = false
   val PRINT_ENTIRE_TRACE = false
   val PRINT_EXECUTION_TIME = false

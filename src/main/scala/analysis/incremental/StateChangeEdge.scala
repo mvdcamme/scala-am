@@ -17,12 +17,13 @@ trait ActionReplayApplier[Exp, Abs, Addr, Time, State <: StateTrait[Exp, Abs, Ad
 
   def getKonts(state: State): Set[Kont[KontAddr]]
 
-  case class JoinedInfo(finalValue: Abs, store: Store[Addr, Abs])
+  case class JoinedInfo(finalValue: Abs, store: Store[Addr, Abs], kstore: KontStore[KontAddr])
                        (implicit abs: JoinLattice[Abs]) {
     def join(other: JoinedInfo): JoinedInfo = {
       val joinedFinalValue = abs.join(finalValue, other.finalValue)
       val joinedStore = store.join(other.store)
-      JoinedInfo(joinedFinalValue, joinedStore)
+      val joinedKStore = kstore.join(other.kstore)
+      JoinedInfo(joinedFinalValue, joinedStore, joinedKStore)
     }
   }
   def joinStates(states: Set[State]): JoinedInfo

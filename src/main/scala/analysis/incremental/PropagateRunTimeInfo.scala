@@ -119,12 +119,14 @@ protected def stepEval(sc: StateCombo,
                        prunedGraph: AbstractGraph): StepEval = {
 
   val StateCombo(originalState, newState) = sc
+  val originalStatePrunedId = prunedGraph.nodeId(originalState)
   /*
    * If originalState does not have any outgoing edges, return empty set
    */
   val edges: Set[Edge] = prunedGraph.edges.getOrElse(originalState, Set()) // All outgoing edges in abstract graph
   val storeFilteredEdges = filterWithStore(newState, edges)
-  val kstoreFilteredEdges = filterWithKStore(newState, storeFilteredEdges)
+//  val kstoreFilteredEdges = filterWithKStore(newState, storeFilteredEdges)
+  val kstoreFilteredEdges = storeFilteredEdges
 
   Logger.log(s"Using edges $edges", Logger.D)
   Logger.log(s"Using filteredEdges $kstoreFilteredEdges", Logger.D)
