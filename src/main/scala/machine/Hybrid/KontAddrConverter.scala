@@ -4,22 +4,27 @@ trait KontAddrConverter[KAddr] {
 
 }
 
-class IdKontAddrConverter[KAddr <: KontAddr] extends KontAddrConverter[KAddr] {
+class IdKontAddrConverter[KAddr] extends KontAddrConverter[KAddr] {
 
   def convertKontAddr(k: KAddr): KAddr = k
 
 }
 
-class ConvertTimestampKontAddrConverter[Exp : Expression, Time : Timestamp](timeSwitcher: TimestampConverter[Time])
+class ConvertTimestampKontAddrConverter[Exp : Expression](timeSwitcher: TimestampConverter[HybridTimestamp.T])
   extends KontAddrConverter[KontAddr] {
 
-  def convertKontAddr(k: KontAddr): KontAddr = k match {
-    case k: NormalKontAddress[Exp, Time] =>
-      NormalKontAddress(k.exp, timeSwitcher.convertTimestamp(k.time))
-    case k: NoExpKontAddress[Time] =>
-      NoExpKontAddress(timeSwitcher.convertTimestamp(k.time))
+  /* TODO Should really make a type class for this so we have a specific conversion for each possible kont addr type */
+  def convertKontAddr(ka: KontAddr): KontAddr = ka match {
+    case ka: NormalKontAddress[Exp, HybridTimestamp.T] =>
+      NormalKontAddress(ka.exp, timeSwitcher.convertTimestamp(ka.time))
+    case ka: NoExpKontAddress[HybridTimestamp.T] =>
+      NoExpKontAddress(timeSwitcher.convertTimestamp(ka.time))
+    case ka: FreeNormalKontAddress[Exp, _] =>
+      ka
     case HaltKontAddress =>
       HaltKontAddress
+    case FreeHaltKontAddress =>
+      FreeHaltKontAddress
   }
 
 }
@@ -27,12 +32,12 @@ class ConvertTimestampKontAddrConverter[Exp : Expression, Time : Timestamp](time
 /*
  * To be used for converting continuation addresses: delegates to the proper conversion strategy.
  */
-class DefaultKontAddrConverter[Exp: Expression, KAddr <: KontAddr] extends KontAddrConverter[KAddr] {
+class DefaultKontAddrConverter[Exp: Expression] extends KontAddrConverter[KontAddr] {
 
   val timestampConverter = IdHybridTimestampConverter
-  val kontAddressConverter = new IdKontAddrConverter[KAddr]
+  val kontAddressConverter = new ConvertTimestampKontAddrConverter[Exp](DefaultHybridTimestampConverter)
 
-  def convertKontAddr(k: KAddr): KAddr =
+  def convertKontAddr(k: KontAddr): KontAddr =
     kontAddressConverter.convertKontAddr(k)
 
 }

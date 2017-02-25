@@ -121,16 +121,20 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
               case EvaluatingExpression(e) =>
                 abstractEdgeInfos.contains(concreteEdgeInfo)
               case KontAddrPopped(oldA, newA) =>
-                abstractEdgeInfos.contains(KontAddrPopped(oldA, newA))
+                val kontAddrConverter = new DefaultKontAddrConverter[Exp]
+                val convertedOlda = kontAddrConverter.convertKontAddr(oldA)
+                val convertedNewa = kontAddrConverter.convertKontAddr(newA)
+                abstractEdgeInfos.contains(KontAddrPopped(convertedOlda, convertedNewa))
               case KontAddrPushed(ka) =>
-                abstractEdgeInfos.contains(KontAddrPushed(ka))
+                val convertedKa = new DefaultKontAddrConverter[Exp].convertKontAddr(ka)
+                abstractEdgeInfos.contains(KontAddrPushed(convertedKa))
             }
         })
     }
 
   private def convertKontAddrEdgeFilterAnnotations(edgeFilterAnnotations: List[EdgeFilterAnnotation])
   : List[EdgeFilterAnnotation] = {
-    val kontAddrConverter = new ConvertTimestampKontAddrConverter[Exp, HybridTimestamp.T](ConvertTimeStampConverter)
+    val kontAddrConverter = new DefaultKontAddrConverter[Exp]
     edgeFilterAnnotations.map({
       case KontAddrPopped(oldA, newA) =>
         KontAddrPopped(kontAddrConverter.convertKontAddr(oldA), kontAddrConverter.convertKontAddr(newA))

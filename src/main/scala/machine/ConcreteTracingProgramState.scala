@@ -85,19 +85,15 @@ trait ConcretableProgramState[Exp] {
 
 trait ConcreteTracingProgramState[Exp, Addr, Time] {
 
-  def convertState[AbstL: IsConvertableLattice, KAddr <: KontAddr : KontAddress](
+  def convertState[AbstL: IsConvertableLattice](
       concSem: ConvertableSemantics[Exp,
                                     ConcreteValue,
                                     HybridAddress.A,
                                     HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
-      initialKontAddress: KAddr,
-      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr)
-    : (ConvertedControl[Exp, AbstL, Addr],
-       Store[Addr, AbstL],
-       KontStore[KAddr],
-       KAddr,
-       HybridTimestamp.T)
+      initialKontAddress: KontAddr,
+      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr)
+    : (ConvertedControl[Exp, AbstL, Addr], Store[Addr, AbstL], KontStore[KontAddr], KontAddr, HybridTimestamp.T)
 }
 
 /**
@@ -657,7 +653,7 @@ case class ProgramState[Exp: Expression](
   private def convertSto[AbstL: IsConvertableLattice](
       σ: Store[HybridAddress.A, AbstL]): Store[HybridAddress.A, AbstL] = σ
 
-  private def convertKStoreToFrames[KAddr <: KontAddr : KontAddress](
+  private def convertKStoreToFrames(
       concSem: ConvertableSemantics[Exp,
                                     ConcreteValue,
                                     HybridAddress.A,
@@ -665,13 +661,13 @@ case class ProgramState[Exp: Expression](
       abstSem: BaseSchemeSemantics[ConcreteValue,
                                    HybridAddress.A,
                                    HybridTimestamp.T],
-      initialKontAddress: KAddr,
-      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr,
+      initialKontAddress: KontAddr,
+      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr,
       kontStore: KontStore[KontAddr],
       ρ: Environment[HybridAddress.A],
       a: KontAddr,
       vStack: List[Storable[ConcreteValue, HybridAddress.A]])
-    : (KAddr, KontStore[KAddr]) = {
+    : (KontAddr, KontStore[KontAddr]) = {
 
     @tailrec
     def loop(a: KontAddr,
@@ -681,10 +677,10 @@ case class ProgramState[Exp: Expression](
                           Option[Frame],
                           List[Storable[ConcreteValue, HybridAddress.A]],
                           Environment[HybridAddress.A])])
-      : (KAddr, KontStore[KAddr]) = a match {
+      : (KontAddr, KontStore[KontAddr]) = a match {
       case HaltKontAddress =>
-        stack.foldLeft[(KAddr, KontStore[KAddr])](
-          (initialKontAddress, KontStore.empty[KAddr]))({
+        stack.foldLeft[(KontAddr, KontStore[KontAddr])](
+          (initialKontAddress, KontStore.empty[KontAddr]))({
           case ((actualNext, extendedKontStore),
                 (a, someNewSemFrame, newVStack, newρ)) =>
             someNewSemFrame match {
@@ -710,24 +706,22 @@ case class ProgramState[Exp: Expression](
     loop(a, vStack, ρ, Nil)
   }
 
-  private def convertKStoreAbsValuesInFrames[AbstL: IsConvertableLattice, KAddr <: KontAddr : KontAddress](
-      kontStore: KontStore[KAddr],
-      convertValue: ConcreteValue => AbstL,
-      concBaseSem: BaseSchemeSemantics[ConcreteValue,
-                                       HybridAddress.A,
-                                       HybridTimestamp.T],
-      abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T])
-    : KontStore[KAddr] = {
-    val kontAddrConverter = new DefaultKontAddrConverter[Exp, KAddr]
+  private def convertKStoreAbsValuesInFrames[AbstL: IsConvertableLattice](kontStore: KontStore[KontAddr],
+                                                                          convertValue: ConcreteValue => AbstL,
+                                                                          concBaseSem: BaseSchemeSemantics[ConcreteValue,
+                                                                                                           HybridAddress.A,
+                                                                                                           HybridTimestamp.T],
+                                                                          abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T])
+   : KontStore[KontAddr] = {
+    val kontAddrConverter = new DefaultKontAddrConverter[Exp]
     kontStore.map(kontAddrConverter.convertKontAddr,
-      (frame: Frame) =>
-        concBaseSem.convertAbsInFrame[AbstL](
-          frame.asInstanceOf[SchemeFrame[ConcreteValue,
-                                         HybridAddress.A,
-                                         HybridTimestamp.T]],
-          convertValue,
-          convertEnv,
-          abstSem))
+                  (frame: Frame) =>
+                    concBaseSem.convertAbsInFrame[AbstL](frame.asInstanceOf[SchemeFrame[ConcreteValue,
+                                                                                        HybridAddress.A,
+                                                                                        HybridTimestamp.T]],
+                                                         convertValue,
+                                                         convertEnv,
+                                                         abstSem))
   }
 
   private def convertStore[AbstL: IsConvertableLattice](
@@ -841,18 +835,18 @@ case class ProgramState[Exp: Expression](
       sto)(value) ++ reachesKontAddr[KAddr](concBaseSem, sto, kstore)(ka)
   }
 
-  def convertState[AbstL: IsConvertableLattice, KAddr <: KontAddr : KontAddress](
+  def convertState[AbstL: IsConvertableLattice](
       concSem: ConvertableSemantics[Exp,
                               ConcreteValue,
                               HybridAddress.A,
                               HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
-      initialKontAddress: KAddr,
-      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr)
+      initialKontAddress: KontAddr,
+      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr)
     : (ConvertedControl[Exp, AbstL, HybridAddress.A],
        Store[HybridAddress.A, AbstL],
-       KontStore[KAddr],
-       KAddr,
+       KontStore[KontAddr],
+    KontAddr,
        HybridTimestamp.T) = {
 
     val concBaseSem =
@@ -876,7 +870,7 @@ case class ProgramState[Exp: Expression](
       convertedρ,
       startKontAddress,
       vStack)
-    val convertedKStore = convertKStoreAbsValuesInFrames[AbstL, KAddr](
+    val convertedKStore = convertKStoreAbsValuesInFrames[AbstL](
       mappedKStore,
       convertValueFun,
       concBaseSem,

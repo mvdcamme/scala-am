@@ -188,9 +188,8 @@ class HybridConcreteMachine[
         abstSem: BaseSchemeSemantics[AbstL,
                                      HybridAddress.A,
                                      HybridTimestamp.T]): KontStore[KAddr] = {
-      val kontAddrConverter = new DefaultKontAddrConverter[SchemeExp, KontAddr]
       kontStore.map[KAddr](
-        (ka) => mapKontAddress(kontAddrConverter.convertKontAddr(ka), None),
+        (ka) => convertKontAddr(ka, None, mapKontAddress),
         (frame: Frame) =>
           concBaseSem.convertAbsInFrame[AbstL](
             frame.asInstanceOf[SchemeFrame[ConcreteValue,
@@ -291,8 +290,14 @@ class HybridConcreteMachine[
       store.gc(storeAddressReachable)
     }
 
-    def convertState[AbstL: IsConvertableLattice,
-                     KAddr <: KontAddr: KontAddress](
+    private def convertKontAddr[KAddr <: KontAddr](ka: KontAddr,
+                                                   env: Option[Environment[HybridAddress.A]],
+                                                   mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr): KAddr = {
+      val kontAddrConverter = new DefaultKontAddrConverter[SchemeExp]
+      mapKontAddress(kontAddrConverter.convertKontAddr(a), env)
+    }
+
+    def convertState[AbstL: IsConvertableLattice](
         concSem: ConvertableSemantics[SchemeExp,
                                       ConcreteValue,
                                       HybridAddress.A,
@@ -300,13 +305,13 @@ class HybridConcreteMachine[
         abstSem: BaseSchemeSemantics[AbstL,
                                      HybridAddress.A,
                                      HybridTimestamp.T],
-        initialKontAddress: KAddr,
+        initialKontAddress: KontAddr,
         mapKontAddress: (KontAddr,
-                         Option[Environment[HybridAddress.A]]) => KAddr)
+                         Option[Environment[HybridAddress.A]]) => KontAddr)
       : (ConvertedControl[SchemeExp, AbstL, HybridAddress.A],
          Store[HybridAddress.A, AbstL],
-         KontStore[KAddr],
-         KAddr,
+         KontStore[KontAddr],
+         KontAddr,
          HybridTimestamp.T) = {
 
       val concBaseSem =
@@ -329,13 +334,13 @@ class HybridConcreteMachine[
 
       val GCedStore = garbageCollectStore(concBaseSem, store, control, kstore, a)
       val convertedStore = convertStore(GCedStore, convertValueFun)
-      val convertedKStore = convertKStore[AbstL, KAddr](mapKontAddress,
+      val convertedKStore = convertKStore[AbstL, KontAddr](mapKontAddress,
                                                         kstore,
                                                         convertValueFun,
                                                         concBaseSem,
                                                         abstSem)
 
-      val convertedA = mapKontAddress(a, None)
+      val convertedA = convertKontAddr(a, None, mapKontAddress)
       val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
       (convertedControl, convertedStore, convertedKStore, convertedA, newT)
     }

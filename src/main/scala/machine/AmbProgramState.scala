@@ -112,15 +112,15 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
     }
   }
 
-  def convertState[AbstL: IsConvertableLattice, KAddr <: KontAddr : KontAddress](
+  def convertState[AbstL: IsConvertableLattice](
       concSem: ConvertableSemantics[Exp,
                                     ConcreteValue,
                                     HybridAddress.A,
                                     HybridTimestamp.T],
       abstSem: BaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
-      initialKontAddress: KAddr,
-      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr) =
-    normalState.convertState[AbstL, KAddr](concSem, abstSem, initialKontAddress, mapKontAddress)
+      initialKontAddress: KontAddr,
+      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr) =
+    normalState.convertState[AbstL](concSem, abstSem, initialKontAddress, mapKontAddress)
 
   def runHeader(sem: SemanticsTraced[Exp,
                                      ConcreteValue,

@@ -70,13 +70,14 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
       abstSem: BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
       programState: PS): free.States = {
     val (control, store, kstore, a, t) =
-      programState.convertState[Abs, FreeKontAddr](concSem, abstSem, FreeHaltKontAddress, mapKontAddressToFree)
+      programState.convertState[Abs](concSem, abstSem, FreeHaltKontAddress, mapKontAddressToFree)
     val convertedControl = control match {
       case ConvertedControlError(reason) => free.ControlError(reason)
       case ConvertedControlEval(exp, env) => free.ControlEval(exp, env)
       case ConvertedControlKont(v) => free.ControlKont(v)
     }
-    free.States(Set(free.Configuration(convertedControl, a, t)), store, kstore)
+    free.States(Set(free.Configuration(convertedControl, a.asInstanceOf[FreeKontAddr], t)),
+                store, kstore.asInstanceOf[KontStore[FreeKontAddr]])
   }
   /**
     * Converts the given state to a new state corresponding to the state employed by the given AAM.
@@ -91,7 +92,7 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
   abstSem: BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
   programState: PS): aam.State = {
     val (control, store, kstore, a, t) =
-      programState.convertState[Abs, KontAddr](concSem, abstSem, HaltKontAddress, (x, _) => x)
+      programState.convertState[Abs](concSem, abstSem, HaltKontAddress, (x, _) => x)
     val convertedControl = control match {
       case ConvertedControlError(reason) => aam.ControlError(reason)
       case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
