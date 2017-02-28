@@ -1,3 +1,5 @@
+import ConcreteConcreteLattice._
+
 class FilterEdgeFilterAnnotations[Exp : Expression,
                                   AbstL : IsSchemeLattice,
                                   Addr : Address,
@@ -119,20 +121,67 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
               case EvaluatingExpression(e) =>
                 abstractEdgeInfos.contains(concreteEdgeInfo)
               case KontAddrPopped(oldA, newA) =>
-                val KAConverter = new ConvertTimestampKontAddrConverter(ConvertTimeStampConverter)
-                val convertedOlda = KAConverter.convertKontAddr(oldA)
-                val convertedNewa = KAConverter.convertKontAddr(newA)
-                abstractEdgeInfos.contains(KontAddrPopped(convertedOlda, convertedNewa))
+                abstractEdgeInfos.contains(KontAddrPopped(oldA, newA))
               case KontAddrPushed(ka) =>
-                val convertedKa = new ConvertTimestampKontAddrConverter(ConvertTimeStampConverter).convertKontAddr(ka)
-                abstractEdgeInfos.contains(KontAddrPushed(convertedKa))
+                abstractEdgeInfos.contains(KontAddrPushed(ka))
             }
         })
     }
 
-  def filterAllEdgeInfos(abstractEdges: Set[Edge], concreteEdgeInfos: List[EdgeFilterAnnotation]): Set[Edge] = {
-    concreteEdgeInfos.foldLeft[Set[Edge]](abstractEdges)(
-      (filteredAbstractEdges, concreteEdgeInfo) => filterSingleEdgeInfo(filteredAbstractEdges, concreteEdgeInfo))
+  private def convertKontAddrEdgeFilterAnnotations(edgeFilterAnnotations: List[EdgeFilterAnnotation])
+  : List[EdgeFilterAnnotation] = {
+    val kontAddrConverter = new ConvertTimestampKontAddrConverter[Exp, HybridTimestamp.T](ConvertTimeStampConverter)
+    edgeFilterAnnotations.map({
+      case KontAddrPopped(oldA, newA) =>
+        KontAddrPopped(kontAddrConverter.convertKontAddr(oldA), kontAddrConverter.convertKontAddr(newA))
+      case KontAddrPushed(a) =>
+        KontAddrPushed(kontAddrConverter.convertKontAddr(a))
+      case other =>
+        other
+    })
+  }
+
+  private def convertConcreteEdgeFilterAnnotations(concreteEdgeFilterAnnotations: List[EdgeFilterAnnotation],
+                                                   convertFrameFun: ConcreteFrame => AbstractFrame)
+  :  List[EdgeFilterAnnotation] = {
+    /* First convert the values in the Frames of the FrameFollowed annotation to abstract values. */
+    val convertedFrameEdgeFilterAnnotations = concreteEdgeFilterAnnotations.map({
+      case filter: FrameFollowed[ConcreteValue] =>
+        FrameFollowed[AbstL](convertFrameFun(filter.frame))
+      case other =>
+        other
+    })
+    /* Then convert the (timestamps in the) KontAddresses to abstract (timestamps of) KontAddresses. */
+    convertKontAddrEdgeFilterAnnotations(convertedFrameEdgeFilterAnnotations)
+  }
+
+  /**
+    * Filter the abstract edges relative to the given filterEdge.
+    * @param abstractEdges
+    * @param filterEdge
+    * @return
+    */
+  def filterToFilterEdge(abstractEdges: Set[Edge],
+                         filterEdge: List[EdgeFilterAnnotation]): Set[Edge] = {
+    val convertedAbstractEdges: Set[Edge] = abstractEdges.map( (edge) =>
+      edge.copy(_1 = edge._1.copy(_1 = convertKontAddrEdgeFilterAnnotations(edge._1._1))))
+    val convertedFilterEdge = convertKontAddrEdgeFilterAnnotations(filterEdge)
+    convertedFilterEdge.foldLeft[Set[Edge]](convertedAbstractEdges)(
+      (filteredAbstractEdges, edgeFilterAnnotation) => filterSingleEdgeInfo(filteredAbstractEdges, edgeFilterAnnotation))
+  }
+
+  /**
+    * Filter the abstract edges relative to the concrete filterEdge.
+    * @param abstractEdges
+    * @param concreteFilterEdge
+    * @param convertFrameFun
+    * @return
+    */
+  def filterConcreteFilterEdge(abstractEdges: Set[Edge],
+                               concreteFilterEdge: List[EdgeFilterAnnotation],
+                               convertFrameFun: ConcreteFrame => AbstractFrame): Set[Edge] = {
+    val convertedConcreteEdgeFilters = convertConcreteEdgeFilterAnnotations(concreteFilterEdge, convertFrameFun)
+    filterToFilterEdge(abstractEdges, convertedConcreteEdgeFilters)
   }
 
 }

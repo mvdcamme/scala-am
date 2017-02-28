@@ -165,7 +165,7 @@ protected def stepEval(sc: StateCombo,
   val newStateCombos: Set[(EdgeAnnotation, StateCombo)] = results.flatMap({
     case (newNewState, filterEdge) =>
       val currentId = graph.nodeId(newState)
-      val initialGraphFilteredEdge: Set[Edge] = filterEdgeFilterAnnotations.filterAllEdgeInfos(kstoreFilteredEdges, filterEdge)
+      val initialGraphFilteredEdge: Set[Edge] = filterEdgeFilterAnnotations.filterToFilterEdge(kstoreFilteredEdges, filterEdge)
       Logger.log(s"FilterEdge for state $newNewState (current ID $currentId) and concrete-ish " +
         s"$filterEdge is $initialGraphFilteredEdge", Logger.D)
       initialGraphFilteredEdge.map((edge) => {

@@ -42,15 +42,9 @@ class PruneUnreachableNodes[Exp : Expression,
                       node: State,
                       concreteEdgeInfos: List[EdgeFilterAnnotation],
                       prunedGraph: AbstractGraph): Set[State] = {
-    val abstractEdges = prunedGraph.nodeEdges(node)
+    val abstractEdges: Set[Edge] = prunedGraph.nodeEdges(node)
     Logger.log(s"abstractEdgeInfos = ${abstractEdges.map(_._1)}", Logger.D)
-    val frameConvertedConcreteEdgeFilters = concreteEdgeInfos.map({
-      case filter: FrameFollowed[ConcreteValue] =>
-        FrameFollowed[AbstL](convertFrameFun(filter.frame))
-      case other =>
-        other
-    })
-    val filteredAbstractEdges = filterEdgeFilterAnnotations.filterAllEdgeInfos(abstractEdges, frameConvertedConcreteEdgeFilters)
+    val filteredAbstractEdges = filterEdgeFilterAnnotations.filterConcreteFilterEdge(abstractEdges, concreteEdgeInfos, convertFrameFun)
     addEdgesVisited(node, filteredAbstractEdges)
     filteredAbstractEdges.map(_._2)
   }
@@ -75,7 +69,7 @@ class PruneUnreachableNodes[Exp : Expression,
                s"concreteEdgeInfos = $edgeInfos, $edgeInfos", Logger.D)
     addNodesVisited(currentNodes)
     /* First follow all StateSubsumed edges before trying to use the concrete edge information */
-    val nodesSubsumedEdgesFollowed = currentNodes.flatMap(followStateSubsumedEdges(_, prunedGraph))
+    val nodesSubsumedEdgesFollowed: Set[State] = currentNodes.flatMap(followStateSubsumedEdges(_, prunedGraph))
     Logger.log(s"In step $stepNumber, followed subsumption edges: ${nodesSubsumedEdgesFollowed.map(initialGraph.nodeId)}", Logger.D)
     addNodesVisited(nodesSubsumedEdgesFollowed)
     val succNodes = nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(convertFrameFun, _, edgeInfos, prunedGraph))

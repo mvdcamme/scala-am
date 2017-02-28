@@ -13,13 +13,13 @@ class IncrementalPointsToAnalysis[Exp : Expression,
   val propagateRunTimeInfo = new PropagateRunTimeInfo[Exp, AbstL, Addr, Time, State](graphPrinter)
 
   var initialGraph: Option[AbstractGraph] = None
-  var prunedGraph: Option[AbstractGraph] = initialGraph
+  var lastPropagatedGraph: Option[AbstractGraph] = initialGraph
   var currentNodes: Set[State] = Set()
 
-  def hasInitialGraph: Boolean = prunedGraph.isDefined
+  def hasInitialGraph: Boolean = lastPropagatedGraph.isDefined
   def initializeGraph(graph: AbstractGraph) = {
     initialGraph = Some(graph)
-    prunedGraph = initialGraph
+    lastPropagatedGraph = initialGraph
     val someStartNode = graph.getNode(0)
     assert(someStartNode.isDefined)
     currentNodes = Set(someStartNode.get)
@@ -27,37 +27,38 @@ class IncrementalPointsToAnalysis[Exp : Expression,
 
   def assertInitialized(): Unit = {
     assert(initialGraph.isDefined)
-    assert(prunedGraph.isDefined)
+    assert(lastPropagatedGraph.isDefined)
   }
 
   def containsNode(node: State): Boolean = {
-    prunedGraph.get.nodeId(node) != -1
+    lastPropagatedGraph.get.nodeId(node) != -1
   }
 
   def computeSuccNodes(convertFrameFun: ConcreteFrame => AbstractFrame,
                        edgeInfos: List[EdgeFilterAnnotation],
                        stepNumber: Int): Unit = {
     assertInitialized()
-    currentNodes = pruneUnreachableNodes.computeSuccNodes(convertFrameFun, edgeInfos, stepNumber, currentNodes, initialGraph.get, prunedGraph.get)
+    currentNodes = pruneUnreachableNodes.computeSuccNodes(convertFrameFun, edgeInfos, stepNumber, currentNodes, initialGraph.get, lastPropagatedGraph.get)
   }
 
-  def end(): Unit = pruneUnreachableNodes.end(initialGraph.get)
+  def end(): Unit = {
+    pruneUnreachableNodes.end(initialGraph.get)
+  }
 
   def filterReachable(stepCount: Int): Option[AbstractGraph] = {
     assertInitialized()
-    prunedGraph = Some(pruneUnreachableNodes.filterReachable(stepCount, currentNodes, prunedGraph.get))
-    prunedGraph
+    lastPropagatedGraph = Some(pruneUnreachableNodes.filterReachable(stepCount, currentNodes, lastPropagatedGraph.get))
+    lastPropagatedGraph
   }
 
   def applyEdgeActions(convertedState: State, stepCount: Int): Option[AbstractGraph] = {
     assertInitialized()
     if (currentNodes.size == 1) {
       Logger.log(s"Propagating run-time info for step $stepCount", Logger.U)
-      propagateRunTimeInfo.applyEdgeActions(convertedState,
-                                            stepCount,
-                                            currentNodes,
-                                            initialGraph.get,
-                                            prunedGraph.get)
+      lastPropagatedGraph = propagateRunTimeInfo.applyEdgeActions(convertedState, stepCount, currentNodes,
+                                                                  initialGraph.get, lastPropagatedGraph.get)
+      currentNodes = Set(convertedState)
+      lastPropagatedGraph
     } else {
       Logger.log(s"Not propagating run-time info for step $stepCount", Logger.U)
       None
