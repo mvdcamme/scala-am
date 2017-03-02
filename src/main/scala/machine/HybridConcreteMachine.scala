@@ -294,7 +294,7 @@ class HybridConcreteMachine[
                                                    env: Option[Environment[HybridAddress.A]],
                                                    mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr): KAddr = {
       val kontAddrConverter = new DefaultKontAddrConverter[SchemeExp]
-      mapKontAddress(kontAddrConverter.convertKontAddr(a), env)
+      mapKontAddress(kontAddrConverter.convertKontAddr(ka), env)
     }
 
     def convertState[AbstL: IsConvertableLattice](

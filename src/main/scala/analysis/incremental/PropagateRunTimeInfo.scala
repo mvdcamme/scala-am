@@ -12,6 +12,8 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
 
   val filterEdgeFilterAnnotations = new FilterEdgeFilterAnnotations[Exp, AbstL, Addr, State]
 
+  val LogPropagation = Logger.D
+
   type ActionEdge = List[ActionReplay[Exp, AbstL, Addr]]
   type FilterEdge = List[EdgeFilterAnnotation]
 
@@ -149,10 +151,10 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
     /* The combination of action-edges from all edges. */
     val mergedActionEdges: Set[ActionEdge] = nonSubsumptionEdges.map(_._1._2)
 
-    Logger.log(s"Using edges $edges", Logger.D)
-    Logger.log(s"Using store filteredEdges $storeFilteredEdges", Logger.D)
-    Logger.log(s"Using kontstore filteredEdges $kstoreFilteredEdges", Logger.D)
-    Logger.log(s"Using mergedActionEdges $mergedActionEdges", Logger.D)
+    Logger.log(s"Using edges $edges", LogPropagation)
+    Logger.log(s"Using store filteredEdges $storeFilteredEdges", LogPropagation)
+    Logger.log(s"Using kontstore filteredEdges $kstoreFilteredEdges", LogPropagation)
+    Logger.log(s"Using mergedActionEdges $mergedActionEdges", LogPropagation)
 
     /*
      * Used for following subsumption edges: these edges don't contain any actions, so the newState won't change
@@ -233,15 +235,15 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
       case Some(sc@(StateCombo(originalState, newState))) =>
         val originalStateId = prunedGraph.nodeId(originalState)
         Logger.log(s"Incrementally evaluating original state ${initialGraph.nodeId(originalState)} " +
-          s"(currentID: $originalStateId) $originalState with new state $newState", Logger.D)
+          s"(currentID: $originalStateId) $originalState with new state $newState", LogPropagation)
         if (actionTApplier.halted(newState)) {
-          Logger.log(s"State halted", Logger.D)
+          Logger.log(s"State halted", LogPropagation)
           evalLoop(todo.tail, visited + newState, graph, stepCount, initialGraph, prunedGraph)
         } else if (visited.contains(newState)) {
-          Logger.log(s"State already visited", Logger.D)
+          Logger.log(s"State already visited", LogPropagation)
           evalLoop(todo.tail, visited, graph, stepCount, initialGraph, prunedGraph)
         } else if (checkSubsumes && visited.exists((s2) => actionTApplier.subsumes(s2, newState).isDefined)) {
-          Logger.log(s"State subsumed", Logger.D)
+          Logger.log(s"State subsumed", LogPropagation)
           val updatedGraph = graph.map(visited.foldLeft[AbstractGraph](_)({
             case (graph, s2) =>
               actionTApplier.subsumes(s2, newState).fold(graph)((stateSubsumed: StateSubsumed[AbstL, Addr]) =>
