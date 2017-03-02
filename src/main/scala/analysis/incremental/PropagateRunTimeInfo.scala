@@ -128,12 +128,42 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
     }
   }
 
+  /*
+   * Recursively follow all StateSubsumed edges.
+   *
+   * When encountering an edge annotation with StateSubsumed, this edge should automatically
+   * be followed, as this implies that the current concrete state can match both states, and as
+   * the first state (the state from which the edge originates) will be a dead end, matching of
+   * the concrete state should proceed with the state that subsumes the 'dead' state.
+   */
+  def followStateSubsumedEdges(node: State, prunedGraph: AbstractGraph): Set[State] =
+    if (prunedGraph.nodeEdges(node).isEmpty) {
+      Set(node)
+    } else {
+      prunedGraph.nodeEdges(node).flatMap( (edge) =>
+        if (edge._1._1.exists({ case StateSubsumed(_, _) => true; case _ => false })) {
+          /*
+           * Make sure that an edge is ONLY annotated with StateSubsumed. It should not be possible
+           * to have a StateSubsumed edge with any other annotation.
+           */
+          assert(edge._1._1.size == 1, s"StateSubsumed edge contains more than 1 edge: ${edge._1}")
+          /*
+           * Make sure subsumption edge does not point to itself.
+           */
+          assert(edge._2 != node)
+          followStateSubsumedEdges(edge._2, prunedGraph)
+        } else {
+          Set(node)
+        })
+    }
+
   protected def stepEval(newState: State,
                          visited: Set[State],
                          mapping: Map[State, Set[State]],
                          graph: AbstractGraph,
                          prunedGraph: AbstractGraph): StepEval = {
     val originalStates = mapping(newState)
+    val afterSubsumptionStates: Set[State] = originalStates.flatMap(followStateSubsumedEdges(_, prunedGraph))
 
     Logger.log(s"stepEval of ${originalStates.map(PrintState.stateToString[State](_, prunedGraph))}", Logger.D)
 
@@ -144,7 +174,8 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
      * If originalState does not have any outgoing edges, return empty set
      */
     val edges: Set[Edge] = originalStates.flatMap(prunedGraph.edges.getOrElse(_, Set()))
-    val storeFilteredEdges = filterWithStore(newState, edges)
+    val afterSubsumptionEdges: Set[Edge] = afterSubsumptionStates.flatMap(prunedGraph.edges.getOrElse(_, Set()))
+    val storeFilteredEdges = filterWithStore(newState, afterSubsumptionEdges)
     val kstoreFilteredEdges = filterWithKStore(newState, storeFilteredEdges)
 
     val (subsumptionEdges, nonSubsumptionEdges) = kstoreFilteredEdges.partition(isSubsumptionEdge)
@@ -153,6 +184,7 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
     val mergedActionEdges: Set[ActionEdge] = nonSubsumptionEdges.map(_._1._2)
 
     Logger.log(s"Using edges $edges", LogPropagation)
+    Logger.log(s"Using afterSubsumptionEdges $afterSubsumptionEdges", LogPropagation)
     Logger.log(s"Using store filteredEdges $storeFilteredEdges", LogPropagation)
     Logger.log(s"Using kontstore filteredEdges $kstoreFilteredEdges", LogPropagation)
     Logger.log(s"Using mergedActionEdges $mergedActionEdges", LogPropagation)
@@ -161,8 +193,10 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
      * Used for following subsumption edges: these edges don't contain any actions, so the newState won't change
      * by following the subsumption edge, but the newState must still be saved, as it must be used as input or the
      * actions stored in the edges following this subsumption edge.
+     *
+     * TODO can be removed now, after adding the rule for following subsumption edges.
      */
-    val usedSubsumptionEdges = subsumptionEdges.nonEmpty
+//    val usedSubsumptionEdges = subsumptionEdges.nonEmpty
 
     /*
      * Compute the set of new states via the set of merged action edges, and, while applying the action edges,
@@ -209,10 +243,10 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
      */
     val subsumptionStateCombos: Set[StateCombo] = subsumptionEdges.map( (edge: Edge) => StateCombo(edge._2, newState) )
 
-    Logger.log(s"usedSubsumptionEdges? $usedSubsumptionEdges\n: subsumptionStateCombos" +
+    Logger.log(s"subsumptionStateCombos" +
                s"newStateCombos = ${nonSubsumptionStateCombos.map( (sc: (EdgeAnnotation, StateCombo)) =>
                  prunedGraph.nodeId(sc._2.originalState))}", Logger.D)
-    val newVisited = if (usedSubsumptionEdges) visited else visited + newState
+    val newVisited = visited + newState // TODO remove if (usedSubsumptionEdges) visited else visited + newState
     StepEval(nonSubsumptionStateCombos, subsumptionStateCombos, newVisited)
   }
 
@@ -248,8 +282,8 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
                        initialGraph: AbstractGraph,
                        prunedGraph: AbstractGraph):
   Option[Graph[State, EdgeAnnotation]] = {
-    Logger.log(s"Size of visited set ${visited.size}", Logger.U)
-    Logger.log(s"Size of todo set ${todoPair.todo.size}", Logger.U)
+    Logger.log(s"Size of visited set ${visited.size}", Logger.D)
+    Logger.log(s"Size of todo set ${todoPair.todo.size}", Logger.D)
     val checkSubsumes = true
     todoPair.todo.headOption
     match {
