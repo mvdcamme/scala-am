@@ -5,6 +5,12 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
                                   Addr : Address,
                                   State <: StateTrait[Exp, AbstL, Addr, _]] {
 
+  /*
+   * We definitely have to convert the Timestamps here, because the Timestamps encoded in the Concrete
+   * EdgeFilterAnnotations are concrete, while those from the existing graph are abstract.
+   */
+  val kontAddrConverter: KontAddrConverter[KontAddr] = new ConvertTimestampKontAddrConverter[Exp](ConvertTimeStampConverter)
+
   val usesGraph = new UsesGraph[Exp, AbstL, Addr, State]
   import usesGraph._
 
@@ -107,6 +113,22 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
       edges)
   }
 
+  private def convertKontAddrEdgeFilterAnnotation(annotation: EdgeFilterAnnotation): EdgeFilterAnnotation = annotation match {
+    case KontAddrPopped(oldKa, newKa) =>
+      val convertedOldKa = kontAddrConverter.convertKontAddr(oldKa)
+      val convertedNewKa = kontAddrConverter.convertKontAddr(newKa)
+      KontAddrPopped(convertedOldKa, convertedNewKa)
+    case KontAddrPushed(ka) =>
+      val convertedKa = kontAddrConverter.convertKontAddr(ka)
+      KontAddrPushed(convertedKa)
+    case _ =>
+      annotation
+  }
+
+  private def convertKontAddrEdgeFilterAnnotations(edgeFilterAnnotations: List[EdgeFilterAnnotation]): List[EdgeFilterAnnotation] = {
+    edgeFilterAnnotations.map(convertKontAddrEdgeFilterAnnotation)
+  }
+
   def filterSingleEdgeInfo(abstractEdges: Set[Edge],
                            concreteEdgeInfo: EdgeFilterAnnotation): Set[Edge] =
     concreteEdgeInfo match {
@@ -120,30 +142,11 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
             concreteEdgeInfo match {
               case EvaluatingExpression(e) =>
                 abstractEdgeInfos.contains(concreteEdgeInfo)
-              case KontAddrPopped(oldA, newA) =>
-                val kontAddrConverter = new DefaultKontAddrConverter[Exp]
-                val convertedOlda = kontAddrConverter.convertKontAddr(oldA)
-                val convertedNewa = kontAddrConverter.convertKontAddr(newA)
-                abstractEdgeInfos.contains(KontAddrPopped(convertedOlda, convertedNewa))
-              case KontAddrPushed(ka) =>
-                val convertedKa = new DefaultKontAddrConverter[Exp].convertKontAddr(ka)
-                abstractEdgeInfos.contains(KontAddrPushed(convertedKa))
+              case KontAddrPopped(_, _) | KontAddrPushed(_) =>
+                abstractEdgeInfos.contains(concreteEdgeInfo)
             }
         })
     }
-
-  private def convertKontAddrEdgeFilterAnnotations(edgeFilterAnnotations: List[EdgeFilterAnnotation])
-  : List[EdgeFilterAnnotation] = {
-    val kontAddrConverter = new DefaultKontAddrConverter[Exp]
-    edgeFilterAnnotations.map({
-      case KontAddrPopped(oldA, newA) =>
-        KontAddrPopped(kontAddrConverter.convertKontAddr(oldA), kontAddrConverter.convertKontAddr(newA))
-      case KontAddrPushed(a) =>
-        KontAddrPushed(kontAddrConverter.convertKontAddr(a))
-      case other =>
-        other
-    })
-  }
 
   private def convertConcreteEdgeFilterAnnotations(concreteEdgeFilterAnnotations: List[EdgeFilterAnnotation],
                                                    convertFrameFun: ConcreteFrame => AbstractFrame)
