@@ -35,7 +35,7 @@ class ConvertTimestampKontAddrConverter[Exp : Expression](timeSwitcher: Timestam
 class DefaultKontAddrConverter[Exp: Expression] extends KontAddrConverter[KontAddr] {
 
   val timestampConverter = IdHybridTimestampConverter
-  val kontAddressConverter = new ConvertTimestampKontAddrConverter[Exp](DefaultHybridTimestampConverter)
+  val kontAddressConverter = new IdKontAddrConverter[KontAddr]
 
   def convertKontAddr(k: KontAddr): KontAddr =
     kontAddressConverter.convertKontAddr(k)
