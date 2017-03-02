@@ -128,21 +128,22 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
     }
   }
 
-  protected def stepEval(sc: StateCombo,
+  protected def stepEval(newState: State,
                          visited: Set[State],
+                         mapping: Map[State, Set[State]],
                          graph: AbstractGraph,
                          prunedGraph: AbstractGraph): StepEval = {
+    val originalStates = mapping(newState)
 
-    val StateCombo(originalState, newState) = sc
-
-    Logger.log(s"stepEval of ${PrintState.stateToString[State](originalState, prunedGraph)}", Logger.D)
+    Logger.log(s"stepEval of ${originalStates.map(PrintState.stateToString[State](_, prunedGraph))}", Logger.D)
 
     /* TODO Onlu used for debugging */
-    val originalStatePrunedId = prunedGraph.nodeId(originalState)
+    val originalStatePrunedIds = originalStates.map(prunedGraph.nodeId)
     /*
+     * All outgoing edges in abstract graph
      * If originalState does not have any outgoing edges, return empty set
      */
-    val edges: Set[Edge] = prunedGraph.edges.getOrElse(originalState, Set()) // All outgoing edges in abstract graph
+    val edges: Set[Edge] = originalStates.flatMap(prunedGraph.edges.getOrElse(_, Set()))
     val storeFilteredEdges = filterWithStore(newState, edges)
     val kstoreFilteredEdges = filterWithKStore(newState, storeFilteredEdges)
 
@@ -215,33 +216,56 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
     StepEval(nonSubsumptionStateCombos, subsumptionStateCombos, newVisited)
   }
 
+  case class TodoPair(todo: Set[State], mapping: Map[State, Set[State]]) {
+
+    def dropHead: TodoPair =
+      TodoPair(todo.tail, mapping)
+
+    def dropHeadAndAddStates(stateCombos: Set[StateCombo]): TodoPair =
+      TodoPair(todo.tail ++ stateCombos.map(_.newState), TodoPair.extendMapping(mapping, stateCombos))
+  }
+
+  object TodoPair {
+
+    private def extendMapping(initial:  Map[State, Set[State]], stateCombos: Set[StateCombo]): Map[State, Set[State]] = {
+      stateCombos.foldLeft(initial)( (newMapping, sc) => {
+        val oldValues = newMapping.getOrElse(sc.newState, Set())
+        newMapping + (sc.newState -> (oldValues + sc.originalState))
+      })
+    }
+
+    def init(stateCombos: Set[StateCombo]): TodoPair =
+      TodoPair(stateCombos.map(_.newState), extendMapping(Map.empty, stateCombos))
+  }
+
   /*
    * Keep track of the set of visited originalStates, but not of the set of newStates.
    */
-  private def evalLoop(todo: Set[StateCombo],
+  private def evalLoop(todoPair: TodoPair,
                        visited: Set[State],
                        graph: Option[Graph[State, EdgeAnnotation]],
                        stepCount: Int,
                        initialGraph: AbstractGraph,
                        prunedGraph: AbstractGraph):
   Option[Graph[State, EdgeAnnotation]] = {
-    Logger.log(s"Size of visited set ${visited.size}", Logger.D)
+    Logger.log(s"Size of visited set ${visited.size}", Logger.U)
+    Logger.log(s"Size of todo set ${todoPair.todo.size}", Logger.U)
     val checkSubsumes = true
-    todo.headOption
+    todoPair.todo.headOption
     match {
       case None =>
         graphPrinter.printGraph(graph.get, s"Analysis/Incremental/incremental_graph_$stepCount.dot")
         graph
-      case Some(sc@(StateCombo(originalState, newState))) =>
-        val originalStateId = prunedGraph.nodeId(originalState)
-        Logger.log(s"Incrementally evaluating original state ${initialGraph.nodeId(originalState)} " +
-          s"(currentID: $originalStateId) $originalState with new state $newState", LogPropagation)
+      case Some(newState) =>
+//        val originalStateId = prunedGraph.nodeId(originalState)
+//        Logger.log(s"Incrementally evaluating original state ${initialGraph.nodeId(originalState)} " +
+//                   s"(currentID: $originalStateId) $originalState with new state $newState", LogPropagation)
         if (actionTApplier.halted(newState)) {
           Logger.log(s"State halted", LogPropagation)
-          evalLoop(todo.tail, visited + newState, graph, stepCount, initialGraph, prunedGraph)
+          evalLoop(todoPair.dropHead, visited + newState, graph, stepCount, initialGraph, prunedGraph)
         } else if (visited.contains(newState)) {
           Logger.log(s"State already visited", LogPropagation)
-          evalLoop(todo.tail, visited, graph, stepCount, initialGraph, prunedGraph)
+          evalLoop(todoPair.dropHead, visited, graph, stepCount, initialGraph, prunedGraph)
         } else if (checkSubsumes && visited.exists((s2) => actionTApplier.subsumes(s2, newState).isDefined)) {
           Logger.log(s"State subsumed", LogPropagation)
           val updatedGraph = graph.map(visited.foldLeft[AbstractGraph](_)({
@@ -250,14 +274,19 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
                 graph.addEdge(newState, (List(stateSubsumed), Nil), s2)
               )
           }))
-          evalLoop(todo.tail, visited, updatedGraph, stepCount, initialGraph, prunedGraph)
+          evalLoop(todoPair.dropHead, visited, updatedGraph, stepCount, initialGraph, prunedGraph)
         } else {
-          val StepEval(nonSubsumptionStateCombos, subsumptionStateCombos, newVisited) = stepEval(sc, visited, graph.get, prunedGraph)
-          evalLoop(todo.tail ++ subsumptionStateCombos ++ nonSubsumptionStateCombos.map(_._2), newVisited,
-            graph.map(_.addEdges(nonSubsumptionStateCombos.map({
-              case (edgeAnnotation, StateCombo(_, newNewState)) =>
-                (newState, edgeAnnotation, newNewState)
-            }))), stepCount, initialGraph, prunedGraph)
+          val StepEval(nonSubsumptionStateCombos, subsumptionStateCombos, newVisited) =
+            stepEval(newState, visited, todoPair.mapping, graph.get, prunedGraph)
+          evalLoop(todoPair.dropHeadAndAddStates(subsumptionStateCombos ++ nonSubsumptionStateCombos.map(_._2)),
+                   newVisited,
+                   graph.map(_.addEdges(nonSubsumptionStateCombos.map({
+                     case (edgeAnnotation, StateCombo(_, newNewState)) =>
+                       (newState, edgeAnnotation, newNewState)
+                   }))),
+                   stepCount,
+                   initialGraph,
+                   prunedGraph)
         }
     }
   }
@@ -281,7 +310,12 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
      * this set ought to correspond with this concrete state.
      */
     val rootNodes = currentNodes.map((state) => StateCombo(state, convertedState))
-    evalLoop(rootNodes, Set(), Some(new HyperlinkedGraph[State, EdgeAnnotation]), stepCount, initialGraph, prunedGraph)
+    evalLoop(TodoPair.init(rootNodes),
+             Set(),
+             Some(new HyperlinkedGraph[State, EdgeAnnotation]),
+             stepCount,
+             initialGraph,
+             prunedGraph)
   }
 
 
