@@ -467,7 +467,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         val next = kont.next
         val kontPopped = addKontAddrPopped(state.a, next)
         val frameFollowed = addFrameFollowed(frame)
-        (state.copy(a = next), Set(kontPopped, frameFollowed))
+        (state.copy(a = next), Set[MachineFilterAnnotation](kontPopped, frameFollowed))
       })
     }
 

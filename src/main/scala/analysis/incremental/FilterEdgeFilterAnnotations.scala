@@ -54,8 +54,8 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
       .map(_._1)
   }
 
-  private def frameUsedSubsumes(getFrameFromInfo: FilterAnnotation => Option[AbstractFrame])
-                               (info: FilterAnnotation, convertedFrame: AbstractFrame)
+  private def frameUsedSubsumes(getFrameFromInfo: MachineFilterAnnotation => Option[AbstractFrame])
+                               (info: MachineFilterAnnotation, convertedFrame: AbstractFrame)
   : Option[AbstractFrame] =
     getFrameFromInfo(info) match {
       case Some(abstractFrame) =>
@@ -71,7 +71,7 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
     }
 
   def filterFrameEdges(convertedFrame: AbstractFrame,
-                       subsumesFrame: (FilterAnnotation, AbstractFrame) => Option[AbstractFrame],
+                       subsumesFrame: (MachineFilterAnnotation, AbstractFrame) => Option[AbstractFrame],
                        abstractEdges: Set[Edge]): Set[Edge] = {
     if (!convertedFrame.meaningfullySubsumes) {
       // TODO hack: implement a proper subsumes method for every frame
@@ -85,7 +85,8 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
         abstractEdges
           .flatMap[(Edge, AbstractFrame), Set[(Edge, AbstractFrame)]](
           (edge: Edge) => {
-            val someFound: Option[AbstractFrame] = edge._1._1.map(subsumesFrame(_, convertedFrame)).foldLeft[Option[AbstractFrame]](None)({
+            val someFound: Option[AbstractFrame] = edge._1.filters.machineFilters.map(subsumesFrame(_, convertedFrame))
+              .foldLeft[Option[AbstractFrame]](None)({
               case (Some(x), _) =>
                 Some(x)
               case (None, y) =>
@@ -113,7 +114,8 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
       edges)
   }
 
-  private def convertKontAddrEdgeFilterAnnotation(annotation: FilterAnnotation): FilterAnnotation = annotation match {
+  private def convertKontAddrFilter(filter: MachineFilterAnnotation): MachineFilterAnnotation = filter
+  match {
     case KontAddrPopped(oldKa, newKa) =>
       val convertedOldKa = kontAddrConverter.convertKontAddr(oldKa)
       val convertedNewKa = kontAddrConverter.convertKontAddr(newKa)
@@ -122,11 +124,11 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
       val convertedKa = kontAddrConverter.convertKontAddr(ka)
       KontAddrPushed(convertedKa)
     case _ =>
-      annotation
+      filter
   }
 
-  private def convertKontAddrEdgeFilterAnnotations(edgeFilterAnnotations: List[FilterAnnotation]): List[FilterAnnotation] = {
-    edgeFilterAnnotations.map(convertKontAddrEdgeFilterAnnotation)
+  private def convertKontAddrFilters(filters: FilterAnnotations[Exp, AbstL, Addr]): FilterAnnotations[Exp, AbstL, Addr] = {
+    filters.copy(machineFilters = filters.machineFilters.map(convertKontAddrFilter))
   }
 
   def filterSingleEdgeInfo(abstractEdges: Set[Edge],
@@ -137,57 +139,56 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
         findMinimallySubsumesFrameFollowedEdges(abstractEdges, info.frame)
 
       case _ =>
-        abstractEdges.filter({
-          case ((abstractEdgeInfos, _), _) =>
-            concreteEdgeInfo match {
-              case EvaluatingExpression(e) =>
-                abstractEdgeInfos.contains(concreteEdgeInfo)
-              case KontAddrPopped(_, _) | KontAddrPushed(_) =>
-                abstractEdgeInfos.contains(concreteEdgeInfo)
-            }
+        abstractEdges.filter( (abstractEdge: Edge) => concreteEdgeInfo match {
+          case filter: EvaluatingExpression[Exp] =>
+            abstractEdge._1.filters.contains(filter)
+          case filter: KontAddrPopped =>
+            abstractEdge._1.filters.contains(filter)
+          case filter: KontAddrPushed =>
+            abstractEdge._1.filters.contains(filter)
         })
     }
 
-  private def convertConcreteEdgeFilterAnnotations(concreteEdgeFilterAnnotations: List[FilterAnnotation],
-                                                   convertFrameFun: ConcreteFrame => AbstractFrame)
-  :  List[FilterAnnotation] = {
+  private def convertConcreteFilters(concreteFilters: FilterAnnotations[Exp, AbstL, Addr],
+                                     convertFrameFun: ConcreteFrame => AbstractFrame):  FilterAnnotations[Exp, AbstL, Addr] = {
     /* First convert the values in the Frames of the FrameFollowed annotation to abstract values. */
-    val convertedFrameEdgeFilterAnnotations = concreteEdgeFilterAnnotations.map({
+    val convertedFrameMachineFilters = concreteFilters.machineFilters.map({
       case filter: FrameFollowed[ConcreteValue] =>
         FrameFollowed[AbstL](convertFrameFun(filter.frame))
       case other =>
         other
     })
+    val convertedFilters = FilterAnnotations(convertedFrameMachineFilters, concreteFilters.semanticsFilters)
     /* Then convert the (timestamps in the) KontAddresses to abstract (timestamps of) KontAddresses. */
-    convertKontAddrEdgeFilterAnnotations(convertedFrameEdgeFilterAnnotations)
+    convertKontAddrFilters(convertedFilters)
   }
 
   /**
-    * Filter the abstract edges relative to the given filterEdge.
+    * Filter the abstract edges relative to the given filters.
     * @param abstractEdges
-    * @param filterEdge
+    * @param filters
     * @return
     */
   def filterToFilterEdge(abstractEdges: Set[Edge],
-                         filterEdge: List[FilterAnnotation]): Set[Edge] = {
+                         filters: FilterAnnotations[Exp, AbstL, Addr]): Set[Edge] = {
     val convertedAbstractEdges: Set[Edge] = abstractEdges.map( (edge) =>
-      edge.copy(_1 = edge._1.copy(_1 = convertKontAddrEdgeFilterAnnotations(edge._1._1))))
-    val convertedFilterEdge = convertKontAddrEdgeFilterAnnotations(filterEdge)
+      edge.copy(_1 = edge._1.copy(filters = convertKontAddrFilters(edge._1.filters))))
+    val convertedFilterEdge = convertKontAddrFilters(filters)
     convertedFilterEdge.foldLeft[Set[Edge]](convertedAbstractEdges)(
       (filteredAbstractEdges, edgeFilterAnnotation) => filterSingleEdgeInfo(filteredAbstractEdges, edgeFilterAnnotation))
   }
 
   /**
-    * Filter the abstract edges relative to the concrete filterEdge.
+    * Filter the abstract edges relative to the concrete filters.
     * @param abstractEdges
-    * @param concreteFilterEdge
+    * @param concreteFilters
     * @param convertFrameFun
     * @return
     */
   def filterConcreteFilterEdge(abstractEdges: Set[Edge],
-                               concreteFilterEdge: List[FilterAnnotation],
+                               concreteFilters: FilterAnnotations[Exp, AbstL, Addr],
                                convertFrameFun: ConcreteFrame => AbstractFrame): Set[Edge] = {
-    val convertedConcreteEdgeFilters = convertConcreteEdgeFilterAnnotations(concreteFilterEdge, convertFrameFun)
+    val convertedConcreteEdgeFilters = convertConcreteFilters(concreteFilters, convertFrameFun)
     filterToFilterEdge(abstractEdges, convertedConcreteEdgeFilters)
   }
 

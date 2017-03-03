@@ -40,7 +40,7 @@ class HybridConcreteMachine[
   case class ConcreteMachineOutputValue(time: Double,
                                         numberOfStates: Int,
                                         v: ConcreteConcreteLattice.L,
-                                        graph: Graph[State, List[FilterAnnotation]])
+                                        graph: Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]])
       extends ConcreteMachineOutput {
     def finalValues = Set(v)
     def containsFinalValue(v2: ConcreteConcreteLattice.L) = v == v2

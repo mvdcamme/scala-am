@@ -25,6 +25,12 @@ case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Addr
   def +(semanticsFilter: SemanticsFilterAnnotation): FilterAnnotations[Exp, Abs, Addr] =
     this.copy(semanticsFilters = semanticsFilters + semanticsFilter)
 
+  def contains(filter: MachineFilterAnnotation): Boolean =
+    machineFilters.contains(filter)
+
+  def contains(filter: SemanticsFilterAnnotation): Boolean =
+    semanticsFilters.contains(filter)
+
   def exists(pred: (MachineFilterAnnotation => Boolean)): Boolean =
     machineFilters.exists(pred)
 
@@ -33,6 +39,11 @@ case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Addr
 
   def exists(pred: (FilterAnnotation => Boolean)): Boolean =
     machineFilters.exists(pred) || semanticsFilters.exists(pred)
+
+  def foldLeft[B](initial: B)(f: (B, FilterAnnotation) => B): B = {
+    val allFilters: Set[FilterAnnotation] = machineFilters ++ semanticsFilters
+    allFilters.foldLeft(initial)(f)
+  }
 
   def isSubsumptionAnnotation: Boolean = {
     if (exists( (filter: MachineFilterAnnotation) => filter match {
@@ -51,6 +62,12 @@ case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Addr
       false
     }
   }
+
+  def map(f: (MachineFilterAnnotation => MachineFilterAnnotation)): FilterAnnotations[Exp, Abs, Addr] =
+    this.copy(machineFilters = machineFilters.map(f))
+
+  def map(f: (SemanticsFilterAnnotation => SemanticsFilterAnnotation)): FilterAnnotations[Exp, Abs, Addr] =
+    this.copy(semanticsFilters = semanticsFilters.map(f))
 }
 
 case class EdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address](
