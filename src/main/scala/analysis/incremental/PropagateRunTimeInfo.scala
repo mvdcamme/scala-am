@@ -80,16 +80,13 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
      */
     val (edgesWith, edgesWithout) = edges.partition( (edge) => {
       val filters = edge._1.filters
-      filters.machineExists( (machineFilter: MachineFilterAnnotation) => true)
+      filters.machineExists((machineFilter: MachineFilterAnnotation) => machineFilter match {
+        case annot: FrameFollowed[AbstL] =>
+          frameLeadsToClosureCall(annot.frame).isDefined
+        case _ =>
+          false
+      })
     })
-
-//        machineFilter match {
-//        case annot: FrameFollowed[AbstL] =>
-//          frameLeadsToClosureCall(annot.frame).isDefined
-//        case _ =>
-//          false
-//      })
-//    })
 
     val filteredEdgesWith: Set[Edge] = relevantActualFrames.flatMap((relevantFrame) => {
       val actualClosures = sabs.getClosures(relevantFrame.f)
@@ -155,7 +152,7 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
 
     Logger.log(s"stepEval of ${originalStates.map(PrintState.stateToString[State](_, prunedGraph))}", Logger.D)
 
-    /* TODO Onlu used for debugging */
+    /* TODO Only used for debugging */
     val originalStatePrunedIds = originalStates.map(prunedGraph.nodeId)
     /*
      * All outgoing edges in abstract graph
