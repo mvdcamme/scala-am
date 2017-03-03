@@ -1,3 +1,5 @@
+import ConcreteConcreteLattice.ConcreteValue
+
 class IncrementalPointsToAnalysis[Exp : Expression,
                                   AbstL : IsSchemeLattice,
                                   Addr : Address,
@@ -35,10 +37,10 @@ class IncrementalPointsToAnalysis[Exp : Expression,
   }
 
   def computeSuccNodes(convertFrameFun: ConcreteFrame => AbstractFrame,
-                       edgeInfos: FilterAnnotations[Exp, AbstL, Addr],
+                       filters: FilterAnnotations[Exp, ConcreteValue, Addr],
                        stepNumber: Int): Unit = {
     assertInitialized()
-    currentNodes = pruneUnreachableNodes.computeSuccNodes(convertFrameFun, edgeInfos, stepNumber, currentNodes, initialGraph.get, lastPropagatedGraph.get)
+    currentNodes = pruneUnreachableNodes.computeSuccNodes(convertFrameFun, filters, stepNumber, currentNodes, initialGraph.get, lastPropagatedGraph.get)
   }
 
   def end(): Unit = {

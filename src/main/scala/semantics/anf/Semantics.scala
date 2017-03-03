@@ -71,7 +71,7 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
           simpleAction(ActionError[ANFExp, Abs, Addr](TypeError(fv.toString, "operator", "function",
             "not a function")))
         } else {
-          (fromClo ++ fromPrim).map(EdgeInformation[ANFExp, Abs, Addr](_, Nil, Nil))
+          (fromClo ++ fromPrim).map(EdgeInformation[ANFExp, Abs, Addr](_, Nil, Set()))
         }
       }, err => simpleAction(ActionError[ANFExp, Abs, Addr](err)))
     /* To evaluate (if cond cons alt), evaluate cons (which is atomic), and
@@ -79,8 +79,8 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
     case ANFIf(cond, cons, alt, _) =>
       atomicEval(cond, env, store).collect({
         case (v, effects) =>
-          val t = EdgeInformation(ActionEval(cons, env, store, effects), Nil, Nil)
-          val f = EdgeInformation(ActionEval(alt, env, store, effects), Nil, Nil)
+          val t = EdgeInformation(ActionEval(cons, env, store, effects), Nil, Set())
+          val f = EdgeInformation(ActionEval(alt, env, store, effects), Nil, Set())
           if (sabs.isTrue(v) && sabs.isFalse(v)) { Set(t, f) } else if (sabs.isTrue(v)) { Set(t) } else if (sabs.isFalse(v)) { Set(f) } else { Set() }
       }, err => simpleAction(ActionError[ANFExp, Abs, Addr](err)))
     /* To evaluate a let, first evaluate the binding */

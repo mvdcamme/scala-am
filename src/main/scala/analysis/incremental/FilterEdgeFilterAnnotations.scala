@@ -149,7 +149,7 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
         })
     }
 
-  private def convertConcreteFilters(concreteFilters: FilterAnnotations[Exp, AbstL, Addr],
+  private def convertConcreteFilters(concreteFilters: FilterAnnotations[Exp, ConcreteValue, Addr],
                                      convertFrameFun: ConcreteFrame => AbstractFrame):  FilterAnnotations[Exp, AbstL, Addr] = {
     /* First convert the values in the Frames of the FrameFollowed annotation to abstract values. */
     val convertedFrameMachineFilters = concreteFilters.machineFilters.map({
@@ -186,7 +186,7 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
     * @return
     */
   def filterConcreteFilterEdge(abstractEdges: Set[Edge],
-                               concreteFilters: FilterAnnotations[Exp, AbstL, Addr],
+                               concreteFilters: FilterAnnotations[Exp, ConcreteValue, Addr],
                                convertFrameFun: ConcreteFrame => AbstractFrame): Set[Edge] = {
     val convertedConcreteEdgeFilters = convertConcreteFilters(concreteFilters, convertFrameFun)
     filterToFilterEdge(abstractEdges, convertedConcreteEdgeFilters)

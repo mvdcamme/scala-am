@@ -36,7 +36,7 @@ class PruneUnreachableNodes[Exp : Expression,
 
   def computeSuccNode(convertFrameFun: ConcreteFrame => AbstractFrame,
                       node: State,
-                      concreteFilters: FilterAnnotations[Exp, AbstL, Addr],
+                      concreteFilters: FilterAnnotations[Exp, ConcreteValue, Addr],
                       prunedGraph: AbstractGraph): Set[State] = {
     val abstractEdges: Set[Edge] = prunedGraph.nodeEdges(node)
     Logger.log(s"abstractEdgeInfos = ${abstractEdges.map(_._1)}", Logger.D)
@@ -55,7 +55,7 @@ class PruneUnreachableNodes[Exp : Expression,
     edges.foreach((tuple) => edgesVisited += ((node, tuple._1, tuple._2)))
 
   def computeSuccNodes(convertFrameFun: ConcreteFrame => AbstractFrame,
-                       filters: FilterAnnotations[Exp, AbstL, Addr],
+                       filters: FilterAnnotations[Exp, ConcreteValue, Addr],
                        stepNumber: Int,
                        currentNodes: Set[State],
                        initialGraph: AbstractGraph,

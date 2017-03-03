@@ -16,7 +16,7 @@ class CountClosureCalls[Exp : Expression,
       val edges = tuple._2
       /* Count number of ActionClosureCall in the actionEdges going outwards from the state. */
       edges.foldLeft(map)( (map, edge) => {
-        val actionEdge = edge._1._2
+        val actionEdge = edge._1.actions
         actionEdge.foldLeft(map)( (map, actionR) => actionR match {
           case ActionClosureCallR(fExp, fValue, _) =>
             map + (fExp -> (map.getOrElse(fExp, Set()) + fValue))

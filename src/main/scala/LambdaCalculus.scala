@@ -245,7 +245,7 @@ object LamAnalysis {
     /* We also instantiate an abstract machine, which needs the same components as
      * the semantics, as well as the kind of expression that we are working
      * with. We use an AAM machine here. */
-    val machine = new AAM[LamExp, L, ClassicalAddress.A, ZeroCFA.T]
+    val machine = new AAMJoinLattice[LamExp, L, ClassicalAddress.A, ZeroCFA.T]
     /* We finally instantiate our analysis itself */
     val analysis = UnboundVariablesAnalysis[L, ClassicalAddress.A, ZeroCFA.T]
     /* We can then analyze the given program using the machine, our semantics and our analysis */

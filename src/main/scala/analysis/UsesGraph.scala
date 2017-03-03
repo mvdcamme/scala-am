@@ -31,22 +31,13 @@ case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Addr
   def contains(filter: SemanticsFilterAnnotation): Boolean =
     semanticsFilters.contains(filter)
 
-  def exists(pred: (MachineFilterAnnotation => Boolean)): Boolean =
-    machineFilters.exists(pred)
-
-  def exists(pred: (SemanticsFilterAnnotation => Boolean)): Boolean =
-    semanticsFilters.exists(pred)
-
-  def exists(pred: (FilterAnnotation => Boolean)): Boolean =
-    machineFilters.exists(pred) || semanticsFilters.exists(pred)
-
   def foldLeft[B](initial: B)(f: (B, FilterAnnotation) => B): B = {
     val allFilters: Set[FilterAnnotation] = machineFilters ++ semanticsFilters
     allFilters.foldLeft(initial)(f)
   }
 
   def isSubsumptionAnnotation: Boolean = {
-    if (exists( (filter: MachineFilterAnnotation) => filter match {
+    if (machineExists( (filter: MachineFilterAnnotation) => filter match {
       case StateSubsumed(_ , _) =>
         true
       case _ => false
@@ -63,11 +54,58 @@ case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Addr
     }
   }
 
-  def map(f: (MachineFilterAnnotation => MachineFilterAnnotation)): FilterAnnotations[Exp, Abs, Addr] =
-    this.copy(machineFilters = machineFilters.map(f))
+  /*
+   * Parameter type of exists and map functions are erased during compilation, causing the compiler to complain
+   * about double definitions of the exists and map functions.
+   * Solution: http://stackoverflow.com/questions/3307427/scala-double-definition-2-methods-have-the-same-type-erasure
+   */
 
-  def map(f: (SemanticsFilterAnnotation => SemanticsFilterAnnotation)): FilterAnnotations[Exp, Abs, Addr] =
-    this.copy(semanticsFilters = semanticsFilters.map(f))
+//  case class MBool(b: Boolean)
+//  case class SBool(b: Boolean)
+//  case class FBool(b: Boolean)
+//  implicit private def mb(b: Boolean): MBool =
+//    MBool(b)
+//  implicit private def sb(b: Boolean): SBool =
+//    SBool(b)
+//  implicit private def fb(b: Boolean): FBool =
+//    FBool(b)
+
+//  case class MachineFilterExists(pred: MachineFilterAnnotation => Boolean)
+//  case class SemanticsFilterExists(pred: SemanticsFilterAnnotation => Boolean)
+//  case class FilterExists(pred: FilterAnnotation => Boolean)
+//  implicit private def mfe(pred: MachineFilterAnnotation => Boolean): MachineFilterExists =
+//    MachineFilterExists(pred)
+//  implicit private def sfe(pred: SemanticsFilterAnnotation => Boolean): SemanticsFilterExists =
+//    SemanticsFilterExists(pred)
+//  implicit private def fe(pred: FilterAnnotation => Boolean): FilterExists =
+//    FilterExists(pred)
+
+  def machineExists(pred: MachineFilterAnnotation => Boolean)
+            (implicit d: DummyImplicit): Boolean =
+    machineFilters.exists(pred)
+
+  def exists(pred: SemanticsFilterAnnotation => Boolean)
+            (implicit d: DummyImplicit): Boolean =
+    semanticsFilters.exists(pred)
+
+//  def exists(pred: FilterExists)
+//            (implicit d: DummyImplicit): Boolean =
+//    machineFilters.exists(pred.pred) || semanticsFilters.exists(pred.pred)
+
+  case class MachineFilterFunction(function: MachineFilterAnnotation => MachineFilterAnnotation)
+  case class SemanticsFilterFunction(function: SemanticsFilterAnnotation => SemanticsFilterAnnotation)
+  implicit private def mff(function: MachineFilterAnnotation => MachineFilterAnnotation): MachineFilterFunction =
+    MachineFilterFunction(function)
+  implicit private def sff(function: SemanticsFilterAnnotation => SemanticsFilterAnnotation): SemanticsFilterFunction =
+    SemanticsFilterFunction(function)
+
+  def map(f: MachineFilterFunction)
+         (implicit d: DummyImplicit): FilterAnnotations[Exp, Abs, Addr] =
+    this.copy(machineFilters = machineFilters.map(f.function))
+
+  def map(f: SemanticsFilterFunction)
+         (implicit d: DummyImplicit): FilterAnnotations[Exp, Abs, Addr] =
+    this.copy(semanticsFilters = semanticsFilters.map(f.function))
 }
 
 case class EdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address](

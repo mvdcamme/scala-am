@@ -1,5 +1,7 @@
 import java.io.{FileWriter, BufferedWriter, File}
 
+import ConcreteConcreteLattice.ConcreteValue
+
 class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Timestamp] {
 
   private def joinStores[
@@ -176,7 +178,7 @@ class PointsToAnalysisLauncher[
                                     BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
                                     ConcreteConcreteLattice.L => Abs) => SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
                        => SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T],
-                     filters: FilterAnnotations[SchemeExp, Abs, HybridAddress.A],
+                     filters: FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A],
                      stepNumber: Int) = {
     val convertValueFun = convertValue(abstSem.primitives)
     incrementalAnalysis.computeSuccNodes(convertFrame(concSem, abstSem, convertValueFun), filters, stepNumber)

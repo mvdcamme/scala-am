@@ -19,18 +19,15 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
 
   private def filterWithStore(newState: State, edges: Set[Edge]): Set[Edge] = {
 
-    def hasEdgeAnnot(edge: (EdgeAnnotation2, State), edgeAnnotation: FilterAnnotation): Boolean =
-      edge._1.filters.exists( (filter: FilterAnnotation) => filter match {
-        case annot if annot == edgeAnnotation => true
-        case _ => false
-      })
+    def hasSemanticsFilter(edge: (EdgeAnnotation2, State), filter: SemanticsFilterAnnotation): Boolean =
+      edge._1.filters.contains(filter)
     /*
      * If there is a ThenBranchTaken-annotation and current state did NOT evaluate to true, take all edges not
      * containing a ThenBranchTaken-annotation.
      */
-    val filteredTrue: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasEdgeAnnot(_, ThenBranchTaken)) &&
+    val filteredTrue: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasSemanticsFilter(_, ThenBranchTaken)) &&
       (!actionTApplier.evaluatedTrue(newState))) {
-      edges.filter(!hasEdgeAnnot(_, ThenBranchTaken))
+      edges.filter(!hasSemanticsFilter(_, ThenBranchTaken))
     } else {
       edges
     }
@@ -38,9 +35,9 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
      * If there is an ElseBranchTaken-annotation and current state did NOT evaluate to false, take all edges not
      * containing an ElseBranchTaken-annotation.
      */
-    val filteredFalse: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasEdgeAnnot(_, ElseBranchTaken)) &&
+    val filteredFalse: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasSemanticsFilter(_, ElseBranchTaken)) &&
       (!actionTApplier.evaluatedFalse(newState))) {
-      edges.filter(!hasEdgeAnnot(_, ElseBranchTaken))
+      edges.filter(!hasSemanticsFilter(_, ElseBranchTaken))
     } else {
       edges
     }
@@ -81,15 +78,18 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
      * edgesWith: all edges that contain a FrameFollowed EdgeAnnotation with a frame that leads to a closure call.
      * edgesWithout: all edges that don't satisfy the above condition.
      */
-    val (edgesWith, edgesWithout) = edges.partition((edge) => {
+    val (edgesWith, edgesWithout) = edges.partition( (edge) => {
       val filters = edge._1.filters
-      filters.exists( (machineFilter: MachineFilterAnnotation) => machineFilter match {
-        case annot: FrameFollowed[AbstL] =>
-          frameLeadsToClosureCall(annot.frame).isDefined
-        case _ =>
-          false
-      })
+      filters.machineExists( (machineFilter: MachineFilterAnnotation) => true)
     })
+
+//        machineFilter match {
+//        case annot: FrameFollowed[AbstL] =>
+//          frameLeadsToClosureCall(annot.frame).isDefined
+//        case _ =>
+//          false
+//      })
+//    })
 
     val filteredEdgesWith: Set[Edge] = relevantActualFrames.flatMap((relevantFrame) => {
       val actualClosures = sabs.getClosures(relevantFrame.f)
