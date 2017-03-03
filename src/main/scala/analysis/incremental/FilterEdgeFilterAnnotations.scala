@@ -140,12 +140,16 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
 
       case _ =>
         abstractEdges.filter( (abstractEdge: Edge) => concreteEdgeInfo match {
+          case ElseBranchTaken =>
+            abstractEdge._1.filters.contains(ElseBranchTaken)
           case filter: EvaluatingExpression[Exp] =>
             abstractEdge._1.filters.contains(filter)
           case filter: KontAddrPopped =>
             abstractEdge._1.filters.contains(filter)
           case filter: KontAddrPushed =>
             abstractEdge._1.filters.contains(filter)
+          case ThenBranchTaken =>
+            abstractEdge._1.filters.contains(ThenBranchTaken)
         })
     }
 
