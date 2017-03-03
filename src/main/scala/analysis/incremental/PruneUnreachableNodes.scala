@@ -1,14 +1,14 @@
 import ConcreteConcreteLattice.ConcreteValue
 
 class PruneUnreachableNodes[Exp : Expression,
-                            AbstL : IsSchemeLattice,
+                            Abs : IsSchemeLattice,
                             Addr : Address,
-                            State <: StateTrait[Exp, AbstL, Addr, _] : Descriptor] {
+                            State <: StateTrait[Exp, Abs, Addr, _] : Descriptor] {
 
-  val usesGraph = new UsesGraph[Exp, AbstL, Addr, State]
+  val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
 
-  val filterEdgeFilterAnnotations = new FilterEdgeFilterAnnotations[Exp, AbstL, Addr, State]
+  val filterEdgeFilterAnnotations = new FilterEdgeFilterAnnotations[Exp, Abs, Addr, State]
 
   var nodesVisited: Set[State] = Set()
   var edgesVisited: Set[(State, EdgeAnnotation2, State)] = Set()

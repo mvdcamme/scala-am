@@ -1,9 +1,9 @@
 import ConcreteConcreteLattice._
 
 class FilterEdgeFilterAnnotations[Exp : Expression,
-                                  AbstL : IsSchemeLattice,
+                                  Abs : IsSchemeLattice,
                                   Addr : Address,
-                                  State <: StateTrait[Exp, AbstL, Addr, _]] {
+                                  State <: StateTrait[Exp, Abs, Addr, _]] {
 
   /*
    * We definitely have to convert the Timestamps here, because the Timestamps encoded in the Concrete
@@ -11,7 +11,7 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
    */
   val kontAddrConverter: KontAddrConverter[KontAddr] = new ConvertTimestampKontAddrConverter[Exp](ConvertTimeStampConverter)
 
-  val usesGraph = new UsesGraph[Exp, AbstL, Addr, State]
+  val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
 
   class SubsumesOrdering[T](subsumes: (T, T) => Boolean)
@@ -107,7 +107,7 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
 
   def findMinimallySubsumesFrameFollowedEdges(edges: Set[Edge], frame: AbstractFrame): Set[Edge] = {
     filterFrameEdges(frame, frameUsedSubsumes({
-      case info: FrameFollowed[AbstL] =>
+      case info: FrameFollowed[Abs] =>
         Some(info.frame)
       case _ =>
         None}),
@@ -127,7 +127,7 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
       filter
   }
 
-  private def convertKontAddrFilters(filters: FilterAnnotations[Exp, AbstL, Addr]): FilterAnnotations[Exp, AbstL, Addr] = {
+  private def convertKontAddrFilters(filters: FilterAnnotations[Exp, Abs, Addr]): FilterAnnotations[Exp, Abs, Addr] = {
     filters.copy(machineFilters = filters.machineFilters.map(convertKontAddrFilter))
   }
 
@@ -135,7 +135,7 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
                            concreteEdgeInfo: FilterAnnotation): Set[Edge] =
     concreteEdgeInfo match {
 
-      case info: FrameFollowed[AbstL] =>
+      case info: FrameFollowed[Abs] =>
         findMinimallySubsumesFrameFollowedEdges(abstractEdges, info.frame)
 
       case _ =>
@@ -154,11 +154,11 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
     }
 
   private def convertConcreteFilters(concreteFilters: FilterAnnotations[Exp, ConcreteValue, Addr],
-                                     convertFrameFun: ConcreteFrame => AbstractFrame):  FilterAnnotations[Exp, AbstL, Addr] = {
+                                     convertFrameFun: ConcreteFrame => AbstractFrame):  FilterAnnotations[Exp, Abs, Addr] = {
     /* First convert the values in the Frames of the FrameFollowed annotation to abstract values. */
     val convertedFrameMachineFilters = concreteFilters.machineFilters.map({
       case filter: FrameFollowed[ConcreteValue] =>
-        FrameFollowed[AbstL](convertFrameFun(filter.frame))
+        FrameFollowed[Abs](convertFrameFun(filter.frame))
       case other =>
         other
     })
@@ -174,7 +174,7 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
     * @return
     */
   def filterToFilterEdge(abstractEdges: Set[Edge],
-                         filters: FilterAnnotations[Exp, AbstL, Addr]): Set[Edge] = {
+                         filters: FilterAnnotations[Exp, Abs, Addr]): Set[Edge] = {
     val convertedAbstractEdges: Set[Edge] = abstractEdges.map( (edge) =>
       edge.copy(_1 = edge._1.copy(filters = convertKontAddrFilters(edge._1.filters))))
     val convertedFilterEdge = convertKontAddrFilters(filters)

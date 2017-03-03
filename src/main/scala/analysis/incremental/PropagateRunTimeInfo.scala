@@ -1,20 +1,20 @@
 class PropagateRunTimeInfo[Exp: Expression,
-AbstL: IsSchemeLattice,
-Addr: Address,
-Time: Timestamp,
-State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
-(graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, AbstL, Addr]]])
-(implicit actionTApplier: ActionReplayApplier[Exp, AbstL, Addr, Time, State]) {
+                           Abs: IsSchemeLattice,
+                           Addr: Address,
+                           Time: Timestamp,
+                           State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
+                          (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr]]])
+                          (implicit actionTApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State]) {
 
-  val usesGraph = new UsesGraph[Exp, AbstL, Addr, State]
+  val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
 
   import usesGraph._
 
-  val filterEdgeFilterAnnotations = new FilterEdgeFilterAnnotations[Exp, AbstL, Addr, State]
+  val filterEdgeFilterAnnotations = new FilterEdgeFilterAnnotations[Exp, Abs, Addr, State]
 
   val LogPropagation = Logger.D
 
-  type ActionEdge = List[ActionReplay[Exp, AbstL, Addr]]
+  type ActionEdge = List[ActionReplay[Exp, Abs, Addr]]
   type FilterEdge = List[FilterAnnotation]
 
   private def filterWithStore(newState: State, edges: Set[Edge]): Set[Edge] = {
@@ -51,8 +51,8 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
 
   private def filterWithKStore(newState: State, edges: Set[Edge]): Set[Edge] = {
 
-    type RelevantFrame = FrameFuncallOperands[AbstL, HybridAddress.A, HybridTimestamp.T]
-    val sabs = implicitly[IsSchemeLattice[AbstL]]
+    type RelevantFrame = FrameFuncallOperands[Abs, HybridAddress.A, HybridTimestamp.T]
+    val sabs = implicitly[IsSchemeLattice[Abs]]
     /*
      * Checks if the given frame directly leads to a closure call. If yes, returns the frame, casted as a RelevantFrame.
      * If not, returns None.
@@ -81,7 +81,7 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
     val (edgesWith, edgesWithout) = edges.partition( (edge) => {
       val filters = edge._1.filters
       filters.machineExists((machineFilter: MachineFilterAnnotation) => machineFilter match {
-        case annot: FrameFollowed[AbstL] =>
+        case annot: FrameFollowed[Abs] =>
           frameLeadsToClosureCall(annot.frame).isDefined
         case _ =>
           false
@@ -93,7 +93,7 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
       val actualLambdas: Set[Exp] = actualClosures.map(_._1)
       val result: Set[Edge] = edgesWith.filter( (edge: Edge) => {
         edge._1.actions.exists({
-          case actionClosureCall: ActionClosureCallR[Exp, AbstL, Addr] =>
+          case actionClosureCall: ActionClosureCallR[Exp, Abs, Addr] =>
             actualLambdas.contains(actionClosureCall.lambda)
           case _ =>
             false
@@ -193,7 +193,7 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
        * Each actionR may produce a set of new newStates.
        */
       actionEdge.foldLeft[Set[(State, Set[MachineFilterAnnotation])]](Set((newState, Set[MachineFilterAnnotation]())))(
-        (intermediaryStates: Set[(State, Set[MachineFilterAnnotation])], actionR: ActionReplay[Exp, AbstL, Addr]) =>
+        (intermediaryStates: Set[(State, Set[MachineFilterAnnotation])], actionR: ActionReplay[Exp, Abs, Addr]) =>
           intermediaryStates.flatMap((intermediaryState: (State, Set[MachineFilterAnnotation])) => {
             val intermediaryFilters = intermediaryState._2
             val nextIntermediaryStepSet = actionTApplier.applyActionReplay(intermediaryState._1, actionR)
@@ -296,7 +296,7 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
           Logger.log(s"State subsumed", LogPropagation)
           val updatedGraph = graph.map(visited.foldLeft[AbstractGraph](_)({
             case (graph, s2) =>
-              actionTApplier.subsumes(s2, newState).fold(graph)((subsumptionFilter: StateSubsumed[AbstL, Addr]) =>
+              actionTApplier.subsumes(s2, newState).fold(graph)((subsumptionFilter: StateSubsumed[Abs, Addr]) =>
                 graph.addEdge(newState, EdgeAnnotation.subsumptionEdge(subsumptionFilter), s2)
               )
           }))

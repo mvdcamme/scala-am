@@ -3,16 +3,16 @@ import java.io.{FileWriter, BufferedWriter, File}
 case class CountedClosureCalls(nrOfCalls: Int, totalNrOfClosuresPointedTo: Int)
 
 class CountClosureCalls[Exp : Expression,
-                        AbstL : IsSchemeLattice,
+                        Abs : IsSchemeLattice,
                         Addr : Address,
-                        State <: StateTrait[Exp, AbstL, Addr, _]] {
+                        State <: StateTrait[Exp, Abs, Addr, _]] {
 
-  val usesGraph = new UsesGraph[Exp, AbstL, Addr, State]
+  val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
 
-  private def constractClosureCallsMap(graph: AbstractGraph): Map[Exp, Set[AbstL]] = {
-    val initialMap: Map[Exp, Set[AbstL]] = Map()
-    graph.edges.foldLeft[Map[Exp, Set[AbstL]]](initialMap)( (map, tuple) => {
+  private def constractClosureCallsMap(graph: AbstractGraph): Map[Exp, Set[Abs]] = {
+    val initialMap: Map[Exp, Set[Abs]] = Map()
+    graph.edges.foldLeft[Map[Exp, Set[Abs]]](initialMap)( (map, tuple) => {
       val edges = tuple._2
       /* Count number of ActionClosureCall in the actionEdges going outwards from the state. */
       edges.foldLeft(map)( (map, edge) => {
@@ -27,7 +27,7 @@ class CountClosureCalls[Exp : Expression,
     })
   }
 
-  private def countClosureCalls(map: Map[Exp, Set[AbstL]]): CountedClosureCalls = {
+  private def countClosureCalls(map: Map[Exp, Set[Abs]]): CountedClosureCalls = {
     map.foreach( (tuple) => {
       Logger.log(s"Call site at ${tuple._1} with values ${tuple._2}", Logger.E)
     })

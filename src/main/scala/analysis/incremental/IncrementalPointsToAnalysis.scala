@@ -1,18 +1,18 @@
 import ConcreteConcreteLattice.ConcreteValue
 
 class IncrementalPointsToAnalysis[Exp : Expression,
-                                  AbstL : IsSchemeLattice,
+                                  Abs : IsSchemeLattice,
                                   Addr : Address,
                                   Time : Timestamp,
-                                  State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
-                                 (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, AbstL, Addr]]])
-                                 (implicit actionTApplier: ActionReplayApplier[Exp, AbstL, Addr, Time, State]) {
+                                  State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
+                                 (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr]]])
+                                 (implicit actionTApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State]) {
 
-  val usesGraph = new UsesGraph[Exp, AbstL, Addr, State]
+  val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
 
-  val pruneUnreachableNodes = new PruneUnreachableNodes[Exp, AbstL, Addr, State]
-  val propagateRunTimeInfo = new PropagateRunTimeInfo[Exp, AbstL, Addr, Time, State](graphPrinter)
+  val pruneUnreachableNodes = new PruneUnreachableNodes[Exp, Abs, Addr, State]
+  val propagateRunTimeInfo = new PropagateRunTimeInfo[Exp, Abs, Addr, Time, State](graphPrinter)
 
   var initialGraph: Option[AbstractGraph] = None
   var lastPropagatedGraph: Option[AbstractGraph] = initialGraph
