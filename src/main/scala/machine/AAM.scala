@@ -535,7 +535,12 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
         Set((newState, List(evaluatingExp, pushedAddr)))
       case a: ActionLookupAddressR[Exp, Abs, Addr] =>
-        val value = state.store.lookup(a.a).get
+        val value = state.store.lookup(a.a) match {
+          case Some(value) =>
+            value
+          case None =>
+            throw new Exception(s"Address ${a.a} not found in store")
+        }
         Set(noEdgeFilters(state.copy(control = ControlKont(value))))
       case ActionPopKontT() =>
         popKont(state)
