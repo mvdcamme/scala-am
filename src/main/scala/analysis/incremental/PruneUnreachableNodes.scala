@@ -26,11 +26,7 @@ class PruneUnreachableNodes[Exp : Expression,
       Set(node)
     } else {
       prunedGraph.nodeEdges(node).flatMap((edge) =>
-        if (edge._1._1.exists({ case StateSubsumed(_, _) => true; case _ => false })) {
-          /* Make sure that an edge is ONLY annotated with StateSubsumed. It should not be possible
-           * to have a StateSubsumed edge with any other annotation. */
-          assert(edge._1._1.size == 1,
-          s"StateSubsumed edge contains more than 1 edge: ${edge._1}")
+        if (edge._1.filters.isSubsumptionAnnotation) {
           addEdgesVisited(node, Set(edge))
           followStateSubsumedEdges(edge._2, prunedGraph)
         } else {
@@ -89,7 +85,9 @@ class PruneUnreachableNodes[Exp : Expression,
       "Analysis/Traversed graph/traversed_graph.dot",
       node => List(scala.xml.Text(node.toString.take(40))),
       (s) => if (nodesVisited.contains(s)) Colors.Red else Colors.White,
-      node => List(scala.xml.Text((node._1.mkString(", ") ++ node._2.mkString(", ")).take(300))),
+      node => List(scala.xml.Text( (node.filters.machineFilters.mkString(", ") ++
+                                    node.filters.semanticsFilters.mkString(", ") ++
+                                    node.actions.mkString(", ")).take(300))),
       Some((edge) =>
         if (edgesVisited.contains(edge)) Colors.Red else Colors.Black))
   }

@@ -104,15 +104,6 @@ class IncrementalPointsToAnalysis[Exp : Expression,
   def graphsEqual(graph1: AbstractGraph, graph2: AbstractGraph): Boolean = {
     def nodeToString(node: State, graph: AbstractGraph): String =
       s"$node (id: ${graph.nodeId(node)})"
-    def filterBranchTakenFilters(edges: Set[Edge]): Set[Edge] =
-      edges.map( (edge) => {
-        val filterEdge = edge._1.filterAnnotations
-        val filteredFilterEdge = filterEdge.filter({
-          case ElseBranchTaken | ThenBranchTaken => false
-          case _ => true
-        })
-        ((filteredFilterEdge, edge._1.actions), edge._2)
-      })
 
     def breadthFirst(todo: List[State], visited: Set[State]): Boolean = {
       if (todo.isEmpty) {
@@ -125,23 +116,26 @@ class IncrementalPointsToAnalysis[Exp : Expression,
           breadthFirst(todo.tail, visited)
         } else {
           /* .getOrElse as the node might not have any outgoing edges */
-          val edges1 = filterBranchTakenFilters(graph1.edges.getOrElse(node, Set()))
-          val edges2 = filterBranchTakenFilters(graph2.edges.getOrElse(node, Set()))
-          val edgesWithoutActionRs1 = edges1.map((edge) => (edge._1._1, edge._2))
-          val edgesWithoutActionRs2 = edges2.map((edge) => (edge._1._1, edge._2))
+          val edges1 = graph1.edges.getOrElse(node, Set())
+          val edges2 = graph2.edges.getOrElse(node, Set())
+          /* To compare two edges, we only look at the target states and the machine filters. */
+          val comparableEdges1: Set[(Set[MachineFilterAnnotation], State)] =
+            edges1.map( (edge) => (edge._1.filters.machineFilters, edge._2))
+          val comparableEdges2: Set[(Set[MachineFilterAnnotation], State)] =
+            edges2.map( (edge) => (edge._1.filters.machineFilters, edge._2))
           if (edges1.size == edges2.size) {
-            val newStates = edgesWithoutActionRs1.foldLeft[List[State]](Nil)((states, edgeWithoutActionRs1) => {
-              val filterEdge1 = edgeWithoutActionRs1._1
-              val state1 = edgeWithoutActionRs1._2
-              val edgeWithoutActionRs2 = edgesWithoutActionRs2.filter( (edge2) => {
+            val newStates = comparableEdges1.foldLeft[List[State]](Nil)( (states, comparableEdge) => {
+              val filterEdge1 = comparableEdge._1
+              val state1 = comparableEdge._2
+              val comparableEdge2 = comparableEdges2.filter( (edge2) => {
                 val filterEdge2 = edge2._1
                 val state2 = edge2._2
                 state1 == state2 && filterEdge2.forall(filterEdge1.contains)
               })
-              assert(edgeWithoutActionRs2.size == 1,
+              assert(comparableEdge2.size == 1,
                      s"Edges of node1 ${nodeToString(node, graph1)} don't match edges of node2 " +
                      s"${nodeToString(node, graph2)}")
-              edgeWithoutActionRs1._2 :: states
+              comparableEdge._2 :: states
             })
             breadthFirst(todo.tail ++ newStates, visited + node)
           } else {

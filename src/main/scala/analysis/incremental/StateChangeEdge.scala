@@ -2,7 +2,8 @@ trait StateChangeEdge[+State <: StateTrait[_, _, _, _]]
 
 trait ActionReplayApplier[Exp, Abs, Addr, Time, State <: StateTrait[Exp, Abs, Addr, Time]] {
 
-  def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr]): Set[(State, List[FilterAnnotation])]
+  def applyActionReplay(state: State,
+                        action: ActionReplay[Exp, Abs, Addr]): Set[(State, Set[MachineFilterAnnotation])]
 
   def subsumes(s1: State, s2: State): Option[StateSubsumed[Abs, Addr]]
   def statesEqual(s1: State, s2: State): Boolean

@@ -357,7 +357,11 @@ class HybridConcreteMachine[
                           HybridTimestamp.T],
            graph: Boolean,
            timeout: Option[Long]): Output[ConcreteConcreteLattice.L] = {
-    def loop(state: State, start: Long, count: Int, graph: Graph[State, List[FilterAnnotation]]): ConcreteMachineOutput = {
+    def loop(state: State,
+             start: Long,
+             count: Int,
+             graph: Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]):
+    ConcreteMachineOutput = {
 
       tracingFlags.RUNTIME_ANALYSIS_INTERVAL match {
         case NoRunTimeAnalysis =>
@@ -548,6 +552,9 @@ class HybridConcreteMachine[
     pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState)
 
     GlobalFlags.resetConcreteClosuresCalled()
-    loop(initialState, System.nanoTime, 0, new Graph[State, List[FilterAnnotation]]())
+    loop(initialState,
+         System.nanoTime,
+         0,
+         new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
   }
 }

@@ -302,8 +302,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
                 case (graph, s2) =>
                   if (s2.subsumes(s)) {
                     val subsumptionFilter = StateSubsumed(s2.store.diff(s.store), s2.kstore.diff(s.kstore))
-                    val filters = FilterAnnotations[Exp, Abs, Addr](Set(subsumptionFilter), Set())
-                    graph.addEdge(s, EdgeAnnotation(filters, Nil), s2)
+                    graph.addEdge(s, EdgeAnnotation.subsumptionEdge(subsumptionFilter), s2)
                   }
                   else
                     graph
@@ -418,8 +417,8 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
             } }
           },
         node => {
-          val filterEdgeString = node.filterAnnotations.machineFilters.mkString(", ") +
-                                 node.filterAnnotations.semanticsFilters.mkString(", ")
+          val filterEdgeString = node.filters.machineFilters.mkString(", ") +
+                                 node.filters.semanticsFilters.mkString(", ")
           val fullString = s"[$filterEdgeString], [${node.actions.mkString(", ")}]"
           if (GlobalFlags.PRINT_EDGE_ANNOTATIONS_FULL) {
             List(scala.xml.Text(fullString))
@@ -433,7 +432,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
 
   object ActionReplayApplier extends ActionReplayApplier[Exp, Abs, Addr, Time, State] {
 
-    protected def noEdgeFilters(state: State): (State, List[FilterAnnotation]) = (state, Nil)
+    protected def noEdgeFilters(state: State): (State, Set[MachineFilterAnnotation]) = (state, Set())
     protected def addEvaluateExp(exp: Exp): EvaluatingExpression[Exp] = EvaluatingExpression(exp)
     protected def addFrameFollowed(frame: Frame): FrameFollowed[Abs] =
       FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]])
@@ -461,14 +460,14 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
           (List(), kont)
       })
 
-    protected def popKont(state: State): Set[(State, List[FilterAnnotation])] = {
+    protected def popKont(state: State): Set[(State, Set[MachineFilterAnnotation])] = {
       val konts = state.kstore.lookup(state.a)
       konts.map( (kont: Kont[KontAddr]) => {
         val frame = kont.frame
         val next = kont.next
         val kontPopped = addKontAddrPopped(state.a, next)
         val frameFollowed = addFrameFollowed(frame)
-        (state.copy(a = next), List(kontPopped, frameFollowed))
+        (state.copy(a = next), Set(kontPopped, frameFollowed))
       })
     }
 
@@ -487,12 +486,13 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       valuesSet.map(extraValue :: _)
     }
 
-    protected def addKontFilterAnnotations(currentAddr: KontAddr, kont: Kont[KontAddr]): List[FilterAnnotation] = {
+    protected def addKontFilterAnnotations(currentAddr: KontAddr,
+                                           kont: Kont[KontAddr]): Set[MachineFilterAnnotation] = {
       val frame = kont.frame
       val next = kont.next
       val kontPopped = addKontAddrPopped(currentAddr, next)
       val frameFollowed = addFrameFollowed(frame)
-      List(kontPopped, frameFollowed)
+      Set(kontPopped, frameFollowed)
     }
 
     protected def defineAddresses(state: State, addresses: List[Addr]): Set[(State, Kont[KontAddr])] = {
@@ -506,7 +506,8 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       })
     }
 
-    def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr]): Set[(State, List[FilterAnnotation])] = action match {
+    def applyActionReplay(state: State,
+                          action: ActionReplay[Exp, Abs, Addr]): Set[(State, Set[MachineFilterAnnotation])] = action match {
       case a: ActionAllocAddressesR[Exp, Abs, Addr] =>
         val newStore = a.addresses.foldLeft(state.store)( (store, address) => store.extend(address, abs.bottom))
         Set(noEdgeFilters(state.copy(store = newStore)))
@@ -527,14 +528,14 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         statesKonts.map( (stateKont) => noEdgeFilters(stateKont._1))
       case a: ActionEvalR[Exp, Abs, Addr] =>
         val evaluatingExp = addEvaluateExp(a.e)
-        Set((state.copy(control = ControlEval(a.e, a.env)), List(evaluatingExp)))
+        Set((state.copy(control = ControlEval(a.e, a.env)), Set(evaluatingExp)))
       case ActionEvalPushR(e, env, frame) =>
         val next = NormalKontAddress[Exp, Time](e, state.t)
         val kont = Kont(frame, state.a)
         val evaluatingExp = addEvaluateExp(e)
         val pushedAddr = addKontAddrPushed(next)
         val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
-        Set((newState, List(evaluatingExp, pushedAddr)))
+        Set((newState, Set(evaluatingExp, pushedAddr)))
       case ActionEvalPushDataR(e, env, frameGenerator) =>
         val next = NormalKontAddress[Exp, Time](e, state.t)
         val currentValue = getControlKontValue(state)
@@ -543,7 +544,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         val evaluatingExp = addEvaluateExp(e)
         val pushedAddr = addKontAddrPushed(next)
         val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
-        Set((newState, List(evaluatingExp, pushedAddr)))
+        Set((newState, Set(evaluatingExp, pushedAddr)))
       case a: ActionLookupAddressR[Exp, Abs, Addr] =>
         val value = state.store.lookup(a.a) match {
           case Some(value) =>

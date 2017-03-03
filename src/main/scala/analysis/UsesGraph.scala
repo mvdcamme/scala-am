@@ -33,8 +33,34 @@ case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Addr
 
   def exists(pred: (FilterAnnotation => Boolean)): Boolean =
     machineFilters.exists(pred) || semanticsFilters.exists(pred)
+
+  def isSubsumptionAnnotation: Boolean = {
+    if (exists( (filter: MachineFilterAnnotation) => filter match {
+      case StateSubsumed(_ , _) =>
+        true
+      case _ => false
+    })) {
+      /*
+       * Make sure that an edge is ONLY annotated with StateSubsumed. It should not be possible
+       * to have a StateSubsumed edge with any other annotation.
+       */
+      assert(machineFilters.size == 1 && semanticsFilters.isEmpty,
+             s"StateSubsumed edge contains more than 1 filter:$this")
+      true
+    } else {
+      false
+    }
+  }
 }
 
 case class EdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address](
-    filterAnnotations: FilterAnnotations[Exp, Abs, Addr],
+    filters: FilterAnnotations[Exp, Abs, Addr],
     actions: List[ActionReplay[Exp, Abs, Addr]])
+
+object EdgeAnnotation {
+
+  def subsumptionEdge[Exp : Expression, Abs : IsSchemeLattice, Addr : Address]
+                     (subsumptionFilter: StateSubsumed[Abs, Addr]): EdgeAnnotation[Exp, Abs, Addr] =
+    EdgeAnnotation(FilterAnnotations(Set(subsumptionFilter), Set()), Nil)
+
+}
