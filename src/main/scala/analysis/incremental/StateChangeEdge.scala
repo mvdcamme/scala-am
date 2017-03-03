@@ -2,18 +2,15 @@ trait StateChangeEdge[+State <: StateTrait[_, _, _, _]]
 
 trait ActionReplayApplier[Exp, Abs, Addr, Time, State <: StateTrait[Exp, Abs, Addr, Time]] {
 
-  def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr])
-                       (implicit sabs: IsSchemeLattice[Abs]): Set[(State, List[EdgeFilterAnnotation])]
+  def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr]): Set[(State, List[FilterAnnotation])]
 
   def subsumes(s1: State, s2: State): Option[StateSubsumed[Abs, Addr]]
   def statesEqual(s1: State, s2: State): Boolean
 
   def halted(state: State): Boolean
 
-  def evaluatedFalse(state: State)
-                    (implicit sabs: IsSchemeLattice[Abs]): Boolean
-  def evaluatedTrue(state: State)
-                   (implicit sabs: IsSchemeLattice[Abs]): Boolean
+  def evaluatedFalse(state: State): Boolean
+  def evaluatedTrue(state: State): Boolean
 
   def getKonts(state: State): Set[Kont[KontAddr]]
 

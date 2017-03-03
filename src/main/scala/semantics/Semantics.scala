@@ -48,14 +48,16 @@ trait BasicSemantics[Exp, Abs, Addr, Time] {
   def parse(program: String): Exp
 }
 
-case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address]
-  (action: Action[Exp, Abs, Addr], actionEdge: List[ActionReplay[Exp, Abs, Addr]], edgeFilterAnnotations: List[EdgeFilterAnnotation])
+case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address](
+    action: Action[Exp, Abs, Addr],
+    actions: List[ActionReplay[Exp, Abs, Addr]],
+    semanticsFilters: Set[SemanticsFilterAnnotation])
 
 trait Semantics[Exp, Abs, Addr, Time]
     extends BasicSemantics[Exp, Abs, Addr, Time] {
 
   def noEdgeInfos(action: Action[Exp, Abs, Addr], actionRs: List[ActionReplay[Exp, Abs, Addr]]): EdgeInformation[Exp, Abs, Addr] =
-    EdgeInformation(action, actionRs, Nil)
+    EdgeInformation(action, actionRs, Set())
 
   def noEdgeInfos(action: Action[Exp, Abs, Addr], actionR: ActionReplay[Exp, Abs, Addr]): EdgeInformation[Exp, Abs, Addr] =
     noEdgeInfos(action, List(actionR))
@@ -70,7 +72,7 @@ trait Semantics[Exp, Abs, Addr, Time]
     simpleAction(Set(action))
 
   def simpleAction(actions: Set[Action[Exp, Abs, Addr]]): Set[EdgeInformation[Exp, Abs, Addr]] =
-    actions.map(EdgeInformation(_, Nil, Nil))
+    actions.map(EdgeInformation(_, Nil, Set()))
 
   /**
     * Defines what actions should be taken when an expression e needs to be

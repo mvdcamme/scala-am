@@ -11,7 +11,7 @@ class PruneUnreachableNodes[Exp : Expression,
   val filterEdgeFilterAnnotations = new FilterEdgeFilterAnnotations[Exp, AbstL, Addr, State]
 
   var nodesVisited: Set[State] = Set()
-  var edgesVisited: Set[(State, EdgeAnnotation, State)] = Set()
+  var edgesVisited: Set[(State, EdgeAnnotation2, State)] = Set()
 
   /*
    * Recursively follow all StateSubsumed edges.
@@ -40,11 +40,11 @@ class PruneUnreachableNodes[Exp : Expression,
 
   def computeSuccNode(convertFrameFun: ConcreteFrame => AbstractFrame,
                       node: State,
-                      concreteEdgeInfos: List[EdgeFilterAnnotation],
+                      concreteFilters: FilterAnnotations[Exp, AbstL, Addr],
                       prunedGraph: AbstractGraph): Set[State] = {
     val abstractEdges: Set[Edge] = prunedGraph.nodeEdges(node)
     Logger.log(s"abstractEdgeInfos = ${abstractEdges.map(_._1)}", Logger.D)
-    val filteredAbstractEdges = filterEdgeFilterAnnotations.filterConcreteFilterEdge(abstractEdges, concreteEdgeInfos, convertFrameFun)
+    val filteredAbstractEdges = filterEdgeFilterAnnotations.filterConcreteFilterEdge(abstractEdges, concreteFilters, convertFrameFun)
     addEdgesVisited(node, filteredAbstractEdges)
     filteredAbstractEdges.map(_._2)
   }
@@ -59,20 +59,20 @@ class PruneUnreachableNodes[Exp : Expression,
     edges.foreach((tuple) => edgesVisited += ((node, tuple._1, tuple._2)))
 
   def computeSuccNodes(convertFrameFun: ConcreteFrame => AbstractFrame,
-                       edgeInfos: List[EdgeFilterAnnotation],
+                       filters: FilterAnnotations[Exp, AbstL, Addr],
                        stepNumber: Int,
                        currentNodes: Set[State],
                        initialGraph: AbstractGraph,
                        prunedGraph: AbstractGraph): Set[State] = {
     Logger.log(s"In step $stepNumber before: currentNodes = " +
                s"${currentNodes.zip(currentNodes.map(initialGraph.nodeId))}\n" +
-               s"concreteEdgeInfos = $edgeInfos, $edgeInfos", Logger.D)
+               s"concreteEdgeInfos = $filters, $filters", Logger.D)
     addNodesVisited(currentNodes)
     /* First follow all StateSubsumed edges before trying to use the concrete edge information */
     val nodesSubsumedEdgesFollowed: Set[State] = currentNodes.flatMap(followStateSubsumedEdges(_, prunedGraph))
     Logger.log(s"In step $stepNumber, followed subsumption edges: ${nodesSubsumedEdgesFollowed.map(initialGraph.nodeId)}", Logger.D)
     addNodesVisited(nodesSubsumedEdgesFollowed)
-    val succNodes = nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(convertFrameFun, _, edgeInfos, prunedGraph))
+    val succNodes = nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(convertFrameFun, _, filters, prunedGraph))
     addNodesVisited(succNodes)
     Logger.log(s"succNodes = ${succNodes.zip(succNodes.map(initialGraph.nodeId))}", Logger.D)
     Logger.log(s"In step $stepNumber, succNodes before subsumption edges: ${succNodes.map(initialGraph.nodeId)}", Logger.D)
@@ -84,7 +84,7 @@ class PruneUnreachableNodes[Exp : Expression,
 
   private def saveTraversedGraph(initialGraph: AbstractGraph,
                                  nodesVisited: Set[State],
-                                 edgesVisited: Set[(State, EdgeAnnotation, State)]): Unit = {
+                                 edgesVisited: Set[(State, EdgeAnnotation2, State)]): Unit = {
     initialGraph.toDotFile(
       "Analysis/Traversed graph/traversed_graph.dot",
       node => List(scala.xml.Text(node.toString.take(40))),

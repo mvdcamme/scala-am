@@ -3,7 +3,7 @@ AbstL: IsSchemeLattice,
 Addr: Address,
 Time: Timestamp,
 State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
-(graphPrinter: GraphPrinter[Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, AbstL, Addr]])]])
+(graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, AbstL, Addr]]])
 (implicit actionTApplier: ActionReplayApplier[Exp, AbstL, Addr, Time, State]) {
 
   val usesGraph = new UsesGraph[Exp, AbstL, Addr, State]
@@ -15,12 +15,12 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
   val LogPropagation = Logger.D
 
   type ActionEdge = List[ActionReplay[Exp, AbstL, Addr]]
-  type FilterEdge = List[EdgeFilterAnnotation]
+  type FilterEdge = List[FilterAnnotation]
 
   private def filterWithStore(newState: State, edges: Set[Edge]): Set[Edge] = {
 
-    def hasEdgeAnnot(edge: (EdgeAnnotation, State), edgeAnnotation: EdgeFilterAnnotation): Boolean =
-      edge._1._1.exists({
+    def hasEdgeAnnot(edge: (EdgeAnnotation2, State), edgeAnnotation: FilterAnnotation): Boolean =
+      edge._1.filterAnnotations.exists({
         case annot if annot == edgeAnnotation => true
         case _ => false
       })
@@ -28,7 +28,7 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
      * If there is a ThenBranchTaken-annotation and current state did NOT evaluate to true, take all edges not
      * containing a ThenBranchTaken-annotation.
      */
-    val filteredTrue: Set[(EdgeAnnotation, State)] = if (edges.exists(hasEdgeAnnot(_, ThenBranchTaken)) &&
+    val filteredTrue: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasEdgeAnnot(_, ThenBranchTaken)) &&
       (!actionTApplier.evaluatedTrue(newState))) {
       edges.filter(!hasEdgeAnnot(_, ThenBranchTaken))
     } else {
@@ -38,7 +38,7 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
      * If there is an ElseBranchTaken-annotation and current state did NOT evaluate to false, take all edges not
      * containing an ElseBranchTaken-annotation.
      */
-    val filteredFalse: Set[(EdgeAnnotation, State)] = if (edges.exists(hasEdgeAnnot(_, ElseBranchTaken)) &&
+    val filteredFalse: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasEdgeAnnot(_, ElseBranchTaken)) &&
       (!actionTApplier.evaluatedFalse(newState))) {
       edges.filter(!hasEdgeAnnot(_, ElseBranchTaken))
     } else {
@@ -113,7 +113,7 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
    */
   case class StateCombo(originalState: State, newState: State)
 
-  case class StepEval(nonSubsumptionStateCombos: Set[(EdgeAnnotation, StateCombo)],
+  case class StepEval(nonSubsumptionStateCombos: Set[(EdgeAnnotation2, StateCombo)],
                       subsumptionStateCombos: Set[StateCombo],
                       newVisited: Set[State])
 
@@ -229,7 +229,7 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
      * and a StateCombo, consisting of the state at the end of the edge in the initial graph and the newly computed
      * state.
      */
-    val nonSubsumptionStateCombos: Set[(EdgeAnnotation, StateCombo)] = results.flatMap({
+    val nonSubsumptionStateCombos: Set[(EdgeAnnotation2, StateCombo)] = results.flatMap({
       case (newNewState, filterEdge) =>
         val currentId = graph.nodeId(newState)
         val initialGraphFilteredEdge: Set[Edge] = filterEdgeFilterAnnotations.filterToFilterEdge(nonSubsumptionEdges, filterEdge)
@@ -249,7 +249,7 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
     val subsumptionStateCombos: Set[StateCombo] = subsumptionEdges.map( (edge: Edge) => StateCombo(edge._2, newState) )
 
     Logger.log(s"subsumptionStateCombos" +
-               s"newStateCombos = ${nonSubsumptionStateCombos.map( (sc: (EdgeAnnotation, StateCombo)) =>
+               s"newStateCombos = ${nonSubsumptionStateCombos.map( (sc: (EdgeAnnotation2, StateCombo)) =>
                  prunedGraph.nodeId(sc._2.originalState))}", Logger.D)
     val newVisited = visited + newState // TODO remove if (usedSubsumptionEdges) visited else visited + newState
     StepEval(nonSubsumptionStateCombos, subsumptionStateCombos, newVisited)
@@ -282,11 +282,11 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
    */
   private def evalLoop(todoPair: TodoPair,
                        visited: Set[State],
-                       graph: Option[Graph[State, EdgeAnnotation]],
+                       graph: Option[Graph[State, EdgeAnnotation2]],
                        stepCount: Int,
                        initialGraph: AbstractGraph,
                        prunedGraph: AbstractGraph):
-  Option[Graph[State, EdgeAnnotation]] = {
+  Option[Graph[State, EdgeAnnotation2]] = {
     Logger.log(s"Size of visited set ${visited.size}", Logger.D)
     Logger.log(s"Size of todo set ${todoPair.todo.size}", Logger.D)
     val checkSubsumes = true
@@ -351,7 +351,7 @@ State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
     val rootNodes = currentNodes.map((state) => StateCombo(state, convertedState))
     evalLoop(TodoPair.init(rootNodes),
              Set(),
-             Some(new HyperlinkedGraph[State, EdgeAnnotation]),
+             Some(new HyperlinkedGraph[State, EdgeAnnotation2]),
              stepCount,
              initialGraph,
              prunedGraph)

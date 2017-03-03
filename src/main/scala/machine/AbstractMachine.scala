@@ -188,7 +188,7 @@ trait GraphPrinter[Graph] {
 }
 
 trait HasGraph[Exp, Abs, Addr, Node <: StateTrait[Exp, Abs, Addr, _]] {
-  def graph: Graph[Node, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])]
+  def graph: Graph[Node, EdgeAnnotation[Exp, Abs, Addr]]
   def toDotFile(path: String): Unit
 }
 

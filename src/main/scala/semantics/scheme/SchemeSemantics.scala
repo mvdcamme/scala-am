@@ -46,14 +46,15 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   def conditional(v: Abs,
                   t: => Set[EdgeInformation[SchemeExp, Abs, Addr]],
                   f: => Set[EdgeInformation[SchemeExp, Abs, Addr]]): Set[EdgeInformation[SchemeExp, Abs, Addr]] = {
-    def addEdgeAnnot(x: Set[EdgeInformation[SchemeExp, Abs, Addr]], edgeAnnot: EdgeFilterAnnotation): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
+    def addFilter(x: Set[EdgeInformation[SchemeExp, Abs, Addr]],
+                     filter: SemanticsFilterAnnotation): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
       x.map({
-        case EdgeInformation(action, actionTs, edgeAnnots) =>
-          EdgeInformation(action, actionTs, edgeAnnot :: edgeAnnots)
+        case EdgeInformation(action, actionTs, semanticsFilters) =>
+          EdgeInformation(action, actionTs, semanticsFilters + filter)
       })
 
-    (if (sabs.isTrue(v)) addEdgeAnnot(t, ThenBranchTaken) else Set[EdgeInformation[SchemeExp, Abs, Addr]]()) ++
-    (if (sabs.isFalse(v)) addEdgeAnnot(f, ElseBranchTaken) else Set[EdgeInformation[SchemeExp, Abs, Addr]]())
+    (if (sabs.isTrue(v)) addFilter(t, ThenBranchTaken) else Set[EdgeInformation[SchemeExp, Abs, Addr]]()) ++
+    (if (sabs.isFalse(v)) addFilter(f, ElseBranchTaken) else Set[EdgeInformation[SchemeExp, Abs, Addr]]())
   }
 
   protected def addEvalActionT(action: ActionEval[SchemeExp, Abs, Addr]): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
@@ -517,7 +518,7 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         case Some((v, effs)) =>
           funcallArgs(f, fexp, (e, v) :: args, rest, env, store, t)
             .map( (actionChange: EdgeInformation[SchemeExp, Abs, Addr]) =>
-              noEdgeInfos(addEffects(actionChange.action, effs), actionChange.actionEdge) )
+              noEdgeInfos(addEffects(actionChange.action, effs), actionChange.actions) )
         case None =>
           addPushActionRSet(ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env), e, env, store))
       }
@@ -535,7 +536,7 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         atomicEval(exp, env, store) match {
           case Some((v, effs)) =>
             stepKont(v, frame, store, t).map( (actionChange: EdgeInformation[SchemeExp, Abs, Addr]) =>
-              EdgeInformation(addEffects(actionChange.action, effs ++ effects), actionChange.actionEdge, edgeInfos) )
+              EdgeInformation(addEffects(actionChange.action, effs ++ effects), actionChange.actions, edgeInfos) )
           case None =>
             Set(EdgeInformation(ActionPush[SchemeExp, Abs, Addr](frame, exp, env, store, effects), stateChanges, edgeInfos))
         }

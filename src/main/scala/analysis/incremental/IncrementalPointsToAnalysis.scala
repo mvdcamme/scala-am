@@ -3,7 +3,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
                                   Addr : Address,
                                   Time : Timestamp,
                                   State <: StateTrait[Exp, AbstL, Addr, Time] : Descriptor]
-                                 (graphPrinter: GraphPrinter[Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, AbstL, Addr]])]])
+                                 (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, AbstL, Addr]]])
                                  (implicit actionTApplier: ActionReplayApplier[Exp, AbstL, Addr, Time, State]) {
 
   val usesGraph = new UsesGraph[Exp, AbstL, Addr, State]
@@ -35,7 +35,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
   }
 
   def computeSuccNodes(convertFrameFun: ConcreteFrame => AbstractFrame,
-                       edgeInfos: List[EdgeFilterAnnotation],
+                       edgeInfos: FilterAnnotations[Exp, AbstL, Addr],
                        stepNumber: Int): Unit = {
     assertInitialized()
     currentNodes = pruneUnreachableNodes.computeSuccNodes(convertFrameFun, edgeInfos, stepNumber, currentNodes, initialGraph.get, lastPropagatedGraph.get)
@@ -106,12 +106,12 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       s"$node (id: ${graph.nodeId(node)})"
     def filterBranchTakenFilters(edges: Set[Edge]): Set[Edge] =
       edges.map( (edge) => {
-        val filterEdge = edge._1._1
+        val filterEdge = edge._1.filterAnnotations
         val filteredFilterEdge = filterEdge.filter({
           case ElseBranchTaken | ThenBranchTaken => false
           case _ => true
         })
-        ((filteredFilterEdge, edge._1._2), edge._2)
+        ((filteredFilterEdge, edge._1.actions), edge._2)
       })
 
     def breadthFirst(todo: List[State], visited: Set[State]): Boolean = {

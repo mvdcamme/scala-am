@@ -151,7 +151,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   case class FreeOutput(halted: Set[State],
                         numberOfStates: Int,
                         time: Double,
-                        graph: Option[Graph[State, List[EdgeFilterAnnotation]]],
+                        graph: Option[Graph[State, List[FilterAnnotation]]],
                         timedOut: Boolean,
                         stepSwitched: Option[Int])
       extends Output[Abs] with HasFinalStores[Addr, Abs] {
@@ -214,7 +214,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                                   halted: Set[State],
                                   startingTime: Long,
                                   timeout: Option[Long],
-                                  graph: Graph[State, List[EdgeFilterAnnotation]],
+                                  graph: Graph[State, List[FilterAnnotation]],
                                   sem: Semantics[Exp, Abs, Addr, Time]): Output[Abs] = {
     val s2Edge = s.step(sem)
     val h = halted ++ s.toStateSet.filter(_.halted)
@@ -260,7 +260,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     def loop(s: States,
              visited: Set[States],
              halted: Set[State],
-             graph: Graph[State, List[EdgeFilterAnnotation]]): FreeOutput = {
+             graph: Graph[State, List[FilterAnnotation]]): FreeOutput = {
       val s2 = s.step(sem)
       val h = halted ++ s.toStateSet.filter(_.halted)
       if (s2.isEmpty || visited.contains(s2) || timeout
@@ -283,7 +283,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       }
     }
 
-    loop(s, Set(), Set(), new Graph[State, List[EdgeFilterAnnotation]]().addNode(initStateSet.head))
+    loop(s, Set(), Set(), new Graph[State, List[FilterAnnotation]]().addNode(initStateSet.head))
   }
 
   def eval(exp: Exp,
@@ -296,7 +296,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                          Set(),
                          System.nanoTime,
                          timeout,
-                         new Graph[State, List[EdgeFilterAnnotation]](),
+                         new Graph[State, List[FilterAnnotation]](),
                          sem)
     } else {
       kickstartEval(States.inject(exp, sem.initialEnv, sem.initialStore),

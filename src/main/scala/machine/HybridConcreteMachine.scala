@@ -40,7 +40,7 @@ class HybridConcreteMachine[
   case class ConcreteMachineOutputValue(time: Double,
                                         numberOfStates: Int,
                                         v: ConcreteConcreteLattice.L,
-                                        graph: Graph[State, List[EdgeFilterAnnotation]])
+                                        graph: Graph[State, List[FilterAnnotation]])
       extends ConcreteMachineOutput {
     def finalValues = Set(v)
     def containsFinalValue(v2: ConcreteConcreteLattice.L) = v == v2
@@ -357,7 +357,7 @@ class HybridConcreteMachine[
                           HybridTimestamp.T],
            graph: Boolean,
            timeout: Option[Long]): Output[ConcreteConcreteLattice.L] = {
-    def loop(state: State, start: Long, count: Int, graph: Graph[State, List[EdgeFilterAnnotation]]): ConcreteMachineOutput = {
+    def loop(state: State, start: Long, count: Int, graph: Graph[State, List[FilterAnnotation]]): ConcreteMachineOutput = {
 
       tracingFlags.RUNTIME_ANALYSIS_INTERVAL match {
         case NoRunTimeAnalysis =>
@@ -383,25 +383,9 @@ class HybridConcreteMachine[
         val a = state.a
         val t = state.t
 
-        def maybeAddReachedConcreteValue(v: ConcreteConcreteLattice.L,
-                                         edgeInfos: List[EdgeFilterAnnotation]): List[EdgeFilterAnnotation] = {
-          if (edgeInfos.exists({
-            case FrameFollowed(frame) =>
-              frame.meaningfullySubsumes
-            case _ =>
-              false
-          })) {
-            edgeInfos
-          }
-          else {
-            edgeInfos
-          }
-        }
-
         case class StepSucceeded(state: State,
-                                 initialFilters: List[EdgeFilterAnnotation],
-                                 actionTs: List[ActionReplay[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A]],
-                                 secondaryFilters: List[EdgeFilterAnnotation])
+                                 filters: FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A],
+                                 actionTs: List[ActionReplay[SchemeExp, ConcreteValue, HybridAddress.A]])
 
         def step(control: Control): Either[ConcreteMachineOutput, StepSucceeded] =
           control
@@ -410,29 +394,30 @@ class HybridConcreteMachine[
             val edges = sem.stepEval(e, env, store, t)
             if (edges.size == 1) {
               edges.head match {
-                case EdgeInformation(ActionReachedValue(v, store2, _), actionEdges, secondaryFilters) =>
+                case EdgeInformation(ActionReachedValue(v, store2, _), actions, semanticsFilters) =>
+                  val machineFilters = Set[MachineFilterAnnotation]()
                   Right(StepSucceeded(State(ControlKont(v), store2, kstore, a, time.tick(t)),
-                                      maybeAddReachedConcreteValue(v, Nil),
-                                      actionEdges,
-                                      secondaryFilters))
-                case EdgeInformation(ActionPush(frame, e, env, store2, _), actionEdges, secondaryFilters) =>
+                                      FilterAnnotations(machineFilters, semanticsFilters),
+                                      actions))
+                case EdgeInformation(ActionPush(frame, e, env, store2, _), actions, semanticsFilters) =>
                   val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                   val kont = Kont(frame, a)
+                  val machineFilters = Set[MachineFilterAnnotation](KontAddrPushed(next),
+                                                                    EvaluatingExpression(e))
                   Right(StepSucceeded(State(ControlEval(e, env), store2, kstore.extend(next, kont), next, time.tick(t)),
-                                      List(KontAddrPushed(next), EvaluatingExpression(e)),
-                                      actionEdges,
-                                      secondaryFilters))
-                case EdgeInformation(ActionEval(e, env, store2, _), actionEdges, secondaryFilters) =>
+                                      FilterAnnotations(machineFilters, semanticsFilters),
+                                      actions))
+                case EdgeInformation(ActionEval(e, env, store2, _), actions, semanticsFilters) =>
+                  val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
                   Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
-                                      EvaluatingExpression(e) :: Nil,
-                                      actionEdges,
-                                      secondaryFilters))
-                case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actionEdges, secondaryFilters) =>
+                                      FilterAnnotations(machineFilters, semanticsFilters),
+                                      actions))
+                case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
+                  val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
                   Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
-                                      EvaluatingExpression(e) :: Nil,
-                                      actionEdges,
-                                      secondaryFilters))
-                case EdgeInformation(ActionError(err), actionEdges, secondaryFilters) =>
+                                      FilterAnnotations(machineFilters, semanticsFilters),
+                                      actions))
+                case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
                   Left(ConcreteMachineOutputError(
                     (System.nanoTime - start) / Math.pow(10, 9),
                     count,
@@ -462,31 +447,37 @@ class HybridConcreteMachine[
                 val edges = sem.stepKont(v, frame, store, t)
                 if (edges.size == 1) {
                   edges.head match {
-                    case EdgeInformation(ActionReachedValue(v, store2, _), actionEdges, secondaryFilters) =>
+                    case EdgeInformation(ActionReachedValue(v, store2, _), actions, semanticsFilters) =>
+                      val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
+                                                                        FrameFollowed[ConcreteValue](originFrameCast))
                       Right(StepSucceeded(State(ControlKont(v), store2, kstore, a, time.tick(t)),
-                                          KontAddrPopped(oldA, a) :: maybeAddReachedConcreteValue(v, FrameFollowed[ConcreteValue](originFrameCast) :: Nil),
-                                          actionEdges,
-                                          secondaryFilters))
-                    case EdgeInformation(ActionPush(frame, e, env, store2, _), actionEdges, secondaryFilters) =>
-                      val kont = Kont(frame, a)
-                      val destinationFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
+                                          FilterAnnotations(machineFilters, semanticsFilters),
+                                          actions))
+                    case EdgeInformation(ActionPush(frame, e, env, store2, _), actions, semanticsFilters) =>
                       val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
+                      val machineFilters = Set[MachineFilterAnnotation](KontAddrPushed(next),
+                                                                        KontAddrPopped(oldA, a),
+                                                                        EvaluatingExpression(e),
+                                                                        FrameFollowed(originFrameCast))
                       Right(StepSucceeded(State(ControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
-                                          List(KontAddrPushed(next), KontAddrPopped(oldA, a), EvaluatingExpression(e), FrameFollowed(originFrameCast)),
-                                          actionEdges,
-                                          secondaryFilters))
-                    case EdgeInformation(ActionEval(e, env, store2, _), actionEdges, secondaryFilters) =>
+                                          FilterAnnotations(machineFilters, semanticsFilters),
+                                          actions))
+                    case EdgeInformation(ActionEval(e, env, store2, _), actions, semanticsFilters) =>
+                      val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
+                                                                        EvaluatingExpression(e),
+                                                                        FrameFollowed[ConcreteValue](originFrameCast))
                       Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
-                                          List(KontAddrPopped(oldA, a), EvaluatingExpression(e), FrameFollowed[ConcreteValue](originFrameCast)),
-                                          actionEdges,
-                                          secondaryFilters))
-                    case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actionEdges, secondaryFilters) =>
+                                          FilterAnnotations(machineFilters, semanticsFilters),
+                                          actions))
+                    case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
                       GlobalFlags.incConcreteClosuresCalled()
+                      val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
+                                                                        EvaluatingExpression(e),
+                                                                        FrameFollowed[ConcreteValue](originFrameCast))
                       Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
-                                          List(KontAddrPopped(oldA, a), EvaluatingExpression(e), FrameFollowed[ConcreteValue](originFrameCast)),
-                                          actionEdges,
-                                          secondaryFilters))
-                    case EdgeInformation(ActionError(err), actionEdges, secondaryFilters) =>
+                                          FilterAnnotations(machineFilters, semanticsFilters),
+                                          actions))
+                    case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
                       Left(ConcreteMachineOutputError(
                         (System.nanoTime - start) / Math.pow(10, 9),
                         count,
@@ -519,7 +510,7 @@ class HybridConcreteMachine[
             output.toDotFile("concrete.dot")
             pointsToAnalysisLauncher.end
             output
-          case Right(StepSucceeded(succState, edgeAnnotations, actionEdges, secondaryFilters)) =>
+          case Right(StepSucceeded(succState, filters, actions)) =>
             def convertFrameFun(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                 abstSem: BaseSchemeSemantics[PAbs, HybridAddress.A, HybridTimestamp.T],
                                 convertValueFun: ConcreteValue => PAbs):
@@ -533,8 +524,8 @@ class HybridConcreteMachine[
                   abstSem)
             }
 
-            pointsToAnalysisLauncher.doConcreteStep(convertValue[PAbs], convertFrameFun, edgeAnnotations, stepCount)
-            loop(succState, start, count + 1, graph.addEdge(state, edgeAnnotations, succState))
+            pointsToAnalysisLauncher.doConcreteStep(convertValue[PAbs], convertFrameFun, filters, stepCount)
+            loop(succState, start, count + 1, graph.addEdge(state, filters, succState))
         }
       }
 
@@ -557,6 +548,6 @@ class HybridConcreteMachine[
     pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState)
 
     GlobalFlags.resetConcreteClosuresCalled()
-    loop(initialState, System.nanoTime, 0, new Graph[State, List[EdgeFilterAnnotation]]())
+    loop(initialState, System.nanoTime, 0, new Graph[State, List[FilterAnnotation]]())
   }
 }

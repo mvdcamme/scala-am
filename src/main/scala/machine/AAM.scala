@@ -16,7 +16,7 @@
   * be evaluated within this environment, whereas a continuation state only
   * contains the value reached.
   */
-class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
+class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     extends EvalKontMachine[Exp, Abs, Addr, Time]
     with ProducesStateGraph[Exp, Abs, Addr, Time] {
 
@@ -48,7 +48,9 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     def subsumes(that: State): Boolean =
       control.subsumes(that.control) && store.subsumes(that.store) && a == that.a && kstore.subsumes(that.kstore) && t == that.t
 
-    type EdgeComponents = (State, List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])
+    case class EdgeComponents(state: State,
+                              filters: FilterAnnotations[Exp, Abs, Addr],
+                              actions: List[ActionReplay[Exp, Abs, Addr]])
 
     /**
       * Integrates a set of actions (returned by the semantics, see
@@ -57,49 +59,49 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       */
     private def integrate(a: KontAddr,
                           actionChanges: Set[EdgeInformation[Exp, Abs, Addr]]): Set[EdgeComponents] =
-      actionChanges.map( (actionChange) => {
-        val actionEdges = actionChange.actionEdge
-        val edgeFilterAnnots = actionChange.edgeFilterAnnotations
-        actionChange.action match {
+      actionChanges.map( (edgeInformation) => {
+        val actions = edgeInformation.actions
+        val filters = FilterAnnotations[Exp, Abs, Addr](Set(), edgeInformation.semanticsFilters)
+        edgeInformation.action match {
           /* When a value is reached, we go to a continuation state */
           case ActionReachedValue(v, store, _) =>
-            (State(ControlKont(v), store, kstore, a, time.tick(t)),
-              edgeFilterAnnots,
-              actionEdges)
+            EdgeComponents(State(ControlKont(v), store, kstore, a, time.tick(t)),
+                           filters,
+                           actions)
           /* When a continuation needs to be pushed, push it in the continuation store */
           case ActionPush(frame, e, env, store, _) => {
             val next = NormalKontAddress[Exp, Time](e, t)
             val kont = Kont(frame, a)
-            (State(ControlEval(e, env), store, kstore.extend(next, kont), next, time.tick(t)),
-              KontAddrPushed(next) :: edgeFilterAnnots,
-              actionEdges)
+            EdgeComponents(State(ControlEval(e, env), store, kstore.extend(next, kont), next, time.tick(t)),
+                           filters + KontAddrPushed(next),
+                           actions)
           }
           /* When a value needs to be evaluated, we go to an eval state */
           case ActionEval(e, env, store, _) =>
-            (State(ControlEval(e, env), store, kstore, a, time.tick(t)),
-              edgeFilterAnnots,
-              actionEdges)
+            EdgeComponents(State(ControlEval(e, env), store, kstore, a, time.tick(t)),
+                           filters,
+                           actions)
           /* When a function is stepped in, we also go to an eval state */
           case ActionStepIn(fexp, _, e, env, store, _, _) =>
-            (State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)),
-              edgeFilterAnnots,
-              actionEdges)
+            EdgeComponents(State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)),
+                           filters,
+                           actions)
           /* When an error is reached, we go to an error state */
           case ActionError(err) =>
-            (State(ControlError(err), store, kstore, a, time.tick(t)),
-              edgeFilterAnnots,
-              actionEdges)
+            EdgeComponents(State(ControlError(err), store, kstore, a, time.tick(t)),
+                           filters,
+                           actions)
         }
       })
 
-    def addActionPopKontT(actionEdge: List[ActionReplay[Exp, Abs, Addr]]): List[ActionReplay[Exp, Abs, Addr]] =
-      if (actionEdge.exists((actionR) => actionR.popsKont)) {
+    def addActionPopKontT(actions: List[ActionReplay[Exp, Abs, Addr]]): List[ActionReplay[Exp, Abs, Addr]] =
+      if (actions.exists((actionR) => actionR.popsKont)) {
         /*
          * One of the actionReplays in the edge already pops the topmost continuation,
          * so no need to add an ActionPopKontT.
          */
-        actionEdge
-      } else if (actionEdge.exists({
+        actions
+      } else if (actions.exists({
         /*
          * Otherwise, definitely add an ActionPopKontT: add it to the front of the edge if there's
          * some new continuation frame going to be pushed:
@@ -114,19 +116,19 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         case _: ActionEvalPushDataR[Exp, Abs, Addr] => true
         case _ => false
       })) {
-        ActionPopKontT[Exp, Abs, Addr]() :: actionEdge
+        ActionPopKontT[Exp, Abs, Addr]() :: actions
       } else {
         /*
          * If no new continuation frame is going to be pushed, add the ActionPopKontT to the back of the edge.
          */
-        actionEdge :+ ActionPopKontT[Exp, Abs, Addr]()
+        actions :+ ActionPopKontT[Exp, Abs, Addr]()
       }
 
-    def addTimeTickT(actionEdge: List[ActionReplay[Exp, Abs, Addr]]): List[ActionReplay[Exp, Abs, Addr]] =
-      if (actionEdge.exists(_.ticksTime)) {
-        actionEdge
+    def addTimeTickT(actions: List[ActionReplay[Exp, Abs, Addr]]): List[ActionReplay[Exp, Abs, Addr]] =
+      if (actions.exists(_.ticksTime)) {
+        actions
       } else {
-        actionEdge :+ ActionTimeTickR()
+        actions :+ ActionTimeTickR()
       }
 
     /**
@@ -143,16 +145,15 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             .lookup(a)
             .flatMap({
               case Kont(frame, next) =>
-                val edgeInfos = integrate(next, sem.stepKont(v, frame, store, t))
-                edgeInfos.map({ case (succState, edgeAnnotations, actionEdge) =>
+                val edgeComponents = integrate(next, sem.stepKont(v, frame, store, t))
+                edgeComponents.map({ case EdgeComponents(succState, filterAnnotations, actions) =>
                   /* If step did not generate any EdgeAnnotation, place a FrameFollowed EdgeAnnotation */
-                  val replacedEdgeAnnot =
-                    KontAddrPopped(a, next) ::
-                    FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]]) ::
-                    edgeAnnotations
-                  val popKontAddedActionEdge = addActionPopKontT(actionEdge)
-                  val timeTickAddedActionEdge = addTimeTickT(popKontAddedActionEdge)
-                  (succState, replacedEdgeAnnot, timeTickAddedActionEdge)
+                  val replacedFilters = filterAnnotations +
+                                        KontAddrPopped(a, next) +
+                                        FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]])
+                  val popKontAddedAction = addActionPopKontT(actions)
+                  val timeTickAddedAction = addTimeTickT(popKontAddedAction)
+                  EdgeComponents(succState, replacedFilters, timeTickAddedAction)
                 })
             })
         /* In an error state, the state is not able to make a step */
@@ -214,7 +215,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
   case class AAMOutput(halted: Set[State],
                        numberOfStates: Int,
                        time: Double,
-                       graph: Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])],
+                       graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr]],
                        timedOut: Boolean,
                        stepSwitched: Option[Int])
       extends Output[Abs] with HasGraph[Exp, Abs, Addr, State] with HasFinalStores[Addr, Abs] {
@@ -251,23 +252,24 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
    * Checks whether the given (successor) state is a eval-state. If so, adds an EvaluatingExpression
    * annotation to the list of edge annotations.
    */
-  def addSuccStateEdgeAnnotation(s: State, edgeInfos: List[EdgeFilterAnnotation]): List[EdgeFilterAnnotation] = s.control match {
+  def addSuccStateFilter(s: State, filters: FilterAnnotations[Exp, Abs, Addr]): FilterAnnotations[Exp, Abs, Addr] = s.control
+  match {
     case ControlEval(exp, _) =>
-      EvaluatingExpression(exp) :: edgeInfos
+      filters + EvaluatingExpression(exp)
     case ControlKont(v) =>
-      if (edgeInfos.exists({
+      if (filters.exists( (filter: MachineFilterAnnotation) => filter match {
         case FrameFollowed(frame) =>
           frame.meaningfullySubsumes
         case _ =>
           false
       })) {
-        edgeInfos
+        filters
       } else {
 //        ReachedValue(v) ::
-        edgeInfos
+        filters
       }
     case _ =>
-      edgeInfos
+      filters
   }
 
   def kickstartEval(initialState: State,
@@ -280,7 +282,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
              visited: Set[State],
              halted: Set[State],
              startingTime: Long,
-             graph: Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])]): AAMOutput = {
+             graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr]]): AAMOutput = {
       if (timeout.exists(System.nanoTime - startingTime > _)) {
         AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9), graph, true, stepSwitched)
       } else {
@@ -295,12 +297,17 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                * states but leads to non-determinism due to the non-determinism
                * of Scala's headOption (it seems so at least).
                * We do have to add an edge from the current state to the subsumed state. */
-              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])]](graph)({
+              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, EdgeAnnotation[Exp, Abs, Addr]]]
+              (graph)({
                 case (graph, s2) =>
-                  if (s2.subsumes(s))
-                    graph.addEdge(s, (List(StateSubsumed(s2.store.diff(s.store), s2.kstore.diff(s.kstore))), Nil), s2)
+                  if (s2.subsumes(s)) {
+                    val subsumptionFilter = StateSubsumed(s2.store.diff(s.store), s2.kstore.diff(s.kstore))
+                    val filters = FilterAnnotations[Exp, Abs, Addr](Set(subsumptionFilter), Set())
+                    graph.addEdge(s, EdgeAnnotation(filters, Nil), s2)
+                  }
                   else
-                    graph}))
+                    graph
+              }))
             } else if (s.halted || stopEval.fold(false)(pred => pred(s))) {
               /* If the state is a final state or the stopEval predicate determines the machine can stop exploring
                * this state, add it to the list of final states and continue exploring the graph */
@@ -309,9 +316,11 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
               /* Otherwise, compute the successors (and edges to these successors) of this state,
               update the graph, and push the new successors on the todo list */
               val succsEdges = s.step(sem)
-              val newGraph =
-                graph.addEdges(succsEdges.map(s2 => (s, (addSuccStateEdgeAnnotation(s2._1, s2._2), s2._3), s2._1)))
-              loop(todo.tail ++ succsEdges.map(_._1),
+              val newGraph = graph.addEdges(succsEdges.map(s2 => {
+                val filters = addSuccStateFilter(s2.state, s2.filters)
+                (s, EdgeAnnotation(filters, s2.actions), s2.state)
+              }))
+              loop(todo.tail ++ succsEdges.map(_.state),
                    visited + s,
                    halted,
                    startingTime,
@@ -357,7 +366,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             } else {
               val succsEdges = s.step(sem)
               val l2 = s.stepAnalysis(analysis, l)
-              loop(todo.tail ++ succsEdges.map(s2 => (s2._1, l2)),
+              loop(todo.tail ++ succsEdges.map(s2 => (s2.state, l2)),
                    visited + ((s, l)),
                    finalValue,
                    startingTime)
@@ -393,9 +402,9 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                          timeout)
 
   object AAMGraphPrinter
-    extends GraphPrinter[Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])]] {
+    extends GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr]]] {
 
-    def printGraph(graph: Graph[State, (List[EdgeFilterAnnotation], List[ActionReplay[Exp, Abs, Addr]])],
+    def printGraph(graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr]],
                    path: String): Unit = {
       graph.toDotFile(path,
         node => List(scala.xml.Text(node.toString.take(40))),
@@ -409,7 +418,9 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             } }
           },
         node => {
-          val fullString = s"[${node._1.mkString(", ")}], [${node._2.mkString(", ")}]"
+          val filterEdgeString = node.filterAnnotations.machineFilters.mkString(", ") +
+                                 node.filterAnnotations.semanticsFilters.mkString(", ")
+          val fullString = s"[$filterEdgeString], [${node.actions.mkString(", ")}]"
           if (GlobalFlags.PRINT_EDGE_ANNOTATIONS_FULL) {
             List(scala.xml.Text(fullString))
           } else {
@@ -422,7 +433,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
 
   object ActionReplayApplier extends ActionReplayApplier[Exp, Abs, Addr, Time, State] {
 
-    protected def noEdgeFilters(state: State): (State, List[EdgeFilterAnnotation]) = (state, Nil)
+    protected def noEdgeFilters(state: State): (State, List[FilterAnnotation]) = (state, Nil)
     protected def addEvaluateExp(exp: Exp): EvaluatingExpression[Exp] = EvaluatingExpression(exp)
     protected def addFrameFollowed(frame: Frame): FrameFollowed[Abs] =
       FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]])
@@ -450,7 +461,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
           (List(), kont)
       })
 
-    protected def popKont(state: State): Set[(State, List[EdgeFilterAnnotation])] = {
+    protected def popKont(state: State): Set[(State, List[FilterAnnotation])] = {
       val konts = state.kstore.lookup(state.a)
       konts.map( (kont: Kont[KontAddr]) => {
         val frame = kont.frame
@@ -476,7 +487,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       valuesSet.map(extraValue :: _)
     }
 
-    protected def addKontFilterAnnotations(currentAddr: KontAddr, kont: Kont[KontAddr]): List[EdgeFilterAnnotation] = {
+    protected def addKontFilterAnnotations(currentAddr: KontAddr, kont: Kont[KontAddr]): List[FilterAnnotation] = {
       val frame = kont.frame
       val next = kont.next
       val kontPopped = addKontAddrPopped(currentAddr, next)
@@ -495,8 +506,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       })
     }
 
-    def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr])
-                         (implicit sabs: IsSchemeLattice[Abs]): Set[(State, List[EdgeFilterAnnotation])] = action match {
+    def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr]): Set[(State, List[FilterAnnotation])] = action match {
       case a: ActionAllocAddressesR[Exp, Abs, Addr] =>
         val newStore = a.addresses.foldLeft(state.store)( (store, address) => store.extend(address, abs.bottom))
         Set(noEdgeFilters(state.copy(store = newStore)))
@@ -504,7 +514,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
         /* Don't have to do anything. */
         Set(noEdgeFilters(state))
       case a: ActionCreateClosureT[Exp, Abs, Addr] =>
-        val closure = sabs.inject[Exp, Addr]((a.λ, a.env.get))
+        val closure = implicitly[IsSchemeLattice[Abs]].inject[Exp, Addr]((a.λ, a.env.get))
         Set(noEdgeFilters(state.copy(control = ControlKont(closure))))
       case a: ActionDefineAddressesPopR[Exp, Abs, Addr] =>
         val statesKonts = defineAddresses(state, a.addresses)
@@ -551,7 +561,7 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
           assert(values.length == a.argsExps.length + 1, s"Length of ${a.argsExps} does not match length of $values")
           val operator = values.head
           val operands = values.tail :+ getControlKontValue(state)
-          val primitives = sabs.getPrimitives[Addr, Abs](operator)
+          val primitives = implicitly[IsSchemeLattice[Abs]].getPrimitives[Addr, Abs](operator)
           val filterEdge = addKontFilterAnnotations(state.a, kont)
           primitives.flatMap((primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store, state.t)
             .collect({
@@ -604,16 +614,16 @@ class AAM[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
 
     def halted(state: State): Boolean = state.halted
 
-    def evaluatedFalse(state: State)(implicit sabs: IsSchemeLattice[Abs]): Boolean = state.control match {
+    def evaluatedFalse(state: State): Boolean = state.control match {
       case ControlKont(v) =>
-        sabs.isFalse(v)
+        implicitly[IsSchemeLattice[Abs]].isFalse(v)
       case _ =>
         false
     }
 
-    def evaluatedTrue(state: State)(implicit sabs: IsSchemeLattice[Abs]): Boolean = state.control match {
+    def evaluatedTrue(state: State): Boolean = state.control match {
       case ControlKont(v) =>
-        sabs.isTrue(v)
+        implicitly[IsSchemeLattice[Abs]].isTrue(v)
       case _ =>
         false
     }
