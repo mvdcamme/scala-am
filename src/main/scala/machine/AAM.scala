@@ -672,10 +672,19 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       state.kstore.lookup(state.a)
 
     def joinStates(states: Set[State]): JoinedInfo = {
-      val initialInfo = JoinedInfo(abs.bottom, Store.empty, KontStore.empty)
+      val initialInfo = JoinedInfo(abs.bottom, Store.empty, KontStore.empty, Set())
       states.foldLeft(initialInfo)( (joinedInfo, state) => {
-        val stateFinalValue = getControlKontValue(state)
-        val stateInfo = JoinedInfo(stateFinalValue, state.store, state.kstore)
+        val stateInfo = getControlKontValue(state) match {
+          case Some(v) =>
+            JoinedInfo(v, state.store, state.kstore, Set())
+          case None =>
+            getSemanticError(state) match {
+              case Some(err) =>
+                JoinedInfo(abs.bottom, state.store, state.kstore, Set(err))
+              case None =>
+                JoinedInfo(abs.bottom, state.store, state.kstore, Set())
+            }
+        }
         joinedInfo.join(stateInfo)
       })
     }

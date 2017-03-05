@@ -83,7 +83,8 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       val joinedState1 = actionTApplier.joinStates(haltedStates1)
       val joinedState2 = actionTApplier.joinStates(haltedStates2)
       val result = joinedState1.finalValue == joinedState2.finalValue &&
-                   joinedState1.store == joinedState2.store
+                   joinedState1.store == joinedState2.store &&
+                   joinedState1.errors == joinedState2.errors
       //      val result = joinedState1.store.subsumes(joinedState2.store) &&
 //                   abs.subsumes(joinedState1.finalValue, joinedState2.finalValue)
       if (! result) {
