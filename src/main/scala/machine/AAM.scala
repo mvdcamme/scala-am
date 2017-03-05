@@ -443,7 +443,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       state.kstore.lookup(state.a).map( (kont) => kont.frame match {
         case frame: FrameFuncallOperands[Abs, Addr, Time] =>
           val savedOperands = frame.args.map(_._2)
-          val allOperands = savedOperands :+ getControlKontValue(state)
+          val allOperands = savedOperands :+ assertedGetControlKontValue(state)
           val allValues = frame.f :: allOperands
           (allValues, kont)
         case frame =>
@@ -471,18 +471,55 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       })
     }
 
-    protected def getControlKontValue(state: State): Abs = {
-      assert(state.control.isInstanceOf[ControlKont])
-      state.control.asInstanceOf[ControlKont].v
+    /**
+      * Checks whether the control component of the given state is a ControlKont and if so, returns the value
+      * stored in this control component, wrapped as an Option. Returns None if the control component is not
+      * a ControlKont.
+      * @param state
+      * @return
+      */
+    protected def getControlKontValue(state: State): Option[Abs] = state.control match {
+      case ControlKont(v) =>
+        Some(v)
+      case _ =>
+        None
+    }
+
+    /**
+      * Checks whether the control component of the given state is a ControlError and if so, returns the error
+      * stored in this control component, wrapped in an Option. Returns None if the control component is not
+      * a ControlKont.
+      * @param state
+      * @return
+      */
+    protected def getSemanticError(state: State): Option[SemanticError] = state.control match {
+      case ControlError(err) =>
+        Some(err)
+      case _ =>
+        None
+    }
+
+    /**
+      * Checks whether the control component of the given state is a ControlKont and if so, returns the value
+      * stored in this control component. Throws an exception if the control is not a ControlKont.
+      * To be used when the control component must definitely be a ControlKont.
+      * @param state
+      * @return
+      */
+    protected def assertedGetControlKontValue(state: State): Abs = getControlKontValue(state) match {
+      case Some(v) =>
+        v
+      case None =>
+        throw new Exception(s"Expected control to be a ControlKont, got a ${state.control} instead")
     }
 
     protected def addControlKontValue(state: State, values: List[Abs]): List[Abs] = {
-      val extraValue = getControlKontValue(state)
+      val extraValue = assertedGetControlKontValue(state)
       extraValue :: values
     }
 
     protected def addControlKontValue(state: State, valuesSet: Set[List[Abs]]): Set[List[Abs]] = {
-      val extraValue = getControlKontValue(state)
+      val extraValue = assertedGetControlKontValue(state)
       valuesSet.map(extraValue :: _)
     }
 
@@ -526,6 +563,8 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       case a: ActionDefineAddressesR[Exp, Abs, Addr] =>
         val statesKonts = defineAddresses(state, a.addresses)
         statesKonts.map( (stateKont) => noEdgeFilters(stateKont._1))
+      case ActionErrorT(err) =>
+        Set(noEdgeFilters(state.copy(control = ControlError(err))))
       case a: ActionEvalR[Exp, Abs, Addr] =>
         val evaluatingExp = addEvaluateExp(a.e)
         Set((state.copy(control = ControlEval(a.e, a.env)), Set(evaluatingExp)))
@@ -538,7 +577,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         Set((newState, Set(evaluatingExp, pushedAddr)))
       case ActionEvalPushDataR(e, env, frameGenerator) =>
         val next = NormalKontAddress[Exp, Time](e, state.t)
-        val currentValue = getControlKontValue(state)
+        val currentValue = assertedGetControlKontValue(state)
         val frame = frameGenerator(currentValue)
         val kont = Kont(frame, state.a)
         val evaluatingExp = addEvaluateExp(e)
@@ -561,7 +600,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         savedOperandsKontsSet.flatMap({ case (values, kont) =>
           assert(values.length == a.argsExps.length + 1, s"Length of ${a.argsExps} does not match length of $values")
           val operator = values.head
-          val operands = values.tail :+ getControlKontValue(state)
+          val operands = values.tail :+ assertedGetControlKontValue(state)
           val primitives = implicitly[IsSchemeLattice[Abs]].getPrimitives[Addr, Abs](operator)
           val filterEdge = addKontFilterAnnotations(state.a, kont)
           primitives.flatMap((primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store, state.t)

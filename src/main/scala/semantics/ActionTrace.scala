@@ -116,6 +116,7 @@ case class ActionEndTrace[Exp: Expression, Abs: JoinLattice, Addr: Address](
 case class ActionErrorT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     error: SemanticError)
     extends ActionTrace[Exp, Abs, Addr]
+    with ActionReplay[Exp, Abs, Addr]
 
 /**
   * A frame needs to be pushed on the stack, and the interpretation continues by

@@ -84,16 +84,15 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       .getClosures[SchemeExp, Addr](function)
       .map({
         case (lambda@(SchemeLambda(args, body, pos)), env1) =>
+          val cloCall =  ActionClosureCallR[SchemeExp, Abs, Addr](fexp, function, lambda)
           if (args.length == argsv.length) {
             bindArgs(args.zip(argsv), env1, store, t) match {
               case (env2, store, boundAddresses) =>
                 val defAddr = ActionDefineAddressesPopR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
-                val cloCall =  ActionClosureCallR[SchemeExp, Abs, Addr](fexp, function, lambda)
                 val timeTick = ActionTimeTickExpR[SchemeExp, Abs, Addr](fexp)
                 val makeActionRs = (edgeAnnotation: ActionReplay[SchemeExp, Abs, Addr]) => List(defAddr, edgeAnnotation, cloCall, timeTick)
                 if (body.length == 1) {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), body.head, env2, store, argsv)
-                  val actionEdge = List()
                   noEdgeInfos(action, makeActionRs(ActionEvalR(body.head, env2)))
                 }
                 else {
@@ -102,10 +101,14 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                 }
             }
           } else {
-            noEdgeInfos(ActionError[SchemeExp, Abs, Addr](ArityError(fexp.toString, args.length, argsv.length)), Nil)
+            val error = ArityError(fexp.toString, args.length, argsv.length)
+            val actionError = ActionErrorT[SchemeExp, Abs, Addr](error)
+            noEdgeInfos(ActionError[SchemeExp, Abs, Addr](error), List(actionError, cloCall))
           }
         case (lambda, _) =>
-          noEdgeInfos(ActionError[SchemeExp, Abs, Addr](TypeError(lambda.toString, "operator", "closure", "not a closure")), Nil)
+          val error = TypeError(lambda.toString, "operator", "closure", "not a closure")
+          val actionError = ActionErrorT[SchemeExp, Abs, Addr](error)
+          noEdgeInfos(ActionError[SchemeExp, Abs, Addr](error), List(actionError))
       })
     /* TODO take into account store changes made by the application of the primitives */
     val fromPrim = sabs
