@@ -335,7 +335,6 @@ object Main {
 
     handleJITWarmUp()
 
-    Stopwatch.start()
     val result = calcResult()
 
     output match {
@@ -350,7 +349,6 @@ object Main {
     }
     println(
       s"Visited ${result.numberOfStates} states in ${result.time} seconds, ${result.finalValues.size} possible results: ${result.finalValues}")
-    Stopwatch.stop
 
     if (inspect) {
       try {

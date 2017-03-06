@@ -391,9 +391,7 @@ class HybridConcreteMachine[
                                  filters: FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A],
                                  actionTs: List[ActionReplay[SchemeExp, ConcreteValue, HybridAddress.A]])
 
-        def step(control: Control): Either[ConcreteMachineOutput, StepSucceeded] =
-          control
-        match {
+        def step(control: Control): Either[ConcreteMachineOutput, StepSucceeded] = control match {
           case ControlEval(e, env) =>
             val edges = sem.stepEval(e, env, store, t)
             if (edges.size == 1) {

@@ -6,8 +6,10 @@ object Stopwatch {
   private def timeSinceLastResume: Long =
     System.nanoTime() - lastResumeTime
 
-  def start(): Unit =
+  def start(): Unit = {
+    totalTime = 0
     resume()
+  }
 
   def stop: Double = {
     pause()
