@@ -88,7 +88,7 @@ class PropagateRunTimeInfo[Exp: Expression,
       })
     })
 
-    val filteredEdgesWith: Set[Edge] = relevantActualFrames.flatMap((relevantFrame) => {
+    val filteredEdgesWith: Set[Edge] = relevantActualFrames.flatMap( (relevantFrame) => {
       val actualClosures = sabs.getClosures(relevantFrame.f)
       val actualLambdas: Set[Exp] = actualClosures.map(_._1)
       val result: Set[Edge] = edgesWith.filter( (edge: Edge) => {
@@ -269,18 +269,17 @@ class PropagateRunTimeInfo[Exp: Expression,
    */
   private def evalLoop(todoPair: TodoPair,
                        visited: Set[State],
-                       graph: Option[Graph[State, EdgeAnnotation2]],
+                       graph: Graph[State, EdgeAnnotation2],
                        stepCount: Int,
                        initialGraph: AbstractGraph,
-                       prunedGraph: AbstractGraph):
-  Option[Graph[State, EdgeAnnotation2]] = {
+                       prunedGraph: AbstractGraph): AbstractGraph = {
     Logger.log(s"Size of visited set ${visited.size}", Logger.D)
     Logger.log(s"Size of todo set ${todoPair.todo.size}", Logger.D)
     val checkSubsumes = true
     todoPair.todo.headOption
     match {
       case None =>
-        graphPrinter.printGraph(graph.get, s"Analysis/Incremental/incremental_graph_$stepCount.dot")
+        graphPrinter.printGraph(graph, s"Analysis/Incremental/incremental_graph_$stepCount.dot")
         graph
       case Some(newState) =>
 //        val originalStateId = prunedGraph.nodeId(originalState)
@@ -294,22 +293,22 @@ class PropagateRunTimeInfo[Exp: Expression,
           evalLoop(todoPair.dropHead, visited, graph, stepCount, initialGraph, prunedGraph)
         } else if (checkSubsumes && visited.exists((s2) => actionTApplier.subsumes(s2, newState).isDefined)) {
           Logger.log(s"State subsumed", LogPropagation)
-          val updatedGraph = graph.map(visited.foldLeft[AbstractGraph](_)({
+          val updatedGraph = visited.foldLeft[AbstractGraph](graph)({
             case (graph, s2) =>
               actionTApplier.subsumes(s2, newState).fold(graph)((subsumptionFilter: StateSubsumed[Abs, Addr]) =>
                 graph.addEdge(newState, EdgeAnnotation.subsumptionEdge(subsumptionFilter), s2)
               )
-          }))
+          })
           evalLoop(todoPair.dropHead, visited, updatedGraph, stepCount, initialGraph, prunedGraph)
         } else {
           val StepEval(nonSubsumptionStateCombos, subsumptionStateCombos, newVisited) =
-            stepEval(newState, visited, todoPair.mapping, graph.get, prunedGraph)
+            stepEval(newState, visited, todoPair.mapping, graph, prunedGraph)
           evalLoop(todoPair.dropHeadAndAddStates(subsumptionStateCombos ++ nonSubsumptionStateCombos.map(_._2)),
                    newVisited,
-                   graph.map(_.addEdges(nonSubsumptionStateCombos.map({
+                   graph.addEdges(nonSubsumptionStateCombos.map({
                      case (edgeAnnotation, StateCombo(_, newNewState)) =>
                        (newState, edgeAnnotation, newNewState)
-                   }))),
+                   })),
                    stepCount,
                    initialGraph,
                    prunedGraph)
@@ -328,7 +327,7 @@ class PropagateRunTimeInfo[Exp: Expression,
                        stepCount: Int,
                        currentNodes: Set[State],
                        initialGraph: AbstractGraph,
-                       prunedGraph: AbstractGraph): Option[AbstractGraph] = {
+                       prunedGraph: AbstractGraph): AbstractGraph = {
     graphPrinter.printGraph(prunedGraph, s"Analysis/Incremental/pruned_graph_$stepCount.dot")
     currentNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.U))
     /*
@@ -338,7 +337,7 @@ class PropagateRunTimeInfo[Exp: Expression,
     val rootNodes = currentNodes.map((state) => StateCombo(state, convertedState))
     evalLoop(TodoPair.init(rootNodes),
              Set(),
-             Some(new HyperlinkedGraph[State, EdgeAnnotation2]),
+             new HyperlinkedGraph[State, EdgeAnnotation2],
              stepCount,
              initialGraph,
              prunedGraph)

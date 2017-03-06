@@ -370,7 +370,6 @@ class HybridConcreteMachine[
           if (stepCount % analysis_interval == 0) {
             pointsToAnalysisLauncher.filterReachable(stepCount)
             pointsToAnalysisLauncher.applyEdgeActions(state, stepCount)
-//            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
           }
       }
 
