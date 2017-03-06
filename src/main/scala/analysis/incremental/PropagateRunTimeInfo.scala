@@ -264,6 +264,22 @@ class PropagateRunTimeInfo[Exp: Expression,
       TodoPair(stateCombos.map(_.newState), extendMapping(Map.empty, stateCombos))
   }
 
+  protected def addAllEdges(initialState: State,
+                            graph: AbstractGraph): AbstractGraph = {
+    def loop(todo: Set[State], visited: Set[State], graph: AbstractGraph): AbstractGraph = todo.headOption match {
+      case None =>
+        graph
+      case Some(state) if ! visited.contains(state) =>
+        val edges = graph.edges(state)
+        val targetStates = edges.map(_._2)
+        val newGraph = graph.addEdges(edges.map( (edge) => (state, edge._1, edge._2)) )
+        loop(todo.tail ++ targetStates, visited + state, newGraph)
+      case _ =>
+        loop(todo.tail, visited, graph)
+    }
+    loop(Set(initialState), Set(), graph)
+  }
+
   /*
    * Keep track of the set of visited originalStates, but not of the set of newStates.
    */
@@ -325,22 +341,27 @@ class PropagateRunTimeInfo[Exp: Expression,
 
   def applyEdgeActions(convertedState: State,
                        stepCount: Int,
-                       currentNodes: Set[State],
+                       rootNodes: Set[State],
                        initialGraph: AbstractGraph,
                        prunedGraph: AbstractGraph): AbstractGraph = {
     graphPrinter.printGraph(prunedGraph, s"Analysis/Incremental/pruned_graph_$stepCount.dot")
-    currentNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.U))
-    /*
-     * Associate the (one) abstracted concrete state with all states in the CurrentNodes set, as the states in
-     * this set ought to correspond with this concrete state.
-     */
-    val rootNodes = currentNodes.map((state) => StateCombo(state, convertedState))
-    evalLoop(TodoPair.init(rootNodes),
-             Set(),
-             new HyperlinkedGraph[State, EdgeAnnotation2],
-             stepCount,
-             initialGraph,
-             prunedGraph)
+    rootNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.U))
+    if (rootNodes.size == 1 && rootNodes.head == convertedState) {
+      Logger.log(s"Skipping propagation phase because convertedState equals single root state", Logger.U)
+      prunedGraph
+    } else {
+      /*
+       * Associate the (one) abstracted concrete state with all states in the CurrentNodes set, as the states in
+       * this set ought to correspond with this concrete state.
+       */
+      val rootStateCombos = rootNodes.map((state) => StateCombo(state, convertedState) )
+      evalLoop(TodoPair.init(rootStateCombos),
+               Set(),
+               new HyperlinkedGraph[State, EdgeAnnotation2],
+               stepCount,
+               initialGraph,
+               prunedGraph)
+    }
   }
 
 
