@@ -25,7 +25,7 @@ class PropagateRunTimeInfo[Exp: Expression,
      * containing a ThenBranchTaken-annotation.
      */
     val filteredTrue: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasSemanticsFilter(_, ThenBranchTaken)) &&
-      (!actionRApplier.evaluatedTrue(newState))) {
+      (! actionRApplier.evaluatedTrue(newState))) {
       edges.filter(!hasSemanticsFilter(_, ThenBranchTaken))
     } else {
       edges
