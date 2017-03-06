@@ -195,20 +195,20 @@ class PointsToAnalysisLauncher[
     val applyEdgeActions = () => {
       val convertedState = convertStateAAM(aam, concSem, abstSem, concreteState)
       val optionIncrementalGraph: Option[AbstractGraph] = incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
-      optionIncrementalGraph.foreach( (incrementalGraph) => {
-        metricsComputer.computeAndWriteMetrics(incrementalGraph, stepCount, incrementalMetricsOutputPath)
-//        assert(incrementalGraph.nodes.size <= incrementalAnalysis.prunedGraph.get.nodes.size)
-//        assert(incrementalGraph.edges.size <= incrementalAnalysis.prunedGraph.get.edges.size)
-        val completelyNewGraph: AbstractGraph = runStaticAnalysis(concreteState, Some(stepCount)) match {
-          case AnalysisOutputGraph(output) =>
-            output.toDotFile(s"Analysis/Run_time/run_time_$stepCount.dot")
-            output.graph.asInstanceOf[AbstractGraph]
-        }
-        metricsComputer.computeAndWriteMetrics(completelyNewGraph, stepCount, runTimeAnalysisMetricsOutputPath)
-        val areEqual = incrementalAnalysis.subsumedGraphsEqual(completelyNewGraph, incrementalGraph)
-        Logger.log(s"Graphs equal? $areEqual\n", Logger.U)
-        assert(areEqual)
-      })
+//      optionIncrementalGraph.foreach( (incrementalGraph) => { TODO reinstate after debugging
+//        metricsComputer.computeAndWriteMetrics(incrementalGraph, stepCount, incrementalMetricsOutputPath)
+////        assert(incrementalGraph.nodes.size <= incrementalAnalysis.prunedGraph.get.nodes.size)
+////        assert(incrementalGraph.edges.size <= incrementalAnalysis.prunedGraph.get.edges.size)
+//        val completelyNewGraph: AbstractGraph = runStaticAnalysis(concreteState, Some(stepCount)) match {
+//          case AnalysisOutputGraph(output) =>
+//            output.toDotFile(s"Analysis/Run_time/run_time_$stepCount.dot")
+//            output.graph.asInstanceOf[AbstractGraph]
+//        }
+//        metricsComputer.computeAndWriteMetrics(completelyNewGraph, stepCount, runTimeAnalysisMetricsOutputPath)
+//        val areEqual = incrementalAnalysis.subsumedGraphsEqual(completelyNewGraph, incrementalGraph)
+//        Logger.log(s"Graphs equal? $areEqual\n", Logger.U)
+//        assert(areEqual)
+//      })
     }
     wrapAbstractEvaluation(applyEdgeActions)
   }

@@ -296,12 +296,10 @@ object Main {
 
   var currentProgram: String = ""
 
-  def printExecutionTimes[Abs: JoinLattice](
-      result: Output[Abs],
-      benchmarks_results_file: String): Unit = {
+  def printExecutionTimes[Abs: JoinLattice](benchmarks_results_file: String): Unit = {
     val file = new File(benchmarks_results_file)
     val bw = new BufferedWriter(new FileWriter(file, true))
-    bw.write(s"$currentProgram: ${result.time}\n")
+    bw.write(s"$currentProgram: ${Stopwatch.time}\n")
     bw.close()
   }
 
@@ -337,6 +335,7 @@ object Main {
 
     handleJITWarmUp()
 
+    Stopwatch.start()
     val result = calcResult()
 
     output match {
@@ -347,10 +346,11 @@ object Main {
       println(
         s"${scala.io.AnsiColor.RED}Timeout was reached${scala.io.AnsiColor.RESET}")
     } else if (GlobalFlags.PRINT_EXECUTION_TIME) {
-      printExecutionTimes(result, benchmarks_results_file)
+      printExecutionTimes(benchmarks_results_file)
     }
     println(
       s"Visited ${result.numberOfStates} states in ${result.time} seconds, ${result.finalValues.size} possible results: ${result.finalValues}")
+    Stopwatch.stop
 
     if (inspect) {
       try {
@@ -433,7 +433,6 @@ object Main {
   }
 
   def main(args: Array[String]) {
-    import scala.util.control.Breaks._
     Config.parser.parse(args, Config.Config()) match {
       case Some(config) => {
 

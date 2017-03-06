@@ -295,7 +295,7 @@ class PropagateRunTimeInfo[Exp: Expression,
     todoPair.todo.headOption
     match {
       case None =>
-        graphPrinter.printGraph(graph, s"Analysis/Incremental/incremental_graph_$stepCount.dot")
+//        graphPrinter.printGraph(graph, s"Analysis/Incremental/incremental_graph_$stepCount.dot")
         graph
       case Some(newState) =>
 //        val originalStateId = prunedGraph.nodeId(originalState)
@@ -344,7 +344,7 @@ class PropagateRunTimeInfo[Exp: Expression,
                        rootNodes: Set[State],
                        initialGraph: AbstractGraph,
                        prunedGraph: AbstractGraph): AbstractGraph = {
-    graphPrinter.printGraph(prunedGraph, s"Analysis/Incremental/pruned_graph_$stepCount.dot")
+//    graphPrinter.printGraph(prunedGraph, s"Analysis/Incremental/pruned_graph_$stepCount.dot")
     rootNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.U))
     if (rootNodes.size == 1 && rootNodes.head == convertedState) {
       Logger.log(s"Skipping propagation phase because convertedState equals single root state", Logger.U)
