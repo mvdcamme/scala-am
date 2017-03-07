@@ -473,7 +473,7 @@ class HybridConcreteMachine[
                                           FilterAnnotations(machineFilters, semanticsFilters),
                                           actions))
                     case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
-                      GlobalFlags.incConcreteClosuresCalled()
+                      ClosuresCalledMetric.incConcreteClosuresCalled()
                       val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                                                                         EvaluatingExpression(e),
                                                                         FrameFollowed[ConcreteValue](originFrameCast))
@@ -550,7 +550,7 @@ class HybridConcreteMachine[
         sem.initialStore))
     pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState)
 
-    GlobalFlags.resetConcreteClosuresCalled()
+    ClosuresCalledMetric.resetConcreteClosuresCalled()
     loop(initialState,
          System.nanoTime,
          0,
