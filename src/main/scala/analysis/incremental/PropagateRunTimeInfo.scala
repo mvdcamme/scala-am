@@ -131,16 +131,22 @@ class PropagateRunTimeInfo[Exp: Expression,
     if (prunedGraph.nodeEdges(node).isEmpty) {
       Set(node)
     } else {
-      prunedGraph.nodeEdges(node).flatMap( (edge) =>
-        if (edge._1.filters.isSubsumptionAnnotation) {
+      val edges = prunedGraph.nodeEdges(node)
+      edges.headOption match {
+        case None =>
+          Set()
+        case Some(edge) if edge._1.filters.isSubsumptionAnnotation =>
           /*
            * Make sure subsumption edge does not point to itself.
            */
           assert(edge._2 != node)
-          followStateSubsumedEdges(edge._2, prunedGraph)
-        } else {
+          val filterSubsumptionEdges = filterEdgeFilterAnnotations.findMinimallySubsumingEdges(edges)
+          filterSubsumptionEdges.flatMap( (edge) => {
+            followStateSubsumedEdges(edge._2, prunedGraph)
+          })
+        case Some(edge) =>
           Set(node)
-        })
+      }
     }
 
   protected def stepEval(newState: State,
