@@ -1,3 +1,5 @@
+import java.io.{File, BufferedWriter, FileWriter}
+
 class PropagateRunTimeInfo[Exp: Expression,
                            Abs: IsSchemeLattice,
                            Addr: Address,
@@ -345,7 +347,7 @@ class PropagateRunTimeInfo[Exp: Expression,
                        initialGraph: AbstractGraph,
                        prunedGraph: AbstractGraph): AbstractGraph = {
     rootNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.U))
-    if (rootNodes.size == 1 && rootNodes.head == convertedState) {
+    if (GlobalFlags.INCREMENTAL_OPTIMISATION && rootNodes.size == 1 && rootNodes.head == convertedState) {
       Logger.log(s"Skipping propagation phase because convertedState equals single root state", Logger.U)
       prunedGraph
     } else {
@@ -355,16 +357,18 @@ class PropagateRunTimeInfo[Exp: Expression,
        */
       val file = new File("benchmark_times.txt")
       val bw = new BufferedWriter(new FileWriter(file, true))
-      Stopwatch.start()
-      val rootStateCombos = rootNodes.map((state) => StateCombo(state, convertedState) )
-      evalLoop(TodoPair.init(rootStateCombos),
-               Set(),
-               new HyperlinkedGraph[State, EdgeAnnotation2],
-               stepCount,
-               initialGraph,
-               prunedGraph)
-      bw.write(s"$stepCount: ${Stopwatch.stop}\n")
+      val resultingGraph = Stopwatch.doTimed({
+        val rootStateCombos = rootNodes.map((state) => StateCombo(state, convertedState) )
+        evalLoop(TodoPair.init(rootStateCombos),
+          Set(),
+          new HyperlinkedGraph[State, EdgeAnnotation2],
+          stepCount,
+          initialGraph,
+          prunedGraph)
+      })
+      bw.write(s"$stepCount: ${Stopwatch.time}\n")
       bw.close()
+      resultingGraph
     }
   }
 
