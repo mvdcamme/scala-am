@@ -188,7 +188,10 @@ class PointsToAnalysisLauncher[
 
   def filterReachable(stepCount: Int): Unit = {
     val optionPrunedGraph = incrementalAnalysis.filterReachable(stepCount)
-    metricsComputer.computeAndWriteMetrics(optionPrunedGraph.get, stepCount, prunedMetricsOutputPath)
+    optionPrunedGraph.foreach( (prunedGraph) => {
+      metricsComputer.computeAndWriteMetrics(prunedGraph, stepCount, prunedMetricsOutputPath)
+      aam.AAMGraphPrinter.printGraph(prunedGraph, s"${GlobalFlags.ANALYSIS_PATH}Incremental/pruned_graph_$stepCount.dot")
+    })
   }
 
   def applyEdgeActions(concreteState: PS, stepCount: Int): Unit = {
@@ -197,6 +200,7 @@ class PointsToAnalysisLauncher[
       val optionIncrementalGraph: Option[AbstractGraph] = incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
       optionIncrementalGraph.foreach( (incrementalGraph) => {
         metricsComputer.computeAndWriteMetrics(incrementalGraph, stepCount, incrementalMetricsOutputPath)
+        aam.AAMGraphPrinter.printGraph(incrementalGraph, s"${GlobalFlags.ANALYSIS_PATH}Incremental/incremental_graph_$stepCount.dot")
 //        assert(incrementalGraph.nodes.size <= incrementalAnalysis.prunedGraph.get.nodes.size)
 //        assert(incrementalGraph.edges.size <= incrementalAnalysis.prunedGraph.get.edges.size)
         val completelyNewGraph: AbstractGraph = runStaticAnalysis(concreteState, Some(stepCount)) match {
