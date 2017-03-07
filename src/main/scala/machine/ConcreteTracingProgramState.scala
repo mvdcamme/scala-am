@@ -850,7 +850,7 @@ case class ProgramState[Exp: Expression](
        HybridTimestamp.T) = {
 
     val concBaseSem =
-      new SchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T](
+      new BaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T](
         new SchemePrimitives[HybridAddress.A, ConcreteValue])
 
     val convertValueFun =
