@@ -356,20 +356,13 @@ class PropagateRunTimeInfo[Exp: Expression,
        * Associate the (one) abstracted concrete state with all states in the CurrentNodes set, as the states in
        * this set ought to correspond with this concrete state.
        */
-      val file = new File("benchmark_times.txt")
-      val bw = new BufferedWriter(new FileWriter(file, true))
-      val resultingGraph = Stopwatch.doTimed({
-        val rootStateCombos = rootNodes.map((state) => StateCombo(state, convertedState) )
-        evalLoop(TodoPair.init(rootStateCombos),
-          Set(),
-          new HyperlinkedGraph[State, EdgeAnnotation2],
-          stepCount,
-          initialGraph,
-          prunedGraph)
-      })
-      bw.write(s"$stepCount: ${Stopwatch.time}\n")
-      bw.close()
-      resultingGraph
+      val rootStateCombos = rootNodes.map( (state) => StateCombo(state, convertedState) )
+      evalLoop(TodoPair.init(rootStateCombos),
+               Set(),
+               new HyperlinkedGraph[State, EdgeAnnotation2],
+               stepCount,
+               initialGraph,
+               prunedGraph)
     }
   }
 

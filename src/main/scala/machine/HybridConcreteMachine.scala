@@ -370,9 +370,9 @@ class HybridConcreteMachine[
           pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
         case RunTimeAnalysisEvery(analysis_interval) =>
           if (stepCount % analysis_interval == 0) {
-            Stopwatch.doPaused(pointsToAnalysisLauncher.filterReachable(stepCount))
+            pointsToAnalysisLauncher.filterReachable(stepCount)
             pointsToAnalysisLauncher.applyEdgeActions(state, stepCount)
-//            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
+//          pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
           }
       }
 
