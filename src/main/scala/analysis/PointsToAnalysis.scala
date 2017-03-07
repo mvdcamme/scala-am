@@ -188,10 +188,10 @@ class PointsToAnalysisLauncher[
 
   def filterReachable(stepCount: Int): Unit = {
     val optionPrunedGraph = incrementalAnalysis.filterReachable(stepCount)
-    optionPrunedGraph.foreach( (prunedGraph) => {
-      metricsComputer.computeAndWriteMetrics(prunedGraph, stepCount, prunedMetricsOutputPath)
-      aam.AAMGraphPrinter.printGraph(prunedGraph, s"${GlobalFlags.ANALYSIS_PATH}Incremental/pruned_graph_$stepCount.dot")
-    })
+//    optionPrunedGraph.foreach( (prunedGraph) => {
+//      metricsComputer.computeAndWriteMetrics(prunedGraph, stepCount, prunedMetricsOutputPath)
+//      aam.AAMGraphPrinter.printGraph(prunedGraph, s"${GlobalFlags.ANALYSIS_PATH}Incremental/pruned_graph_$stepCount.dot")
+//    })
   }
 
   def applyEdgeActions(concreteState: PS, stepCount: Int): Unit = {
