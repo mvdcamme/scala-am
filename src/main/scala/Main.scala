@@ -340,20 +340,23 @@ object Main {
 
     handleJITWarmUp()
 
-    val result = calcResult()
+    val result: Output[Abs] = Stopwatch.doTimed({
+      val result = calcResult()
 
-    output match {
-      case Some(f) => result.toDotFile(f)
-      case None => ()
-    }
+      output match {
+        case Some(f) =>
+          result.toDotFile(f)
+        case None =>
+      }
+      result
+    })
     if (result.timedOut) {
       println(
         s"${scala.io.AnsiColor.RED}Timeout was reached${scala.io.AnsiColor.RESET}")
     } else if (GlobalFlags.PRINT_EXECUTION_TIME) {
       printExecutionTimes(benchmarks_results_file)
     }
-    println(
-      s"Visited ${result.numberOfStates} states in ${result.time} seconds, ${result.finalValues.size} possible results: ${result.finalValues}")
+    println(s"Visited ${result.numberOfStates} states in ${result.time} seconds, ${result.finalValues.size} possible results: ${result.finalValues}")
 
     if (inspect) {
       try {
