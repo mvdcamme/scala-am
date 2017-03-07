@@ -122,9 +122,10 @@ class PointsToAnalysisLauncher[
   val pointsToAnalysis = new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
   val metricsComputer = new CountClosureCalls[SchemeExp, Abs, HybridAddress.A, aam.State]
 
-  val incrementalMetricsOutputPath = s"Analysis/Closures_Points_To/incremental.txt"
-  val prunedMetricsOutputPath = s"Analysis/Closures_Points_To/pruned.txt"
-  val runTimeAnalysisMetricsOutputPath = s"Analysis/Closures_Points_To/run_time.txt"
+  val incrementalMetricsOutputPath = s"${GlobalFlags.ANALYSIS_PATH}Closures_Points_To/incremental.txt"
+  val initialMetricsOutputPath = s"${GlobalFlags.ANALYSIS_PATH}Closures_Points_To/initial_analysis.txt"
+  val prunedMetricsOutputPath = s"${GlobalFlags.ANALYSIS_PATH}Closures_Points_To/pruned.txt"
+  val runTimeAnalysisMetricsOutputPath = s"${GlobalFlags.ANALYSIS_PATH}Closures_Points_To/run_time.txt"
 
   def runStaticAnalysisGeneric(
       currentProgramState: PS,
@@ -153,9 +154,8 @@ class PointsToAnalysisLauncher[
   }
 
   private def initializeAnalyses(graph: AbstractGraph): Unit = {
-    val outputPath = "Analysis/Closures_Points_To/initial_analysis.txt"
-    new BufferedWriter(new FileWriter(new File(outputPath), false))
-    metricsComputer.computeAndWriteMetrics(graph, -1, outputPath)
+    new BufferedWriter(new FileWriter(new File(initialMetricsOutputPath), false))
+    metricsComputer.computeAndWriteMetrics(graph, -1, initialMetricsOutputPath)
     new BufferedWriter(new FileWriter(new File(incrementalMetricsOutputPath), false))
     new BufferedWriter(new FileWriter(new File(prunedMetricsOutputPath), false))
     new BufferedWriter(new FileWriter(new File(runTimeAnalysisMetricsOutputPath), false))
@@ -201,7 +201,7 @@ class PointsToAnalysisLauncher[
 //        assert(incrementalGraph.edges.size <= incrementalAnalysis.prunedGraph.get.edges.size)
         val completelyNewGraph: AbstractGraph = runStaticAnalysis(concreteState, Some(stepCount)) match {
           case AnalysisOutputGraph(output) =>
-            output.toDotFile(s"Analysis/Run_time/run_time_$stepCount.dot")
+            output.toDotFile(s"${GlobalFlags.ANALYSIS_PATH}Run_time/run_time_$stepCount.dot")
             output.graph.asInstanceOf[AbstractGraph]
         }
         metricsComputer.computeAndWriteMetrics(completelyNewGraph, stepCount, runTimeAnalysisMetricsOutputPath)

@@ -20,4 +20,5 @@ object GlobalFlags {
   var APPLY_OPTIMIZATION_VARIABLE_FOLDING = false
   var APPLY_OPTIMIZATION_MERGE_ACTIONS = false
 
+  val ANALYSIS_PATH = "../scala-am misc/Analysis/"
 }

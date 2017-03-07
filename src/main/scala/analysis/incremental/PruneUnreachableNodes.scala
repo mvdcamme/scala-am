@@ -81,25 +81,21 @@ class PruneUnreachableNodes[Exp : Expression,
   private def saveTraversedGraph(initialGraph: AbstractGraph,
                                  nodesVisited: Set[State],
                                  edgesVisited: Set[(State, EdgeAnnotation2, State)]): Unit = {
-    initialGraph.toDotFile(
-      "Analysis/Traversed graph/traversed_graph.dot",
-      node => List(scala.xml.Text(node.toString.take(40))),
-      (s) => if (nodesVisited.contains(s)) Colors.Red else Colors.White,
-      node => List(scala.xml.Text( (node.filters.machineFilters.mkString(", ") ++
-                                    node.filters.semanticsFilters.mkString(", ") ++
-                                    node.actions.mkString(", ")).take(300))),
-      Some((edge) =>
-        if (edgesVisited.contains(edge)) Colors.Red else Colors.Black))
+    initialGraph.toDotFile(s"${GlobalFlags.ANALYSIS_PATH}Traversed graph/traversed_graph.dot",
+                           node => List(scala.xml.Text(node.toString.take(40))),
+                           (s) => if (nodesVisited.contains(s)) Colors.Red else Colors.White,
+                           node => List(scala.xml.Text((node.filters.machineFilters.mkString(", ") ++
+                                                        node.filters.semanticsFilters.mkString(", ") ++
+                                                        node.actions.mkString(", ")).take(300))),
+                           Some( (edge) => if (edgesVisited.contains(edge)) Colors.Red else Colors.Black ))
   }
 
   def end(initialGraph: AbstractGraph): Unit = {
     /*
      * Write the evolution of the size + ids of the concrete nodes.
      */
-    val fileWithoudIds =
-      new java.io.File("Analysis/Concrete nodes/concrete_nodes_size.txt")
-    val fileWithIds = new java.io.File(
-      "Analysis/Concrete nodes/concrete_nodes_size_with_ids.txt")
+    val fileWithoudIds = new java.io.File("${GlobalFlags.ANALYSIS_PATH}Concrete nodes/concrete_nodes_size.txt")
+    val fileWithIds = new java.io.File("${GlobalFlags.ANALYSIS_PATH}Concrete nodes/concrete_nodes_size_with_ids.txt")
     val bwWithoutIds =
       new java.io.BufferedWriter(new java.io.FileWriter(fileWithoudIds))
     val bwWithIds =
@@ -114,7 +110,7 @@ class PruneUnreachableNodes[Exp : Expression,
     /*
      * Write the evolution in the number of edges of the graph.
      */
-    val f = new java.io.FileWriter("Analysis/Graph size/graph_size.txt")
+    val f = new java.io.FileWriter(s"${GlobalFlags.ANALYSIS_PATH}Graph size/graph_size.txt")
     val bw = new java.io.BufferedWriter(f)
     graphSize.foreach( (tuple) => bw.write(s"${tuple._1};${tuple._2}\n") )
     bw.close()
