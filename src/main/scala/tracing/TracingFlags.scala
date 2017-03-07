@@ -16,5 +16,6 @@ case object ApplyAllOptimizations extends ShouldApplyOptimization
 
 sealed trait RunTimeAnalysisInterval
 
+case object RegularRunTimeAnalysisEveryStep extends RunTimeAnalysisInterval
 case object NoRunTimeAnalysis extends RunTimeAnalysisInterval
 case class RunTimeAnalysisEvery(interval: Int) extends RunTimeAnalysisInterval

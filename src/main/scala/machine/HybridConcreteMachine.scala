@@ -363,10 +363,12 @@ class HybridConcreteMachine[
              graph: Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]):
     ConcreteMachineOutput = {
 
+      Logger.log(s"stepCount: $stepCount", Logger.N)
       tracingFlags.RUNTIME_ANALYSIS_INTERVAL match {
         case NoRunTimeAnalysis =>
+        case RegularRunTimeAnalysisEveryStep =>
+          pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
         case RunTimeAnalysisEvery(analysis_interval) =>
-          Logger.log(s"stepCount: $stepCount", Logger.N)
           if (stepCount % analysis_interval == 0) {
             Stopwatch.doPaused(pointsToAnalysisLauncher.filterReachable(stepCount))
             pointsToAnalysisLauncher.applyEdgeActions(state, stepCount)

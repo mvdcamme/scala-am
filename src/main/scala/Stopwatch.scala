@@ -29,6 +29,14 @@ object Stopwatch {
     result
   }
 
+  def doTimed[A](block: => A): A = {
+    start()
+    val result = block
+    stop
+    result
+
+  }
+
   def time: Double =
     totalTime / Math.pow(10, 9)
 

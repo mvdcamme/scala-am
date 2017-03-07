@@ -191,7 +191,8 @@ object Config {
                     amb: Boolean = false,
                     resultsPath: String = "benchmark_times.txt",
                     analysisPath: Option[String] = None,
-                    tracingFlags: TracingFlags = TracingFlags())
+                    tracingFlags: TracingFlags = TracingFlags(),
+                    incrementalOptimisation: Boolean = false)
 
   val parser = new scopt.OptionParser[Config]("scala-am") {
     head("scala-am", "0.0")
@@ -203,6 +204,9 @@ object Config {
     } text ("Lattice to use (Concrete, Type, TypeSet)")
     opt[Unit]('c', "concrete") action { (_, c) =>
       c.copy(concrete = true)
+    } text ("Lattice to use (Concrete, Type, TypeSet)")
+    opt[Unit]('q', "incremental optimisation") action { (_, c) =>
+      c.copy(incrementalOptimisation = true)
     } text ("Run in concrete mode")
     opt[String]('d', "dotfile") action { (x, c) =>
       c.copy(dotfile = Some(x))
@@ -233,6 +237,7 @@ object Config {
     opt[String]("rt_analysis_interval") action { (s, c) =>
       {
         val rtAnalysisInterval = s match {
+          case "R" | "r" => RegularRunTimeAnalysisEveryStep
           case "N" | "n" | "None" | "none" => NoRunTimeAnalysis
           case _ => RunTimeAnalysisEvery(Integer.parseInt(s))
         }
@@ -478,6 +483,8 @@ object Main {
             new ConstantPropagationLattice(config.counting)
         }
         implicit val isSchemeLattice = lattice.isSchemeLattice
+
+        GlobalFlags.INCREMENTAL_OPTIMISATION = config.incrementalOptimisation
 
         val time: TimestampWrapper =
           if (config.concrete) ConcreteTimestamp else ZeroCFA

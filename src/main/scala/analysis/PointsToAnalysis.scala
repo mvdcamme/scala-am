@@ -149,7 +149,7 @@ class PointsToAnalysisLauncher[
   def runStaticAnalysis(currentProgramState: PS,
                         stepSwitched: Option[Int]): StaticAnalysisResult = {
     assert(incrementalAnalysis.hasInitialGraph)
-    runStaticAnalysisGeneric(currentProgramState, stepSwitched, None)
+    Stopwatch.doTimed(runStaticAnalysisGeneric(currentProgramState, stepSwitched, None))
   }
 
   private def initializeAnalyses(graph: AbstractGraph): Unit = {
