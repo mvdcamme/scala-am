@@ -3,7 +3,9 @@ import ConcreteConcreteLattice._
 class FilterEdgeFilterAnnotations[Exp : Expression,
                                   Abs : IsSchemeLattice,
                                   Addr : Address,
-                                  State <: StateTrait[Exp, Abs, Addr, _]] {
+                                  Time : Timestamp,
+                                  State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
+                                 (implicit val actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State]) {
 
   /*
    * We definitely have to convert the Timestamps here, because the Timestamps encoded in the Concrete
@@ -37,16 +39,15 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
 
   def findMinimallySubsuming[T](edges: Set[(Edge, T)],
                                 ordering: SubsumesOrdering[T]): Set[Edge] = {
-    edges
-      .filter(tuple1 => {
+    edges.filter( (edge1) => {
         /*
          * Only keep a value n if it holds that n does not subsume any other value m.
          * Only keep a value n if it holds that n is either smaller than (subsumed by), 'equal' to or incomparable with
          * every other node m.
          */
-        val excluded = edges.filter(_ != tuple1)
-        excluded.forall(tuple2 =>
-          ordering.tryCompare(tuple1._2, tuple2._2) match {
+        val excluded = edges.filter(_ != edge1)
+        excluded.forall( (edge2) =>
+          ordering.tryCompare(edge1._2, edge2._2) match {
             case Some(1) => false
             case _ => true
           })
@@ -69,6 +70,17 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
       case _ =>
         None
     }
+
+  def findMinimallySubsumingEdges(edges: Set[Edge]): Set[Edge] = {
+    assert(edges.forall( (edge) => edge._1.filters.isSubsumptionAnnotation))
+    val ordering = new SubsumesOrdering[State]( (state1, state2) => {
+      actionRApplier.subsumes(state1, state2)
+    })
+    val minFrameFollowedEdges: Set[Edge] = findMinimallySubsuming(edges.map( (edge) => (edge, edge._2)), ordering)
+    Logger.log(s"findMinimallySubsumingEdges = $minFrameFollowedEdges\n" +
+               s"All edges = $edges", Logger.U)
+    minFrameFollowedEdges
+  }
 
   def filterFrameEdges(convertedFrame: AbstractFrame,
                        subsumesFrame: (MachineFilterAnnotation, AbstractFrame) => Option[AbstractFrame],
@@ -96,10 +108,9 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
               case (_, abstractFrame) => Set((edge, abstractFrame))
             })
           })
-      val ordering = new SubsumesOrdering[AbstractFrame]((frame1, frame2) =>
+      val ordering = new SubsumesOrdering[AbstractFrame]( (frame1, frame2) =>
         frame1.subsumes(frame2))
-      val minFrameFollowedEdges: Set[Edge] =
-        findMinimallySubsuming(edgesContainingFrames, ordering)
+      val minFrameFollowedEdges: Set[Edge] = findMinimallySubsuming(edgesContainingFrames, ordering)
       Logger.log(s"minFrameFollowedEdges = $minFrameFollowedEdges", Logger.D)
       minFrameFollowedEdges
     }

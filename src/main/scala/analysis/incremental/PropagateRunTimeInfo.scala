@@ -4,13 +4,12 @@ class PropagateRunTimeInfo[Exp: Expression,
                            Time: Timestamp,
                            State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
                           (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr]]])
-                          (implicit actionTApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State]) {
+                          (implicit actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State]) {
 
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
-
   import usesGraph._
 
-  val filterEdgeFilterAnnotations = new FilterEdgeFilterAnnotations[Exp, Abs, Addr, State]
+  val filterEdgeFilterAnnotations = new FilterEdgeFilterAnnotations[Exp, Abs, Addr, Time, State]
 
   val LogPropagation = Logger.D
 
@@ -26,7 +25,7 @@ class PropagateRunTimeInfo[Exp: Expression,
      * containing a ThenBranchTaken-annotation.
      */
     val filteredTrue: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasSemanticsFilter(_, ThenBranchTaken)) &&
-      (!actionTApplier.evaluatedTrue(newState))) {
+      (!actionRApplier.evaluatedTrue(newState))) {
       edges.filter(!hasSemanticsFilter(_, ThenBranchTaken))
     } else {
       edges
@@ -36,8 +35,8 @@ class PropagateRunTimeInfo[Exp: Expression,
      * containing an ElseBranchTaken-annotation.
      */
     val filteredFalse: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasSemanticsFilter(_, ElseBranchTaken)) &&
-      (!actionTApplier.evaluatedFalse(newState))) {
-      edges.filter(!hasSemanticsFilter(_, ElseBranchTaken))
+      (!actionRApplier.evaluatedFalse(newState))) {
+      edges.filter(! hasSemanticsFilter(_, ElseBranchTaken))
     } else {
       edges
     }
@@ -68,7 +67,7 @@ class PropagateRunTimeInfo[Exp: Expression,
         None
     }
 
-    val actualKonts = actionTApplier.getKonts(newState)
+    val actualKonts = actionRApplier.getKonts(newState)
     val relevantActualFrames: Set[RelevantFrame] = actualKonts.map(_.frame).flatMap((frame: Frame) => {
       val optionRelevantFrame = frameLeadsToClosureCall(frame)
       optionRelevantFrame.fold[Set[RelevantFrame]](Set())((relevantFrame: RelevantFrame) => Set(relevantFrame))
@@ -196,7 +195,7 @@ class PropagateRunTimeInfo[Exp: Expression,
         (intermediaryStates: Set[(State, Set[MachineFilterAnnotation])], actionR: ActionReplay[Exp, Abs, Addr]) =>
           intermediaryStates.flatMap((intermediaryState: (State, Set[MachineFilterAnnotation])) => {
             val intermediaryFilters = intermediaryState._2
-            val nextIntermediaryStepSet = actionTApplier.applyActionReplay(intermediaryState._1, actionR)
+            val nextIntermediaryStepSet = actionRApplier.applyActionReplay(intermediaryState._1, actionR)
             nextIntermediaryStepSet.map({ case (nextIntermediaryState, nextIntermediaryFilters) =>
               (nextIntermediaryState, intermediaryFilters ++ nextIntermediaryFilters)
             })
@@ -300,19 +299,21 @@ class PropagateRunTimeInfo[Exp: Expression,
 //        val originalStateId = prunedGraph.nodeId(originalState)
 //        Logger.log(s"Incrementally evaluating original state ${initialGraph.nodeId(originalState)} " +
 //                   s"(currentID: $originalStateId) $originalState with new state $newState", LogPropagation)
-        if (actionTApplier.halted(newState)) {
+        if (actionRApplier.halted(newState)) {
           Logger.log(s"State halted", LogPropagation)
           evalLoop(todoPair.dropHead, visited + newState, graph, stepCount, initialGraph, prunedGraph)
         } else if (visited.contains(newState)) {
           Logger.log(s"State already visited", LogPropagation)
           evalLoop(todoPair.dropHead, visited, graph, stepCount, initialGraph, prunedGraph)
-        } else if (checkSubsumes && visited.exists((s2) => actionTApplier.subsumes(s2, newState).isDefined)) {
+        } else if (checkSubsumes && visited.exists((s2) => actionRApplier.subsumes(s2, newState))) {
           Logger.log(s"State subsumed", LogPropagation)
           val updatedGraph = visited.foldLeft[AbstractGraph](graph)({
             case (graph, s2) =>
-              actionTApplier.subsumes(s2, newState).fold(graph)((subsumptionFilter: StateSubsumed[Abs, Addr]) =>
-                graph.addEdge(newState, EdgeAnnotation.subsumptionEdge(subsumptionFilter), s2)
-              )
+              if (actionRApplier.subsumes(s2, newState)) {
+                graph.addEdge(newState, EdgeAnnotation.subsumptionEdge, s2)
+              } else {
+                graph
+              }
           })
           evalLoop(todoPair.dropHead, visited, updatedGraph, stepCount, initialGraph, prunedGraph)
         } else {

@@ -38,7 +38,7 @@ case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Addr
 
   def isSubsumptionAnnotation: Boolean = {
     if (machineExists( (filter: MachineFilterAnnotation) => filter match {
-      case StateSubsumed(_ , _) =>
+      case StateSubsumed =>
         true
       case _ => false
     })) {
@@ -114,8 +114,7 @@ case class EdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address
 
 object EdgeAnnotation {
 
-  def subsumptionEdge[Exp : Expression, Abs : IsSchemeLattice, Addr : Address]
-                     (subsumptionFilter: StateSubsumed[Abs, Addr]): EdgeAnnotation[Exp, Abs, Addr] =
-    EdgeAnnotation(FilterAnnotations(Set(subsumptionFilter), Set()), Nil)
+  def subsumptionEdge[Exp : Expression, Abs : IsSchemeLattice, Addr : Address]: EdgeAnnotation[Exp, Abs, Addr] =
+    EdgeAnnotation(FilterAnnotations(Set(StateSubsumed), Set()), Nil)
 
 }

@@ -34,7 +34,7 @@ case class KontAddrPushed(a: KontAddr)
  * State not explored further because it was already subsumed by another state in the graph.
  */
 //TODO should also take into control subsumption into account
-case class StateSubsumed[Abs: JoinLattice, Addr: Address](storeDiff: Store[Addr, Abs], kstoreDiff: KontStore[KontAddr])
+case object StateSubsumed
   extends MachineFilterAnnotation {
   override def toString = "Subsumed by"
 }

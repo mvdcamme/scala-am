@@ -301,8 +301,8 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
               (graph)({
                 case (graph, s2) =>
                   if (s2.subsumes(s)) {
-                    val subsumptionFilter = StateSubsumed(s2.store.diff(s.store), s2.kstore.diff(s.kstore))
-                    graph.addEdge(s, EdgeAnnotation.subsumptionEdge(subsumptionFilter), s2)
+                    val subsumptionFilter = StateSubsumed
+                    graph.addEdge(s, EdgeAnnotation.subsumptionEdge, s2)
                   }
                   else
                     graph
@@ -630,11 +630,9 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         Set(noEdgeFilters(state.copy(t = time.tick(state.t, fexp))))
     }
 
-    def subsumes(s1: State, s2: State): Option[StateSubsumed[Abs, Addr]] = if (s1.subsumes(s2)) {
-      Some(StateSubsumed(s1.store.diff(s2.store), s1.kstore.diff(s2.kstore)))
-    } else {
-      None
-    }
+    def subsumes(s1: State, s2: State): Boolean =
+      s1.subsumes(s2)
+
     def statesEqual(s1: State, s2: State): Boolean = {
       val control = s1.control == s2.control
       val a = s1.a == s2.a

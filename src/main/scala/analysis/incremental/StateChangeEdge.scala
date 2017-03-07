@@ -5,7 +5,7 @@ trait ActionReplayApplier[Exp, Abs, Addr, Time, State <: StateTrait[Exp, Abs, Ad
   def applyActionReplay(state: State,
                         action: ActionReplay[Exp, Abs, Addr]): Set[(State, Set[MachineFilterAnnotation])]
 
-  def subsumes(s1: State, s2: State): Option[StateSubsumed[Abs, Addr]]
+  def subsumes(s1: State, s2: State): Boolean
   def statesEqual(s1: State, s2: State): Boolean
 
   def halted(state: State): Boolean

@@ -3,12 +3,14 @@ import ConcreteConcreteLattice.ConcreteValue
 class PruneUnreachableNodes[Exp : Expression,
                             Abs : IsSchemeLattice,
                             Addr : Address,
-                            State <: StateTrait[Exp, Abs, Addr, _] : Descriptor] {
+                            Time : Timestamp,
+                            State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
+                           (implicit val actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State]) {
 
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
 
-  val filterEdgeFilterAnnotations = new FilterEdgeFilterAnnotations[Exp, Abs, Addr, State]
+  val filterEdgeFilterAnnotations = new FilterEdgeFilterAnnotations[Exp, Abs, Addr, Time, State]
 
   var nodesVisited: Set[State] = Set()
   var edgesVisited: Set[(State, EdgeAnnotation2, State)] = Set()
@@ -25,13 +27,19 @@ class PruneUnreachableNodes[Exp : Expression,
     if (prunedGraph.nodeEdges(node).isEmpty) {
       Set(node)
     } else {
-      prunedGraph.nodeEdges(node).flatMap((edge) =>
-        if (edge._1.filters.isSubsumptionAnnotation) {
-          addEdgesVisited(node, Set(edge))
-          followStateSubsumedEdges(edge._2, prunedGraph)
-        } else {
+      val edges = prunedGraph.nodeEdges(node)
+      edges.headOption match {
+        case None =>
+          Set()
+        case Some(edge) if edge._1.filters.isSubsumptionAnnotation =>
+          val filterSubsumptionEdges = filterEdgeFilterAnnotations.findMinimallySubsumingEdges(edges)
+          addEdgesVisited(node, filterSubsumptionEdges)
+          filterSubsumptionEdges.flatMap( (edge) => {
+            followStateSubsumedEdges(edge._2, prunedGraph)
+          })
+        case Some(edge) =>
           Set(node)
-        })
+      }
     }
 
   def computeSuccNode(convertFrameFun: ConcreteFrame => AbstractFrame,
@@ -94,8 +102,8 @@ class PruneUnreachableNodes[Exp : Expression,
     /*
      * Write the evolution of the size + ids of the concrete nodes.
      */
-    val fileWithoudIds = new java.io.File("${GlobalFlags.ANALYSIS_PATH}Concrete nodes/concrete_nodes_size.txt")
-    val fileWithIds = new java.io.File("${GlobalFlags.ANALYSIS_PATH}Concrete nodes/concrete_nodes_size_with_ids.txt")
+    val fileWithoudIds = new java.io.File(s"${GlobalFlags.ANALYSIS_PATH}Concrete nodes/concrete_nodes_size.txt")
+    val fileWithIds = new java.io.File(s"${GlobalFlags.ANALYSIS_PATH}Concrete nodes/concrete_nodes_size_with_ids.txt")
     val bwWithoutIds =
       new java.io.BufferedWriter(new java.io.FileWriter(fileWithoudIds))
     val bwWithIds =

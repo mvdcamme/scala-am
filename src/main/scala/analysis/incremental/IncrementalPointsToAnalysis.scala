@@ -6,12 +6,12 @@ class IncrementalPointsToAnalysis[Exp : Expression,
                                   Time : Timestamp,
                                   State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
                                  (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr]]])
-                                 (implicit actionTApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State]) {
+                                 (implicit actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State]) {
 
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
 
-  val pruneUnreachableNodes = new PruneUnreachableNodes[Exp, Abs, Addr, State]
+  val pruneUnreachableNodes = new PruneUnreachableNodes[Exp, Abs, Addr, Time, State]
   val propagateRunTimeInfo = new PropagateRunTimeInfo[Exp, Abs, Addr, Time, State](graphPrinter)
 
   var initialGraph: Option[AbstractGraph] = None
@@ -77,11 +77,11 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       Logger.log(s"Graphs have a different size: graph1 ${graph1.nodes}, graph2: ${graph2.nodes}", Logger.U)
       false
     } else {
-      val haltedStates1 = graph1.nodes.filter(actionTApplier.halted)
-      val haltedStates2 = graph2.nodes.filter(actionTApplier.halted)
+      val haltedStates1 = graph1.nodes.filter(actionRApplier.halted)
+      val haltedStates2 = graph2.nodes.filter(actionRApplier.halted)
       Logger.log(s"haltedStates2: $haltedStates2", Logger.U)
-      val joinedState1 = actionTApplier.joinStates(haltedStates1)
-      val joinedState2 = actionTApplier.joinStates(haltedStates2)
+      val joinedState1 = actionRApplier.joinStates(haltedStates1)
+      val joinedState2 = actionRApplier.joinStates(haltedStates2)
       val result = joinedState1.finalValue == joinedState2.finalValue &&
                    joinedState1.store == joinedState2.store &&
                    joinedState1.errors == joinedState2.errors
@@ -155,7 +155,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       val node1 = graph1.getNode(0)
       val node2 = graph2.getNode(0)
       assert(node1.isDefined && node2.isDefined)
-      assert(actionTApplier.statesEqual(node1.get, node2.get), s"node1: ${node1.get}, node2: ${node2.get}")
+      assert(actionRApplier.statesEqual(node1.get, node2.get), s"node1: ${node1.get}, node2: ${node2.get}")
 //      assert(node1.get == node2.get, s"node1: ${node1.get}, node2: ${node2.get}")
       breadthFirst(List(node1.get), Set())
     }
