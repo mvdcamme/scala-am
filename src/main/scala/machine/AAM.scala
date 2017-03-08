@@ -201,12 +201,11 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
   class StateDescriptor extends Descriptor[State] {
     def describe[U >: State](state: U): String = state match {
       case State(control, store, kstore, a, t) =>
-          putIntoCollapsableList(List(
-            control.descriptor.describe(control),
-            store.descriptor.describe(store),
-            kstore.descriptor.describe(kstore),
-            a.toString,
-            t.toString), state.toString, Some("state"))
+          putIntoCollapsableList(List(control.descriptor.describe(control),
+                                      store.descriptor.describe(store),
+                                      kstore.descriptor.describe(kstore),
+                                      a.toString,
+                                      t.toString), state.toString, Some("state"))
       case _ =>
         state.toString
     }
@@ -639,14 +638,6 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       val t = s1.t == s2.t
       val kstore = s1.kstore == s2.kstore
       val store = s1.store.toSet == s2.store.toSet
-//      val store = s1.store.toSet.size == s2.store.toSet.size &&
-//                  s1.store.toSet.forall( (tuple) =>
-//                    if (s2.store.toSet.contains(tuple)) {
-//                      Logger.log("hier", Logger.U)
-//                      true
-//                    } else {
-//                      false
-//                    })
       control && a && t && kstore && store
     }
 

@@ -895,7 +895,7 @@ case class ProgramState[Exp: Expression](
         ConvertedControlKont[Exp, AbstL, HybridAddress.A](convertValueFun(c.v))
     }
 
-    Logger.log(s"Size of original store ${σ.toSet.size}; size of gc-ed store: ${GCedStore.toSet.size}", Logger.U)
+    Logger.log(s"Size of original store ${σ.toSet.size}; size of gc-ed store: ${GCedStore.toSet.size}", Logger.D)
     val convertedStore = convertStore(GCedStore, convertValueFun)
     val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
     (convertedControl, convertedStore, convertedKStore, convertedA, newT)

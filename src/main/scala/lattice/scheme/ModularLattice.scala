@@ -749,7 +749,6 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
       def reachesValue(v: Value): Set[Addr] = v match {
         case Closure(_, env) => reachesEnv(env.asInstanceOf[Environment[Addr]])
         case Cons(car, cdr) =>
-//          Logger.log(s"Reached cons-cell with car $car and cdr $cdr", Logger.U)
           reachesAddress(car.asInstanceOf[Addr]) ++ reachesAddress(
             cdr.asInstanceOf[Addr])
         case v: Vec[Addr] =>
