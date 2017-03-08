@@ -94,13 +94,12 @@ case class BasicKontStore[KontAddr: KontAddress](
     }))
 
   def map[KAddr <: KontAddr : KontAddress](f: KontAddr => KAddr, g: Frame => Frame): KontStore[KAddr] = {
-    val mappedContent = content.foldLeft[Map[KAddr, Set[Kont[KAddr]]]](
-      Map[KAddr, Set[Kont[KAddr]]]())({
-      case (kstore, (a, ks)) =>
-        kstore + (f(a) -> ks.map(kont =>
-          kont.copy(frame = g(kont.frame), next = f(kont.next))))
+    content.foldLeft[KontStore[KAddr]](BasicKontStore[KAddr](Map()))( (newKstore, keyValue) => {
+      val (ka, konts) = keyValue
+      val convertedKA = f(ka)
+      val convertedKonts = konts.map( (kont) => Kont(g(kont.frame), f(kont.next)) )
+      convertedKonts.foldLeft(newKstore)( (newNewKStore, convertedKont) => newNewKStore.extend(convertedKA, convertedKont))
     })
-    BasicKontStore[KAddr](mappedContent)
   }
 
   def remove(a: KontAddr, k: Kont[KontAddr]): KontStore[KontAddr] =
@@ -204,13 +203,12 @@ case class TimestampedKontStore[KontAddr: KontAddress](
     }))
 
   def map[KAddr <: KontAddr : KontAddress](f: KontAddr => KAddr, g: Frame => Frame): KontStore[KAddr] = {
-    val mappedContent = content.foldLeft[Map[KAddr, Set[Kont[KAddr]]]](
-      Map[KAddr, Set[Kont[KAddr]]]())({
-      case (kstore, (a, ks)) =>
-        kstore + (f(a) -> ks.map(kont =>
-          kont.copy(frame = g(kont.frame), next = f(kont.next))))
+    content.foldLeft[KontStore[KAddr]](TimestampedKontStore[KAddr](Map(), timestamp))( (newKstore, keyValue) => {
+      val (ka, konts) = keyValue
+      val convertedKA = f(ka)
+      val convertedKonts = konts.map( (kont) => Kont(g(kont.frame), f(kont.next)) )
+      convertedKonts.foldLeft(newKstore)( (newNewKStore, convertedKont) => newNewKStore.extend(convertedKA, convertedKont))
     })
-    TimestampedKontStore[KAddr](mappedContent, timestamp)
   }
 
   def remove(a: KontAddr, k: Kont[KontAddr]): KontStore[KontAddr] =
