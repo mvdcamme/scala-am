@@ -140,8 +140,10 @@ class PointsToAnalysisLauncher[
                                    abstSem,
                                    lip.pointsTo,
                                    (addr) =>
-                                     !HybridAddress.isAddress.isPrimitive(
-                                       addr))(startState, false, stepSwitched)
+                                     ! HybridAddress.isAddress.isPrimitive(addr))(
+                                   startState,
+                                   false,
+                                   stepSwitched)
         Logger.log(s"Static points-to analysis result is $result", Logger.U)
         result
       })

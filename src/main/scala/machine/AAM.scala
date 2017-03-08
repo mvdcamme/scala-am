@@ -95,7 +95,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       })
 
     def addActionPopKontT(actions: List[ActionReplay[Exp, Abs, Addr]]): List[ActionReplay[Exp, Abs, Addr]] =
-      if (actions.exists((actionR) => actionR.popsKont)) {
+      if (actions.exists( (actionR) => actionR.popsKont)) {
         /*
          * One of the actionReplays in the edge already pops the topmost continuation,
          * so no need to add an ActionPopKontT.
