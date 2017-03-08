@@ -117,7 +117,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       prim.call(fexp, argsv, store, t).collect[EdgeInformation[SchemeExp, Abs, Addr]]({
         case (res, store2, effects) =>
           val action = ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects)
-          noEdgeInfosSet(action, List(applyPrim, applyPrim))
+          noEdgeInfosSet(action, List(applyPrim))
       },
         err => {
           val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
