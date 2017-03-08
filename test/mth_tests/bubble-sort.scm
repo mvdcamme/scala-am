@@ -27,7 +27,7 @@
         v))
   (loop 0))
 
-(define random-vec (make-random-array 15))
+(define random-vec (make-random-array 5))
 
 (bubble-sort random-vec <)
 
