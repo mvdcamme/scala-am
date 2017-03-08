@@ -10,9 +10,11 @@ case class ActionAllocAddressesR[Exp: Expression, Abs: JoinLattice, Addr: Addres
     addresses: List[Addr])
     extends ActionReplay[Exp, Abs, Addr]
 
-case class ActionClosureCallR[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    fExp: Exp, fValue: Abs, lambda: Exp)
-    extends ActionReplay[Exp, Abs, Addr]
+case class ActionClosureCallMarkR[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    override val fExp: Exp,
+    override val fValue: Abs,
+    lambda: Exp)
+    extends ActionFunCallMarkR[Exp, Abs, Addr](fExp, fValue)
 
 /*
  * Extend store with these addresses and initialize them to their corresponding value on the stack.
@@ -39,7 +41,7 @@ case class ActionEvalR[Exp: Expression, Abs: JoinLattice, Addr: Address](
     env: Environment[Addr],
     read: Set[Addr] = Set[Addr](),
     write: Set[Addr] = Set[Addr]())
-  extends ActionReplay[Exp, Abs, Addr]
+    extends ActionReplay[Exp, Abs, Addr]
 
 /**
   * frame is pushed on the stack, and the interpretation continues by evaluating expression e in environment ρ.
@@ -60,6 +62,11 @@ case class ActionEvalPushDataR[Exp: Expression, Abs: JoinLattice, Addr: Address]
     frameGenerator: Abs => Frame)
     extends ActionReplay[Exp, Abs, Addr]
     with PushesKStack[Exp, Abs, Addr]
+
+abstract class ActionFunCallMarkR[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    val fExp: Exp,
+    val fValue: Abs)
+    extends ActionReplay[Exp, Abs, Addr]
 
 case class ActionLookupAddressR[Exp: Expression, Abs: JoinLattice, Addr: Address](
     a: Addr)

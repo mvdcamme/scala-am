@@ -94,7 +94,7 @@ class PropagateRunTimeInfo[Exp: Expression,
       val actualLambdas: Set[Exp] = actualClosures.map(_._1)
       val result: Set[Edge] = edgesWith.filter( (edge: Edge) => {
         edge._1.actions.exists({
-          case actionClosureCall: ActionClosureCallR[Exp, Abs, Addr] =>
+          case actionClosureCall: ActionClosureCallMarkR[Exp, Abs, Addr] =>
             actualLambdas.contains(actionClosureCall.lambda)
           case _ =>
             false

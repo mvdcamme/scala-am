@@ -490,7 +490,7 @@ case class ProgramState[Exp: Expression](
                                 v,
                                 vStack),
                    action)
-      case ActionPrimCallT(n: Integer, fExp, argsExps) =>
+      case ActionPrimCallT(n: Integer, fExp, argsExps, _) =>
         val (vals, _) = popStackItems(vStack, n)
         val operator = vals.last.getVal
         val primitivesSet =
@@ -915,7 +915,7 @@ case class ProgramState[Exp: Expression](
     case ActionLookupVariablePushT(variable, _, _) =>
       val a = ρ.lookup(variable).get
       TraceInfos.single(VariableLookedUp(variable, a, σ.lookup(a).get))
-    case ActionPrimCallT(_, _, _) =>
+    case ActionPrimCallT(_, _, _, _) =>
       TraceInfos.single(PrimitiveAppliedInfo(v, vStack))
     case ActionSetVarT(variable) =>
       TraceInfos.single(AddressesReassigned(List(ρ.lookup(variable).get)))
