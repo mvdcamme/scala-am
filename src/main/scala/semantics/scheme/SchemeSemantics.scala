@@ -480,16 +480,16 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   protected def atomicEval(
       e: SchemeExp,
       env: Environment[Addr],
-      store: Store[Addr, Abs]): Option[(Abs, Set[Effect[Addr]])] = e match {
+      store: Store[Addr, Abs]): Option[(Abs, Set[Effect[Addr]], ActionReplay[SchemeExp, Abs, Addr])] = e match {
     case λ: SchemeLambda =>
-      Some((sabs.inject[SchemeExp, Addr]((λ, env)), Set()))
+      Some((sabs.inject[SchemeExp, Addr]((λ, env)), Set[Effect[Addr]](), ActionCreateClosureT[SchemeExp, Abs, Addr](λ, Some(env))))
     case SchemeIdentifier(name, _) =>
-      env
-        .lookup(name)
-        .flatMap(a =>
-          store.lookup(a).map(v => (v, Set(EffectReadVariable(a)))))
-    case SchemeValue(v, _) => evalValue(v).map(value => (value, Set()))
-    case _ => None
+      env.lookup(name).flatMap( (a) =>
+        store.lookup(a).map(v => (v, Set(EffectReadVariable(a)), ActionLookupAddressR[SchemeExp, Abs, Addr](a)) ))
+    case SchemeValue(v, _) =>
+      evalValue(v).map(value => (value, Set[Effect[Addr]](), ActionReachedValueT[SchemeExp, Abs, Addr](value)))
+    case _ =>
+      None
   }
 
   protected def addEffects(
@@ -515,13 +515,13 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       env: Environment[Addr],
       store: Store[Addr, Abs],
       t: Time): Set[EdgeInformation[SchemeExp, Abs, Addr]] = toeval match {
-    case Nil => evalCall(f, fexp, args.reverse, store, t)
+    case Nil =>
+      evalCall(f, fexp, args.reverse, store, t)
     case e :: rest =>
       atomicEval(e, env, store) match {
-        case Some((v, effs)) =>
-          funcallArgs(f, fexp, (e, v) :: args, rest, env, store, t)
-            .map( (actionChange: EdgeInformation[SchemeExp, Abs, Addr]) =>
-              noEdgeInfos(addEffects(actionChange.action, effs), actionChange.actions) )
+        case Some((v, effs, actionR)) =>
+          funcallArgs(f, fexp, (e, v) :: args, rest, env, store, t).map( (edgeInfo: EdgeInformation[SchemeExp, Abs, Addr]) =>
+              noEdgeInfos(addEffects(edgeInfo.action, effs), actionR :: edgeInfo.actions) )
         case None =>
           addPushActionRSet(ActionPush(FrameFuncallOperands(f, fexp, e, args, rest, env), e, env, store))
       }
@@ -532,18 +532,19 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     * where exp is an atomic expression, we can atomically evaluate exp to get v,
     * and call stepKont(v, store, frame).
     */
-  protected def optimizeAtomic(actionChanges: Set[EdgeInformation[SchemeExp, Abs, Addr]],
+  protected def optimizeAtomic(edgeInfos: Set[EdgeInformation[SchemeExp, Abs, Addr]],
                                t: Time): Set[EdgeInformation[SchemeExp, Abs, Addr]] = {
-    actionChanges.flatMap( (actionChange) => actionChange match {
-      case EdgeInformation(ActionPush(frame, exp, env, store, effects), stateChanges, edgeInfos) =>
+    edgeInfos.flatMap({
+      case EdgeInformation(ActionPush(frame, exp, env, store, effects), actions, semFilters) =>
         atomicEval(exp, env, store) match {
-          case Some((v, effs)) =>
-            stepKont(v, frame, store, t).map( (actionChange: EdgeInformation[SchemeExp, Abs, Addr]) =>
-              EdgeInformation(addEffects(actionChange.action, effs ++ effects), actionChange.actions, edgeInfos) )
+          case Some((v, effs, actionR)) =>
+            stepKont(v, frame, store, t).map( (edgeInfo: EdgeInformation[SchemeExp, Abs, Addr]) =>
+              EdgeInformation(addEffects(edgeInfo.action, effs ++ effects), actionR :: edgeInfo.actions, semFilters) )
           case None =>
-            Set(EdgeInformation(ActionPush[SchemeExp, Abs, Addr](frame, exp, env, store, effects), stateChanges, edgeInfos))
+            Set(EdgeInformation(ActionPush[SchemeExp, Abs, Addr](frame, exp, env, store, effects), actions, semFilters))
         }
-      case actionChange => Set[EdgeInformation[SchemeExp, Abs, Addr]](actionChange)
+      case edgeInfo =>
+        Set[EdgeInformation[SchemeExp, Abs, Addr]](edgeInfo)
     })
   }
 
