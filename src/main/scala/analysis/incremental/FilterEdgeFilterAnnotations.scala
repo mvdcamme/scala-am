@@ -78,7 +78,7 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
     })
     val minFrameFollowedEdges: Set[Edge] = findMinimallySubsuming(edges.map( (edge) => (edge, edge._2)), ordering)
     Logger.log(s"findMinimallySubsumingEdges = $minFrameFollowedEdges\n" +
-               s"All edges = $edges", Logger.U)
+               s"All edges = $edges", Logger.D)
     minFrameFollowedEdges
   }
 

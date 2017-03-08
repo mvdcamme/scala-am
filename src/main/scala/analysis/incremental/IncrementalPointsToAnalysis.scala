@@ -60,9 +60,6 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       initialGraph.get, lastPropagatedGraph.get))
     currentNodes = Set(convertedState)
     lastPropagatedGraph
-//    val areEqual = graphsEqual(prunedGraph.get, optionGraph.get)
-//    Logger.log(s"Graphs equal? $areEqual", Logger.U)
-//    assert(areEqual)
   }
 
   def subsumedGraphsEqual(graph1: AbstractGraph, graph2: AbstractGraph): Boolean = {
@@ -87,12 +84,15 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         val diff2 = joinedState2.store.diff(joinedState1.store)
         val kdiff1 = joinedState1.kstore.diff(joinedState2.kstore)
         val kdiff2 = joinedState2.kstore.diff(joinedState1.kstore)
+        val errorsDiff1 = joinedState1.errors.diff(joinedState2.errors)
+        val errorsDiff2 = joinedState2.errors.diff(joinedState1.errors)
 //        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: $diff1\nkstore2 - kstore1: $diff2", Logger.U)
 //        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: ${kdiff1.descriptor.describe(kdiff1)}\n\n\n\n##########" +
 //                   s"\n\n\n\n\n\nkstore2 - kstore1: ${kdiff2.descriptor.describe(kdiff2)}", Logger.U)
 //        Logger.log(s"Graphs are not the same:\n$joinedState1\n$joinedState2", Logger.U)
         Logger.log(s"Diff of store:\nstore1 - store2: $diff1\nstore2 - store1: $diff2", Logger.U)
         Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: $kdiff1\nkstore2 - kstore1: $kdiff2", Logger.U)
+        Logger.log(s"Diff of errors:\nerrors1 - errors2: $errorsDiff1\nstore2 - store1: $errorsDiff2", Logger.U)
         Logger.log(s"Graphs are not the same:\n$joinedState1\n$joinedState2", Logger.U)
       }
       result
