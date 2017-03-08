@@ -140,8 +140,10 @@ class PointsToAnalysisLauncher[
                                    abstSem,
                                    lip.pointsTo,
                                    (addr) =>
-                                     !HybridAddress.isAddress.isPrimitive(
-                                       addr))(startState, false, stepSwitched)
+                                     ! HybridAddress.isAddress.isPrimitive(addr))(
+                                   startState,
+                                   false,
+                                   stepSwitched)
         Logger.log(s"Static points-to analysis result is $result", Logger.U)
         result
       })
@@ -198,11 +200,6 @@ class PointsToAnalysisLauncher[
     val applyEdgeActions = () => {
       val convertedState = convertStateAAM(aam, concSem, abstSem, concreteState)
       val optionIncrementalGraph: Option[AbstractGraph] = incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
-//      if (stepCount == 52) {
-      //        val descriptor = new aam.StateDescriptor
-      //        Logger.log(s"concrete state:\n ${descriptor.describe(concreteState)}\n\n", Logger.U)
-      //        Logger.log(s"converted state:\n ${descriptor.describe(convertedState)}", Logger.U)
-      //      }
       optionIncrementalGraph.foreach( (incrementalGraph) => {
         metricsComputer.computeAndWriteMetrics(incrementalGraph, stepCount, incrementalMetricsOutputPath)
         aam.AAMGraphPrinter.printGraph(incrementalGraph, s"${GlobalFlags.ANALYSIS_PATH}Incremental/incremental_graph_$stepCount.dot")

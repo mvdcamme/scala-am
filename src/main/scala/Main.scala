@@ -546,10 +546,9 @@ object Main {
 
             implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
 
-            val pointsToAnalysisLauncher =
-                          new PointsToAnalysisLauncher[pointsLattice.L](sem)(
-                            pointsConvLattice,
-                            pointsLatInfoProv)
+            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsLattice.L](sem)(
+                                                                                         pointsConvLattice,
+                                                                                         pointsLatInfoProv)
 
             val machine = new HybridConcreteMachine[pointsLattice.L](pointsToAnalysisLauncher, config.tracingFlags)
 
