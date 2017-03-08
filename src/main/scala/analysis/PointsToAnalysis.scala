@@ -188,31 +188,36 @@ class PointsToAnalysisLauncher[
 
   def filterReachable(stepCount: Int): Unit = {
     val optionPrunedGraph = incrementalAnalysis.filterReachable(stepCount)
-//    optionPrunedGraph.foreach( (prunedGraph) => {
-//      metricsComputer.computeAndWriteMetrics(prunedGraph, stepCount, prunedMetricsOutputPath)
-//      aam.AAMGraphPrinter.printGraph(prunedGraph, s"${GlobalFlags.ANALYSIS_PATH}Incremental/pruned_graph_$stepCount.dot")
-//    })
+    optionPrunedGraph.foreach( (prunedGraph) => {
+      metricsComputer.computeAndWriteMetrics(prunedGraph, stepCount, prunedMetricsOutputPath)
+      aam.AAMGraphPrinter.printGraph(prunedGraph, s"${GlobalFlags.ANALYSIS_PATH}Incremental/pruned_graph_$stepCount.dot")
+    })
   }
 
   def applyEdgeActions(concreteState: PS, stepCount: Int): Unit = {
     val applyEdgeActions = () => {
       val convertedState = convertStateAAM(aam, concSem, abstSem, concreteState)
       val optionIncrementalGraph: Option[AbstractGraph] = incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
-//      optionIncrementalGraph.foreach( (incrementalGraph) => {
-//        metricsComputer.computeAndWriteMetrics(incrementalGraph, stepCount, incrementalMetricsOutputPath)
-//        aam.AAMGraphPrinter.printGraph(incrementalGraph, s"${GlobalFlags.ANALYSIS_PATH}Incremental/incremental_graph_$stepCount.dot")
-////        assert(incrementalGraph.nodes.size <= incrementalAnalysis.prunedGraph.get.nodes.size)
-////        assert(incrementalGraph.edges.size <= incrementalAnalysis.prunedGraph.get.edges.size)
-//        val completelyNewGraph: AbstractGraph = runStaticAnalysis(concreteState, Some(stepCount)) match {
-//          case AnalysisOutputGraph(output) =>
-//            output.toDotFile(s"${GlobalFlags.ANALYSIS_PATH}Run_time/run_time_$stepCount.dot")
-//            output.graph.asInstanceOf[AbstractGraph]
-//        }
-//        metricsComputer.computeAndWriteMetrics(completelyNewGraph, stepCount, runTimeAnalysisMetricsOutputPath)
-//        val areEqual = incrementalAnalysis.subsumedGraphsEqual(completelyNewGraph, incrementalGraph)
-//        Logger.log(s"Graphs equal? $areEqual\n", Logger.U)
-//        assert(areEqual)
-//      })
+//      if (stepCount == 52) {
+      //        val descriptor = new aam.StateDescriptor
+      //        Logger.log(s"concrete state:\n ${descriptor.describe(concreteState)}\n\n", Logger.U)
+      //        Logger.log(s"converted state:\n ${descriptor.describe(convertedState)}", Logger.U)
+      //      }
+      optionIncrementalGraph.foreach( (incrementalGraph) => {
+        metricsComputer.computeAndWriteMetrics(incrementalGraph, stepCount, incrementalMetricsOutputPath)
+        aam.AAMGraphPrinter.printGraph(incrementalGraph, s"${GlobalFlags.ANALYSIS_PATH}Incremental/incremental_graph_$stepCount.dot")
+//        assert(incrementalGraph.nodes.size <= incrementalAnalysis.prunedGraph.get.nodes.size)
+//        assert(incrementalGraph.edges.size <= incrementalAnalysis.prunedGraph.get.edges.size)
+        val completelyNewGraph: AbstractGraph = runStaticAnalysis(concreteState, Some(stepCount)) match {
+          case AnalysisOutputGraph(output) =>
+            output.toDotFile(s"${GlobalFlags.ANALYSIS_PATH}Run_time/run_time_$stepCount.dot")
+            output.graph.asInstanceOf[AbstractGraph]
+        }
+        metricsComputer.computeAndWriteMetrics(completelyNewGraph, stepCount, runTimeAnalysisMetricsOutputPath)
+        val areEqual = incrementalAnalysis.subsumedGraphsEqual(completelyNewGraph, incrementalGraph)
+        Logger.log(s"Graphs equal? $areEqual\n", Logger.U)
+        assert(areEqual)
+      })
     }
     wrapAbstractEvaluation(applyEdgeActions)
   }
