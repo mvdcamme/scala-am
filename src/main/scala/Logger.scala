@@ -25,14 +25,14 @@ object Logger {
   val U = LogLevel.Urgent
   val N = LogLevel.NoLogging
 
-  def log(message: String, messageLevel: LogLevel.Value): Unit = {
+  private def internalLog(message: => String, messageLevel: LogLevel.Value): Unit = {
     if (messageLevel >= GlobalFlags.level) {
       println(message)
     }
   }
 
-  def log(messageObject: Object, messageLevel: LogLevel.Value): Unit = {
-    log(messageObject.toString, messageLevel)
+  def log(messageObject: => Object, messageLevel: LogLevel.Value): Unit = {
+    internalLog(messageObject.toString, messageLevel)
   }
 
 }
