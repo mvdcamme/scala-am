@@ -192,7 +192,7 @@ object Config {
                     resultsPath: String = "benchmark_times.txt",
                     analysisPath: Option[String] = None,
                     tracingFlags: TracingFlags = TracingFlags(),
-                    incrementalOptimisation: Boolean = false)
+                    incrementalOptimisation: Boolean = true)
 
   val parser = new scopt.OptionParser[Config]("scala-am") {
     head("scala-am", "0.0")
@@ -205,8 +205,8 @@ object Config {
     opt[Unit]('c', "concrete") action { (_, c) =>
       c.copy(concrete = true)
     } text ("Lattice to use (Concrete, Type, TypeSet)")
-    opt[Unit]('q', "incremental optimisation") action { (_, c) =>
-      c.copy(incrementalOptimisation = true)
+    opt[Unit]('q', "Turn optimisation of incremental analysis OFF") action { (_, c) =>
+      c.copy(incrementalOptimisation = false)
     } text ("Run in concrete mode")
     opt[String]('d', "dotfile") action { (x, c) =>
       c.copy(dotfile = Some(x))
