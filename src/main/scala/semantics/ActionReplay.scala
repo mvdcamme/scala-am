@@ -1,4 +1,5 @@
 trait ActionReplay[Exp, Abs, Addr] {
+  def marksFunctionCall: Boolean = false
   def popsKont: Boolean = false
   def ticksTime: Boolean = false
 }
@@ -66,7 +67,9 @@ case class ActionEvalPushDataR[Exp: Expression, Abs: JoinLattice, Addr: Address]
 abstract class ActionFunCallMarkR[Exp: Expression, Abs: JoinLattice, Addr: Address](
     val fExp: Exp,
     val fValue: Abs)
-    extends ActionReplay[Exp, Abs, Addr]
+    extends ActionReplay[Exp, Abs, Addr] {
+  override def marksFunctionCall = true
+}
 
 case class ActionLookupAddressR[Exp: Expression, Abs: JoinLattice, Addr: Address](
     a: Addr)

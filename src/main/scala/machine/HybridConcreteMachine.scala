@@ -389,15 +389,23 @@ class HybridConcreteMachine[
         val a = state.a
         val t = state.t
 
+        def handleFunctionCalled(edgeInfo: EdgeInformation[SchemeExp, ConcreteValue, HybridAddress.A]): Unit = {
+          if (edgeInfo.actions.exists(_.marksFunctionCall)) {
+            FunctionsCalledMetric.incConcreteFunctionsCalled()
+          }
+        }
+
         case class StepSucceeded(state: State,
                                  filters: FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A],
                                  actionTs: List[ActionReplay[SchemeExp, ConcreteValue, HybridAddress.A]])
 
         def step(control: Control): Either[ConcreteMachineOutput, StepSucceeded] = control match {
           case ControlEval(e, env) =>
-            val edges = sem.stepEval(e, env, store, t)
-            if (edges.size == 1) {
-              edges.head match {
+            val edgeInfos = sem.stepEval(e, env, store, t)
+            if (edgeInfos.size == 1) {
+              val onlyEdgeInfo = edgeInfos.head
+              handleFunctionCalled(onlyEdgeInfo)
+              onlyEdgeInfo match {
                 case EdgeInformation(ActionReachedValue(v, store2, _), actions, semanticsFilters) =>
                   val machineFilters = Set[MachineFilterAnnotation]()
                   Right(StepSucceeded(State(ControlKont(v), store2, kstore, a, time.tick(t)),
@@ -431,7 +439,7 @@ class HybridConcreteMachine[
               Left(ConcreteMachineOutputError(
                 (System.nanoTime - start) / Math.pow(10, 9),
                 count,
-                s"execution was not concrete (got ${edges.size} actions instead of 1)"))
+                s"execution was not concrete (got ${edgeInfos.size} actions instead of 1)"))
             }
 
           case ControlKont(v) =>
@@ -448,9 +456,11 @@ class HybridConcreteMachine[
                 val originFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
                 val oldA = state.a
                 val a = frames.head.next
-                val edges = sem.stepKont(v, frame, store, t)
-                if (edges.size == 1) {
-                  edges.head match {
+                val edgeInfos = sem.stepKont(v, frame, store, t)
+                if (edgeInfos.size == 1) {
+                  val onlyEdgeInfo = edgeInfos.head
+                  handleFunctionCalled(onlyEdgeInfo)
+                  onlyEdgeInfo match {
                     case EdgeInformation(ActionReachedValue(v, store2, _), actions, semanticsFilters) =>
                       val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                                                                         FrameFollowed[ConcreteValue](originFrameCast))
@@ -474,7 +484,6 @@ class HybridConcreteMachine[
                                           FilterAnnotations(machineFilters, semanticsFilters),
                                           actions))
                     case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
-                      ClosuresCalledMetric.incConcreteClosuresCalled()
                       val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                                                                         EvaluatingExpression(e),
                                                                         FrameFollowed[ConcreteValue](originFrameCast))
@@ -491,7 +500,7 @@ class HybridConcreteMachine[
                   Left(ConcreteMachineOutputError(
                     (System.nanoTime - start) / Math.pow(10, 9),
                     count,
-                    s"execution was not concrete (got ${edges.size} actions instead of 1)"))
+                    s"execution was not concrete (got ${edgeInfos.size} actions instead of 1)"))
                 }
               } else {
                 Left(ConcreteMachineOutputError(
@@ -551,7 +560,7 @@ class HybridConcreteMachine[
         sem.initialStore))
     pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState)
 
-    ClosuresCalledMetric.resetConcreteClosuresCalled()
+    FunctionsCalledMetric.resetConcreteFunctionsCalled()
     loop(initialState,
          System.nanoTime,
          0,
