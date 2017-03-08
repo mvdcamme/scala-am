@@ -142,7 +142,7 @@ class PointsToAnalysisLauncher[
                                    (addr) =>
                                      !HybridAddress.isAddress.isPrimitive(
                                        addr))(startState, false, stepSwitched)
-        Logger.log(s"Static points-to analysis result is $result", Logger.D)
+        Logger.log(s"Static points-to analysis result is $result", Logger.U)
         result
       })
   }
