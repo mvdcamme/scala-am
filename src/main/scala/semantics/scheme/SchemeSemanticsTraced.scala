@@ -286,10 +286,8 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
               TypeError(λ.toString, "operator", "closure", "not a closure"))))
       })
 
-    val fromPrim = sabs
-      .getPrimitives(function)
-      .map((prim) => {
-        val primCallAction = ActionPrimCallT(valsToPop, fexp, actualPars)
+    val fromPrim = sabs.getPrimitives(function).map( (prim) => {
+        val primCallAction = ActionPrimCallT(valsToPop, fexp, actualPars, function)
         val allActions = commonActions :+ primCallAction :+ actionEndPrimCall :+ actionPopKont
         InterpreterStep[SchemeExp, Abs, Addr](
           allActions,

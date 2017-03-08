@@ -236,7 +236,7 @@ case class AmbProgramState[Exp: Expression](normalState: ProgramState[Exp],
             normalState.kstore.lookup(normalState.a).head.frame)
         addFailAction(sem, action, failAction)
       }
-    case ActionPrimCallT(n, fExp, argsExps) =>
+    case ActionPrimCallT(n, fExp, argsExps, _) =>
       val (vals, _) = normalState.vStack.splitAt(n)
       val actionsSaveVal = vals.map({
         (storable: Storable[ConcreteValue, HybridAddress.A]) =>

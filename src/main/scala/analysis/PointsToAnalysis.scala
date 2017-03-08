@@ -120,7 +120,7 @@ class PointsToAnalysisLauncher[
   val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]
 
   val pointsToAnalysis = new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
-  val metricsComputer = new CountClosureCalls[SchemeExp, Abs, HybridAddress.A, aam.State]
+  val metricsComputer = new CountFunCalls[SchemeExp, Abs, HybridAddress.A, aam.State]
 
   val incrementalMetricsOutputPath = s"${GlobalFlags.ANALYSIS_PATH}Closures_Points_To/incremental.txt"
   val initialMetricsOutputPath = s"${GlobalFlags.ANALYSIS_PATH}Closures_Points_To/initial_analysis.txt"

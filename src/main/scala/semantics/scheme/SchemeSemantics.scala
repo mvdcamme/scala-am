@@ -84,7 +84,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       .getClosures[SchemeExp, Addr](function)
       .map({
         case (lambda@(SchemeLambda(args, body, pos)), env1) =>
-          val cloCall =  ActionClosureCallR[SchemeExp, Abs, Addr](fexp, function, lambda)
+          val cloCall =  ActionClosureCallMarkR[SchemeExp, Abs, Addr](fexp, function, lambda)
           if (args.length == argsv.length) {
             bindArgs(args.zip(argsv), env1, store, t) match {
               case (env2, store, boundAddresses) =>
@@ -111,21 +111,19 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           noEdgeInfos(ActionError[SchemeExp, Abs, Addr](error), List(actionError))
       })
     /* TODO take into account store changes made by the application of the primitives */
-    val fromPrim = sabs
-      .getPrimitives[Addr, Abs](function)
-      .flatMap(
-        prim =>
-          prim
-            .call(fexp, argsv, store, t)
-            .collect({
-                       case (res, store2, effects) =>
-                         val n = argsv.size + 1 // Number of values to pop: all arguments + the operator
-                         val applyPrim = ActionPrimCallT[SchemeExp, Abs, Addr](argsv.size + 1, fexp, argsv.map(_._1))
-                         val action = ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects)
-                         noEdgeInfosSet(action, List(applyPrim))
-                     },
-                     err =>
-                       simpleAction(ActionError[SchemeExp, Abs, Addr](err))))
+    val fromPrim = sabs.getPrimitives[Addr, Abs](function).flatMap( (prim) => {
+      val n = argsv.size + 1 // Number of values to pop: all arguments + the operator
+      val applyPrim = ActionPrimCallT[SchemeExp, Abs, Addr](n, fexp, argsv.map(_._1), function)
+      prim.call(fexp, argsv, store, t).collect[EdgeInformation[SchemeExp, Abs, Addr]]({
+        case (res, store2, effects) =>
+          val action = ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects)
+          noEdgeInfosSet(action, List(applyPrim, applyPrim))
+      },
+        err => {
+          val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
+          noEdgeInfosSet(ActionError[SchemeExp, Abs, Addr](err), List(actionError, applyPrim))
+        })
+    })
     if (fromClo.isEmpty && fromPrim.isEmpty) {
       simpleAction(ActionError[SchemeExp, Abs, Addr](TypeError(function.toString, "operator", "function", "not a function")))
     } else {

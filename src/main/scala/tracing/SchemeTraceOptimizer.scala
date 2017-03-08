@@ -391,7 +391,7 @@ class SchemeTraceOptimizer[Abs: ConstantableLatticeInfoProvider](
                                                 ConcreteValue,
                                                 HybridAddress.A]])
             actionStatePrimCall match {
-              case Some((ActionPrimCallT(n, _, _), infos)) =>
+              case Some((ActionPrimCallT(n, _, _, _), infos)) =>
                 infos.flatMap[Trace]({
                   case PrimitiveAppliedInfo(_, _) => true; case _ => false
                 }, {
@@ -493,9 +493,7 @@ class SchemeTraceOptimizer[Abs: ConstantableLatticeInfoProvider](
 
     def loop(trace: Trace, acc: Trace): Trace = trace match {
       case Nil => acc.reverse
-      case (actionState1 @ (_, infos)) :: (actionState2 @ (
-          ActionPrimCallT(n, fExp, argsExps),
-          _)) :: rest =>
+      case (actionState1 @ (_, infos)) :: (actionState2 @ (ActionPrimCallT(n, fExp, argsExps, _), _)) :: rest =>
         infos.find[Trace]({
           case PrimitiveAppliedInfo(_, _) => true; case _ => false
         }, {
