@@ -7,6 +7,7 @@ class CountFunCalls[Exp : Expression,
                     Addr : Address,
                     State <: StateTrait[Exp, Abs, Addr, _]] {
 
+  val sabs = implicitly[IsSchemeLattice[Abs]]
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
 
@@ -19,7 +20,10 @@ class CountFunCalls[Exp : Expression,
         val actionEdge = edge._1.actions
         actionEdge.foldLeft(map)( (map, actionR) => actionR match {
           case actionR: ActionFunCallMarkR[Exp, Abs, Addr] =>
-            map + (actionR.fExp -> (map.getOrElse(actionR.fExp, Set()) + actionR.fValue))
+            val flattenedClosures: Set[Abs] = sabs.getClosures(actionR.fValue).map(sabs.inject[Exp, Addr])
+            val flattenedPrimitives: Set[Abs] = sabs.getPrimitives(actionR.fValue).map(sabs.inject[Addr, Abs])
+            val allFunctions = flattenedClosures ++ flattenedPrimitives
+            map + (actionR.fExp -> (map.getOrElse(actionR.fExp, Set()) ++ allFunctions))
           case _ =>
             map
         })
@@ -31,7 +35,7 @@ class CountFunCalls[Exp : Expression,
     map.foreach( (tuple) => {
       Logger.log(s"Call site at ${tuple._1} with values ${tuple._2}", Logger.E)
     })
-    CountedFunCalls(map.size, map.values.foldLeft(0)((sum, set) => sum + set.size))
+    CountedFunCalls(map.size, map.values.foldLeft(0)( (sum, set) => sum + set.size) )
   }
 
   def computeAndWriteMetrics(graph: AbstractGraph, stepCount: Int, path: String): Unit = {
