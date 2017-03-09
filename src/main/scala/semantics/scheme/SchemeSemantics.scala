@@ -84,44 +84,47 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       .getClosures[SchemeExp, Addr](function)
       .map({
         case (lambda@(SchemeLambda(args, body, pos)), env1) =>
-          val cloCall =  ActionClosureCallMarkR[SchemeExp, Abs, Addr](fexp, function, lambda)
+          val cloCall = ActionClosureCallR[SchemeExp, Abs, Addr](fexp, lambda, env1)
           if (args.length == argsv.length) {
             bindArgs(args.zip(argsv), env1, store, t) match {
               case (env2, store, boundAddresses) =>
                 val defAddr = ActionDefineAddressesPopR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
                 val timeTick = ActionTimeTickExpR[SchemeExp, Abs, Addr](fexp)
-                val makeActionRs = (edgeAnnotation: ActionReplay[SchemeExp, Abs, Addr]) => List(defAddr, edgeAnnotation, cloCall, timeTick)
+                val makeActionRs = (edgeAnnotation: ActionReplay[SchemeExp, Abs, Addr]) =>
+                  List(defAddr, edgeAnnotation, timeTick, cloCall)
                 if (body.length == 1) {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), body.head, env2, store, argsv)
-                  noEdgeInfos(action, makeActionRs(ActionEvalR(body.head, env2)))
+                  EdgeInformation(action, makeActionRs(ActionEvalR(body.head, env2)), Set())
                 }
                 else {
                   val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), SchemeBegin(body, pos), env2, store, argsv)
-                  noEdgeInfos(action, makeActionRs(ActionEvalR[SchemeExp, Abs, Addr](SchemeBegin(body, pos), env2)))
+                  EdgeInformation(action, makeActionRs(ActionEvalR[SchemeExp, Abs, Addr](SchemeBegin(body, pos),
+                    env2)), Set())
                 }
             }
           } else {
             val error = ArityError(fexp.toString, args.length, argsv.length)
             val actionError = ActionErrorT[SchemeExp, Abs, Addr](error)
-            noEdgeInfos(ActionError[SchemeExp, Abs, Addr](error), List(actionError, cloCall))
+            EdgeInformation(ActionError[SchemeExp, Abs, Addr](error), List(actionError, cloCall), Set())
           }
-        case (lambda, _) =>
+        case (lambda, env) =>
+          val cloCall = ActionClosureCallR[SchemeExp, Abs, Addr](fexp, lambda, env)
           val error = TypeError(lambda.toString, "operator", "closure", "not a closure")
           val actionError = ActionErrorT[SchemeExp, Abs, Addr](error)
-          noEdgeInfos(ActionError[SchemeExp, Abs, Addr](error), List(actionError))
+          noEdgeInfos(ActionError[SchemeExp, Abs, Addr](error), List(actionError, cloCall))
       })
     /* TODO take into account store changes made by the application of the primitives */
     val fromPrim = sabs.getPrimitives[Addr, Abs](function).flatMap( (prim) => {
       val n = argsv.size + 1 // Number of values to pop: all arguments + the operator
-      val applyPrim = ActionPrimCallT[SchemeExp, Abs, Addr](n, fexp, argsv.map(_._1), function)
+      val applyPrim = ActionPrimCallT[SchemeExp, Abs, Addr](n, fexp, argsv.map(_._1), sabs.inject(prim))
       prim.call(fexp, argsv, store, t).collect[EdgeInformation[SchemeExp, Abs, Addr]]({
         case (res, store2, effects) =>
           val action = ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects)
-          noEdgeInfosSet(action, List(applyPrim))
+          Set(EdgeInformation[SchemeExp, Abs, Addr](action, List(applyPrim), Set()))
       },
         err => {
           val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
-          noEdgeInfosSet(ActionError[SchemeExp, Abs, Addr](err), List(actionError, applyPrim))
+          Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
         })
     })
     if (fromClo.isEmpty && fromPrim.isEmpty) {

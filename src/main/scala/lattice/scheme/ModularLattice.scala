@@ -977,9 +977,7 @@ class PointsToLattice(counting: Boolean) extends SchemeLattice {
           case lattice.Char(c) =>
             PointsToChar.pointsTo(c)
           case lattice.Symbol(sym) =>
-            val res = PointsToSymbol.pointsTo(sym)
-            println(res)
-            res
+            PointsToSymbol.pointsTo(sym)
           case _ => Some(0)
         }
 

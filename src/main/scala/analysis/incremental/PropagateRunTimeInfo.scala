@@ -81,7 +81,7 @@ class PropagateRunTimeInfo[Exp: Expression,
      */
     val (edgesWith, edgesWithout) = edges.partition( (edge) => {
       val filters = edge._1.filters
-      filters.machineExists((machineFilter: MachineFilterAnnotation) => machineFilter match {
+      filters.machineExists({
         case annot: FrameFollowed[Abs] =>
           frameLeadsToClosureCall(annot.frame).isDefined
         case _ =>
@@ -93,8 +93,8 @@ class PropagateRunTimeInfo[Exp: Expression,
       val actualClosures = sabs.getClosures(relevantFrame.f)
       val actualLambdas: Set[Exp] = actualClosures.map(_._1)
       val result: Set[Edge] = edgesWith.filter( (edge: Edge) => {
-        edge._1.actions.exists({
-          case actionClosureCall: ActionClosureCallMarkR[Exp, Abs, Addr] =>
+        edge._1.filters.machineExists({
+          case actionClosureCall: ClosureCallMark[Exp, Abs] =>
             actualLambdas.contains(actionClosureCall.lambda)
           case _ =>
             false

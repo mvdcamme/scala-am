@@ -6,6 +6,24 @@ trait SemanticsFilterAnnotation extends FilterAnnotation
 case object ElseBranchTaken extends SemanticsFilterAnnotation
 case object ThenBranchTaken extends SemanticsFilterAnnotation
 
+
+abstract class FunCallMark[Exp: Expression, Abs: JoinLattice](
+    val fExp: Exp,
+    val fValue: Abs)
+  extends MachineFilterAnnotation {
+}
+
+case class ClosureCallMark[Exp: Expression, Abs: JoinLattice](
+    override val fExp: Exp,
+    closureValue: Abs,
+    lambda: Exp)
+    extends FunCallMark[Exp, Abs](fExp, closureValue)
+
+case class PrimCallMark[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    override val fExp: Exp,
+    primValue: Abs)
+    extends FunCallMark[Exp, Abs](fExp, primValue)
+
 /*
  * Control-flow split due to spurious return: check continuation frame used.
  */

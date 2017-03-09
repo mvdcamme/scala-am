@@ -183,13 +183,14 @@ case class ActionPopKontT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
     with PopsKStack[Exp, Abs, Addr] with ActionReplay[Exp, Abs, Addr]
 case class ActionPrimCallT[Exp: Expression, Abs: JoinLattice, Addr: Address](
     n: Integer,
-    override val fExp: Exp,
+    fExp: Exp,
     argsExps: List[Exp],
-    override val fValue: Abs)
-    extends ActionFunCallMarkR[Exp, Abs, Addr](fExp, fValue) with ActionTrace[Exp, Abs, Addr]
+    fValue: Abs)
+    extends ActionTrace[Exp, Abs, Addr] with ActionReplay[Exp, Abs, Addr]
     with ChangesValueReg[Exp, Abs, Addr]
     with PopsValue[Exp, Abs, Addr] {
   override def popsKont = true
+  override def marksFunctionCall = true
 }
 case class ActionPushValT[Exp: Expression, Abs: JoinLattice, Addr: Address]()
     extends ActionTrace[Exp, Abs, Addr] with ActionReplay[Exp, Abs, Addr]

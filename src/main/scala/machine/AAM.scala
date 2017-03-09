@@ -20,6 +20,8 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     extends EvalKontMachine[Exp, Abs, Addr, Time]
     with ProducesStateGraph[Exp, Abs, Addr, Time] {
 
+  val sabs = implicitly[IsSchemeLattice[Abs]]
+
   type MachineState = State
   type GraphNode = State
   override type MachineOutput = AAMOutput
@@ -61,7 +63,14 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
                           actionChanges: Set[EdgeInformation[Exp, Abs, Addr]]): Set[EdgeComponents] =
       actionChanges.map( (edgeInformation) => {
         val actions = edgeInformation.actions
-        val filters = FilterAnnotations[Exp, Abs, Addr](Set(), edgeInformation.semanticsFilters)
+        /* If step applied a primitive, generate a filter for it */
+        val primCallFilter = actions.foldLeft[Set[MachineFilterAnnotation]](Set())( (set, actionR) => actionR match {
+          case primCall: ActionPrimCallT[Exp, Abs, Addr] =>
+            Set(PrimCallMark(primCall.fExp, primCall.fValue))
+          case _ =>
+            Set()
+        })
+        val filters = FilterAnnotations[Exp, Abs, Addr](primCallFilter, edgeInformation.semanticsFilters)
         edgeInformation.action match {
           /* When a value is reached, we go to a continuation state */
           case ActionReachedValue(v, store, _) =>
@@ -82,9 +91,10 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
                            filters,
                            actions)
           /* When a function is stepped in, we also go to an eval state */
-          case ActionStepIn(fexp, _, e, env, store, _, _) =>
+          case ActionStepIn(fexp, clo, e, env, store, _, _) =>
+            val closureFilter =  ClosureCallMark[Exp, Abs](fexp, sabs.inject[Exp, Addr](clo._1, clo._2), clo._1)
             EdgeComponents(State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)),
-                           filters,
+                           filters + closureFilter,
                            actions)
           /* When an error is reached, we go to an error state */
           case ActionError(err) =>
@@ -556,11 +566,12 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       case a: ActionAllocAddressesR[Exp, Abs, Addr] =>
         val newStore = a.addresses.foldLeft(state.store)( (store, address) => store.extend(address, abs.bottom))
         Set(noEdgeFilters(state.copy(store = newStore)))
-      case ActionClosureCallMarkR(_, _, _) =>
-        /* Don't have to do anything. */
-        Set(noEdgeFilters(state))
+      case ActionClosureCallR(fExp, lam, env) =>
+        val closure = sabs.inject(lam, env)
+        val filter = ClosureCallMark(fExp, closure, lam)
+        Set((state, Set[MachineFilterAnnotation](filter)))
       case a: ActionCreateClosureT[Exp, Abs, Addr] =>
-        val closure = implicitly[IsSchemeLattice[Abs]].inject[Exp, Addr]((a.λ, a.env.get))
+        val closure = sabs.inject[Exp, Addr]((a.λ, a.env.get))
         Set(noEdgeFilters(state.copy(control = ControlKont(closure))))
       case a: ActionDefineAddressesPopR[Exp, Abs, Addr] =>
         val statesKonts = defineAddresses(state, a.addresses)
@@ -575,14 +586,14 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         Set(noEdgeFilters(state.copy(control = ControlError(err))))
       case a: ActionEvalR[Exp, Abs, Addr] =>
         val evaluatingExp = addEvaluateExp(a.e)
-        Set((state.copy(control = ControlEval(a.e, a.env)), Set(evaluatingExp)))
+        Set((state.copy(control = ControlEval(a.e, a.env)), Set[MachineFilterAnnotation](evaluatingExp)))
       case ActionEvalPushR(e, env, frame) =>
         val next = NormalKontAddress[Exp, Time](e, state.t)
         val kont = Kont(frame, state.a)
         val evaluatingExp = addEvaluateExp(e)
         val pushedAddr = addKontAddrPushed(next)
         val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
-        Set((newState, Set(evaluatingExp, pushedAddr)))
+        Set((newState, Set[MachineFilterAnnotation](evaluatingExp, pushedAddr)))
       case ActionEvalPushDataR(e, env, frameGenerator) =>
         val next = NormalKontAddress[Exp, Time](e, state.t)
         val currentValue = assertedGetControlKontValue(state)
@@ -591,7 +602,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         val evaluatingExp = addEvaluateExp(e)
         val pushedAddr = addKontAddrPushed(next)
         val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
-        Set((newState, Set(evaluatingExp, pushedAddr)))
+        Set((newState, Set[MachineFilterAnnotation](evaluatingExp, pushedAddr)))
       case a: ActionLookupAddressR[Exp, Abs, Addr] =>
         val value = state.store.lookup(a.a) match {
           case Some(value) =>
@@ -609,15 +620,15 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
           assert(values.length == a.argsExps.length + 1, s"Length of ${a.argsExps} does not match length of $values")
           val operator = values.head
           val operands = values.tail :+ assertedGetControlKontValue(state)
-          val primitives = implicitly[IsSchemeLattice[Abs]].getPrimitives[Addr, Abs](operator)
+          val primitives = sabs.getPrimitives[Addr, Abs](operator)
           val filterEdge = addKontFilterAnnotations(state.a, kont)
-          primitives.flatMap((primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store, state.t)
+          primitives.flatMap( (primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store, state.t)
             .collect({
               case (res, store2, effects) =>
-                Set((state.copy(control = ControlKont(res), store = store2, a = kont.next), filterEdge))
+                Set((state.copy(control = ControlKont(res), store = store2, a = kont.next), filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive))))
             },
               err =>
-                Set((state.copy(control = ControlError(err), a = kont.next), filterEdge))))
+                Set((state.copy(control = ControlError(err), a = kont.next), filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive))))))
         })
       case a: ActionReachedValueT[Exp, Abs, Addr] =>
         val storeChanges = a.storeChanges
@@ -654,14 +665,14 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
 
     def evaluatedFalse(state: State): Boolean = state.control match {
       case ControlKont(v) =>
-        implicitly[IsSchemeLattice[Abs]].isFalse(v)
+        sabs.isFalse(v)
       case _ =>
         false
     }
 
     def evaluatedTrue(state: State): Boolean = state.control match {
       case ControlKont(v) =>
-        implicitly[IsSchemeLattice[Abs]].isTrue(v)
+        sabs.isTrue(v)
       case _ =>
         false
     }
