@@ -534,7 +534,16 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     protected def defineAddresses(state: State, addresses: List[Addr]): Set[(State, Kont[KontAddr])] = {
       val incompleteValuesKontsSet = frameSavedValues(state.a, state.kstore)
       incompleteValuesKontsSet.map({ case (values, kont) =>
-        val completeValues = addControlKontValue(state, values)
+        /*
+         * The value saved in the ControlKont only needs to be added if there are addresses to define now.
+         * If there are no addresses, e.g., because a function without any formal parameters is being called,
+         * the value saved in the ControlKont should not be used.
+         */
+        val completeValues = if (addresses.isEmpty) {
+          values
+        } else {
+          addControlKontValue(state, values)
+        }
         assert(completeValues.length == addresses.length, s"Length of $addresses does not match length of $completeValues")
         val addressValues = addresses.zip(completeValues) //TODO why do we need to reverse the arguments???
         val newStore = addressValues.foldLeft(state.store)((store, tuple) => store.extend(tuple._1, tuple._2))
