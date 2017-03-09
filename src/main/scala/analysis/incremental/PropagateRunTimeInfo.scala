@@ -366,7 +366,7 @@ class PropagateRunTimeInfo[Exp: Expression,
       val rootStateCombos = rootNodes.map( (state) => StateCombo(state, convertedState) )
       evalLoop(TodoPair.init(rootStateCombos),
                Set(),
-               new HyperlinkedGraph[State, EdgeAnnotation2],
+               new HyperlinkedGraph[State, EdgeAnnotation2](convertedState),
                stepCount,
                initialGraph,
                prunedGraph)
