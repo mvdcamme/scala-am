@@ -17,13 +17,13 @@ class CountFunCalls[Exp : Expression,
       val edges = tuple._2
       /* Count number of ActionFunctionCallMarkR in the actionEdges going outwards from the state. */
       edges.foldLeft(map)( (map, edge) => {
-        val actionEdge = edge._1.actions
-        actionEdge.foldLeft(map)( (map, actionR) => actionR match {
-          case actionR: ActionFunCallMarkR[Exp, Abs, Addr] =>
-            val flattenedClosures: Set[Abs] = sabs.getClosures(actionR.fValue).map(sabs.inject[Exp, Addr])
-            val flattenedPrimitives: Set[Abs] = sabs.getPrimitives(actionR.fValue).map(sabs.inject[Addr, Abs])
+        val machineFilters = edge._1.filters.machineFilters
+        machineFilters.foldLeft(map)( (map, actionR) => actionR match {
+          case filter: FunCallMark[Exp, Abs] =>
+            val flattenedClosures: Set[Abs] = sabs.getClosures(filter.fValue).map(sabs.inject[Exp, Addr])
+            val flattenedPrimitives: Set[Abs] = sabs.getPrimitives(filter.fValue).map(sabs.inject[Addr, Abs])
             val allFunctions = flattenedClosures ++ flattenedPrimitives
-            map + (actionR.fExp -> (map.getOrElse(actionR.fExp, Set()) ++ allFunctions))
+            map + (filter.fExp -> (map.getOrElse(filter.fExp, Set()) ++ allFunctions))
           case _ =>
             map
         })

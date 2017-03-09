@@ -11,11 +11,16 @@ case class ActionAllocAddressesR[Exp: Expression, Abs: JoinLattice, Addr: Addres
     addresses: List[Addr])
     extends ActionReplay[Exp, Abs, Addr]
 
-case class ActionClosureCallMarkR[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    override val fExp: Exp,
-    override val fValue: Abs,
-    lambda: Exp)
-    extends ActionFunCallMarkR[Exp, Abs, Addr](fExp, fValue)
+/*
+ * Signals that a closure must be called.
+ */
+case class ActionClosureCallR[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    fExp: Exp,
+    lambda: Exp,
+    env: Environment[Addr])
+    extends ActionReplay[Exp, Abs, Addr] {
+  override def marksFunctionCall = true
+}
 
 /*
  * Extend store with these addresses and initialize them to their corresponding value on the stack.
@@ -63,13 +68,6 @@ case class ActionEvalPushDataR[Exp: Expression, Abs: JoinLattice, Addr: Address]
     frameGenerator: Abs => Frame)
     extends ActionReplay[Exp, Abs, Addr]
     with PushesKStack[Exp, Abs, Addr]
-
-abstract class ActionFunCallMarkR[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    val fExp: Exp,
-    val fValue: Abs)
-    extends ActionReplay[Exp, Abs, Addr] {
-  override def marksFunctionCall = true
-}
 
 case class ActionLookupAddressR[Exp: Expression, Abs: JoinLattice, Addr: Address](
     a: Addr)
