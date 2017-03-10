@@ -5,7 +5,8 @@ import ConcreteConcreteLattice.ConcreteValue
 class HybridConcreteMachine[
     PAbs: IsConvertableLattice: PointsToableLatticeInfoProvider](
     pointsToAnalysisLauncher: PointsToAnalysisLauncher[PAbs],
-    tracingFlags: TracingFlags)(implicit unused1: IsSchemeLattice[ConcreteConcreteLattice.L])
+    analysisFlags: AnalysisFlags)(
+    implicit unused1: IsSchemeLattice[ConcreteConcreteLattice.L])
     extends EvalKontMachine[SchemeExp,
                             ConcreteConcreteLattice.L,
                             HybridAddress.A,
@@ -364,15 +365,19 @@ class HybridConcreteMachine[
     ConcreteMachineOutput = {
 
       Logger.log(s"stepCount: $stepCount", Logger.N)
-      tracingFlags.RUNTIME_ANALYSIS_INTERVAL match {
+      analysisFlags.runTimeAnalysisInterval match {
         case NoRunTimeAnalysis =>
-        case RegularRunTimeAnalysisEveryStep =>
-          pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
-        case RunTimeAnalysisEvery(analysis_interval) =>
-          if (stepCount % analysis_interval == 0) {
+        case RunTimeAnalysisEvery(analysisInterval) =>
+          if (stepCount % analysisInterval == 0) {
+            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
+          }
+      }
+      analysisFlags.incrementalAnalysisInterval match {
+        case NoIncrementalAnalysis =>
+        case IncrementalAnalysisEvery(analysisInterval) =>
+          if (stepCount % analysisInterval == 0) {
             pointsToAnalysisLauncher.filterReachable(stepCount)
             pointsToAnalysisLauncher.applyEdgeActions(state, stepCount)
-//          pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
           }
       }
 

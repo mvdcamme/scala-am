@@ -191,8 +191,8 @@ object Config {
                     amb: Boolean = false,
                     resultsPath: String = "benchmark_times.txt",
                     analysisPath: Option[String] = None,
-                    tracingFlags: TracingFlags = TracingFlags(),
-                    incrementalOptimisation: Boolean = true)
+                    analysisFlags: AnalysisFlags = AnalysisFlags(),
+                    tracingFlags: TracingFlags = TracingFlags())
 
   val parser = new scopt.OptionParser[Config]("scala-am") {
     head("scala-am", "0.0")
@@ -204,9 +204,6 @@ object Config {
     } text ("Lattice to use (Concrete, Type, TypeSet)")
     opt[Unit]('c', "concrete") action { (_, c) =>
       c.copy(concrete = true)
-    } text ("Lattice to use (Concrete, Type, TypeSet)")
-    opt[Unit]('q', "Turn optimisation of incremental analysis OFF") action { (_, c) =>
-      c.copy(incrementalOptimisation = false)
     } text ("Run in concrete mode")
     opt[String]('d', "dotfile") action { (x, c) =>
       c.copy(dotfile = Some(x))
@@ -234,17 +231,25 @@ object Config {
         c.copy(tracingFlags = c.tracingFlags.copy(OPTIMIZATION = optimization))
       }
     } text ("Apply (dynamic) optimizations")
-    opt[String]("rt_analysis_interval") action { (s, c) =>
-      {
-        val rtAnalysisInterval = s match {
-          case "R" | "r" => RegularRunTimeAnalysisEveryStep
-          case "N" | "n" | "None" | "none" => NoRunTimeAnalysis
-          case _ => RunTimeAnalysisEvery(Integer.parseInt(s))
+    opt[String]("inc_analysis") action { (s, c) => {
+        val incrAnalysisInterval = s match {
+          case "N" | "n" | "None" | "none" => NoIncrementalAnalysis
+          case _ => IncrementalAnalysisEvery(Integer.parseInt(s))
         }
-        c.copy(tracingFlags =
-          c.tracingFlags.copy(RUNTIME_ANALYSIS_INTERVAL = rtAnalysisInterval))
+        c.copy(analysisFlags = c.analysisFlags.copy(incrementalAnalysisInterval = incrAnalysisInterval))
       }
-    } text ("Launch a run-time analysis every x execution steps")
+    } text ("Launch an incremental analysis every x execution steps")
+    opt[String]("rt_analysis") action { (s, c) => {
+      val runTimeAnalysisInterval: RunTimeAnalysisInterval = s match {
+        case "N" | "n" | "None" | "none" => NoRunTimeAnalysis
+        case _ => RunTimeAnalysisEvery(Integer.parseInt(s))
+      }
+      c.copy(analysisFlags = c.analysisFlags.copy(runTimeAnalysisInterval = runTimeAnalysisInterval))
+    }
+    } text ("Launch an incremental analysis every x execution steps")
+    opt[Unit]('q', "incremental_optimisation") action { (_, c) =>
+      c.copy(analysisFlags = c.analysisFlags.copy(incrementalOptimisation = false))
+    } text ("Turn optimisation of incremental analysis OFF")
     opt[String]("tracing") action { (b, c) =>
       readBoolStringForTraceFlag(
         c,
@@ -487,8 +492,6 @@ object Main {
         }
         implicit val isSchemeLattice = lattice.isSchemeLattice
 
-        GlobalFlags.INCREMENTAL_OPTIMISATION = config.incrementalOptimisation
-
         val time: TimestampWrapper =
           if (config.concrete) ConcreteTimestamp else ZeroCFA
         implicit val isTimestamp = time.isTimestamp
@@ -548,9 +551,10 @@ object Main {
 
             val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsLattice.L](sem)(
                                                                                          pointsConvLattice,
-                                                                                         pointsLatInfoProv)
+                                                                                         pointsLatInfoProv,
+                                                                                         config.analysisFlags)
 
-            val machine = new HybridConcreteMachine[pointsLattice.L](pointsToAnalysisLauncher, config.tracingFlags)
+            val machine = new HybridConcreteMachine[pointsLattice.L](pointsToAnalysisLauncher, config.analysisFlags)
 
             def calcResult(program: String)() = {
               machine.eval(sem.parse(program), sem, config.dotfile.isDefined, config.timeout)
