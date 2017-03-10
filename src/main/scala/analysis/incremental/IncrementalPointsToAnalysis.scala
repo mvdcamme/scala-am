@@ -58,7 +58,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
     assertInitialized()
     Logger.log(s"Propagating run-time info for step $stepCount", Logger.U)
     lastPropagatedGraph = Some(propagateRunTimeInfo.applyEdgeActions(convertedState, stepCount, currentNodes,
-      initialGraph.get, lastPropagatedGraph.get))
+                                                                     initialGraph.get, lastPropagatedGraph.get))
     currentNodes = Set(convertedState)
     lastPropagatedGraph
   }
