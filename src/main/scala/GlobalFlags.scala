@@ -13,8 +13,6 @@ object GlobalFlags {
    */
   val level = Logger.N
 
-  var INCREMENTAL_OPTIMISATION = false
-
   var APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = false
   var APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = false
   var APPLY_OPTIMIZATION_CONSTANT_FOLDING = false

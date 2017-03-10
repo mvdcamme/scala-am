@@ -105,6 +105,7 @@ class PointsToAnalysisLauncher[
                                   ConcreteConcreteLattice.L,
                                   HybridAddress.A,
                                   HybridTimestamp.T])
+    (implicit analysisFlags: AnalysisFlags)
     extends AnalysisLauncher[Abs] {
 
   val aam: SpecAAM = new SpecAAM()

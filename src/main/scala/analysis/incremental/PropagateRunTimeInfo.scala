@@ -6,7 +6,8 @@ class PropagateRunTimeInfo[Exp: Expression,
                            Time: Timestamp,
                            State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
                           (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr]]])
-                          (implicit actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State]) {
+                          (implicit actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State],
+                                    analysisFlags: AnalysisFlags) {
 
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
@@ -355,7 +356,7 @@ class PropagateRunTimeInfo[Exp: Expression,
                        initialGraph: AbstractGraph,
                        prunedGraph: AbstractGraph): AbstractGraph = {
     rootNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.U))
-    if (GlobalFlags.INCREMENTAL_OPTIMISATION && rootNodes.size == 1 && rootNodes.head == convertedState) {
+    if (analysisFlags.incrementalOptimisation && rootNodes.size == 1 && rootNodes.head == convertedState) {
       Logger.log(s"Skipping propagation phase because convertedState equals single root state", Logger.U)
       prunedGraph
     } else {
