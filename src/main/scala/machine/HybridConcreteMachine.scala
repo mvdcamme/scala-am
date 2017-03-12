@@ -376,8 +376,7 @@ class HybridConcreteMachine[
         case NoIncrementalAnalysis =>
         case IncrementalAnalysisEvery(analysisInterval) =>
           if (stepCount % analysisInterval == 0) {
-            pointsToAnalysisLauncher.filterReachable(stepCount)
-            pointsToAnalysisLauncher.applyEdgeActions(state, stepCount)
+            pointsToAnalysisLauncher.incrementalAnalysis(state, stepCount)
           }
       }
 

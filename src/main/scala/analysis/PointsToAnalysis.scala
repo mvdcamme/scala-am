@@ -189,7 +189,7 @@ class PointsToAnalysisLauncher[
 
   def end(): Unit = incrementalAnalysis.end()
 
-  def filterReachable(stepCount: Int): Unit = {
+  protected def filterReachable(stepCount: Int): Unit = {
     val optionPrunedGraph = incrementalAnalysis.filterReachable(stepCount)
 //    optionPrunedGraph.foreach( (prunedGraph) => {
 //      metricsComputer.computeAndWriteMetrics(prunedGraph, stepCount, prunedMetricsOutputPath)
@@ -197,7 +197,7 @@ class PointsToAnalysisLauncher[
 //    })
   }
 
-  def applyEdgeActions(concreteState: PS, stepCount: Int): Unit = {
+  protected def applyEdgeActions(concreteState: PS, stepCount: Int): Unit = {
     val applyEdgeActions = () => {
       val convertedState = convertStateAAM(aam, concSem, abstSem, concreteState)
       val optionIncrementalGraph: Option[AbstractGraph] = incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
@@ -218,6 +218,13 @@ class PointsToAnalysisLauncher[
 //      })
     }
     wrapAbstractEvaluation(applyEdgeActions)
+  }
+
+  def incrementalAnalysis(concreteState: PS, stepCount: Int): Unit = {
+    filterReachable(stepCount)
+    if (analysisFlags.doPropagationPhase) {
+      applyEdgeActions(concreteState, stepCount)
+    }
   }
 
 }

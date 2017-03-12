@@ -250,6 +250,9 @@ object Config {
     opt[Unit]('q', "incremental_optimisation") action { (_, c) =>
       c.copy(analysisFlags = c.analysisFlags.copy(incrementalOptimisation = false))
     } text ("Turn optimisation of incremental analysis OFF")
+    opt[Unit]("disable_propagation") action { (_, c) =>
+      c.copy(analysisFlags = c.analysisFlags.copy(doPropagationPhase = false))
+    } text ("Disable the run-time info propagation phase in the incremental analysis")
     opt[String]("tracing") action { (b, c) =>
       readBoolStringForTraceFlag(
         c,
