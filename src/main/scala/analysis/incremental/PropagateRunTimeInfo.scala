@@ -214,14 +214,12 @@ class PropagateRunTimeInfo[Exp: Expression,
   /**
     * Checks whether the extra optimisation is applicable for the given newState.
     * @param newState
-    * @param mapping
+    * @param originalStates
     * @return
     */
   private def extraOptimisationApplicable(newState: State,
-                                          mapping: Map[State, Set[State]],
+                                          originalStates: Set[State],
                                           prunedGraph: AbstractGraph): Option[Delta] = {
-    /* Take all original states to which the newState corresponds. */
-    val originalStates = mapping(newState)
     val optionDeltas: Set[Option[(KontAddr, KontAddr)]] = originalStates.map(stateInfoProvider.deltaKStore(newState, _))
     /*
      * The delta should be the same for all original states. Otherwise, the optimisation should not be applied.
@@ -331,8 +329,12 @@ class PropagateRunTimeInfo[Exp: Expression,
           val deltasStates: Set[(Edge, State)] = viableEdges.map((edge) => (edge, delta.applyDelta(edge._2)))
           /* filter out deltas states for which optimisation is not applicable anymore */
           val (continueDeltaStates, abortDeltaStates) = deltasStates.partition({
+            /*
+             * originalEdge = an edge from the pruned graph.
+             * deltaState = the target state of the originalEdge, with the delta applied to it.
+             */
             case (originalEdge, deltaState) =>
-              val optionNewDelta = extraOptimisationApplicable(deltaState, todoForThisOptimisation.mapping, prunedGraph)
+              val optionNewDelta = extraOptimisationApplicable(deltaState, Set(originalEdge._2), prunedGraph)
               optionNewDelta.isDefined && optionNewDelta.get == delta
           })
           /* Add all edges from state to deltasStates. */
@@ -392,7 +394,7 @@ class PropagateRunTimeInfo[Exp: Expression,
           })
           evalLoop(todoPair.dropHead, visited, updatedGraph, stepCount, initialGraph, prunedGraph)
         } else {
-          val optionDelta: Option[Delta] = extraOptimisationApplicable(newState, todoPair.mapping, prunedGraph)
+          val optionDelta: Option[Delta] = extraOptimisationApplicable(newState, todoPair.mapping(newState), prunedGraph)
           if (optionDelta.isDefined) {
             Logger.log(s"Extra optimisation applicable: ${optionDelta.get}", Logger.U)
             val delta = optionDelta.get
