@@ -59,7 +59,7 @@ class FilterPropagationEdges[Exp: Expression,
         None
     }
 
-    val actualKonts = actionRApplier.getKonts(newState)
+    val actualKonts = actionRApplier.getTopKonts(newState)
     val relevantActualFrames: Set[RelevantFrame] = actualKonts.map(_.frame).flatMap((frame: Frame) => {
       val optionRelevantFrame = frameLeadsToClosureCall(frame)
       optionRelevantFrame.fold[Set[RelevantFrame]](Set())((relevantFrame: RelevantFrame) => Set(relevantFrame))

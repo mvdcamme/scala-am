@@ -677,8 +677,17 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         false
     }
 
-    def getKonts(state: State): Set[Kont[KontAddr]] =
+    def getTopKonts(state: State): Set[Kont[KontAddr]] =
       state.kstore.lookup(state.a)
+
+    def getKonts(state: State, ka: KontAddr): Set[Kont[KontAddr]] = {
+      state.kstore.lookup(ka)
+    }
+
+    def addKonts(state: State, ka: KontAddr, konts: Set[Kont[KontAddr]]): State = {
+      val newKStore = konts.foldLeft(state.kstore)( (newKStore, kont) => newKStore.extend(ka, kont) )
+      state.copy(kstore = newKStore)
+    }
 
     def joinStates(states: Set[State]): JoinedInfo = {
       val initialInfo = JoinedInfo(abs.bottom, Store.empty, KontStore.empty, Set())
@@ -696,6 +705,77 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         }
         joinedInfo.join(stateInfo)
       })
+    }
+
+  }
+
+  object AAMStateInfoProvider extends StateInfoProvider[State] {
+
+    def deltaStoreEmpty(state1: State, state2: State): Boolean = {
+      val storeDiff1 = state1.store.diff(state2.store)
+      val storeDiff2 = state2.store.diff(state1.store)
+      storeDiff1.keys.isEmpty && storeDiff2.keys.isEmpty
+    }
+
+//    (e1, e2) match {
+//      case x: (NormalKontAddress[Exp, HybridTimestamp.T], NormalKontAddress[Exp, HybridTimestamp.T]) => x match {
+//        case ()
+//      }
+//        if (x._1.)
+//      case _ =>
+//        false
+//    }
+
+    /**
+      * Expects that ka1 is the address using the concrete timestamps
+      * @param ka1
+      * @param ka2
+      * @return
+      */
+    private def isSameKontAddressModuloTimestamp(ka1: KontAddr, ka2: KontAddr): Boolean = (ka1, ka2) match {
+      case (NormalKontAddress(e1, t1), NormalKontAddress(e2, t2)) =>
+        if (e1 == e2) {
+          (t1, t2) match {
+            case (HybridTimestamp.ConcreteTime(_, a1), HybridTimestamp.AbstractTime(a2)) =>
+              a1 == a2
+            case _ =>
+              false
+          }
+        } else {
+          false
+        }
+      case _ =>
+        /* The addresses might actually be the same here (e.g., two HaltKontAddresses), but we don't care. */
+        false
+    }
+
+    /**
+      * Expects that state1 is the state using the concrete timestamps.
+      * @param state1
+      * @param state2
+      * @return
+      */
+    def deltaKStore(state1: State, state2: State): Option[(KontAddr, KontAddr)] = {
+      val kstoreDiff1 = state1.kstore.diff(state2.kstore)
+      val kstoreDiff2 = state2.kstore.diff(state1.kstore)
+      val castedKstoreDiff1 = kstoreDiff1.asInstanceOf[BasicKontStore[KontAddr]]
+      val castedKstoreDiff2 = kstoreDiff2.asInstanceOf[BasicKontStore[KontAddr]]
+      if (state1.store == state2.store && state1.a == state2.a &&
+          state1.control == state2.control && state1.t == state2.t) {
+        if (castedKstoreDiff1.content.keys.size == 1 && castedKstoreDiff2.content.keys.size == 1) {
+          val ka1 = castedKstoreDiff1.content.keys.head
+          val ka2 = castedKstoreDiff2.content.keys.head
+          if (isSameKontAddressModuloTimestamp(ka1, ka2) && state1.kstore.lookup(ka1) == state2.kstore.lookup(ka2)) {
+            Some((ka1, ka2))
+          } else {
+            None
+          }
+        } else {
+          None
+        }
+      } else {
+        None
+      }
     }
 
   }

@@ -13,7 +13,9 @@ trait ActionReplayApplier[Exp, Abs, Addr, Time, State <: StateTrait[Exp, Abs, Ad
   def evaluatedFalse(state: State): Boolean
   def evaluatedTrue(state: State): Boolean
 
-  def getKonts(state: State): Set[Kont[KontAddr]]
+  def getTopKonts(state: State): Set[Kont[KontAddr]]
+  def getKonts(state: State, ka: KontAddr): Set[Kont[KontAddr]]
+  def addKonts(state: State, ka: KontAddr, konts: Set[Kont[KontAddr]]): State
 
   case class JoinedInfo(finalValue: Abs,
                         store: Store[Addr, Abs],
