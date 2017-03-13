@@ -4,7 +4,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
                                   Abs : IsSchemeLattice,
                                   Addr : Address,
                                   Time : Timestamp,
-                                  State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
+                                  State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor : StateInfoProvider]
                                  (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr]]])
                                  (implicit actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State],
                                            analysisFlags: AnalysisFlags) {
