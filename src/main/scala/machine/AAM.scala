@@ -689,6 +689,11 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       state.copy(kstore = newKStore)
     }
 
+    def removeKonts(state: State, ka: KontAddr): State = {
+      val newKStore = state.kstore.remove(ka)
+      state.copy(kstore = newKStore)
+    }
+
     def joinStates(states: Set[State]): JoinedInfo = {
       val initialInfo = JoinedInfo(abs.bottom, Store.empty, KontStore.empty, Set())
       states.foldLeft(initialInfo)( (joinedInfo, state) => {

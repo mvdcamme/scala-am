@@ -56,6 +56,13 @@ abstract class KontStore[KontAddr: KontAddress] {
     */
   def remove(a: KontAddr, k: Kont[KontAddr]): KontStore[KontAddr]
 
+  /**
+    * Removes all Kont values associated with the KontAddr a.
+    * @param a The KontAddr for which the Kont value must be removed.
+    * @return A new KontStore in which all Konts value that map to a have been removed.
+    */
+  def remove(a: KontAddr): KontStore[KontAddr]
+
   def descriptor: Descriptor[KontStore[KontAddr]] = new BasicDescriptor[KontStore[KontAddr]]
 }
 
@@ -113,6 +120,10 @@ case class BasicKontStore[KontAddr: KontAddress](
         }
       case None => this
     }
+
+  def remove(a: KontAddr): KontStore[KontAddr] = {
+    this.copy(content = content - a)
+  }
 
   override def descriptor = new BasicKontStoreDescriptor[KontAddr]
 }
@@ -222,6 +233,10 @@ case class TimestampedKontStore[KontAddr: KontAddress](
         }
       case None => this
     }
+
+  def remove(a: KontAddr): KontStore[KontAddr] = {
+    this.copy(content = content - a)
+  }
 }
 
 object KontStore {

@@ -276,7 +276,9 @@ class PropagateRunTimeInfo[Exp: Expression,
 
     def applyDelta(state: State): State = {
       val abstractKaKonts = actionRApplier.getKonts(state, abstractKa)
-      actionRApplier.addKonts(state, concreteKa, abstractKaKonts)
+      val addedKontsState = actionRApplier.addKonts(state, concreteKa, abstractKaKonts)
+      /* Safe to remove ALL Konts at abstractKa, because there shouldn't be any Konts at abstractKa that are not */
+      actionRApplier.removeKonts(addedKontsState, abstractKa)
     }
 
   }
@@ -394,8 +396,9 @@ class PropagateRunTimeInfo[Exp: Expression,
           })
           evalLoop(todoPair.dropHead, visited, updatedGraph, stepCount, initialGraph, prunedGraph)
         } else {
-          val optionDelta: Option[Delta] = extraOptimisationApplicable(newState, todoPair.mapping(newState), prunedGraph)
-          if (optionDelta.isDefined) {
+          val applyOptimisation = true
+          lazy val optionDelta: Option[Delta] = extraOptimisationApplicable(newState, todoPair.mapping(newState), prunedGraph)
+          if (applyOptimisation && optionDelta.isDefined) {
             Logger.log(s"Extra optimisation applicable: ${optionDelta.get}", Logger.U)
             val delta = optionDelta.get
             val deltaEdgesAdded = addAllEdgesDelta(newState, todoPair.mapping, delta, visited, prunedGraph, graph)
