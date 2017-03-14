@@ -716,6 +716,8 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
 
   object AAMStateInfoProvider extends StateInfoProvider[State] {
 
+    val kaConverter = new ConvertTimestampKontAddrConverter[Exp](DefaultHybridTimestampConverter)
+
     def deltaStoreEmpty(state1: State, state2: State): Boolean = {
       val storeDiff1 = state1.store.diff(state2.store)
       val storeDiff2 = state2.store.diff(state1.store)
@@ -760,21 +762,21 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       * @param state2
       * @return
       */
-    def deltaKStore(state1: State, state2: State): Option[(KontAddr, KontAddr)] = {
+    def deltaKStore(state1: State, state2: State): Option[Iterable[(KontAddr, KontAddr)]] = {
       val kstoreDiff1 = state1.kstore.diff(state2.kstore)
       val kstoreDiff2 = state2.kstore.diff(state1.kstore)
       val castedKstoreDiff1 = kstoreDiff1.asInstanceOf[BasicKontStore[KontAddr]]
-      val castedKstoreDiff2 = kstoreDiff2.asInstanceOf[BasicKontStore[KontAddr]]
+//      val castedKstoreDiff2 = kstoreDiff2.asInstanceOf[BasicKontStore[KontAddr]]
       if (state1.store == state2.store && state1.a == state2.a &&
           state1.control == state2.control && state1.t == state2.t) {
-        if (castedKstoreDiff1.content.keys.size == 1 && castedKstoreDiff2.content.keys.size == 1) {
-          val ka1 = castedKstoreDiff1.content.keys.head
-          val ka2 = castedKstoreDiff2.content.keys.head
-          if (isSameKontAddressModuloTimestamp(ka1, ka2) && state1.kstore.lookup(ka1) == state2.kstore.lookup(ka2)) {
-            Some((ka1, ka2))
-          } else {
-            None
-          }
+        val kstoresEquivalent = kstoreDiff1.forall({
+          case (ka1, konts1) =>
+            val convertedKa1 = kaConverter.convertKontAddr(ka1)
+            val konts2 = kstoreDiff2.lookup(convertedKa1)
+            konts1 == konts2
+        })
+        if (kstoresEquivalent) {
+          Some(castedKstoreDiff1.content.keys.map( (ka: KontAddr) => (ka, kaConverter.convertKontAddr(ka)) ))
         } else {
           None
         }

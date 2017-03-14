@@ -219,8 +219,8 @@ class PropagateRunTimeInfo[Exp: Expression,
     */
   private def extraOptimisationApplicable(newState: State,
                                           originalStates: Set[State],
-                                          prunedGraph: AbstractGraph): Option[Delta] = {
-    val optionDeltas: Set[Option[(KontAddr, KontAddr)]] = originalStates.map(stateInfoProvider.deltaKStore(newState, _))
+                                          prunedGraph: AbstractGraph): Option[Iterable[Delta]] = {
+    val optionDeltas: Set[Option[Iterable[(KontAddr, KontAddr)]]] = originalStates.map(stateInfoProvider.deltaKStore(newState, _))
     /*
      * The delta should be the same for all original states. Otherwise, the optimisation should not be applied.
      * Since optionDeltas is a set, if the delta is the same everywhere, the set should only contain one item.
@@ -229,8 +229,8 @@ class PropagateRunTimeInfo[Exp: Expression,
     if (optionDeltas.size != 1 || optionDeltas.head.isEmpty) {
       None
     } else {
-      val tuple = optionDeltas.head.get
-      val delta = Delta(tuple._1, tuple._2)
+      val tuples: Iterable[(KontAddr, KontAddr)] = optionDeltas.head.get
+      val deltas: Iterable[Delta] = tuples.map( (tuple) => Delta(tuple._1, tuple._2) )
 
       /* Collect all edges going outwards from all of these original states. */
       val originalEdges: Set[Edge] = originalStates.flatMap(prunedGraph.nodeEdges)
@@ -239,19 +239,11 @@ class PropagateRunTimeInfo[Exp: Expression,
        * TODO Should also work if a couple edges actually do use this delta.
        */
 
-      if (originalEdges.forall(! usesKontAddr(_, delta.abstractKa))) {
-        Some(delta)
+      if (originalEdges.forall( (edge: Edge) => ! deltas.exists( (delta: Delta) => usesKontAddr(edge, delta.abstractKa) ) )) {
+        Some(deltas)
       } else {
         None
       }
-
-
-
-      //    if (originalStates.size == 1) {
-      //      stateInfoProvider.deltaKStore(newState, originalStates.head)
-      //    } else {
-      //      None
-      //    }
     }
   }
 
@@ -281,11 +273,14 @@ class PropagateRunTimeInfo[Exp: Expression,
       actionRApplier.removeKonts(addedKontsState, abstractKa)
     }
 
+    def relevantForEdge(edge: Edge): Boolean =
+      usesKontAddr(edge, abstractKa)
+
   }
 
   protected def addAllEdgesDelta(initialState: State,
                                  mapping: Map[State, Set[State]],
-                                 delta: Delta,
+                                 deltas: Iterable[Delta],
                                  visited: Set[State],
                                  prunedGraph: AbstractGraph,
                                  graph: AbstractGraph): DeltaEdgesAdded = {
@@ -323,12 +318,16 @@ class PropagateRunTimeInfo[Exp: Expression,
          * to be used by the main evalLoop.
          */
 
-
-          val (unviableEdges, viableEdges) = edges.partition(usesKontAddr(_, delta.abstractKa))
-          assert(unviableEdges.isEmpty, s"unviable edges are $unviableEdges")
+          /* Partition according to whether or not it uses SOME delta from the list of deltas.  */
+          val (unviableEdges, viableEdges) = edges.partition( (edge: Edge) => deltas.exists(_.relevantForEdge(edge)) )
+          // usesKontAddr(_, delta.abstractKa))
+          assert(unviableEdges.isEmpty, s"unviable edges are $unviableEdges with deltas $deltas")
           //val (viableTargetStates, unviableTargetStates) = (viableEdges.map(_._2), unviableEdges.map(_._2))
           /* A set of tuples consisting of the original edge (along with the original target state) and the "concrete" state */
-          val deltasStates: Set[(Edge, State)] = viableEdges.map((edge) => (edge, delta.applyDelta(edge._2)))
+          val deltasStates: Set[(Edge, State)] = viableEdges.map( (edge) => {
+            val updatedState = deltas.foldLeft[State](edge._2)( (state, delta) => delta.applyDelta(state))
+            (edge, updatedState)
+          })
           /* filter out deltas states for which optimisation is not applicable anymore */
           val (continueDeltaStates, abortDeltaStates) = deltasStates.partition({
             /*
@@ -336,17 +335,21 @@ class PropagateRunTimeInfo[Exp: Expression,
              * deltaState = the target state of the originalEdge, with the delta applied to it.
              */
             case (originalEdge, deltaState) =>
-              val optionNewDelta = extraOptimisationApplicable(deltaState, Set(originalEdge._2), prunedGraph)
-              optionNewDelta.isDefined && optionNewDelta.get == delta
+              val optionNewDeltas = extraOptimisationApplicable(deltaState, Set(originalEdge._2), prunedGraph)
+              /*
+               * Check whether there are new deltas and check whether the set of new deltas is a superset of the
+               * current set of deltas.
+               */
+              optionNewDeltas.isDefined && optionNewDeltas.get.forall( (delta: Delta) => deltas.exists(_ == delta))
           })
           /* Add all edges from state to deltasStates. */
           val newGraph = graph.addEdges(deltasStates.map({
             case (edge, deltaState) =>
               (state, edge._1, deltaState)
           }))
-          val continueStateCombos: Set[StateCombo] = continueDeltaStates.map((deltasState) =>
+          val continueStateCombos: Set[StateCombo] = continueDeltaStates.map( (deltasState) =>
             StateCombo(deltasState._1._2, deltasState._2))
-          val abortStateCombos: Set[StateCombo] = abortDeltaStates.map((deltasState) =>
+          val abortStateCombos: Set[StateCombo] = abortDeltaStates.map( (deltasState) =>
             StateCombo(deltasState._1._2, deltasState._2))
           val continueTodoPair = todoForThisOptimisation.dropHeadAndAddStates(continueStateCombos)
           val newNotContinuedTodo = notContinuedTodo.addStates(abortStateCombos)
@@ -397,12 +400,13 @@ class PropagateRunTimeInfo[Exp: Expression,
           evalLoop(todoPair.dropHead, visited, updatedGraph, stepCount, initialGraph, prunedGraph)
         } else {
           val applyOptimisation = true
-          lazy val optionDelta: Option[Delta] = extraOptimisationApplicable(newState, todoPair.mapping(newState), prunedGraph)
-          if (applyOptimisation && optionDelta.isDefined) {
-            Logger.log(s"Extra optimisation applicable: ${optionDelta.get}", Logger.U)
-            val delta = optionDelta.get
-            val deltaEdgesAdded = addAllEdgesDelta(newState, todoPair.mapping, delta, visited, prunedGraph, graph)
+          lazy val optionDeltas: Option[Iterable[Delta]] = extraOptimisationApplicable(newState, todoPair.mapping(newState), prunedGraph)
+          if (applyOptimisation && optionDeltas.isDefined) {
+            Logger.log(s"Extra optimisation applicable: ${optionDeltas.get}", Logger.U)
+            val deltas = optionDeltas.get
+            val deltaEdgesAdded = addAllEdgesDelta(newState, todoPair.mapping, deltas, visited, prunedGraph, graph)
             val newTodo = todoPair.dropHead ++ deltaEdgesAdded.todoPair
+            Logger.log(s"Extra optimisation applied", Logger.U)
             evalLoop(newTodo, deltaEdgesAdded.visited, deltaEdgesAdded.graph, stepCount, initialGraph, prunedGraph)
           } else {
             val StepEval(nonSubsumptionStateCombos, subsumptionStateCombos, newVisited) =
