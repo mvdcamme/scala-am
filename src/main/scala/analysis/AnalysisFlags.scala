@@ -2,6 +2,7 @@ case class AnalysisFlags(
     incrementalAnalysisInterval: IncrementalAnalysisInterval = NoIncrementalAnalysis,
     runTimeAnalysisInterval: RunTimeAnalysisInterval = NoRunTimeAnalysis,
     incrementalOptimisation: Boolean = true,
+    extraIncrementalOptimisation: Boolean = true,
     doPropagationPhase: Boolean = true)
 
 sealed trait IncrementalAnalysisInterval

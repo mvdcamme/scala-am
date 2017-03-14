@@ -399,7 +399,7 @@ class PropagateRunTimeInfo[Exp: Expression,
           })
           evalLoop(todoPair.dropHead, visited, updatedGraph, stepCount, initialGraph, prunedGraph)
         } else {
-          val applyOptimisation = true
+          val applyOptimisation = analysisFlags.extraIncrementalOptimisation
           lazy val optionDeltas: Option[Iterable[Delta]] = extraOptimisationApplicable(newState, todoPair.mapping(newState), prunedGraph)
           if (applyOptimisation && optionDeltas.isDefined) {
             Logger.log(s"Extra optimisation applicable: ${optionDeltas.get}", Logger.U)
