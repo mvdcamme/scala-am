@@ -71,7 +71,7 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
               result.collect({
                 case (res, store2, effects2) => Set[Action[ANFExp, Abs, Addr]](ActionReachedValue[ANFExp, Abs, Addr](res, store2, effects ++ effects2))
               }, err => Set[Action[ANFExp, Abs, Addr]](ActionError[ANFExp, Abs, Addr](err)))
-            case HigherOrder(fexp, f, args, state) =>
+            case HigherOrderStart(fexp, f, args, state) =>
               //TODO Implement
               throw new Exception("Not yet implemented")
           })

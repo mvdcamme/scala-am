@@ -119,8 +119,10 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     /* TODO take into account store changes made by the application of the primitives */
     val fromPrim = sabs.getPrimitives[Addr, Abs](function).flatMap( (prim) => {
 
-      def handleSimplePrimitiveResult(result: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])],
-                                      applyPrimAction: ActionPrimCallT[SchemeExp, Abs, Addr])
+      val n = argsv.size + 1 // Number of values to pop: all arguments + the operator
+      val applyPrimAction = ActionPrimCallT[SchemeExp, Abs, Addr](n, fexp, argsv.map(_._1), sabs.inject(prim))
+
+      def handleSimplePrimitiveResult(result: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])])
       : Set[EdgeInformation[SchemeExp, Abs, Addr]] = result.collect[EdgeInformation[SchemeExp, Abs, Addr]]({
           case (res, store2, effects) =>
             val action = ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects)
@@ -131,19 +133,64 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
           })
 
-      val n = argsv.size + 1 // Number of values to pop: all arguments + the operator
-      val applyPrim = ActionPrimCallT[SchemeExp, Abs, Addr](n, fexp, argsv.map(_._1), sabs.inject(prim))
+      /**
+        *
+        * @param fooPrim
+        * @param simpleMayFail: the result of applying the SimplePrimitive passed to the higher-order primitive
+        * @param errs
+        * @param effects
+        * @param state
+        * @return
+        */
+      def recursiveHandleSimplePrimitiveResult(simpleMayFail: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])],
+                                               state: PrimitiveApplicationState): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = {
+
+        /*
+         * Both the higher-order primitive and the SimplePrimitive may fail! Have to combine MayFails?
+         */
+
+//        val newErrors = simpleMayFail.errors ++ errs
+//        simpleMayFail.value match {
+//          case Some(value) =>
+//            prim.reachedValue(value._1, value._2, state) match {
+//              case Simple(newMayFail) =>
+//                /* Add all errors from the previous MayFail to the new MayFail */
+//                val errorsAddedMF = simpleMayFail.errors.foldLeft(newMayFail)( (newMayFail, error) => newMayFail.addError(error) )
+//                handleSimplePrimitiveResult(errorsAddedMF)
+//              case HigherOrder(foos) =>
+//
+//            }
+//          case None =>
+//
+//        }
+        simpleMayFail.bind[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]({
+          case (value, store, effects) => prim.reachedValue(value, store, state) match {
+            case Simple(hOMayFail) =>
+              hOMayFail
+            case HigherOrderContinue(FooPrim(fooFexp, fooPrim, fooArgs, fooStore, fooState)) =>
+              val fooArgsv = fooArgs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
+              val newSimpleMayFail = fooPrim.Call(fexp, fooArgsv, fooStore, t)
+              recursiveHandleSimplePrimitiveResult(newSimpleMayFail, fooState)
+            case HigherOrderStart(foos) =>
+              // TODO not yet implemented
+              throw new Exception("Not yet implemented")
+          }
+        })
+      }
+
       prim.call(fexp, argsv, store, t) match {
         case Simple(result) =>
-          handleSimplePrimitiveResult(result, applyPrim)
-        case ho: HigherOrder[SchemeExp, Abs, Addr] =>
+          handleSimplePrimitiveResult(result)
+        case ho: HigherOrderStart[SchemeExp, Abs, Addr] =>
           ho.foos.map({
-            case FooPrim(fooFexp, fooPrim, fooArgs, fooState) =>
+            case FooPrim(fooFexp, fooPrim, fooArgs, store, fooState) =>
               // Does not work when fooPrim returned is another higher-order primitive
               val fooArgsv = fooArgs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
-              val result = fooPrim.call(fooFexp, fooArgsv, store, t)
+              val result: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = fooPrim.Call(fooFexp, fooArgsv, store, t)
+              val x = recursiveHandleSimplePrimitiveResult(result, fooState)
+              handleSimplePrimitiveResult(x)
             case FooClo(fooExp, fooClo, args, state) =>
-
+              
           })
 
           val frame = FrameHigherOrderPrimCall(ho.state)

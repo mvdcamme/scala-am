@@ -13,23 +13,30 @@ package object PrimitiveDefinitions {
     def get = result
   }
 
-  case class HigherOrder[Exp: Expression, Abs: JoinLattice, Addr: Address](foos: Set[Foo[Exp, Abs, Addr]])
+  case class HigherOrderContinue[Exp: Expression, Abs: JoinLattice, Addr: Address](foo: Foo[Exp, Abs, Addr])
     extends PrimReturn[Abs, Addr] {
-    def get = throw new Exception("Tried to get the MayFail value of a HigherOrder result")
+    def get = throw new Exception(s"Tried to get the MayFail value of a HigherOrderContinue result: $this")
+  }
+
+  case class HigherOrderStart[Exp: Expression, Abs: JoinLattice, Addr: Address](foos: Set[Foo[Exp, Abs, Addr]])
+    extends PrimReturn[Abs, Addr] {
+    def get = throw new Exception(s"Tried to get the MayFail value of a HigherOrderStart result: $this")
   }
 
   sealed trait Foo[Exp, Abs, Addr]
 
   case class FooPrim[Exp: Expression, Abs: JoinLattice, Addr: Address]
     (fexp: Exp,
-     prim: Primitive[Addr, Abs],
+     prim: SimplePrimitive[Addr, Abs],
      args: List[Abs],
+     store: Store[Addr, Abs],
      state: PrimitiveApplicationState) extends Foo[Exp, Abs, Addr]
 
   case class FooClo[Exp: Expression, Abs: JoinLattice, Addr: Address]
   (fexp: Exp,
    clo: (Exp, Environment[Addr]),
    args: List[Abs],
+   store: Store[Addr, Abs],
    state: PrimitiveApplicationState) extends Foo[Exp, Abs, Addr]
 
 }
@@ -59,22 +66,16 @@ trait Primitive[Addr, Abs] {
       store: Store[Addr, Abs],
       t: Time): PrimReturn[Abs, Addr]
 
-  /** Calls the higher-order primitive with the result obtained by applying the higher-order function and the state
-    * saved by the primitive.
-    * @param fexp: the expression with which the primitive has been called
-    * @param args: the arguments with which the primitive has been called, both their expression and their value
-    * @param store: the store
-    * @param result: the result obtained by applying the higher-order function
-    * @param state: the state saved by the primitive itself before the higher-order function was called
-    * @return either an error, or the value returned by the primitive along with the updated store
+  /**
+    * TODO
+    * @param result
+    * @param store
+    * @param state
+    * @return
     */
-  def call[Exp: Expression, Time: Timestamp](
-      fexp: Exp,
-      args: List[(Exp, Abs)],
-      store: Store[Addr, Abs],
-      t: Time,
-      result: Abs,
-      state: PrimitiveApplicationState): PrimReturn[Abs, Addr]
+  def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
+                                                     store: Store[Addr, Abs],
+                                                     state: PrimitiveApplicationState): PrimReturn[Abs, Addr]
 
   def convert[Addr: Address, Abs: IsConvertableLattice](
       prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs]
@@ -97,13 +98,8 @@ abstract class SimplePrimitive[Addr: Address, Abs: JoinLattice] extends Primitiv
                                              t: Time): PrimReturn[Abs, Addr] =
     Simple(Call(fexp, args, store, t))
 
-  def call[Exp: Expression, Time: Timestamp](
-                                              fexp: Exp,
-                                              args: List[(Exp, Abs)],
-                                              store: Store[Addr, Abs],
-                                              t: Time,
-                                              result: Abs,
-                                              state: PrimitiveApplicationState): PrimReturn[Abs, Addr] =
+  def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
+                                                     state: PrimitiveApplicationState): PrimReturn[Abs, Addr] =
     throw new Exception("Method not implemented by a SimplePrimitive")
 
 }
@@ -135,7 +131,7 @@ abstract class Primitives[Addr: Address, Abs: JoinLattice] {
             v.toString
           case Simple(MayFailBoth((v, store, effs), errs)) =>
             v.toString + " | ERROR: " + errs.mkString(" | ERROR: ")
-          case HigherOrder(foos) =>
+          case HigherOrderStart(foos) =>
             foos.toString
         }
         res
