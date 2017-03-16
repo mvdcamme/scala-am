@@ -293,12 +293,12 @@ case class ProgramState[Exp: Expression](
     val (vals, newVStack) = popStackItems(vStack, n)
     val operands: List[ConcreteValue] = vals.take(n - 1).map(_.getVal)
     val result = primitive.call(fExp, argsExps.zip(operands.reverse), σ, t)
-    result.value match {
+    result.get.value match {
       case Some((res, σ2, effects)) =>
         val newT = time.tick(t)
         ProgramState(control, ρ, σ2, kstore, a, newT, res, newVStack)
       case None =>
-        throw new Exception(result.errors.head.toString)
+        throw new Exception(result.get.errors.head.toString)
     }
   }
 

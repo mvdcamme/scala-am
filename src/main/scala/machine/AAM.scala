@@ -616,19 +616,20 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       case a: ActionPrimCallT[SchemeExp, Abs, Addr] =>
         val savedOperandsKontsSet: Set[(List[Abs], Kont[KontAddr])] = frameSavedOperands(state)
         //val valuesSet = addControlKontValue(state, savedOperandsKontsSet)
-        savedOperandsKontsSet.flatMap({ case (values, kont) =>
-          assert(values.length == a.argsExps.length + 1, s"Length of ${a.argsExps} does not match length of $values")
-          val operator = values.head
-          val operands = values.tail :+ assertedGetControlKontValue(state)
-          val primitives = sabs.getPrimitives[Addr, Abs](operator)
-          val filterEdge = addKontFilterAnnotations(state.a, kont)
-          primitives.flatMap( (primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store, state.t)
-            .collect({
-              case (res, store2, effects) =>
-                Set((state.copy(control = ControlKont(res), store = store2, a = kont.next), filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive))))
-            },
-              err =>
-                Set((state.copy(control = ControlError(err), a = kont.next), filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive))))))
+        savedOperandsKontsSet.flatMap({
+          case (values, kont) =>
+            assert(values.length == a.argsExps.length + 1, s"Length of ${a.argsExps} does not match length of $values")
+            val operator = values.head
+            val operands = values.tail :+ assertedGetControlKontValue(state)
+            val primitives = sabs.getPrimitives[Addr, Abs](operator)
+            val filterEdge = addKontFilterAnnotations(state.a, kont)
+            primitives.flatMap( (primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store, state.t)
+              .get.collect({
+                case (res, store2, effects) =>
+                  Set((state.copy(control = ControlKont(res), store = store2, a = kont.next), filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive))))
+              },
+                err =>
+                  Set((state.copy(control = ControlError(err), a = kont.next), filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive))))))
         })
       case a: ActionReachedValueT[Exp, Abs, Addr] =>
         val storeChanges = a.storeChanges

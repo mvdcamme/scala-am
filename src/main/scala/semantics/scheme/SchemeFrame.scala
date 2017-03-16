@@ -1,3 +1,5 @@
+import PrimitiveDefinitions._
+
 abstract class SchemeFrame[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp] extends Frame {
   type Address = Addr
 
@@ -305,4 +307,17 @@ case class FrameDefine[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   def reaches(valueReaches: Abs => Set[Addr],
               envReaches: Environment[Addr] => Set[Addr],
               addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
+}
+
+case class FrameHigherOrderPrimCall[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](state: PrimitiveApplicationState)
+  extends SchemeFrame[Abs, Addr, Time] {
+
+  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
+                                         convertEnv: Environment[Addr] => Environment[Addr],
+                                         abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
+    FrameHigherOrderPrimCall(state)
+
+  def reaches(valueReaches: Abs => Set[Addr],
+              envReaches: Environment[Addr] => Set[Addr],
+              addressReaches: Addr => Set[Addr]): Set[Addr] = Set()
 }

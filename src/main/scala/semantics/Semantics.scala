@@ -306,6 +306,16 @@ case class ActionStepIn[Exp: Expression, Abs: JoinLattice, Addr: Address](
     effects: Set[Effect[Addr]] = Set[Effect[Addr]]())
     extends Action[Exp, Abs, Addr]
 
+case class ActionStepInPush[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    fexp: Exp,
+    e: Exp,
+    frame: Frame,
+    env: Environment[Addr],
+    store: Store[Addr, Abs],
+    argsv: List[(Exp, Abs)],
+    effects: Set[Effect[Addr]] = Set[Effect[Addr]]())
+    extends Action[Exp, Abs, Addr]
+
 /**
   * An error has been reached
   */

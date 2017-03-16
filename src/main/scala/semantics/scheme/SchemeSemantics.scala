@@ -1,4 +1,7 @@
 import SchemeOps._
+import PrimitiveDefinitions._
+
+import scala.util.parsing.input.NoPosition
 
 /**
   * Basic Scheme semantics, without any optimization
@@ -115,18 +118,42 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       })
     /* TODO take into account store changes made by the application of the primitives */
     val fromPrim = sabs.getPrimitives[Addr, Abs](function).flatMap( (prim) => {
+
+      def handleSimplePrimitiveResult(result: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])],
+                                      applyPrimAction: ActionPrimCallT[SchemeExp, Abs, Addr])
+      : Set[EdgeInformation[SchemeExp, Abs, Addr]] = result.collect[EdgeInformation[SchemeExp, Abs, Addr]]({
+          case (res, store2, effects) =>
+            val action = ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects)
+            Set(EdgeInformation[SchemeExp, Abs, Addr](action, List(applyPrimAction), Set()))
+        },
+          err => {
+            val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
+            Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
+          })
+
       val n = argsv.size + 1 // Number of values to pop: all arguments + the operator
       val applyPrim = ActionPrimCallT[SchemeExp, Abs, Addr](n, fexp, argsv.map(_._1), sabs.inject(prim))
-      prim.call(fexp, argsv, store, t).collect[EdgeInformation[SchemeExp, Abs, Addr]]({
-        case (res, store2, effects) =>
-          val action = ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects)
-          Set(EdgeInformation[SchemeExp, Abs, Addr](action, List(applyPrim), Set()))
-      },
-        err => {
-          val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
-          Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
-        })
-    })
+      prim.call(fexp, argsv, store, t) match {
+        case Simple(result) =>
+          handleSimplePrimitiveResult(result, applyPrim)
+        case ho: HigherOrder[SchemeExp, Abs, Addr] =>
+          ho.foos.map({
+            case FooPrim(fooFexp, fooPrim, fooArgs, fooState) =>
+              // Does not work when fooPrim returned is another higher-order primitive
+              val fooArgsv = fooArgs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
+              val result = fooPrim.call(fooFexp, fooArgsv, store, t)
+            case FooClo(fooExp, fooClo, args, state) =>
+
+          })
+
+          val frame = FrameHigherOrderPrimCall(ho.state)
+          val edgeInfos = evalCall(ho.f, fexp, ho.args.map((SchemeIdentifier("#foo#", NoPosition), _)), store, t)
+          edgeInfos.map({
+            case EdgeInformation(action, _, _) =>
+          })
+
+          simpleAction(ActionError[SchemeExp, Abs, Addr](TypeError(function.toString, "operator", "function", "not a function"))) // TODO
+      }})
     if (fromClo.isEmpty && fromPrim.isEmpty) {
       simpleAction(ActionError[SchemeExp, Abs, Addr](TypeError(function.toString, "operator", "function", "not a function")))
     } else {

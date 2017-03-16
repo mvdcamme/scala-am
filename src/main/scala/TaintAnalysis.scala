@@ -137,9 +137,9 @@ case class TaintError(sources: Set[Position], sink: Position)
 class TSchemePrimitives[Addr: Address, Abs: IsTaintLattice]
     extends SchemePrimitives[Addr, Abs] {
   val tabs = implicitly[IsTaintLattice[Abs]]
-  object Taint extends Primitive[Addr, Abs] {
+  object Taint extends SimplePrimitive[Addr, Abs] {
     val name = "taint"
-    def call[Exp: Expression, Time: Timestamp](fexp: Exp,
+    def Call[Exp: Expression, Time: Timestamp](fexp: Exp,
                                                args: List[(Exp, Abs)],
                                                store: Store[Addr, Abs],
                                                t: Time) = args match {
@@ -152,9 +152,9 @@ class TSchemePrimitives[Addr: Address, Abs: IsTaintLattice]
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.asInstanceOf[TSchemePrimitives[Addr, Abs]].Taint
   }
-  object Sink extends Primitive[Addr, Abs] {
+  object Sink extends SimplePrimitive[Addr, Abs] {
     val name = "sink"
-    def call[Exp: Expression, Time: Timestamp](fexp: Exp,
+    def Call[Exp: Expression, Time: Timestamp](fexp: Exp,
                                                args: List[(Exp, Abs)],
                                                store: Store[Addr, Abs],
                                                t: Time) = args match {
@@ -176,9 +176,9 @@ class TSchemePrimitives[Addr: Address, Abs: IsTaintLattice]
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.asInstanceOf[TSchemePrimitives[Addr, Abs]].Sink
   }
-  object Sanitize extends Primitive[Addr, Abs] {
+  object Sanitize extends SimplePrimitive[Addr, Abs] {
     val name = "sanitize"
-    def call[Exp: Expression, Time: Timestamp](fexp: Exp,
+    def Call[Exp: Expression, Time: Timestamp](fexp: Exp,
                                                args: List[(Exp, Abs)],
                                                store: Store[Addr, Abs],
                                                t: Time) = args match {
