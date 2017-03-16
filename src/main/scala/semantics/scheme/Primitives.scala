@@ -1340,6 +1340,38 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
       prims.Equal
   }
 
+  object Apply extends Primitive[Addr, Abs] {
+
+    val name = "apply"
+
+    def call[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                               args: List[(Exp, Abs)],
+                                               store: Store[Addr, Abs],
+                                               t: Time): PrimReturn[Abs, Addr] = {
+      val sabs = implicitly[IsSchemeLattice[Abs]]
+      val f = args.head
+      val fArgs = args.tail.head
+      val fromPrims: Set[Foo[Exp, Abs, Addr]] = sabs.getPrimitives(f._2).map( (prim) => {
+        FooPrim(f._1, prim.asInstanceOf[SimplePrimitive[Addr, Abs]], List(fArgs._2), store, DummyPrimitiveApplicationState)
+      })
+      val fromClosures: Set[Foo[Exp, Abs, Addr]] = sabs.getClosures(f._2).map( (clo) => {
+        FooClo(f._1, clo, List(fArgs._2), store, DummyPrimitiveApplicationState)
+      })
+      HigherOrderStart(fromPrims ++ fromClosures)
+    }
+
+    def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
+                                                       store: Store[Addr, Abs],
+                                                       state: PrimitiveApplicationState): PrimReturn[Abs, Addr] = state match {
+      case _ =>
+        Simple(MayFailSuccess[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]((result, store, Set())))
+      }
+
+    def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Apply
+
+  }
+
   /*  object Lock extends Primitive[Addr, Abs] {
     val name = "new-lock"
     def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time) = args match {
@@ -1440,6 +1472,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
          Vector,
          VectorLength,
          VectorRef,
-         Equal /*, Lock */ )
+         Equal,
+         Apply /*, Lock */)
   def toVal(prim: Primitive[Addr, Abs]): Abs = abs.inject(prim)
 }

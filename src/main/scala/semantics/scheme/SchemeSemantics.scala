@@ -608,6 +608,8 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         ActionEval(e, env, store, effs ++ effects)
       case ActionStepIn(fexp, clo, e, env, store, argsv, effs) =>
         ActionStepIn(fexp, clo, e, env, store, argsv, effs ++ effects)
+      case ActionStepInPush(fexp, clo, e, frame, env, store, argsv, effs) =>
+        ActionStepIn(fexp, clo, e, env, store, argsv, effs ++ effects)
       case ActionError(err) => action
     }
 
