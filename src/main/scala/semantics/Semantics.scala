@@ -308,6 +308,7 @@ case class ActionStepIn[Exp: Expression, Abs: JoinLattice, Addr: Address](
 
 case class ActionStepInPush[Exp: Expression, Abs: JoinLattice, Addr: Address](
     fexp: Exp,
+    clo: (Exp, Environment[Addr]),
     e: Exp,
     frame: Frame,
     env: Environment[Addr],

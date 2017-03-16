@@ -25,6 +25,15 @@ package object PrimitiveDefinitions {
 
   sealed trait Foo[Exp, Abs, Addr]
 
+  /**
+    *
+    * @param fexp: the expression of the application of the higher-order primitive: e.g., (f (car lst)) in a
+    *            map-primitive
+    * @param prim: the higher-order primitive to apply
+    * @param args: the arguments for the higher-order primitive
+    * @param store: the potentially modified store in which to call the higher-order primitive
+    * @param state: the state of this primitive
+    */
   case class FooPrim[Exp: Expression, Abs: JoinLattice, Addr: Address]
     (fexp: Exp,
      prim: SimplePrimitive[Addr, Abs],
@@ -32,12 +41,21 @@ package object PrimitiveDefinitions {
      store: Store[Addr, Abs],
      state: PrimitiveApplicationState) extends Foo[Exp, Abs, Addr]
 
+  /**
+    *
+    * @param fexp: the expression of the application of the higher-order primitive: e.g., (f (car lst)) in a
+    *            map-primitive
+    * @param clo: the higher-order closure to apply
+    * @param args: the arguments for the higher-order primitive
+    * @param store: the potentially modified store in which to call the higher-order primitive
+    * @param state: the state of this primitive
+    */
   case class FooClo[Exp: Expression, Abs: JoinLattice, Addr: Address]
-  (fexp: Exp,
-   clo: (Exp, Environment[Addr]),
-   args: List[Abs],
-   store: Store[Addr, Abs],
-   state: PrimitiveApplicationState) extends Foo[Exp, Abs, Addr]
+    (fexp: Exp,
+     clo: (Exp, Environment[Addr]),
+     args: List[Abs],
+     store: Store[Addr, Abs],
+     state: PrimitiveApplicationState) extends Foo[Exp, Abs, Addr]
 
 }
 
@@ -99,6 +117,7 @@ abstract class SimplePrimitive[Addr: Address, Abs: JoinLattice] extends Primitiv
     Simple(Call(fexp, args, store, t))
 
   def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
+                                                     store: Store[Addr, Abs],
                                                      state: PrimitiveApplicationState): PrimReturn[Abs, Addr] =
     throw new Exception("Method not implemented by a SimplePrimitive")
 
@@ -137,13 +156,10 @@ abstract class Primitives[Addr: Address, Abs: JoinLattice] {
         res
       }
 
-      def call[Exp: Expression, Time: Timestamp](fexp: Exp,
-                                                 args: List[(Exp, Abs)],
-                                                 store: Store[Addr, Abs],
-                                                 t: Time,
-                                                 result: Abs,
-                                                 state: PrimitiveApplicationState): PrimReturn[Abs, Addr] =
-        call(fexp, args, store, t)
+      def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
+                                                         store: Store[Addr, Abs],
+                                                         state: PrimitiveApplicationState): PrimReturn[Abs, Addr] =
+        prim.reachedValue(result, store, state)
 
       def convert[Addr: Address, Abs: IsConvertableLattice](
           prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =

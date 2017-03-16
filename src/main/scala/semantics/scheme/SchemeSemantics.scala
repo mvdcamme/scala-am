@@ -78,46 +78,76 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     noEdgeInfosSet(currentAction, ActionEvalPushDataR(currentAction.e, currentAction.env, frameGenerator))
   }
 
+  def handleClosureCall(fexp: SchemeExp,
+                        argsv: List[(SchemeExp, Abs)],
+                        store: Store[Addr, Abs],
+                        clo: (SchemeExp, Environment[Addr]),
+                        t: Time): EdgeInformation[SchemeExp, Abs, Addr] = clo match {
+    case (lambda@(SchemeLambda(args, body, pos)), env1) =>
+      val cloCall = ActionClosureCallR[SchemeExp, Abs, Addr](fexp, lambda, env1)
+      if (args.length == argsv.length) {
+        bindArgs(args.zip(argsv), env1, store, t) match {
+          case (env2, store, boundAddresses) =>
+            val defAddr = ActionDefineAddressesPopR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
+            val timeTick = ActionTimeTickExpR[SchemeExp, Abs, Addr](fexp)
+            val makeActionRs = (edgeAnnotation: ActionReplay[SchemeExp, Abs, Addr]) =>
+              List(defAddr, edgeAnnotation, timeTick, cloCall)
+            if (body.length == 1) {
+              val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), body.head, env2, store, argsv)
+              EdgeInformation(action, makeActionRs(ActionEvalR(body.head, env2)), Set())
+            }
+            else {
+              val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), SchemeBegin(body, pos), env2, store, argsv)
+              EdgeInformation(action, makeActionRs(ActionEvalR[SchemeExp, Abs, Addr](SchemeBegin(body, pos),
+                env2)), Set())
+            }
+        }
+      } else {
+        val error = ArityError(fexp.toString, args.length, argsv.length)
+        val actionError = ActionErrorT[SchemeExp, Abs, Addr](error)
+        EdgeInformation(ActionError[SchemeExp, Abs, Addr](error), List(actionError, cloCall), Set())
+      }
+    case (lambda, env) =>
+      val cloCall = ActionClosureCallR[SchemeExp, Abs, Addr](fexp, lambda, env)
+      val error = TypeError(lambda.toString, "operator", "closure", "not a closure")
+      val actionError = ActionErrorT[SchemeExp, Abs, Addr](error)
+      noEdgeInfos(ActionError[SchemeExp, Abs, Addr](error), List(actionError, cloCall))
+  }
+
+
+
+  def handleHigherOrderClosureCall(prim: Primitive[Addr, Abs],
+                                   fooFexp: SchemeExp,
+                                   fooClo: (SchemeExp, Environment[Addr]),
+                                   fooArgs: List[Abs],
+                                   fooStore: Store[Addr, Abs],
+                                   fooState: PrimitiveApplicationState,
+                                   t: Time):
+  EdgeInformation[SchemeExp, Abs, Addr] = {
+    val fooArgsv = fooArgs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
+    val edgeInfo = handleClosureCall(fooFexp, fooArgsv, fooStore, fooClo, t)
+    edgeInfo match {
+      case EdgeInformation(ActionStepIn(fexp, clo, e, env, store, argsv, effects), actionRs, semFilters) =>
+        val frame = FrameHigherOrderPrimCall(prim, fooState)
+        val replacedAction = ActionStepInPush(fexp, clo, e, frame, env, store, argsv, effects)
+        // TODO Should also replace the actionRs
+        EdgeInformation(replacedAction, actionRs, semFilters)
+      case other =>
+        other
+    }
+  }
+
   def evalCall(function: Abs,
                fexp: SchemeExp,
                argsv: List[(SchemeExp, Abs)],
                store: Store[Addr, Abs],
                t: Time): Set[EdgeInformation[SchemeExp, Abs, Addr]] = {
-    val fromClo: Set[EdgeInformation[SchemeExp, Abs, Addr]] = sabs
-      .getClosures[SchemeExp, Addr](function)
-      .map({
-        case (lambda@(SchemeLambda(args, body, pos)), env1) =>
-          val cloCall = ActionClosureCallR[SchemeExp, Abs, Addr](fexp, lambda, env1)
-          if (args.length == argsv.length) {
-            bindArgs(args.zip(argsv), env1, store, t) match {
-              case (env2, store, boundAddresses) =>
-                val defAddr = ActionDefineAddressesPopR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
-                val timeTick = ActionTimeTickExpR[SchemeExp, Abs, Addr](fexp)
-                val makeActionRs = (edgeAnnotation: ActionReplay[SchemeExp, Abs, Addr]) =>
-                  List(defAddr, edgeAnnotation, timeTick, cloCall)
-                if (body.length == 1) {
-                  val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), body.head, env2, store, argsv)
-                  EdgeInformation(action, makeActionRs(ActionEvalR(body.head, env2)), Set())
-                }
-                else {
-                  val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), SchemeBegin(body, pos), env2, store, argsv)
-                  EdgeInformation(action, makeActionRs(ActionEvalR[SchemeExp, Abs, Addr](SchemeBegin(body, pos),
-                    env2)), Set())
-                }
-            }
-          } else {
-            val error = ArityError(fexp.toString, args.length, argsv.length)
-            val actionError = ActionErrorT[SchemeExp, Abs, Addr](error)
-            EdgeInformation(ActionError[SchemeExp, Abs, Addr](error), List(actionError, cloCall), Set())
-          }
-        case (lambda, env) =>
-          val cloCall = ActionClosureCallR[SchemeExp, Abs, Addr](fexp, lambda, env)
-          val error = TypeError(lambda.toString, "operator", "closure", "not a closure")
-          val actionError = ActionErrorT[SchemeExp, Abs, Addr](error)
-          noEdgeInfos(ActionError[SchemeExp, Abs, Addr](error), List(actionError, cloCall))
-      })
+
+    val fromClo: Set[EdgeInformation[SchemeExp, Abs, Addr]] =
+      sabs.getClosures[SchemeExp, Addr](function).map(handleClosureCall(fexp, argsv, store, _, t))
     /* TODO take into account store changes made by the application of the primitives */
-    val fromPrim = sabs.getPrimitives[Addr, Abs](function).flatMap( (prim) => {
+    val fromPrim = sabs.getPrimitives[Addr, Abs](function).flatMap[EdgeInformation[SchemeExp, Abs, Addr], Set[EdgeInformation[SchemeExp, Abs, Addr]]]( (prim)
+    => {
 
       val n = argsv.size + 1 // Number of values to pop: all arguments + the operator
       val applyPrimAction = ActionPrimCallT[SchemeExp, Abs, Addr](n, fexp, argsv.map(_._1), sabs.inject(prim))
@@ -135,10 +165,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
 
       /**
         *
-        * @param fooPrim
         * @param simpleMayFail: the result of applying the SimplePrimitive passed to the higher-order primitive
-        * @param errs
-        * @param effects
         * @param state
         * @return
         */
@@ -146,31 +173,19 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                                                state: PrimitiveApplicationState): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = {
 
         /*
-         * Both the higher-order primitive and the SimplePrimitive may fail! Have to combine MayFails?
+         * TODO Both the higher-order primitive and the SimplePrimitive may fail! Have to combine MayFails?
          */
 
-//        val newErrors = simpleMayFail.errors ++ errs
-//        simpleMayFail.value match {
-//          case Some(value) =>
-//            prim.reachedValue(value._1, value._2, state) match {
-//              case Simple(newMayFail) =>
-//                /* Add all errors from the previous MayFail to the new MayFail */
-//                val errorsAddedMF = simpleMayFail.errors.foldLeft(newMayFail)( (newMayFail, error) => newMayFail.addError(error) )
-//                handleSimplePrimitiveResult(errorsAddedMF)
-//              case HigherOrder(foos) =>
-//
-//            }
-//          case None =>
-//
-//        }
         simpleMayFail.bind[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]({
-          case (value, store, effects) => prim.reachedValue(value, store, state) match {
+          case (value, store, effects) => prim.reachedValue[SchemeExp, Time](value, store, state) match {
             case Simple(hOMayFail) =>
               hOMayFail
             case HigherOrderContinue(FooPrim(fooFexp, fooPrim, fooArgs, fooStore, fooState)) =>
               val fooArgsv = fooArgs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
               val newSimpleMayFail = fooPrim.Call(fexp, fooArgsv, fooStore, t)
               recursiveHandleSimplePrimitiveResult(newSimpleMayFail, fooState)
+            case HigherOrderContinue(fooClo@FooClo(_, _, _, _, _)) =>
+              throw new Exception(s"Should not happen: there shouldn't be a $fooClo here")
             case HigherOrderStart(foos) =>
               // TODO not yet implemented
               throw new Exception("Not yet implemented")
@@ -181,26 +196,21 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       prim.call(fexp, argsv, store, t) match {
         case Simple(result) =>
           handleSimplePrimitiveResult(result)
+        case ho: HigherOrderContinue[SchemeExp, Abs, Addr] =>
+          throw new Exception(s"Should not happen: $ho")
         case ho: HigherOrderStart[SchemeExp, Abs, Addr] =>
-          ho.foos.map({
+          ho.foos.flatMap({
             case FooPrim(fooFexp, fooPrim, fooArgs, store, fooState) =>
               // Does not work when fooPrim returned is another higher-order primitive
               val fooArgsv = fooArgs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
               val result: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = fooPrim.Call(fooFexp, fooArgsv, store, t)
               val x = recursiveHandleSimplePrimitiveResult(result, fooState)
               handleSimplePrimitiveResult(x)
-            case FooClo(fooExp, fooClo, args, state) =>
-              
+            case FooClo(fooExp, fooClo, fooArgs, fooStore, fooState) =>
+              Set(handleHigherOrderClosureCall(prim, fooExp, fooClo, fooArgs, fooStore, fooState, t))
           })
-
-          val frame = FrameHigherOrderPrimCall(ho.state)
-          val edgeInfos = evalCall(ho.f, fexp, ho.args.map((SchemeIdentifier("#foo#", NoPosition), _)), store, t)
-          edgeInfos.map({
-            case EdgeInformation(action, _, _) =>
-          })
-
-          simpleAction(ActionError[SchemeExp, Abs, Addr](TypeError(function.toString, "operator", "function", "not a function"))) // TODO
       }})
+
     if (fromClo.isEmpty && fromPrim.isEmpty) {
       simpleAction(ActionError[SchemeExp, Abs, Addr](TypeError(function.toString, "operator", "function", "not a function")))
     } else {
@@ -404,6 +414,25 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
 
   def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time) =
     frame match {
+      case frame: FrameHigherOrderPrimCall[Abs, Addr, Time] =>
+        frame.prim.reachedValue[SchemeExp, Time](v, store, frame.state) match {
+          case Simple(result) =>
+            result.collect[EdgeInformation[SchemeExp, Abs, Addr]]({
+              case (res, store2, effects) =>
+                val action = ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects)
+                Set(EdgeInformation[SchemeExp, Abs, Addr](action, List(), Set()))
+            },
+              err => {
+                val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
+                Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
+              })
+          case ho: HigherOrderContinue[SchemeExp, Abs, Addr] => ho.foo match {
+            case FooClo(fooFexp, fooClo, fooArgs, fooStore, fooState) =>
+              Set(handleHigherOrderClosureCall(frame.prim, fooFexp, fooClo, fooArgs, fooStore, fooState, t))
+          }
+          case HigherOrderStart(_) =>
+            throw new Exception(s"Should not happen: primitive application was already started")
+        }
       case frame: FrameFuncallOperator[Abs, Addr, Time] =>
         funcallArgs(v, frame.fexp, frame.args, frame.env, store, t)
       case frame: FrameFuncallOperands[Abs, Addr, Time] =>
