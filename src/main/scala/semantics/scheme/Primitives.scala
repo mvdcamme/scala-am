@@ -240,13 +240,14 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
         fexp: Exp,
         args: List[(Exp, Abs)],
         store: Store[Addr, Abs],
-        t: Time): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] =
-      (args match {
-        case Nil => call()
-        case x :: Nil => call(fexp, x)
-        case x :: y :: Nil => call(fexp, x, y)
-        case l => call(args.map({ case (_, v) => v }))
-      }).map[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](v => (v, store, Set()))
+        t: Time): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = {
+      args match {
+        case Nil => call().map[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](v => (v, store, Set()))
+        case x :: Nil => call(fexp, x).map[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](v => (v, store, Set()))
+        case x :: y :: Nil => call(fexp, x, y).map[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](v => (v, store, Set()))
+        case l => call(args.map(_._2)).map[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](v => (v, store, Set()))
+      }
+    }
   }
 
   abstract class StoreOperation(val name: String,
