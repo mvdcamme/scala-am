@@ -1,5 +1,5 @@
 import SchemeOps._
-import PrimitiveDefinitions._
+import PrimitivesDefinitions._
 
 import scala.util.parsing.input.NoPosition
 
@@ -185,8 +185,13 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
               fooMF.bind({
                 case (FooPrim(fooFexp, fooPrim, fooArgs, fooStore, fooState), effects2) =>
                   val fooArgsv = fooArgs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
-                  val newSimpleMayFail = fooPrim.simpleCall(fexp, fooArgsv, fooStore, t)
-                  recursiveHandleSimplePrimitiveResult(newSimpleMayFail, fooState)
+                  /*
+                   * Assuming fooPrim has remained unchanged, it's safe to extract the MayFail
+                   * from fooPrim.call here because, we could only have reached this point in the code
+                   * if fooPrim returns a Simple in the first place.
+                   */
+                  val newPrimAppValue = fooPrim.call(fexp, fooArgsv, fooStore, t).extract
+                  recursiveHandleSimplePrimitiveResult(newPrimAppValue, fooState)
                 case (fooClo@FooClo(_, _, _, _, _), _) =>
                   throw new Exception(s"Should not happen: there shouldn't be a $fooClo here")
               })
@@ -208,9 +213,10 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             case (foos, effects) =>
               foos.flatMap({
                 case FooPrim(fooFexp, fooPrim, fooArgs, store, fooState) =>
-                  // Does not work when fooPrim returned is another higher-order primitive
+                  // TODO Does not work when fooPrim returned is another higher-order primitive
                   val fooArgsv = fooArgs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
-                  val result: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = fooPrim.simpleCall(fooFexp, fooArgsv, store, t)
+                  /* TODO not safe to use .extract here, fooPrim can be another higher-order primitive */
+                  val result: MayFail[SimpleReturn[Abs, Addr]] = fooPrim.call(fooFexp, fooArgsv, store, t).extract
                   val x = recursiveHandleSimplePrimitiveResult(result, fooState)
                   handleSimplePrimitiveResult(x)
                 case FooClo(fooExp, fooClo, fooArgs, fooStore, fooState) =>

@@ -631,7 +631,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
             val primitives = sabs.getPrimitives[Addr, Abs](operator)
             val filterEdge = addKontFilterAnnotations(state.a, kont)
             primitives.flatMap( (primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store, state.t)
-              .get.collect({
+              .extract.collect({
                 case (res, store2, effects) =>
                   Set((state.copy(control = ControlKont(res), store = store2, a = kont.next), filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive))))
               },

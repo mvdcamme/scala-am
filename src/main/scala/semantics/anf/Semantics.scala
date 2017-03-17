@@ -1,4 +1,4 @@
-import PrimitiveDefinitions._
+import PrimitivesDefinitions._
 
 /**
  * Semantics for ANF Scheme (abstract grammar defined in ANF.scala)
