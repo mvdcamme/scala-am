@@ -185,7 +185,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
               fooMF.bind({
                 case (FooPrim(fooFexp, fooPrim, fooArgs, fooStore, fooState), effects2) =>
                   val fooArgsv = fooArgs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
-                  val newSimpleMayFail = fooPrim.Call(fexp, fooArgsv, fooStore, t)
+                  val newSimpleMayFail = fooPrim.simpleCall(fexp, fooArgsv, fooStore, t)
                   recursiveHandleSimplePrimitiveResult(newSimpleMayFail, fooState)
                 case (fooClo@FooClo(_, _, _, _, _), _) =>
                   throw new Exception(s"Should not happen: there shouldn't be a $fooClo here")
@@ -210,7 +210,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                 case FooPrim(fooFexp, fooPrim, fooArgs, store, fooState) =>
                   // Does not work when fooPrim returned is another higher-order primitive
                   val fooArgsv = fooArgs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
-                  val result: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = fooPrim.Call(fooFexp, fooArgsv, store, t)
+                  val result: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = fooPrim.simpleCall(fooFexp, fooArgsv, store, t)
                   val x = recursiveHandleSimplePrimitiveResult(result, fooState)
                   handleSimplePrimitiveResult(x)
                 case FooClo(fooExp, fooClo, fooArgs, fooStore, fooState) =>

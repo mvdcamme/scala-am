@@ -139,10 +139,10 @@ class TSchemePrimitives[Addr: Address, Abs: IsTaintLattice]
   val tabs = implicitly[IsTaintLattice[Abs]]
   object Taint extends SimplePrimitive[Addr, Abs] {
     val name = "taint"
-    def Call[Exp: Expression, Time: Timestamp](fexp: Exp,
-                                               args: List[(Exp, Abs)],
-                                               store: Store[Addr, Abs],
-                                               t: Time) = args match {
+    def simpleCall[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                                     args: List[(Exp, Abs)],
+                                                     store: Store[Addr, Abs],
+                                                     t: Time) = args match {
       case (_, x) :: Nil =>
         MayFailSuccess(
           (tabs.taint(x, implicitly[Expression[Exp]].pos(fexp)), store, Set()))
@@ -154,10 +154,10 @@ class TSchemePrimitives[Addr: Address, Abs: IsTaintLattice]
   }
   object Sink extends SimplePrimitive[Addr, Abs] {
     val name = "sink"
-    def Call[Exp: Expression, Time: Timestamp](fexp: Exp,
-                                               args: List[(Exp, Abs)],
-                                               store: Store[Addr, Abs],
-                                               t: Time) = args match {
+    def simpleCall[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                                     args: List[(Exp, Abs)],
+                                                     store: Store[Addr, Abs],
+                                                     t: Time) = args match {
       case (_, x) :: Nil =>
         tabs.taintStatus(x) match {
           case Untainted => MayFailSuccess((x, store, Set()))
@@ -178,10 +178,10 @@ class TSchemePrimitives[Addr: Address, Abs: IsTaintLattice]
   }
   object Sanitize extends SimplePrimitive[Addr, Abs] {
     val name = "sanitize"
-    def Call[Exp: Expression, Time: Timestamp](fexp: Exp,
-                                               args: List[(Exp, Abs)],
-                                               store: Store[Addr, Abs],
-                                               t: Time) = args match {
+    def simpleCall[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                                     args: List[(Exp, Abs)],
+                                                     store: Store[Addr, Abs],
+                                                     t: Time) = args match {
       case (_, x) :: Nil => MayFailSuccess((tabs.sanitize(x), store, Set()))
       case l => MayFailError(List(ArityError(name, 1, l.size)))
     }

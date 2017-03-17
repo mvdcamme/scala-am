@@ -109,16 +109,16 @@ trait Primitive[Addr, Abs] {
   */
 abstract class SimplePrimitive[Addr: Address, Abs: JoinLattice] extends Primitive[Addr, Abs] {
 
-  def Call[Exp: Expression, Time: Timestamp](fexp: Exp,
-                                             args: List[(Exp, Abs)],
-                                             store: Store[Addr, Abs],
-                                             t: Time): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]
+  def simpleCall[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                                   args: List[(Exp, Abs)],
+                                                   store: Store[Addr, Abs],
+                                                   t: Time): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]
 
   def call[Exp: Expression, Time: Timestamp](fexp: Exp,
                                              args: List[(Exp, Abs)],
                                              store: Store[Addr, Abs],
                                              t: Time): PrimReturn[Abs, Addr] =
-    Simple[Abs, Addr](Call(fexp, args, store, t))
+    Simple[Abs, Addr](simpleCall(fexp, args, store, t))
 
   def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                      store: Store[Addr, Abs],
@@ -236,17 +236,17 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     def call[Exp: Expression](fexp: Exp, arg: (Exp, Abs)): MayFail[Abs] =
       call(arg)
     def call(): MayFail[Abs] = call(List())
-    def Call[Exp: Expression, Time: Timestamp](
+    def simpleCall[Exp: Expression, Time: Timestamp](
         fexp: Exp,
         args: List[(Exp, Abs)],
         store: Store[Addr, Abs],
         t: Time): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = {
-      args match {
-        case Nil => call().map[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](v => (v, store, Set()))
-        case x :: Nil => call(fexp, x).map[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](v => (v, store, Set()))
-        case x :: y :: Nil => call(fexp, x, y).map[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](v => (v, store, Set()))
-        case l => call(args.map(_._2)).map[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](v => (v, store, Set()))
-      }
+      (args match {
+        case Nil => call()
+        case x :: Nil => call(fexp, x)
+        case x :: y :: Nil => call(fexp, x, y)
+        case l => call(args.map(_._2))
+      }).map[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](v => (v, store, Set()))
     }
   }
 
@@ -276,7 +276,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     def call(store: Store[Addr, Abs])
       : MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] =
       call(List(), store)
-    def Call[Exp: Expression, Time: Timestamp](
+    def simpleCall[Exp: Expression, Time: Timestamp](
         fexp: Exp,
         args: List[(Exp, Abs)],
         store: Store[Addr, Abs],
@@ -716,10 +716,10 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     MayFailSuccess((v, Set()))
   object Cons extends SimplePrimitive[Addr, Abs] {
     val name = "cons"
-    def Call[Exp: Expression, Time: Timestamp](fexp: Exp,
-                                               args: List[(Exp, Abs)],
-                                               store: Store[Addr, Abs],
-                                               t: Time) = args match {
+    def simpleCall[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                                     args: List[(Exp, Abs)],
+                                                     store: Store[Addr, Abs],
+                                                     t: Time) = args match {
       case (carexp, car) :: (cdrexp, cdr) :: Nil => {
         val cara = addr.cell(carexp, t)
         val cdra = addr.cell(cdrexp, t)
@@ -939,10 +939,10 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
 
   object MakeVector extends SimplePrimitive[Addr, Abs] {
     val name = "make-vector"
-    def Call[Exp: Expression, Time: Timestamp](fexp: Exp,
-                                               args: List[(Exp, Abs)],
-                                               store: Store[Addr, Abs],
-                                               t: Time) = args match {
+    def simpleCall[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                                     args: List[(Exp, Abs)],
+                                                     store: Store[Addr, Abs],
+                                                     t: Time) = args match {
       case (_, size) :: (initexp, init) :: Nil =>
         isInteger(size).bind(isint =>
           if (abs.isTrue(isint)) {
@@ -970,10 +970,10 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
   }
   object VectorSet extends SimplePrimitive[Addr, Abs] {
     val name = "vector-set!"
-    def Call[Exp: Expression, Time: Timestamp](fexp: Exp,
-                                               args: List[(Exp, Abs)],
-                                               store: Store[Addr, Abs],
-                                               t: Time) = args match {
+    def simpleCall[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                                     args: List[(Exp, Abs)],
+                                                     store: Store[Addr, Abs],
+                                                     t: Time) = args match {
       case (_, vector) :: (_, index) :: (exp, value) :: Nil => {
         val addrs = abs.getVectors(vector)
         if (addrs.isEmpty) {
@@ -1011,10 +1011,10 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
   }
   object Vector extends SimplePrimitive[Addr, Abs] {
     val name = "vector"
-    def Call[Exp: Expression, Time: Timestamp](fexp: Exp,
-                                               args: List[(Exp, Abs)],
-                                               store: Store[Addr, Abs],
-                                               t: Time) = {
+    def simpleCall[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                                     args: List[(Exp, Abs)],
+                                                     store: Store[Addr, Abs],
+                                                     t: Time) = {
       val a = addr.cell(fexp, t)
       val botaddr = addr.primitive("__bottom__")
       abs
