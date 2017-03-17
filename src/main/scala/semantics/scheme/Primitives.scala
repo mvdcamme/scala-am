@@ -5,23 +5,23 @@ import scalaz.Scalaz._
 package object PrimitiveDefinitions {
 
   trait PrimReturn[Abs, Addr] {
-    def get: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] //TODO Debugging, don't use this!
+    def get: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = {
+      throw new Exception(s"Tried to get the MayFail value, got: $this")
+    } //TODO Debugging, don't use this!
   }
 
   case class Simple[Abs: JoinLattice, Addr: Address](result: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])])
     extends PrimReturn[Abs, Addr] {
-    def get = result
+    override def get = result
   }
 
-  case class HigherOrderContinue[Exp: Expression, Abs: JoinLattice, Addr: Address](foo: Foo[Exp, Abs, Addr])
-    extends PrimReturn[Abs, Addr] {
-    def get = throw new Exception(s"Tried to get the MayFail value of a HigherOrderContinue result: $this")
-  }
+  case class HigherOrderContinue[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    foo: MayFail[(Foo[Exp, Abs, Addr], Set[Effect[Addr]])])
+    extends PrimReturn[Abs, Addr]
 
-  case class HigherOrderStart[Exp: Expression, Abs: JoinLattice, Addr: Address](foos: Set[Foo[Exp, Abs, Addr]])
-    extends PrimReturn[Abs, Addr] {
-    def get = throw new Exception(s"Tried to get the MayFail value of a HigherOrderStart result: $this")
-  }
+  case class HigherOrderStart[Exp: Expression, Abs: JoinLattice, Addr: Address](
+    foos: MayFail[(Set[Foo[Exp, Abs, Addr]], Set[Effect[Addr]])])
+    extends PrimReturn[Abs, Addr]
 
   sealed trait Foo[Exp, Abs, Addr]
 
@@ -69,6 +69,10 @@ case object DummyPrimitiveApplicationState extends PrimitiveApplicationState
   */
 trait Primitive[Addr, Abs] {
 
+  implicit private def simple[Abs: JoinLattice, Addr: Address]
+                             (mf: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]): PrimReturn[Abs, Addr] =
+    Simple(mf)
+
   /** The name of the primitive */
   val name: String
 
@@ -114,7 +118,7 @@ abstract class SimplePrimitive[Addr: Address, Abs: JoinLattice] extends Primitiv
                                              args: List[(Exp, Abs)],
                                              store: Store[Addr, Abs],
                                              t: Time): PrimReturn[Abs, Addr] =
-    Simple(Call(fexp, args, store, t))
+    Simple[Abs, Addr](Call(fexp, args, store, t))
 
   def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                      store: Store[Addr, Abs],
@@ -282,6 +286,12 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
         case x :: y :: Nil => call(fexp, x, y, store)
         case l => call(args.map({ case (_, v) => v }), store)
       }
+  }
+
+  abstract class SimpleStoreOperation(name: String,
+                                      nargs: Option[Int] = None)
+    extends StoreOperation(name, nargs) {
+
   }
 
   private def applyGenericPlusOperation(
@@ -1344,20 +1354,70 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
 
     val name = "apply"
 
+    val listMfmon = MayFail.monoid[(Set[List[Abs]], Set[Effect[Addr]])]
+
+    private def collectArguments(lst: Abs, store: Store[Addr, Abs]): MayFail[(Set[List[Abs]], Set[Effect[Addr]])] = {
+      def loop(l: Abs, visited: Set[Abs]): MayFail[(Set[List[Abs]], Set[Effect[Addr]])] = {
+        if (visited.contains(l)) {
+          MayFailSuccess((Set[List[Abs]](), Set[Effect[Addr]]()))
+        } else {
+          isCons(l).bind(cond => {
+            val t = if (abs.isTrue(cond)) {
+              car(l, store).bind({
+                case (carl, effects1) =>
+                  cdr(l, store).bind({
+                    case (cdrl, effects2) =>
+                      loop(cdrl, visited + l).bind({
+                        case (lsts, effects3) =>
+                          MayFailSuccess((lsts.map(carl :: _), effects1 ++ effects2 ++ effects3))
+                      })
+                  })
+              })
+            } else { listMfmon.zero }
+            val f: MayFail[(Set[List[Abs]], Set[Effect[Addr]])] = if (abs.isFalse(cond)) {
+              isNull(l).bind(fcond => {
+                val ft = if (abs.isTrue(fcond)) {
+                  MayFailSuccess((Set[List[Abs]](Nil), Set[Effect[Addr]]()))
+                } else { listMfmon.zero }
+                val ff: MayFail[(Set[List[Abs]], Set[Effect[Addr]])] = if (abs.isFalse(fcond)) {
+                  MayFailError(List(TypeError(name, "first operand", "list", "non-list")))
+                } else { listMfmon.zero }
+                listMfmon.append(ft, ff)
+              })
+            } else { MayFailSuccess((Set[List[Abs]](), Set[Effect[Addr]]())) }
+            listMfmon.append(t, f)
+          })
+        }
+      }
+      loop(lst, Set())
+    }
+
     def call[Exp: Expression, Time: Timestamp](fexp: Exp,
                                                args: List[(Exp, Abs)],
                                                store: Store[Addr, Abs],
                                                t: Time): PrimReturn[Abs, Addr] = {
-      val sabs = implicitly[IsSchemeLattice[Abs]]
-      val f = args.head
-      val fArgs = args.tail.head
-      val fromPrims: Set[Foo[Exp, Abs, Addr]] = sabs.getPrimitives(f._2).map( (prim) => {
-        FooPrim(f._1, prim.asInstanceOf[SimplePrimitive[Addr, Abs]], List(fArgs._2), store, DummyPrimitiveApplicationState)
-      })
-      val fromClosures: Set[Foo[Exp, Abs, Addr]] = sabs.getClosures(f._2).map( (clo) => {
-        FooClo(f._1, clo, List(fArgs._2), store, DummyPrimitiveApplicationState)
-      })
-      HigherOrderStart(fromPrims ++ fromClosures)
+      if (args.length != 2) {
+        Simple(MayFailError(List(ArityError(name, 2, args.length))))
+      } else {
+        val sabs = implicitly[IsSchemeLattice[Abs]]
+        val arg1 = args.head
+        val arg2 = args(1)
+        val functionArgsLists = collectArguments(arg2._2, store)
+
+        val mapped: MayFail[(Set[Foo[Exp, Abs, Addr]], Set[Effect[Addr]])] = functionArgsLists.map[(Set[Foo[Exp, Abs, Addr]], Set[Effect[Addr]])]({
+          case (functionArgsSet, effects) =>
+            val fromPrims: Set[Foo[Exp, Abs, Addr]] = sabs.getPrimitives(arg1._2).flatMap( (prim) => {
+              functionArgsSet.map( (functionArgs) =>
+                FooPrim(arg1._1, prim.asInstanceOf[SimplePrimitive[Addr, Abs]], functionArgs, store, DummyPrimitiveApplicationState) )
+            })
+            val fromClosures: Set[Foo[Exp, Abs, Addr]] = sabs.getClosures(arg1._2).flatMap( (clo) => {
+              functionArgsSet.map( (functionArgs) =>
+                FooClo(arg1._1, clo, functionArgs, store, DummyPrimitiveApplicationState) )
+            })
+            (fromPrims ++ fromClosures, effects)
+        })
+        HigherOrderStart(mapped)
+      }
     }
 
     def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
