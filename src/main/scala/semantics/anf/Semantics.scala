@@ -67,11 +67,11 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
         val fromPrim: Set[Action[ANFExp, Abs, Addr]] = sabs.getPrimitives(fv).flatMap(prim =>
           /* To call a primitive, apply the call method with the given arguments and the store */
           prim.call(f, argsv, store, t) match {
-            case Simple(result) =>
+            case ReturnResult(result) =>
               result.collect({
                 case (res, store2, effects2) => Set[Action[ANFExp, Abs, Addr]](ActionReachedValue[ANFExp, Abs, Addr](res, store2, effects ++ effects2))
               }, err => Set[Action[ANFExp, Abs, Addr]](ActionError[ANFExp, Abs, Addr](err)))
-            case HigherOrderStart(foos) =>
+            case StartFunctionCallRequest(foos) =>
               //TODO Implement
               throw new Exception("Not yet implemented")
           })

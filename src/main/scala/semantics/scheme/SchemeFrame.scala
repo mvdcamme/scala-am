@@ -1,5 +1,3 @@
-import PrimitiveDefinitions._
-
 abstract class SchemeFrame[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp] extends Frame {
   type Address = Addr
 
