@@ -121,7 +121,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                                    fooClo: (SchemeExp, Environment[Addr]),
                                    fooArgs: List[Abs],
                                    fooStore: Store[Addr, Abs],
-                                   fooState: PrimitiveApplicationState,
+                                   fooState: PrimitiveAppState,
                                    t: Time):
   EdgeInformation[SchemeExp, Abs, Addr] = {
     val fooArgsv = fooArgs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
@@ -170,7 +170,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         * @return
         */
       def recursiveHandleSimplePrimitiveResult(simpleMayFail: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])],
-                                                                                              state: PrimitiveApplicationState): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = {
+                                                                                              state: PrimitiveAppState): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = {
 
           /*
            * TODO Both the higher-order primitive and the SimplePrimitive may fail! Have to combine MayFails?

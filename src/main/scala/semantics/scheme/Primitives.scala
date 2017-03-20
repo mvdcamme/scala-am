@@ -4,7 +4,9 @@ import scalaz.Scalaz._
 
 package object PrimitivesDefinitions {
 
+  type FunctionCallRequestMF[Exp, Abs, Addr] = MayFail[(Set[FunctionCallRequest[Exp, Abs, Addr]], Set[Effect[Addr]])]
   type SimpleReturn[Abs, Addr] = (Abs, Store[Addr, Abs], Set[Effect[Addr]])
+  type SimpleReturnSet[Abs, Addr] = (Set[Abs], Store[Addr, Abs], Set[Effect[Addr]])
 
   trait PrimitiveReturn[Abs, Addr] {
     def extract: MayFail[SimpleReturn[Abs, Addr]] =
@@ -22,7 +24,7 @@ package object PrimitivesDefinitions {
 
 
   case class StartFunctionCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    functionCallRequests: MayFail[(Set[FunctionCallRequest[Exp, Abs, Addr]], Set[Effect[Addr]])])
+    functionCallRequests: FunctionCallRequestMF[Exp, Abs, Addr])
     extends PrimitiveReturn[Abs, Addr]
 
   sealed trait FunctionCallRequest[Exp, Abs, Addr]
@@ -41,7 +43,7 @@ package object PrimitivesDefinitions {
      prim: Primitive[Addr, Abs],
      args: List[Abs],
      store: Store[Addr, Abs],
-     state: PrimitiveApplicationState) extends FunctionCallRequest[Exp, Abs, Addr]
+     state: PrimitiveAppState) extends FunctionCallRequest[Exp, Abs, Addr]
 
   /**
     *
@@ -57,14 +59,22 @@ package object PrimitivesDefinitions {
      clo: (Exp, Environment[Addr]),
      args: List[Abs],
      store: Store[Addr, Abs],
-     state: PrimitiveApplicationState) extends FunctionCallRequest[Exp, Abs, Addr]
+     state: PrimitiveAppState) extends FunctionCallRequest[Exp, Abs, Addr]
 
 }
 
 import PrimitivesDefinitions._
 
-trait PrimitiveApplicationState
-case object DummyPrimitiveApplicationState extends PrimitiveApplicationState
+trait PrimitiveAppState
+case object DummyPrimitiveAppState extends PrimitiveAppState
+
+trait PrimCalledPrimAppState[Abs, Addr] extends PrimitiveAppState {
+  def primitive: Primitive[Addr, Abs]
+}
+
+trait CloCalledPrimAppState[Exp, Addr] extends PrimitiveAppState {
+  def closure: (Exp, Environment[Addr])
+}
 
 /**
   * Each primitive has to implement this trait.
@@ -95,7 +105,7 @@ trait Primitive[Addr, Abs] {
     */
   def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                      store: Store[Addr, Abs],
-                                                     state: PrimitiveApplicationState): PrimitiveReturn[Abs, Addr]
+                                                     state: PrimitiveAppState): PrimitiveReturn[Abs, Addr]
 
   def convert[Addr: Address, Abs: IsConvertableLattice](
       prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs]
@@ -105,7 +115,7 @@ trait Primitive[Addr, Abs] {
 /**
   * A primitive that does not use higher-order functions.
   */
-abstract class SimplePrimitive[Addr: Address, Abs: JoinLattice] extends Primitive[Addr, Abs] {
+abstract class NonHigherOrderPrimitive[Addr: Address, Abs: JoinLattice] extends Primitive[Addr, Abs] {
 
   /**
     * Converts the MayFail value returned by non-higher-order primitives to a PrimReturn.
@@ -117,7 +127,7 @@ abstract class SimplePrimitive[Addr: Address, Abs: JoinLattice] extends Primitiv
 
   def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                      store: Store[Addr, Abs],
-                                                     state: PrimitiveApplicationState): PrimitiveReturn[Abs, Addr] =
+                                                     state: PrimitiveAppState): PrimitiveReturn[Abs, Addr] =
     throw new Exception("Method not implemented by a SimplePrimitive")
 
 }
@@ -157,7 +167,7 @@ abstract class Primitives[Addr: Address, Abs: JoinLattice] {
 
       def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                          store: Store[Addr, Abs],
-                                                         state: PrimitiveApplicationState): PrimitiveReturn[Abs, Addr] =
+                                                         state: PrimitiveAppState): PrimitiveReturn[Abs, Addr] =
         prim.reachedValue(result, store, state)
 
       def convert[Addr: Address, Abs: IsConvertableLattice](
@@ -215,7 +225,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
 
   abstract class NoStoreOperation(val name: String,
                                   val nargs: Option[Int] = None)
-      extends SimplePrimitive[Addr, Abs] {
+      extends NonHigherOrderPrimitive[Addr, Abs] {
     def call(args: List[Abs]): MayFail[Abs] =
       MayFailError(List(ArityError(name, nargs.getOrElse(-1), args.length)))
     def call(arg1: Abs, arg2: Abs): MayFail[Abs] = call(List(arg1, arg2))
@@ -247,7 +257,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
 
   abstract class StoreOperation(val name: String,
                                 val nargs: Option[Int] = None)
-      extends SimplePrimitive[Addr, Abs] {
+      extends NonHigherOrderPrimitive[Addr, Abs] {
     def call(args: List[Abs], store: Store[Addr, Abs])
       : MayFail[SimpleReturn[Abs, Addr]] =
       MayFailError[SimpleReturn[Abs, Addr]](List(ArityError(name, nargs.getOrElse(-1), args.length)))
@@ -271,23 +281,16 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     def call(store: Store[Addr, Abs])
       : MayFail[SimpleReturn[Abs, Addr]] =
       call(List(), store)
-    def call[Exp: Expression, Time: Timestamp](
-        fexp: Exp,
-        args: List[(Exp, Abs)],
-        store: Store[Addr, Abs],
-        t: Time): PrimitiveReturn[Abs, Addr] =
+    def call[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                               args: List[(Exp, Abs)],
+                                               store: Store[Addr, Abs],
+                                               t: Time): PrimitiveReturn[Abs, Addr] =
       args match {
         case Nil => call(store)
         case x :: Nil => call(fexp, x, store)
         case x :: y :: Nil => call(fexp, x, y, store)
         case l => call(args.map({ case (_, v) => v }), store)
       }
-  }
-
-  abstract class SimpleStoreOperation(name: String,
-                                      nargs: Option[Int] = None)
-    extends StoreOperation(name, nargs) {
-
   }
 
   private def applyGenericPlusOperation(
@@ -709,7 +712,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     MayFailError(List(e))
   def success(v: Abs): MayFail[(Abs, Set[Effect[Addr]])] =
     MayFailSuccess((v, Set()))
-  object Cons extends SimplePrimitive[Addr, Abs] {
+  object Cons extends NonHigherOrderPrimitive[Addr, Abs] {
     val name = "cons"
     def call[Exp: Expression, Time: Timestamp](fexp: Exp,
                                                      args: List[(Exp, Abs)],
@@ -932,7 +935,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
       prims.Listp
   }
 
-  object MakeVector extends SimplePrimitive[Addr, Abs] {
+  object MakeVector extends NonHigherOrderPrimitive[Addr, Abs] {
     val name = "make-vector"
     def call[Exp: Expression, Time: Timestamp](fexp: Exp,
                                                      args: List[(Exp, Abs)],
@@ -963,7 +966,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.MakeVector
   }
-  object VectorSet extends SimplePrimitive[Addr, Abs] {
+  object VectorSet extends NonHigherOrderPrimitive[Addr, Abs] {
     val name = "vector-set!"
     def call[Exp: Expression, Time: Timestamp](fexp: Exp,
                                                      args: List[(Exp, Abs)],
@@ -1004,7 +1007,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.VectorSet
   }
-  object Vector extends SimplePrimitive[Addr, Abs] {
+  object Vector extends NonHigherOrderPrimitive[Addr, Abs] {
     val name = "vector"
     def call[Exp: Expression, Time: Timestamp](fexp: Exp,
                                                      args: List[(Exp, Abs)],
@@ -1400,25 +1403,25 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
         val arg2 = args(1)
         val functionArgsLists = collectArguments(arg2._2, store)
 
-        val mapped: MayFail[(Set[FunctionCallRequest[Exp, Abs, Addr]], Set[Effect[Addr]])] = functionArgsLists.map[(Set[FunctionCallRequest[Exp, Abs, Addr]], Set[Effect[Addr]])]({
+        val requests: FunctionCallRequestMF[Exp, Abs, Addr] = functionArgsLists.map[(Set[FunctionCallRequest[Exp, Abs, Addr]], Set[Effect[Addr]])]({
           case (functionArgsSet, effects) =>
-            val fromPrims: Set[FunctionCallRequest[Exp, Abs, Addr]] = sabs.getPrimitives(arg1._2).flatMap((prim) => {
+            val fromPrims: Set[FunctionCallRequest[Exp, Abs, Addr]] = sabs.getPrimitives(arg1._2).flatMap( (prim) => {
               functionArgsSet.map( (functionArgs) =>
-                PrimitiveCallRequest(arg1._1, prim, functionArgs, store, DummyPrimitiveApplicationState) )
+                PrimitiveCallRequest(arg1._1, prim, functionArgs, store, DummyPrimitiveAppState) )
             })
-            val fromClosures: Set[FunctionCallRequest[Exp, Abs, Addr]] = sabs.getClosures(arg1._2).flatMap((clo) => {
+            val fromClosures: Set[FunctionCallRequest[Exp, Abs, Addr]] = sabs.getClosures(arg1._2).flatMap( (clo) => {
               functionArgsSet.map( (functionArgs) =>
-                ClosureCallRequest(arg1._1, clo, functionArgs, store, DummyPrimitiveApplicationState) )
+                ClosureCallRequest(arg1._1, clo, functionArgs, store, DummyPrimitiveAppState) )
             })
             (fromPrims ++ fromClosures, effects)
         })
-        StartFunctionCallRequest(mapped)
+        StartFunctionCallRequest(requests)
       }
     }
 
     def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                        store: Store[Addr, Abs],
-                                                       state: PrimitiveApplicationState): PrimitiveReturn[Abs, Addr] = state match {
+                                                       state: PrimitiveAppState): PrimitiveReturn[Abs, Addr] = state match {
       case _ =>
         ReturnResult(MayFailSuccess[SimpleReturn[Abs, Addr]]((result, store, Set())))
       }

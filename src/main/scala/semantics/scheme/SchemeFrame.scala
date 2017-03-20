@@ -309,7 +309,7 @@ case class FrameDefine[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
 
 case class FrameHigherOrderPrimCall[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     prim: Primitive[Addr, Abs],
-    state: PrimitiveApplicationState)
+    state: PrimitiveAppState)
     extends SchemeFrame[Abs, Addr, Time] {
 
   def convert[OtherAbs: IsConvertableLattice](convertValue: (Abs) => OtherAbs,
