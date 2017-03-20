@@ -895,6 +895,35 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
       prims.Length
   }
 
+  object ListPrim extends StoreOperation("list", None) {
+    override def call[Exp: Expression, Time: Timestamp](fexp: Exp,
+                                                        args: List[(Exp, Abs)],
+                                                        store: Store[Addr, Abs],
+                                                        t: Time): PrimitiveReturn[Abs, Addr] = {
+      val pos = implicitly[Expression[Exp]].pos(fexp)
+
+      val nilv = abs.nil
+      val nila = addr.primitive(s"_nil_${pos}_") // Hack to make sure addresses use the position of fexp
+      val init: (Abs, Addr, Store[Addr, Abs]) = (nilv, nila, store)
+      /*
+       * If args is empty, the store should not be extended, so we allocate an address, but only forward it to
+       * the next iteration, so that this next iteration (if there is one) can use it to extend the store.
+       */
+      val result = args.zipWithIndex.reverse.foldLeft(init)({
+        case ((cdrv, cdra, store), ((argExp, argv), index)) =>
+          val cara = addr.cell(argExp, t)
+          val cons = abs.cons(cara, cdra)
+          val newStore = store.extend(cdra, cdrv).extend(cara, argv)
+          val paira = addr.primitive(s"_cons_${index}_${pos}_") // Hack to make sure addresses use the position of fexp
+          (abs.cons(cara, cdra), paira, newStore)
+      })
+      ReturnResult(MayFailSuccess[SimpleReturn[Abs, Addr]]((result._1, result._3, Set())))
+    }
+
+    def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.ListPrim
+  }
+
   /** (define (list? l) (or (and (pair? l) (list? (cdr l))) (null? l))) */
   object Listp extends StoreOperation("list?", Some(1)) {
     override def call(l: Abs, store: Store[Addr, Abs]) = {
