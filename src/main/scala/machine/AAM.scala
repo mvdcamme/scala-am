@@ -1,3 +1,5 @@
+import PrimitivesDefinitions._
+
 /**
   * Implementation of a CESK machine following the AAM approach (Van Horn, David,
   * and Matthew Might. "Abstracting abstract machines." ACM Sigplan
@@ -342,6 +344,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
                    newGraph)
             }
           case None =>
+            new CountFunCalls[Exp, Abs, Addr, State]().computeAndWriteMetrics(graph, -1, "Analysis/Closures_Points_To/initial_analysis.txt")
             AAMOutput(halted,
                       visited.size,
                       (System.nanoTime - startingTime) / Math.pow(10, 9),
@@ -631,9 +634,13 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
             val primitives = sabs.getPrimitives[Addr, Abs](operator)
             val filterEdge = addKontFilterAnnotations(state.a, kont)
             primitives.flatMap( (primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store, state.t)
-              .extract.collect({
-                case (res, store2, effects) =>
-                  Set((state.copy(control = ControlKont(res), store = store2, a = kont.next), filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive))))
+              .collect({
+                case (results, store2, effects) =>
+                  results.map( (result: PrimitiveReturn[Abs, Addr]) => {
+                    val resultValue = result.extract
+                    val newState = state.copy(control = ControlKont(resultValue), store = store2, a = kont.next)
+                    (newState, filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive)))
+                  })
               },
                 err =>
                   Set((state.copy(control = ControlError(err), a = kont.next), filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive))))))

@@ -4,62 +4,72 @@ import scalaz.Scalaz._
 
 package object PrimitivesDefinitions {
 
-  type FunctionCallRequestMF[Exp, Abs, Addr] = MayFail[(Set[FunctionCallRequest[Exp, Abs, Addr]], Set[Effect[Addr]])]
+//  type FunctionCallRequestMF[Exp, Abs, Addr] = MayFail[(FunctionCallRequest[Exp, Abs, Addr], Set[Effect[Addr]])]
   type SimpleReturn[Abs, Addr] = (Abs, Store[Addr, Abs], Set[Effect[Addr]])
-  type SimpleReturnSet[Abs, Addr] = (Set[Abs], Store[Addr, Abs], Set[Effect[Addr]])
+//  type SimpleReturnSet[Abs, Addr] = (Set[Abs], Store[Addr, Abs], Set[Effect[Addr]])
+
+  type PrimitiveResultType[Exp, Abs, Addr] = (Set[PrimitiveReturn[Abs, Addr]], Store[Addr, Abs], Set[Effect[Addr]])
+  type PrimitiveResultMF[Exp, Abs, Addr] = MayFail[PrimitiveResultType[Exp, Abs, Addr]]
 
   trait PrimitiveReturn[Abs, Addr] {
-    def extract: MayFail[SimpleReturn[Abs, Addr]] =
-      throw new Exception(s"Tried to extract the MayFail value, got: $this instead")
+    def extract: Abs =
+      throw new Exception(s"Tried to extract the value, got: $this instead")
   }
 
-  case class ReturnResult[Abs: JoinLattice, Addr: Address](result: MayFail[SimpleReturn[Abs, Addr]])
+  case class ReturnResult[Abs: JoinLattice, Addr: Address](result: Abs)
     extends PrimitiveReturn[Abs, Addr] {
     override def extract = result
   }
 
-  case class ContinueFunctionCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    functionCallRequest: MayFail[(FunctionCallRequest[Exp, Abs, Addr], Set[Effect[Addr]])])
-    extends PrimitiveReturn[Abs, Addr]
+//  case class ContinueFunctionCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address](
+//    functionCallRequest: MayFail[(FunctionCallRequest[Exp, Abs, Addr], Set[Effect[Addr]])])
+//    extends PrimitiveReturn[Abs, Addr]
 
 
   case class StartFunctionCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    functionCallRequests: FunctionCallRequestMF[Exp, Abs, Addr])
+    functionCallRequest: FCallRequest[Exp, Abs, Addr])
     extends PrimitiveReturn[Abs, Addr]
 
   sealed trait FunctionCallRequest[Exp, Abs, Addr]
 
-  /**
-    *
-    * @param fexp: the expression of the application of the higher-order primitive: e.g., (f (car lst)) in a
-    *            map-primitive
-    * @param prim: the higher-order primitive to apply
-    * @param args: the arguments for the higher-order primitive
-    * @param store: the potentially modified store in which to call the higher-order primitive
-    * @param state: the state of this primitive
-    */
-  case class PrimitiveCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address]
-    (fexp: Exp,
-     prim: Primitive[Addr, Abs],
-     args: List[Abs],
-     store: Store[Addr, Abs],
-     state: PrimitiveAppState) extends FunctionCallRequest[Exp, Abs, Addr]
+  case class FCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address](fexp: Exp,
+                                                                            f: Abs,
+                                                                            args: List[Abs],
+                                                                            store: Store[Addr, Abs],
+                                                                            state: PrimitiveAppState)
+      extends FunctionCallRequest[Exp, Abs, Addr]
 
-  /**
-    *
-    * @param fexp: the expression of the application of the higher-order primitive: e.g., (f (car lst)) in a
-    *            map-primitive
-    * @param clo: the higher-order closure to apply
-    * @param args: the arguments for the higher-order primitive
-    * @param store: the potentially modified store in which to call the higher-order primitive
-    * @param state: the state of this primitive
-    */
-  case class ClosureCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address]
-    (fexp: Exp,
-     clo: (Exp, Environment[Addr]),
-     args: List[Abs],
-     store: Store[Addr, Abs],
-     state: PrimitiveAppState) extends FunctionCallRequest[Exp, Abs, Addr]
+//  /**
+//    *
+//    * @param fexp: the expression of the application of the higher-order primitive: e.g., (f (car lst)) in a
+//    *            map-primitive
+//    * @param prim: the higher-order primitive to apply
+//    * @param args: the arguments for the higher-order primitive
+//    * @param store: the potentially modified store in which to call the higher-order primitive
+//    * @param state: the state of this primitive
+//    */
+//  case class PrimitiveCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address]
+//    (fexp: Exp,
+//     prim: Primitive[Addr, Abs],
+//     args: List[Abs],
+//     store: Store[Addr, Abs],
+//     state: PrimitiveAppState) extends FunctionCallRequest[Exp, Abs, Addr]
+//
+//  /**
+//    *
+//    * @param fexp: the expression of the application of the higher-order primitive: e.g., (f (car lst)) in a
+//    *            map-primitive
+//    * @param clo: the higher-order closure to apply
+//    * @param args: the arguments for the higher-order primitive
+//    * @param store: the potentially modified store in which to call the higher-order primitive
+//    * @param state: the state of this primitive
+//    */
+//  case class ClosureCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address]
+//    (fexp: Exp,
+//     clo: (Exp, Environment[Addr]),
+//     args: List[Abs],
+//     store: Store[Addr, Abs],
+//     state: PrimitiveAppState) extends FunctionCallRequest[Exp, Abs, Addr]
 
 }
 
@@ -94,7 +104,7 @@ trait Primitive[Addr, Abs] {
       fexp: Exp,
       args: List[(Exp, Abs)],
       store: Store[Addr, Abs],
-      t: Time): PrimitiveReturn[Abs, Addr]
+      t: Time): PrimitiveResultMF[Exp, Abs, Addr]
 
   /**
     * TODO
@@ -105,7 +115,7 @@ trait Primitive[Addr, Abs] {
     */
   def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                      store: Store[Addr, Abs],
-                                                     state: PrimitiveAppState): PrimitiveReturn[Abs, Addr]
+                                                     state: PrimitiveAppState): PrimitiveResultMF[Exp, Abs, Addr]
 
   def convert[Addr: Address, Abs: IsConvertableLattice](
       prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs]
@@ -121,13 +131,16 @@ abstract class NonHigherOrderPrimitive[Addr: Address, Abs: JoinLattice] extends 
     * Converts the MayFail value returned by non-higher-order primitives to a PrimReturn.
     * @param mf: the MayFail value to convert
     */
-  implicit protected def convertMayFail[Abs: JoinLattice, Addr: Address]
-  (mf: MayFail[SimpleReturn[Abs, Addr]]): PrimitiveReturn[Abs, Addr] =
-    ReturnResult(mf)
+  implicit protected def convertMayFail[Exp: Expression, Abs: JoinLattice, Addr: Address]
+  (mf: MayFail[SimpleReturn[Abs, Addr]]): PrimitiveResultMF[Exp, Abs, Addr] =
+    mf.map[PrimitiveResultType[Exp, Abs, Addr]]({
+      case (v, store, effects) =>
+        (Set(ReturnResult(v)), store, effects)
+    })
 
   def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                      store: Store[Addr, Abs],
-                                                     state: PrimitiveAppState): PrimitiveReturn[Abs, Addr] =
+                                                     state: PrimitiveAppState): PrimitiveResultMF[Exp, Abs, Addr] =
     throw new Exception("Method not implemented by a SimplePrimitive")
 
 }
@@ -152,22 +165,25 @@ abstract class Primitives[Addr: Address, Abs: JoinLattice] {
         val argsstr = args.map({ case (_, v) => v.toString }).mkString(" ")
         val res = prim.call(fexp, args, store, t)
         print("($name $argsstr) -> ")
-        res match {
-          case ReturnResult(MayFailError(errs)) =>
-            "ERROR: " + errs.mkString(" | ERROR: ")
-          case ReturnResult(MayFailSuccess((v, store, effs))) =>
-            v.toString
-          case ReturnResult(MayFailBoth((v, store, effs), errs)) =>
-            v.toString + " | ERROR: " + errs.mkString(" | ERROR: ")
-          case StartFunctionCallRequest(functionCallRequests) =>
-            functionCallRequests.toString
-        }
+        res.map({
+          case (primReturns, store, effects) =>
+            (primReturns.map({
+              case ReturnResult(MayFailError(errs)) =>
+                "ERROR: " + errs.mkString(" | ERROR: ")
+              case ReturnResult(MayFailSuccess((v, store, effs))) =>
+                v.toString
+              case ReturnResult(MayFailBoth((v, store, effs), errs)) =>
+                v.toString + " | ERROR: " + errs.mkString(" | ERROR: ")
+              case StartFunctionCallRequest(functionCallRequests) =>
+                functionCallRequests.toString
+            }), store, effects)
+        })
         res
       }
 
       def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                          store: Store[Addr, Abs],
-                                                         state: PrimitiveAppState): PrimitiveReturn[Abs, Addr] =
+                                                         state: PrimitiveAppState): PrimitiveResultMF[Exp, Abs, Addr] =
         prim.reachedValue(result, store, state)
 
       def convert[Addr: Address, Abs: IsConvertableLattice](
@@ -245,7 +261,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
         fexp: Exp,
         args: List[(Exp, Abs)],
         store: Store[Addr, Abs],
-        t: Time): PrimitiveReturn[Abs, Addr] = {
+        t: Time): PrimitiveResultMF[Exp, Abs, Addr] = {
       (args match {
         case Nil => call()
         case x :: Nil => call(fexp, x)
@@ -284,7 +300,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     def call[Exp: Expression, Time: Timestamp](fexp: Exp,
                                                args: List[(Exp, Abs)],
                                                store: Store[Addr, Abs],
-                                               t: Time): PrimitiveReturn[Abs, Addr] =
+                                               t: Time): PrimitiveResultMF[Exp, Abs, Addr] =
       args match {
         case Nil => call(store)
         case x :: Nil => call(fexp, x, store)
@@ -899,7 +915,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     override def call[Exp: Expression, Time: Timestamp](fexp: Exp,
                                                         args: List[(Exp, Abs)],
                                                         store: Store[Addr, Abs],
-                                                        t: Time): PrimitiveReturn[Abs, Addr] = {
+                                                        t: Time) = {
       val pos = implicitly[Expression[Exp]].pos(fexp)
 
       val nilv = abs.nil
@@ -917,7 +933,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
           val paira = addr.primitive(s"_cons_${index}_${pos}_") // Hack to make sure addresses use the position of fexp
           (abs.cons(cara, cdra), paira, newStore)
       })
-      ReturnResult(MayFailSuccess[SimpleReturn[Abs, Addr]]((result._1, result._3, Set())))
+      MayFailSuccess[SimpleReturn[Abs, Addr]]((result._1, result._3, Set()))
     }
 
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
@@ -1044,7 +1060,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
                                                      t: Time) = {
       val a = addr.cell(fexp, t)
       val botaddr = addr.primitive("__bottom__")
-      abs
+      convertMayFail(abs
         .vector(a, abs.inject(args.size), botaddr)
         .bind({
           case (va, emptyVector) =>
@@ -1072,7 +1088,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
                 case (vector, store) =>
                   (va, store.extend(a, vector), Set[Effect[Addr]]())
               })
-        })
+        }))
     }
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
@@ -1382,12 +1398,12 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
 
     val name = "apply"
 
-    val listMfmon = MayFail.monoid[(Set[List[Abs]], Set[Effect[Addr]])]
+    val listMfmon = MayFail.monoid[(List[Abs], Set[Effect[Addr]])]
 
-    private def collectArguments(lst: Abs, store: Store[Addr, Abs]): MayFail[(Set[List[Abs]], Set[Effect[Addr]])] = {
-      def loop(l: Abs, visited: Set[Abs]): MayFail[(Set[List[Abs]], Set[Effect[Addr]])] = {
+    private def collectArguments(lst: Abs, store: Store[Addr, Abs]): MayFail[(List[Abs], Set[Effect[Addr]])] = {
+      def loop(l: Abs, visited: Set[Abs]): MayFail[(List[Abs], Set[Effect[Addr]])] = {
         if (visited.contains(l)) {
-          MayFailSuccess((Set[List[Abs]](), Set[Effect[Addr]]()))
+          MayFailSuccess((Nil, Set[Effect[Addr]]()))
         } else {
           isCons(l).bind(cond => {
             val t = if (abs.isTrue(cond)) {
@@ -1396,23 +1412,24 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
                   cdr(l, store).bind({
                     case (cdrl, effects2) =>
                       loop(cdrl, visited + l).bind({
-                        case (lsts, effects3) =>
-                          MayFailSuccess((lsts.map(carl :: _), effects1 ++ effects2 ++ effects3))
+                        case (lst, effects3) =>
+                          MayFailSuccess((carl :: lst, effects1 ++ effects2 ++ effects3))
                       })
                   })
               })
             } else { listMfmon.zero }
-            val f: MayFail[(Set[List[Abs]], Set[Effect[Addr]])] = if (abs.isFalse(cond)) {
+            val f: MayFail[(List[Abs], Set[Effect[Addr]])] = if (abs.isFalse(cond)) {
               isNull(l).bind(fcond => {
                 val ft = if (abs.isTrue(fcond)) {
-                  MayFailSuccess((Set[List[Abs]](Nil), Set[Effect[Addr]]()))
+                  val nil: List[Abs] = Nil
+                  MayFailSuccess((nil, Set[Effect[Addr]]()))
                 } else { listMfmon.zero }
-                val ff: MayFail[(Set[List[Abs]], Set[Effect[Addr]])] = if (abs.isFalse(fcond)) {
+                val ff: MayFail[(List[Abs], Set[Effect[Addr]])] = if (abs.isFalse(fcond)) {
                   MayFailError(List(TypeError(name, "first operand", "list", "non-list")))
                 } else { listMfmon.zero }
                 listMfmon.append(ft, ff)
               })
-            } else { MayFailSuccess((Set[List[Abs]](), Set[Effect[Addr]]())) }
+            } else { MayFailSuccess((List[Abs](), Set[Effect[Addr]]())) }
             listMfmon.append(t, f)
           })
         }
@@ -1423,53 +1440,126 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     def call[Exp: Expression, Time: Timestamp](fexp: Exp,
                                                args: List[(Exp, Abs)],
                                                store: Store[Addr, Abs],
-                                               t: Time): PrimitiveReturn[Abs, Addr] = {
+                                               t: Time): PrimitiveResultMF[Exp, Abs, Addr] = {
       if (args.length != 2) {
-        ReturnResult(MayFailError(List(ArityError(name, 2, args.length))))
+        MayFailError[PrimitiveResultType[Exp, Abs, Addr]](List(ArityError(name, 2, args.length)))
       } else {
         val sabs = implicitly[IsSchemeLattice[Abs]]
         val arg1 = args.head
         val arg2 = args(1)
-        val functionArgsLists = collectArguments(arg2._2, store)
+        val functionArgsList = collectArguments(arg2._2, store)
 
-        val requests: FunctionCallRequestMF[Exp, Abs, Addr] = functionArgsLists.map[(Set[FunctionCallRequest[Exp, Abs, Addr]], Set[Effect[Addr]])]({
-          case (functionArgsSet, effects) =>
-            val fromPrims: Set[FunctionCallRequest[Exp, Abs, Addr]] = sabs.getPrimitives(arg1._2).flatMap( (prim) => {
-              functionArgsSet.map( (functionArgs) =>
-                PrimitiveCallRequest(arg1._1, prim, functionArgs, store, DummyPrimitiveAppState) )
-            })
-            val fromClosures: Set[FunctionCallRequest[Exp, Abs, Addr]] = sabs.getClosures(arg1._2).flatMap( (clo) => {
-              functionArgsSet.map( (functionArgs) =>
-                ClosureCallRequest(arg1._1, clo, functionArgs, store, DummyPrimitiveAppState) )
-            })
-            (fromPrims ++ fromClosures, effects)
+        val request: PrimitiveResultMF[Exp, Abs, Addr] = functionArgsList.map[PrimitiveResultType[Exp, Abs, Addr]]({
+          case (functionArgs, effects) =>
+//            val fromPrims: Set[FunctionCallRequest[Exp, Abs, Addr]] = sabs.getPrimitives(arg1._2).map( (prim) => {
+//                PrimitiveCallRequest(arg1._1, prim, functionArgs, store, DummyPrimitiveAppState)
+//            })
+//            val fromClosures: Set[FunctionCallRequest[Exp, Abs, Addr]] = sabs.getClosures(arg1._2).map( (clo) => {
+//                ClosureCallRequest(arg1._1, clo, functionArgs, store, DummyPrimitiveAppState)
+//            })
+            val request = FCallRequest(arg1._1, arg1._2, functionArgs, store, DummyPrimitiveAppState)
+            (Set(StartFunctionCallRequest(request)), store, effects)
         })
-        StartFunctionCallRequest(requests)
+        request
       }
     }
 
     def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                        store: Store[Addr, Abs],
-                                                       state: PrimitiveAppState): PrimitiveReturn[Abs, Addr] = state match {
+                                                       state: PrimitiveAppState): PrimitiveResultMF[Exp, Abs, Addr] = state
+    match {
       case _ =>
-        ReturnResult(MayFailSuccess[SimpleReturn[Abs, Addr]]((result, store, Set())))
-      }
+        MayFailSuccess[PrimitiveResultType[Exp, Abs, Addr]]((Set(ReturnResult[Abs, Addr](result)), store, Set()))
+    }
 
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Apply
 
   }
 
-  /*  object Lock extends Primitive[Addr, Abs] {
-    val name = "new-lock"
-    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time) = args match {
-      case Nil =>
-        val a = addr.cell(fexp, t)
-        MayFailSuccess((abs.lock(a), store.extend(a, abs.unlockedValue), Set()))
-      case l => MayFailError(List(ArityError("lock", 0, l.size)))
-    }
-  }
-   */
+//  object Map extends Primitive[Addr, Abs] {
+//
+//    val sabs = implicitly[IsSchemeLattice[Abs]]
+//
+//    val name = "map"
+//
+//    sealed trait MapState {
+//      def accumulatedList: Abs
+//      def remainingList: Abs
+//    }
+//    case class MapStatePrim(accumulatedList: Abs, remainingList: Abs, primitive: Primitive[Addr, Abs])
+//      extends PrimCalledPrimAppState[Abs, Addr] with MapState
+//    case class MapStateClo[Exp: Expression](accumulatedList: Abs, remainingList: Abs, closure: (Exp, Environment[Addr]))
+//      extends CloCalledPrimAppState[Exp, Addr] with MapState
+//
+//    def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
+//                                                       store: Store[Addr, Abs],
+//                                                       state: PrimitiveAppState): PrimitiveReturn[Abs, Addr] = state match {
+//      case MapStatePrim(acc, rem, prim) =>
+//        val nullTest = isNull(rem)
+//        nullTest.bind[PrimitiveReturn[Abs, Addr]]( (nullTestResult) => {
+//          // TODO allocate Primitive address, extend store with address and result, call abs.cons on newly allocated
+//          // addresses
+//          val newAcc = abs.cons(result, acc)
+//          val t: PrimitiveResultMF[Exp, Abs, Addr] = if (sabs.isTrue(nullTestResult)) {
+//            MayFailSuccess[PrimitiveResultType[Exp, Abs, Addr]]((Set(ReturnResult[Abs, Addr](newAcc)), store, Set[Effect[Addr]]())) }
+//          else { MayFailSuccess[PrimitiveResultType[Exp, Abs, Addr]]((Set(ReturnResult[Abs, Addr](abs.zero)), store, Set())) }
+//          val f: MayFail[SimpleReturn[Abs, Addr]] = if (sabs.isFalse(nullTestResult)) {
+//            car(rem, store).bind({
+//              case (carRem, effects1) =>
+//                cdr(rem, store).bind({
+//                  case (cdrRem, effects2) =>
+//                    val newState = MapStatePrim(newAcc, cdrRem, prim)
+//                    MayFailSuccess()
+//                })
+//            })
+//          } else { MayFailSuccess[SimpleReturn[Abs, Addr]](abs.zero, store, Set()) }
+//          MayFailSuccess[SimpleReturn[Abs, Addr]](abs.zero, store, Set())
+//        } )
+//        ReturnResult(MayFailSuccess[SimpleReturn[Abs, Addr]](abs.zero, store, Set())) //TODO debugging
+//      case MapStateClo(acc, rem, clo) =>
+//        ReturnResult(MayFailSuccess[SimpleReturn[Abs, Addr]](abs.zero, store, Set())) // TODO debugging
+//
+//      case _ =>
+//        ReturnResult(MayFailSuccess[SimpleReturn[Abs, Addr]]((result, store, Set())))
+//    }
+//
+//    def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+//      prims.Map
+//
+//    def call[Exp: Expression, Time: Timestamp](fexp: Exp,
+//                                               args: List[(Exp, Abs)],
+//                                               store: Store[Addr, Abs],
+//                                               t: Time): PrimitiveReturn[Abs, Addr] = {
+//      if (args.size != 2) {
+//        ReturnResult(MayFailError[SimpleReturn[Abs, Addr]](List(ArityError(name, 2, args.length))))
+//      } else {
+//        val sabs = implicitly[IsSchemeLattice[Abs]]
+//        val arg1 = args.head
+//        val arg2 = args(1)
+//
+//        val requests: FunctionCallRequestMF[Exp, Abs, Addr] = car(arg2._2, store).bind({
+//          case (carl, effects1) =>
+//            cdr(arg2._2, store).map({
+//              case (cdrl, effects2) =>
+//                (FCallRequest(arg1._1, arg1._2, List(carl), store, MapStatePrim(sabs.nil, cdrl, prim)), effects1 ++ effects2)
+//            })
+//        })
+//        StartFunctionCallRequest(requests)
+//      }
+//    }
+//
+//  }
+//
+//  /*  object Lock extends Primitive[Addr, Abs] {
+//    val name = "new-lock"
+//    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time) = args match {
+//      case Nil =>
+//        val a = addr.cell(fexp, t)
+//        MayFailSuccess((abs.lock(a), store.extend(a, abs.unlockedValue), Set()))
+//      case l => MayFailError(List(ArityError("lock", 0, l.size)))
+//    }
+//  }
 
   /** Bundles all the primitives together */
   def all: List[Primitive[Addr, Abs]] =
