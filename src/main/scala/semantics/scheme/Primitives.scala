@@ -8,68 +8,75 @@ package object PrimitivesDefinitions {
   type SimpleReturn[Abs, Addr] = (Abs, Store[Addr, Abs], Set[Effect[Addr]])
 //  type SimpleReturnSet[Abs, Addr] = (Set[Abs], Store[Addr, Abs], Set[Effect[Addr]])
 
-  type PrimitiveResultType[Exp, Abs, Addr] = (Set[PrimitiveReturn[Abs, Addr]], Store[Addr, Abs], Set[Effect[Addr]])
-  type PrimitiveResultMF[Exp, Abs, Addr] = MayFail[PrimitiveResultType[Exp, Abs, Addr]]
-
   trait PrimitiveReturn[Abs, Addr] {
     def extract: Abs =
       throw new Exception(s"Tried to extract the value, got: $this instead")
   }
 
+  trait PrimitiveReached[Abs, Addr]
+
   case class ReturnResult[Abs: JoinLattice, Addr: Address](result: Abs)
-    extends PrimitiveReturn[Abs, Addr] {
+    extends PrimitiveReturn[Abs, Addr] with PrimitiveReached[Abs, Addr] {
     override def extract = result
   }
 
-//  case class ContinueFunctionCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address](
-//    functionCallRequest: MayFail[(FunctionCallRequest[Exp, Abs, Addr], Set[Effect[Addr]])])
-//    extends PrimitiveReturn[Abs, Addr]
-
-
   case class StartFunctionCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    functionCallRequest: FCallRequest[Exp, Abs, Addr])
+    fexp: Exp,
+    f: Abs,
+    args: List[Abs],
+    store: Store[Addr, Abs],
+    state: PrimitiveAppState)
     extends PrimitiveReturn[Abs, Addr]
+
+  type PrimitiveResultType[Exp, Abs, Addr] = (Set[PrimitiveReturn[Abs, Addr]], Store[Addr, Abs], Set[Effect[Addr]])
+  type PrimitiveResultMF[Exp, Abs, Addr] = MayFail[PrimitiveResultType[Exp, Abs, Addr]]
+
+  case class ContinueFunctionCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address](request: FunctionCallRequest[Exp, Abs, Addr])
+    extends PrimitiveReached[Abs, Addr]
+
+  type PrimitiveReachedType[Exp, Abs, Addr] = (Set[PrimitiveReached[Abs, Addr]], Store[Addr, Abs], Set[Effect[Addr]])
+  type PrimitiveReachedMF[Exp, Abs, Addr] = MayFail[PrimitiveReachedType[Exp, Abs, Addr]]
 
   sealed trait FunctionCallRequest[Exp, Abs, Addr]
 
-  case class FCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address](fexp: Exp,
-                                                                            f: Abs,
-                                                                            args: List[Abs],
-                                                                            store: Store[Addr, Abs],
-                                                                            state: PrimitiveAppState)
-      extends FunctionCallRequest[Exp, Abs, Addr]
+//  case class FCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address](fexp: Exp,
+//                                                                            f: Abs,
+//                                                                            args: List[Abs],
+//                                                                            store: Store[Addr, Abs],
+//                                                                            state: PrimitiveAppState)
+//      extends FunctionCallRequest[Exp, Abs, Addr]
 
-//  /**
-//    *
-//    * @param fexp: the expression of the application of the higher-order primitive: e.g., (f (car lst)) in a
-//    *            map-primitive
-//    * @param prim: the higher-order primitive to apply
-//    * @param args: the arguments for the higher-order primitive
-//    * @param store: the potentially modified store in which to call the higher-order primitive
-//    * @param state: the state of this primitive
-//    */
-//  case class PrimitiveCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address]
-//    (fexp: Exp,
-//     prim: Primitive[Addr, Abs],
-//     args: List[Abs],
-//     store: Store[Addr, Abs],
-//     state: PrimitiveAppState) extends FunctionCallRequest[Exp, Abs, Addr]
-//
-//  /**
-//    *
-//    * @param fexp: the expression of the application of the higher-order primitive: e.g., (f (car lst)) in a
-//    *            map-primitive
-//    * @param clo: the higher-order closure to apply
-//    * @param args: the arguments for the higher-order primitive
-//    * @param store: the potentially modified store in which to call the higher-order primitive
-//    * @param state: the state of this primitive
-//    */
-//  case class ClosureCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address]
-//    (fexp: Exp,
-//     clo: (Exp, Environment[Addr]),
-//     args: List[Abs],
-//     store: Store[Addr, Abs],
-//     state: PrimitiveAppState) extends FunctionCallRequest[Exp, Abs, Addr]
+  /**
+    *
+    * @param fexp: the expression of the application of the higher-order primitive: e.g., (f (car lst)) in a
+    *            map-primitive
+    * @param prim: the higher-order primitive to apply
+    * @param args: the arguments for the higher-order primitive
+    * @param store: the potentially modified store in which to call the higher-order primitive
+    * @param state: the state of this primitive
+    */
+  case class PrimitiveCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address]
+    (fexp: Exp,
+     prim: Primitive[Addr, Abs],
+     args: List[Abs],
+     store: Store[Addr, Abs],
+     state: PrimitiveAppState) extends FunctionCallRequest[Exp, Abs, Addr]
+
+  /**
+    *
+    * @param fexp: the expression of the application of the higher-order primitive: e.g., (f (car lst)) in a
+    *            map-primitive
+    * @param clo: the higher-order closure to apply
+    * @param args: the arguments for the higher-order primitive
+    * @param store: the potentially modified store in which to call the higher-order primitive
+    * @param state: the state of this primitive
+    */
+  case class ClosureCallRequest[Exp: Expression, Abs: JoinLattice, Addr: Address]
+    (fexp: Exp,
+     clo: (Exp, Environment[Addr]),
+     args: List[Abs],
+     store: Store[Addr, Abs],
+     state: PrimitiveAppState) extends FunctionCallRequest[Exp, Abs, Addr]
 
 }
 
@@ -115,7 +122,7 @@ trait Primitive[Addr, Abs] {
     */
   def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                      store: Store[Addr, Abs],
-                                                     state: PrimitiveAppState): PrimitiveResultMF[Exp, Abs, Addr]
+                                                     state: PrimitiveAppState): PrimitiveReachedMF[Exp, Abs, Addr]
 
   def convert[Addr: Address, Abs: IsConvertableLattice](
       prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs]
@@ -140,7 +147,7 @@ abstract class NonHigherOrderPrimitive[Addr: Address, Abs: JoinLattice] extends 
 
   def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                      store: Store[Addr, Abs],
-                                                     state: PrimitiveAppState): PrimitiveResultMF[Exp, Abs, Addr] =
+                                                     state: PrimitiveAppState): PrimitiveReachedMF[Exp, Abs, Addr] =
     throw new Exception("Method not implemented by a SimplePrimitive")
 
 }
@@ -174,7 +181,7 @@ abstract class Primitives[Addr: Address, Abs: JoinLattice] {
                 v.toString
               case ReturnResult(MayFailBoth((v, store, effs), errs)) =>
                 v.toString + " | ERROR: " + errs.mkString(" | ERROR: ")
-              case StartFunctionCallRequest(functionCallRequests) =>
+              case functionCallRequests: StartFunctionCallRequest[Exp, Abs, Addr] =>
                 functionCallRequests.toString
             }), store, effects)
         })
@@ -183,7 +190,7 @@ abstract class Primitives[Addr: Address, Abs: JoinLattice] {
 
       def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                          store: Store[Addr, Abs],
-                                                         state: PrimitiveAppState): PrimitiveResultMF[Exp, Abs, Addr] =
+                                                         state: PrimitiveAppState): PrimitiveReachedMF[Exp, Abs, Addr] =
         prim.reachedValue(result, store, state)
 
       def convert[Addr: Address, Abs: IsConvertableLattice](
@@ -1457,8 +1464,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
 //            val fromClosures: Set[FunctionCallRequest[Exp, Abs, Addr]] = sabs.getClosures(arg1._2).map( (clo) => {
 //                ClosureCallRequest(arg1._1, clo, functionArgs, store, DummyPrimitiveAppState)
 //            })
-            val request = FCallRequest(arg1._1, arg1._2, functionArgs, store, DummyPrimitiveAppState)
-            (Set(StartFunctionCallRequest(request)), store, effects)
+            (Set(StartFunctionCallRequest(arg1._1, arg1._2, functionArgs, store, DummyPrimitiveAppState)), store, effects)
         })
         request
       }
@@ -1466,10 +1472,11 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
 
     def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                        store: Store[Addr, Abs],
-                                                       state: PrimitiveAppState): PrimitiveResultMF[Exp, Abs, Addr] = state
+                                                       state: PrimitiveAppState): PrimitiveReachedMF[Exp, Abs, Addr] =
+      state
     match {
       case _ =>
-        MayFailSuccess[PrimitiveResultType[Exp, Abs, Addr]]((Set(ReturnResult[Abs, Addr](result)), store, Set()))
+        MayFailSuccess[PrimitiveReachedType[Exp, Abs, Addr]]((Set(ReturnResult[Abs, Addr](result)), store, Set()))
     }
 
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =

@@ -146,87 +146,118 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     val fromClo: Set[EdgeInformation[SchemeExp, Abs, Addr]] =
       sabs.getClosures[SchemeExp, Addr](function).map(handleClosureCall(fexp, argsv, store, _, t))
     /* TODO take into account store changes made by the application of the primitives */
-    val fromPrim = sabs.getPrimitives[Addr, Abs](function).flatMap[EdgeInformation[SchemeExp, Abs, Addr], Set[EdgeInformation[SchemeExp, Abs, Addr]]]( (prim)
+    val fromPrim: Set[EdgeInformation[SchemeExp, Abs, Addr]] =
+      sabs.getPrimitives[Addr, Abs](function).flatMap[EdgeInformation[SchemeExp, Abs, Addr], Set[EdgeInformation[SchemeExp, Abs, Addr]]]((prim)
     => {
 
       val n = argsv.size + 1 // Number of values to pop: all arguments + the operator
       val applyPrimAction = ActionPrimCallT[SchemeExp, Abs, Addr](n, fexp, argsv.map(_._1), sabs.inject(prim))
 
-      def handleSimplePrimitiveResult(result: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])])
-      : Set[EdgeInformation[SchemeExp, Abs, Addr]] = result.collect[EdgeInformation[SchemeExp, Abs, Addr]]({
-          case (res, store2, effects) =>
-            val action = ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects)
-            Set(EdgeInformation[SchemeExp, Abs, Addr](action, List(applyPrimAction), Set()))
-        },
-          err => {
-            val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
-            Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
-          })
+      def handleSimplePrimitiveResult(result: Abs,
+                                      store: Store[Addr, Abs],
+                                      effects: Set[Effect[Addr]]): Set[EdgeInformation[SchemeExp, Abs, Addr]] = {
+        val action = ActionReachedValue[SchemeExp, Abs, Addr](result, store, effects)
+        Set(EdgeInformation[SchemeExp, Abs, Addr](action, List(applyPrimAction), Set()))
+      }
 
       /**
         *
-        * @param simpleMayFail: the result of applying the SimplePrimitive passed to the higher-order primitive
+        * @param hoPrim
+        * @param result
+        * @param store
         * @param state
         * @return
         */
-      def recursiveHandleSimplePrimitiveResult(simpleMayFail: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])],
-                                                                                              state: PrimitiveAppState): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = {
+      def recursiveHandleSimplePrimitiveResult(hoPrim: Primitive[Addr, Abs],
+                                               result: Abs, //simpleMayFail: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])],
+                                               store: Store[Addr, Abs],
+                                               state: PrimitiveAppState): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = {
 
-          /*
-           * TODO Both the higher-order primitive and the SimplePrimitive may fail! Have to combine MayFails?
-           */
+        type X = MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]
 
-                  simpleMayFail.bind[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]({
-              case (value, store, effects1) => prim.reachedValue[SchemeExp, Time](value, store, state) match {
-                          case ReturnResult(hOMayFail) =>
-                                hOMayFail
-                          case ContinueFunctionCallRequest(fooMF) =>
-
-                                  fooMF.bind({
-                              case (PrimitiveCallRequest(fooFexp, fooPrim, fooArgs, fooStore, fooState), effects2) =>
-                                val fooArgsv = fooArgs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
-                                /*
-                   * Assuming fooPrim has remained unchanged, it's safe to extract the MayFail
-                   * from fooPrim.call here because, we could only have reached this point in the code
-                   * if fooPrim returns a Simple in the first place.
-                   */
-                                val newPrimAppValue = fooPrim.call(fexp, fooArgsv, fooStore, t).extract
-                                recursiveHandleSimplePrimitiveResult(newPrimAppValue, fooState)
-                             case (fooClo@ClosureCallRequest(_, _, _, _, _), _) =>
-                                throw new Exception(s"Should not happen: there shouldn't be a $fooClo here")
+        hoPrim.reachedValue[SchemeExp, Time](result, store, state).bind({
+          case (primReturns, store2, effects) =>
+            if (primReturns.isEmpty) {
+              // TODO
+              MayFailError(List(TypeError("TODO", "operator", "function", "not a function")))
+            } else {
+              val init = MayFailSuccess((abs.bottom, store2, effects))
+              primReturns.foldLeft[X](init)((mftriplet, primReturn) => primReturn match {
+                case ReturnResult(finalValue) =>
+                  mftriplet.map((triplet) => (abs.join(triplet._1, finalValue), triplet._2, triplet._3))
+                case ContinueFunctionCallRequest(PrimitiveCallRequest(fexp: SchemeExp, f, fargs, store2, state)) =>
+                  val fargsv = fargs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
+                  val fresult = f.call[SchemeExp, Time](fexp, fargsv, store2, t)
+                  /* TODO we assume a simple result is returned, instead of a StartFunctionCallRequest */
+                  fresult.bind({
+                    case (returns, store3, effects2) =>
+                      assert(returns.size == 1)
+                      returns.head match {
+                        case ReturnResult(fvalue) =>
+                          recursiveHandleSimplePrimitiveResult(hoPrim, fvalue, store3, state)
+                      }
+                  })
               })
-                          case StartFunctionCallRequest(foos) =>
-                            // TODO not yet implemented
-                            throw new Exception("Not yet implemented")
-              }
-              })
-                    }
+            }
+        })
+      }
 
+      /*
+       * TODO Both the higher-order primitive and the SimplePrimitive may fail! Have to combine MayFails?
+       */
 
-              prim.call(fexp, argsv, store, t) match {
-        case ReturnResult(result) =>
-          handleSimplePrimitiveResult(result)
-        case ho: ContinueFunctionCallRequest[SchemeExp, Abs, Addr] =>
-          throw new Exception(s"Should not happen: $ho")
-        case ho: StartFunctionCallRequest[SchemeExp, Abs, Addr] =>
-          ho.functionCallRequests.collect({
-            case (foos, effects) =>
-              foos.flatMap({
-                case PrimitiveCallRequest(fooFexp, fooPrim, fooArgs, store, fooState) =>
-                  // TODO Does not work when fooPrim returned is another higher-order primitive
-                  val fooArgsv = fooArgs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
-                  /* TODO not safe to use .extract here, fooPrim can be another higher-order primitive */
-                  val result: MayFail[SimpleReturn[Abs, Addr]] = fooPrim.call(fooFexp, fooArgsv, store, t).extract
-                  val x = recursiveHandleSimplePrimitiveResult(result, fooState)
-                  handleSimplePrimitiveResult(x)
-                case ClosureCallRequest(fooExp, fooClo, fooArgs, fooStore, fooState) =>
-                  Set(handleHigherOrderClosureCall(prim, fooExp, fooClo, fooArgs, fooStore, fooState, t))
+      prim.call(fexp, argsv, store, t).collect({
+        case (results, store, effects) =>
+          results.flatMap({
+            case ReturnResult(result) =>
+              handleSimplePrimitiveResult(result, store, effects)
+            case ho: StartFunctionCallRequest[SchemeExp, Abs, Addr] =>
+              val fexp = ho.fexp
+              val f = ho.f
+              val fargs = ho.args
+              // TODO Does not work when fooPrim returned is another higher-order primitive
+              val fargsv = fargs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
+              val fromPrims: Set[EdgeInformation[SchemeExp, Abs, Addr]] = sabs.getPrimitives[Addr, Abs](f).flatMap(
+                (fprim) => {
+                val result = fprim.call(fexp, fargsv, store, t)
+                result.bind[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]({
+                  case (v, store2, effects2) =>
+                    assert(v.size == 1)
+                    recursiveHandleSimplePrimitiveResult(prim, v.head.extract, ho.store, ho.state)
+                }).collect[EdgeInformation[SchemeExp, Abs, Addr]]({
+                  case (vv, store3, effects3) =>
+                                          handleSimplePrimitiveResult(vv, store3, effects3)
+                }, err => {
+                  val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
+                  Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
+                })
+
+//                result.collect[EdgeInformation[SchemeExp, Abs, Addr]]({
+//                  case (v, store2, effects2) =>
+//                    assert(v.size == 1)
+//                    val x = recursiveHandleSimplePrimitiveResult(prim, v.head.extract, ho.store, ho.state)
+//                    x.collect[EdgeInformation[SchemeExp, Abs, Addr]]({
+//                      case (vv, store3, effects3) =>
+//                        handleSimplePrimitiveResult(vv, store3, effects3)
+//                    }, err => {
+//                      val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
+//                      EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set())
+//                    })
+//                }, err => {
+//                  val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
+//                  EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set())
+//                })
+
               })
-          }, err => {
-            val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
-            Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
+              val fromClos: Set[EdgeInformation[SchemeExp, Abs, Addr]] = sabs.getClosures[SchemeExp, Addr](f).map((clo) =>
+                handleHigherOrderClosureCall(prim, fexp, clo, fargs, ho.store, ho.state, t))
+              fromPrims ++ fromClos
           })
-      }})
+      }, err => {
+        val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
+        Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
+      })
+    })
 
     if (fromClo.isEmpty && fromPrim.isEmpty) {
       simpleAction(ActionError[SchemeExp, Abs, Addr](TypeError(function.toString, "operator", "function", "not a function")))
@@ -431,30 +462,44 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
 
   def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time) =
     frame match {
-      case frame: FrameHigherOrderPrimCall[Abs, Addr, Time] =>
-        frame.prim.reachedValue[SchemeExp, Time](v, store, frame.state) match {
-          case ReturnResult(result) =>
-            result.collect[EdgeInformation[SchemeExp, Abs, Addr]]({
-              case (res, store2, effects) =>
-                val action = ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects)
-                Set(EdgeInformation[SchemeExp, Abs, Addr](action, List(), Set()))
-            },
-              err => {
-                val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
-                Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
-              })
-          case ho: ContinueFunctionCallRequest[SchemeExp, Abs, Addr] =>
-            ho.functionCallRequest.collect({
-            case (ClosureCallRequest(fooFexp, fooClo, fooArgs, fooStore, fooState), effects) =>
-              Set(handleHigherOrderClosureCall(frame.prim, fooFexp, fooClo, fooArgs, fooStore, fooState, t))
-          }, err => {
-              val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
-              Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
-            })
 
-          case StartFunctionCallRequest(_) =>
-            throw new Exception(s"Should not happen: primitive application was already started")
-        }
+      case frame: FrameHigherOrderPrimCall[Abs, Addr, Time] =>
+        frame.prim.reachedValue[SchemeExp, Time](v, store, frame.state).collect({
+          case (results, store2, effects) =>
+            results.map({
+              case ReturnResult(result) =>
+                val action = ActionReachedValue[SchemeExp, Abs, Addr](result, store2, effects)
+                EdgeInformation[SchemeExp, Abs, Addr](action, List(), Set())
+              case ContinueFunctionCallRequest(ClosureCallRequest(fexp: SchemeExp, clo: (SchemeExp, Environment[Addr]), fargs, store, state)) =>
+                handleHigherOrderClosureCall(frame.prim, fexp, clo, fargs, store2, state, t)
+            })
+        }, err => {
+          val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
+          Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
+        })
+
+//      case frame: FrameHigherOrderPrimCall[Abs, Addr, Time] =>
+//        frame.prim.reachedValue[SchemeExp, Time](v, store, frame.state) match {
+//          case ReturnResult(result) =>
+//            result.collect[EdgeInformation[SchemeExp, Abs, Addr]]({
+//              case (res, store2, effects) =>
+//                val action = ActionReachedValue[SchemeExp, Abs, Addr](res, store2, effects)
+//                Set(EdgeInformation[SchemeExp, Abs, Addr](action, List(), Set()))
+//            },
+//              err => {
+//                val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
+//                Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
+//              })
+//          case ho: ContinueFunctionCallRequest[SchemeExp, Abs, Addr] =>
+//            ho.functionCallRequest.collect({
+//            case (ClosureCallRequest(fooFexp, fooClo, fooArgs, fooStore, fooState), effects) =>
+//              Set(handleHigherOrderClosureCall(frame.prim, fooFexp, fooClo, fooArgs, fooStore, fooState, t))
+//          }, err => {
+//              val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
+//              Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
+//            })
+//        }
+
       case frame: FrameFuncallOperator[Abs, Addr, Time] =>
         funcallArgs(v, frame.fexp, frame.args, frame.env, store, t)
       case frame: FrameFuncallOperands[Abs, Addr, Time] =>

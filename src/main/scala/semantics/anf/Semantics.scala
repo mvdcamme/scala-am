@@ -71,7 +71,7 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
               results.map({
                 case ReturnResult(result) =>
                   ActionReachedValue[ANFExp, Abs, Addr](result, store2, effects ++ effects2)
-                case StartFunctionCallRequest(foos) =>
+                case StartFunctionCallRequest(fexp, f, fargs, store, state) =>
                   //TODO Implement
                   throw new Exception("Not yet implemented")
                   })
