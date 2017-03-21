@@ -1554,6 +1554,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
          SetCar,
          SetCdr,
          Length,
+         ListPrim,
          Listp,
          MakeVector,
          VectorSet,
