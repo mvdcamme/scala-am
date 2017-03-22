@@ -169,13 +169,14 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         * @return
         */
       def recursiveHandleSimplePrimitiveResult(hoPrim: Primitive[Addr, Abs],
-                                               result: Abs, //simpleMayFail: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])],
+                                               result: Abs,
                                                store: Store[Addr, Abs],
+                                               t: Time,
                                                state: PrimitiveAppState): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = {
 
         type X = MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]
 
-        hoPrim.reachedValue[SchemeExp, Time](result, store, state).bind({
+        hoPrim.reachedValue[SchemeExp, Time](result, store, t, state).bind({
           case (primReturns, store2, effects) =>
             if (primReturns.isEmpty) {
               // TODO
@@ -194,7 +195,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                       assert(returns.size == 1)
                       returns.head match {
                         case ReturnResult(fvalue) =>
-                          recursiveHandleSimplePrimitiveResult(hoPrim, fvalue, store3, state)
+                          recursiveHandleSimplePrimitiveResult(hoPrim, fvalue, store3, time.tick(t), state)
                       }
                   })
               })
@@ -223,7 +224,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                   result.bind[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]({
                     case (v, store2, effects2) =>
                       assert(v.size == 1)
-                      recursiveHandleSimplePrimitiveResult(prim, v.head.extract, ho.store, ho.state)
+                      recursiveHandleSimplePrimitiveResult(prim, v.head.extract, ho.store, t, ho.state)
                   }).collect[EdgeInformation[SchemeExp, Abs, Addr]]({
                     case (vv, store3, effects3) =>
                       handleSimplePrimitiveResult(vv, store3, effects3)
@@ -235,28 +236,6 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                   Set(handleHigherOrderClosureCall(prim, fexp, clo, fargs, ho.store, ho.state, t))
               }
           })
-
-//              val fromPrims: Set[EdgeInformation[SchemeExp, Abs, Addr]] = sabs.getPrimitives[Addr, Abs](f).flatMap(
-//                (fprim) => {
-//                val result = fprim.call(fexp, fargsv, store, t)
-//                result.bind[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]({
-//                  case (v, store2, effects2) =>
-//                    assert(v.size == 1)
-//                    recursiveHandleSimplePrimitiveResult(prim, v.head.extract, ho.store, ho.state)
-//                }).collect[EdgeInformation[SchemeExp, Abs, Addr]]({
-//                  case (vv, store3, effects3) =>
-//                                          handleSimplePrimitiveResult(vv, store3, effects3)
-//                }, err => {
-//                  val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
-//                  Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
-//                })
-//
-//              })
-//
-//              val fromClos: Set[EdgeInformation[SchemeExp, Abs, Addr]] = sabs.getClosures[SchemeExp, Addr](f).map((clo) =>
-//                handleHigherOrderClosureCall(prim, fexp, clo, fargs, ho.store, ho.state, t))
-//              fromPrims ++ fromClos
-//          })
       }, err => {
         val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
         Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
@@ -468,7 +447,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     frame match {
 
       case frame: FrameHigherOrderPrimCall[Abs, Addr, Time] =>
-        frame.prim.reachedValue[SchemeExp, Time](v, store, frame.state).collect({
+        frame.prim.reachedValue[SchemeExp, Time](v, store, t, frame.state).collect({
           case (results, store2, effects) =>
             results.map({
               case ReturnResult(result) =>
@@ -680,7 +659,7 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       case ActionStepIn(fexp, clo, e, env, store, argsv, effs) =>
         ActionStepIn(fexp, clo, e, env, store, argsv, effs ++ effects)
       case ActionStepInPush(fexp, clo, e, frame, env, store, argsv, effs) =>
-        ActionStepIn(fexp, clo, e, env, store, argsv, effs ++ effects)
+        ActionStepInPush(fexp, clo, e, frame, env, store, argsv, effs ++ effects)
       case ActionError(err) => action
     }
 

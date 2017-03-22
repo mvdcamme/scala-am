@@ -102,7 +102,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
             val closureFilter =  ClosureCallMark[Exp, Abs](fexp, sabs.inject[Exp, Addr](clo._1, clo._2), clo._1)
             val next = NormalKontAddress[Exp, Time](e, t)
             val kont = Kont(frame, a)
-            EdgeComponents(State(ControlEval(e, env), store, kstore.extend(next, kont), a, time.tick(t, fexp)),
+            EdgeComponents(State(ControlEval(e, env), store, kstore.extend(next, kont), next, time.tick(t, fexp)),
                            filters + closureFilter + KontAddrPushed(next),
                            actions)
           /* When an error is reached, we go to an error state */

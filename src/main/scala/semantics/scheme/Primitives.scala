@@ -114,6 +114,7 @@ trait Primitive[Addr, Abs] {
     */
   def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                      store: Store[Addr, Abs],
+                                                     t: Time,
                                                      state: PrimitiveAppState): PrimitiveReachedMF[Abs, Addr]
 
   def convert[Addr: Address, Abs: IsConvertableLattice](
@@ -139,6 +140,7 @@ abstract class NonHigherOrderPrimitive[Addr: Address, Abs: JoinLattice] extends 
 
   def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                      store: Store[Addr, Abs],
+                                                     t: Time,
                                                      state: PrimitiveAppState): PrimitiveReachedMF[Abs, Addr] =
     throw new Exception("Method not implemented by a SimplePrimitive")
 
@@ -182,8 +184,9 @@ abstract class Primitives[Addr: Address, Abs: JoinLattice] {
 
       def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                          store: Store[Addr, Abs],
+                                                         t: Time,
                                                          state: PrimitiveAppState): PrimitiveReachedMF[Abs, Addr] =
-        prim.reachedValue(result, store, state)
+        prim.reachedValue(result, store, t, state)
 
       def convert[Addr: Address, Abs: IsConvertableLattice](
           prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
@@ -930,7 +933,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
           val cons = abs.cons(cara, cdra)
           val newStore = store.extend(cdra, cdrv).extend(cara, argv)
           val paira = addr.primitive(s"_cons_${index}_${pos}_") // Hack to make sure addresses use the position of fexp
-          (abs.cons(cara, cdra), paira, newStore)
+          (cons, paira, newStore)
       })
       MayFailSuccess[SimpleReturn[Abs, Addr]]((result._1, result._3, Set()))
     }
@@ -982,9 +985,9 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
   object MakeVector extends NonHigherOrderPrimitive[Addr, Abs] {
     val name = "make-vector"
     def call[Exp: Expression, Time: Timestamp](fexp: Exp,
-                                                     args: List[(Exp, Abs)],
-                                                     store: Store[Addr, Abs],
-                                                     t: Time) = args match {
+                                               args: List[(Exp, Abs)],
+                                               store: Store[Addr, Abs],
+                                               t: Time) = args match {
       case (_, size) :: (initexp, init) :: Nil =>
         isInteger(size).bind[SimpleReturn[Abs, Addr]](isint =>
           if (abs.isTrue(isint)) {
@@ -1464,6 +1467,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
 
     def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                        store: Store[Addr, Abs],
+                                                       t: Time,
                                                        state: PrimitiveAppState): PrimitiveReachedMF[Abs, Addr] =
       state
     match {
@@ -1520,33 +1524,57 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
                                             closure: (Exp, Environment[Addr]))
       extends MapState[Exp, Abs, Addr]
 
+    private def continueMap[Exp: Expression, Time: Timestamp, A](
+    result: Abs,
+    store: Store[Addr, Abs],
+    time: Time,
+    state: MapState[Exp, Abs, Addr],
+    function: A,
+    gen: (Exp, Abs, Abs, Abs, Store[Addr, Abs], A) => PrimitiveReached[Abs, Addr]): PrimitiveReachedMF[Abs, Addr] = {
+      val rem = state.remainingList
+      val fexp = state.fexp
+      val acc = state.accumulatedList
+      val nullTest = isNull(rem)
+      nullTest.bind[PrimitiveReachedType[Abs, Addr]]( (nullTestResult) => {
+        val cdra = addr.cell(fexp, time)
+        val cara = addr.cell(fexp, time)
+        val newStore = store.extend(cdra, acc).extend(cara, result)
+        val newAcc = abs.cons(cara, cdra)
+        val t: PrimitiveReachedMF[Abs, Addr] = if (sabs.isTrue(nullTestResult)) {
+          MayFailSuccess[PrimitiveReachedType[Abs, Addr]]((Set(ReturnResult[Abs, Addr](newAcc)), newStore, Set[Effect[Addr]]()))
+        } else { MayFailSuccess[PrimitiveReachedType[Abs, Addr]]((Set(ReturnResult[Abs, Addr](abs.zero)), newStore, Set())) }
+        val f: PrimitiveReachedMF[Abs, Addr] = if (sabs.isFalse(nullTestResult)) {
+          car(rem, store).bind[PrimitiveReachedType[Abs, Addr]]({
+            case (carRem, effects1) =>
+              cdr(rem, store).map[PrimitiveReachedType[Abs, Addr]]({
+                case (cdrRem, effects2) =>
+                  val request = gen(fexp, newAcc, cdrRem, carRem, newStore, function)
+                  (Set(request), newStore, effects1 ++ effects2)
+              })
+          })
+        } else { MayFailSuccess[PrimitiveReachedType[Abs, Addr]](Set(), store, Set()) }
+        mfmonReached.append(t, f)
+      } )
+    }
+
     def reachedValue[Exp: Expression, Time: Timestamp](result: Abs,
                                                        store: Store[Addr, Abs],
+                                                       t: Time,
                                                        state: PrimitiveAppState): PrimitiveReachedMF[Abs, Addr] = state match {
-      case MapStatePrim(fexp: Exp, acc, rem, prim: Primitive[Addr, Abs]) =>
-        val nullTest = isNull(rem)
-        nullTest.bind[PrimitiveReachedType[Abs, Addr]]( (nullTestResult) => {
-          // TODO allocate Primitive address, extend store with address and result, call abs.cons on newly allocated
-          // addresses
-          val newAcc = acc //abs.cons(result, acc)
-          val t: PrimitiveReachedMF[Abs, Addr] = if (sabs.isTrue(nullTestResult)) {
-            MayFailSuccess[PrimitiveReachedType[Abs, Addr]]((Set(ReturnResult[Abs, Addr](newAcc)), store, Set[Effect[Addr]]())) }
-          else { MayFailSuccess[PrimitiveReachedType[Abs, Addr]]((Set(ReturnResult[Abs, Addr](abs.zero)), store, Set())) }
-          val f: PrimitiveReachedMF[Abs, Addr] = if (sabs.isFalse(nullTestResult)) {
-            car(rem, store).bind[PrimitiveReachedType[Abs, Addr]]({
-              case (carRem, effects1) =>
-                cdr(rem, store).map[PrimitiveReachedType[Abs, Addr]]({
-                  case (cdrRem, effects2) =>
-                    val newState = MapStatePrim(fexp, newAcc, cdrRem, prim)
-                    val request = ContinueFunctionCallRequest[Exp, Abs, Addr](PrimitiveCallRequest(fexp, prim, List(carRem), store, newState))
-                    (Set(request), store, effects1 ++ effects2)
-                })
-            })
-          } else { MayFailSuccess[PrimitiveReachedType[Abs, Addr]](Set(), store, Set()) }
-          mfmonReached.append(t, f)
-        } )
-      case MapStateClo(fexp, acc, rem, clo) =>
-        MayFailSuccess[PrimitiveReachedType[Abs, Addr]]((Set(), store, Set())) // TODO debugging
+      case state: MapStatePrim[Exp] =>
+        val gen: (Exp, Abs, Abs, Abs, Store[Addr, Abs], Primitive[Addr, Abs]) => PrimitiveReached[Abs, Addr] =
+          (fexp, newAcc, cdrRem, carRem, newStore, prim) => {
+            val newState = MapStatePrim(fexp, newAcc, cdrRem, prim)
+            ContinueFunctionCallRequest[Exp, Abs, Addr](PrimitiveCallRequest(fexp, prim, List(carRem), newStore, newState))
+        }
+        continueMap(result, store, t, state, state.primitive, gen)
+      case state: MapStateClo[Exp] =>
+        val gen: (Exp, Abs, Abs, Abs, Store[Addr, Abs], (Exp, Environment[Addr])) => PrimitiveReached[Abs, Addr] =
+          (fexp, newAcc, cdrRem, carRem, newStore, clo) => {
+            val newState = MapStateClo(fexp, newAcc, cdrRem, clo)
+            ContinueFunctionCallRequest[Exp, Abs, Addr](ClosureCallRequest(fexp, clo, List(carRem), newStore, newState))
+          }
+        continueMap(result, store, t, state, state.closure, gen)
       case other =>
         throw new Exception(s"Should not happend: expected a MapState, got $other")
     }
@@ -1696,6 +1724,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
          VectorLength,
          VectorRef,
          Equal,
-         Apply /*, Lock */)
+         Apply,
+         Map /*, Lock */)
   def toVal(prim: Primitive[Addr, Abs]): Abs = abs.inject(prim)
 }
