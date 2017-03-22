@@ -217,42 +217,46 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
               val fargs = ho.args
               // TODO Does not work when fooPrim returned is another higher-order primitive
               val fargsv = fargs.map((SchemeIdentifier("#PrimitiveArgument#", NoPosition), _))
-              val fromPrims: Set[EdgeInformation[SchemeExp, Abs, Addr]] = sabs.getPrimitives[Addr, Abs](f).flatMap(
-                (fprim) => {
-                val result = fprim.call(fexp, fargsv, store, t)
-                result.bind[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]({
-                  case (v, store2, effects2) =>
-                    assert(v.size == 1)
-                    recursiveHandleSimplePrimitiveResult(prim, v.head.extract, ho.store, ho.state)
-                }).collect[EdgeInformation[SchemeExp, Abs, Addr]]({
-                  case (vv, store3, effects3) =>
-                                          handleSimplePrimitiveResult(vv, store3, effects3)
-                }, err => {
-                  val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
-                  Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
-                })
+              f match {
+                case Left(fprim) =>
+                  val result = fprim.call(fexp, fargsv, store, t)
+                  result.bind[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]({
+                    case (v, store2, effects2) =>
+                      assert(v.size == 1)
+                      recursiveHandleSimplePrimitiveResult(prim, v.head.extract, ho.store, ho.state)
+                  }).collect[EdgeInformation[SchemeExp, Abs, Addr]]({
+                    case (vv, store3, effects3) =>
+                      handleSimplePrimitiveResult(vv, store3, effects3)
+                  }, err => {
+                    val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
+                    Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
+                  })
+                case Right(clo) =>
+                  Set(handleHigherOrderClosureCall(prim, fexp, clo, fargs, ho.store, ho.state, t))
+              }
+          })
 
-//                result.collect[EdgeInformation[SchemeExp, Abs, Addr]]({
+//              val fromPrims: Set[EdgeInformation[SchemeExp, Abs, Addr]] = sabs.getPrimitives[Addr, Abs](f).flatMap(
+//                (fprim) => {
+//                val result = fprim.call(fexp, fargsv, store, t)
+//                result.bind[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]({
 //                  case (v, store2, effects2) =>
 //                    assert(v.size == 1)
-//                    val x = recursiveHandleSimplePrimitiveResult(prim, v.head.extract, ho.store, ho.state)
-//                    x.collect[EdgeInformation[SchemeExp, Abs, Addr]]({
-//                      case (vv, store3, effects3) =>
-//                        handleSimplePrimitiveResult(vv, store3, effects3)
-//                    }, err => {
-//                      val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
-//                      EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set())
-//                    })
+//                    recursiveHandleSimplePrimitiveResult(prim, v.head.extract, ho.store, ho.state)
+//                }).collect[EdgeInformation[SchemeExp, Abs, Addr]]({
+//                  case (vv, store3, effects3) =>
+//                                          handleSimplePrimitiveResult(vv, store3, effects3)
 //                }, err => {
 //                  val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
-//                  EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set())
+//                  Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
 //                })
-
-              })
-              val fromClos: Set[EdgeInformation[SchemeExp, Abs, Addr]] = sabs.getClosures[SchemeExp, Addr](f).map((clo) =>
-                handleHigherOrderClosureCall(prim, fexp, clo, fargs, ho.store, ho.state, t))
-              fromPrims ++ fromClos
-          })
+//
+//              })
+//
+//              val fromClos: Set[EdgeInformation[SchemeExp, Abs, Addr]] = sabs.getClosures[SchemeExp, Addr](f).map((clo) =>
+//                handleHigherOrderClosureCall(prim, fexp, clo, fargs, ho.store, ho.state, t))
+//              fromPrims ++ fromClos
+//          })
       }, err => {
         val actionError = ActionErrorT[SchemeExp, Abs, Addr](err)
         Set(EdgeInformation[SchemeExp, Abs, Addr](ActionError[SchemeExp, Abs, Addr](err), List(actionError), Set()))
