@@ -1,0 +1,5 @@
+(define l '(1 2))
+(define ml (map (lambda (x) (* x 10)) l))
+(display (car ml)) (newline)
+(display (cadr ml)) (newline)
+(display (cddr ml)) (newline)
