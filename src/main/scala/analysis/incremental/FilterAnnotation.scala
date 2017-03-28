@@ -7,22 +7,31 @@ case object ElseBranchTaken extends SemanticsFilterAnnotation
 case object ThenBranchTaken extends SemanticsFilterAnnotation
 
 
-abstract class FunCallMark[Exp: Expression, Abs: JoinLattice](
+/**
+  *
+  * @param fExp
+  * @param fValue
+  * @param t: the timestamp of the originating state (i.e., the caller side)
+  */
+abstract class FunCallMark[Exp: Expression, Abs: JoinLattice, Time: Timestamp](
     val fExp: Exp,
-    val fValue: Abs)
+    val fValue: Abs,
+    val t: Time)
   extends MachineFilterAnnotation {
 }
 
-case class ClosureCallMark[Exp: Expression, Abs: JoinLattice](
+case class ClosureCallMark[Exp: Expression, Abs: JoinLattice, Time: Timestamp](
     override val fExp: Exp,
     closureValue: Abs,
-    lambda: Exp)
-    extends FunCallMark[Exp, Abs](fExp, closureValue)
+    lambda: Exp,
+    override val t: Time)
+    extends FunCallMark[Exp, Abs, Time](fExp, closureValue, t)
 
-case class PrimCallMark[Exp: Expression, Abs: JoinLattice, Addr: Address](
+case class PrimCallMark[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp](
     override val fExp: Exp,
-    primValue: Abs)
-    extends FunCallMark[Exp, Abs](fExp, primValue)
+    primValue: Abs,
+    override val t: Time)
+    extends FunCallMark[Exp, Abs, Time](fExp, primValue, t)
 
 /*
  * Control-flow split due to spurious return: check continuation frame used.

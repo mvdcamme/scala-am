@@ -155,7 +155,7 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
             abstractEdge._1.filters.contains(ElseBranchTaken)
           case filter: EvaluatingExpression[Exp] =>
             abstractEdge._1.filters.contains(filter)
-          case filter: FunCallMark[Exp, Abs] =>
+          case filter: FunCallMark[Exp, Abs, Time] =>
             true
           case filter: KontAddrPopped =>
             abstractEdge._1.filters.contains(filter)

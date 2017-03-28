@@ -5,25 +5,29 @@ case class CountedFunCalls(nrOfCalls: Int, totalNrOfFunctionsPointedTo: Int)
 class CountFunCalls[Exp : Expression,
                     Abs : IsSchemeLattice,
                     Addr : Address,
-                    State <: StateTrait[Exp, Abs, Addr, _]] {
+                    Time: Timestamp,
+                    State <: StateTrait[Exp, Abs, Addr, Time]] {
+
+  type FunctionsMap = Map[(Exp, Time), Set[Abs]]
 
   val sabs = implicitly[IsSchemeLattice[Abs]]
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
 
-  private def constructFunctionCallsMap(graph: AbstractGraph): Map[Exp, Set[Abs]] = {
-    val initialMap: Map[Exp, Set[Abs]] = Map()
-    graph.edges.foldLeft[Map[Exp, Set[Abs]]](initialMap)( (map, tuple) => {
+  private def constructFunctionCallsMap(graph: AbstractGraph): FunctionsMap = {
+    val initialMap: FunctionsMap = Map()
+    graph.edges.foldLeft[FunctionsMap](initialMap)( (map, tuple) => {
       val edges = tuple._2
       /* Count number of ActionFunctionCallMarkR in the actionEdges going outwards from the state. */
       edges.foldLeft(map)( (map, edge) => {
         val machineFilters = edge._1.filters.machineFilters
         machineFilters.foldLeft(map)( (map, actionR) => actionR match {
-          case filter: FunCallMark[Exp, Abs] =>
+          case filter: FunCallMark[Exp, Abs, Time] =>
             val flattenedClosures: Set[Abs] = sabs.getClosures(filter.fValue).map(sabs.inject[Exp, Addr])
             val flattenedPrimitives: Set[Abs] = sabs.getPrimitives(filter.fValue).map(sabs.inject[Addr, Abs])
             val allFunctions = flattenedClosures ++ flattenedPrimitives
-            map + (filter.fExp -> (map.getOrElse(filter.fExp, Set()) ++ allFunctions))
+            val key = (filter.fExp, filter.t)
+            map + (key -> (map.getOrElse(key, Set()) ++ allFunctions))
           case _ =>
             map
         })
@@ -31,7 +35,7 @@ class CountFunCalls[Exp : Expression,
     })
   }
 
-  private def countFunctionCalls(map: Map[Exp, Set[Abs]]): CountedFunCalls = {
+  private def countFunctionCalls(map: FunctionsMap): CountedFunCalls = {
     map.foreach( (tuple) => {
       Logger.log(s"Call site at ${tuple._1} with values ${tuple._2}", Logger.E)
     })

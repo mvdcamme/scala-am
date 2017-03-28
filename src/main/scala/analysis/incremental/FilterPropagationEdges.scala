@@ -84,7 +84,7 @@ class FilterPropagationEdges[Exp: Expression,
       val actualLambdas: Set[Exp] = actualClosures.map(_._1)
       val result: Set[Edge] = edgesWith.filter( (edge: Edge) => {
         edge._1.filters.machineExists({
-          case actionClosureCall: ClosureCallMark[Exp, Abs] =>
+          case actionClosureCall: ClosureCallMark[Exp, Abs, Time] =>
             actualLambdas.contains(actionClosureCall.lambda)
           case _ =>
             false

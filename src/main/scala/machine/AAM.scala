@@ -66,7 +66,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         /* If step applied a primitive, generate a filter for it */
         val primCallFilter = actions.foldLeft[Set[MachineFilterAnnotation]](Set())( (set, actionR) => actionR match {
           case primCall: ActionPrimCallT[Exp, Abs, Addr] =>
-            Set(PrimCallMark(primCall.fExp, primCall.fValue))
+            Set(PrimCallMark(primCall.fExp, primCall.fValue, t))
           case _ =>
             Set()
         })
@@ -92,7 +92,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
                            actions)
           /* When a function is stepped in, we also go to an eval state */
           case ActionStepIn(fexp, clo, e, env, store, _, _) =>
-            val closureFilter =  ClosureCallMark[Exp, Abs](fexp, sabs.inject[Exp, Addr](clo._1, clo._2), clo._1)
+            val closureFilter =  ClosureCallMark[Exp, Abs, Time](fexp, sabs.inject[Exp, Addr](clo._1, clo._2), clo._1, t)
             EdgeComponents(State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)),
                            filters + closureFilter,
                            actions)
@@ -568,7 +568,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         Set(noEdgeFilters(state.copy(store = newStore)))
       case ActionClosureCallR(fExp, lam, env) =>
         val closure = sabs.inject(lam, env)
-        val filter = ClosureCallMark(fExp, closure, lam)
+        val filter = ClosureCallMark(fExp, closure, lam, state.t)
         Set((state, Set[MachineFilterAnnotation](filter)))
       case a: ActionCreateClosureT[Exp, Abs, Addr] =>
         val closure = sabs.inject[Exp, Addr]((a.λ, a.env.get))
@@ -625,10 +625,13 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
           primitives.flatMap( (primitive) => primitive.call(a.fExp, a.argsExps.zip(operands), state.store, state.t)
             .collect({
               case (res, store2, effects) =>
-                Set((state.copy(control = ControlKont(res), store = store2, a = kont.next), filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive))))
+                val newState = state.copy(control = ControlKont(res), store = store2, a = kont.next)
+                Set((newState, filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive), state.t)))
             },
-              err =>
-                Set((state.copy(control = ControlError(err), a = kont.next), filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive))))))
+              err => {
+                val newState = state.copy(control = ControlError(err), a = kont.next)
+                Set((newState, filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive), state.t)))
+              }))
         })
       case a: ActionReachedValueT[Exp, Abs, Addr] =>
         val storeChanges = a.storeChanges
