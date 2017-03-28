@@ -220,7 +220,8 @@ class PropagateRunTimeInfo[Exp: Expression,
   private def extraOptimisationApplicable(newState: State,
                                           originalStates: Set[State],
                                           prunedGraph: AbstractGraph): Option[Iterable[Delta]] = {
-    val optionDeltas: Set[Option[Iterable[(KontAddr, KontAddr)]]] = originalStates.map(stateInfoProvider.deltaKStore(newState, _))
+    val optionDeltas: Set[Option[Either[Iterable[(KontAddr, KontAddr)], KontStore[KontAddr]]]] =
+      originalStates.map(stateInfoProvider.deltaKStore(newState, _))
     /*
      * The delta should be the same for all original states. Otherwise, the optimisation should not be applied.
      * Since optionDeltas is a set, if the delta is the same everywhere, the set should only contain one item.
@@ -229,8 +230,13 @@ class PropagateRunTimeInfo[Exp: Expression,
     if (optionDeltas.size != 1 || optionDeltas.head.isEmpty) {
       None
     } else {
-      val tuples: Iterable[(KontAddr, KontAddr)] = optionDeltas.head.get
-      val deltas: Iterable[Delta] = tuples.map( (tuple) => Delta(tuple._1, tuple._2) )
+      val eitherTuples: Either[Iterable[(KontAddr, KontAddr)], KontStore[KontAddr]] = optionDeltas.head.get
+      val deltas: Iterable[Delta] = eitherTuples match {
+        case Left(tuples) =>
+          tuples.map( (tuple) => DeltaReplaceKontAddr(tuple._1, tuple._2))
+        case Right(diffKontStore) =>
+          Set(DeltaUseKontStore(diffKontStore, actionRApplier.getKontStore(newState)))
+      }
 
       /* Collect all edges going outwards from all of these original states. */
       val originalEdges: Set[Edge] = originalStates.flatMap(prunedGraph.nodeEdges)
@@ -239,7 +245,7 @@ class PropagateRunTimeInfo[Exp: Expression,
        * TODO Should also work if a couple edges actually do use this delta.
        */
 
-      if (originalEdges.forall( (edge: Edge) => ! deltas.exists( (delta: Delta) => usesKontAddr(edge, delta.abstractKa) ) )) {
+      if (originalEdges.forall( (edge: Edge) => ! deltas.exists( (delta: Delta) => delta.relevantForEdge(edge) ) )) {
         Some(deltas)
       } else {
         None
@@ -264,18 +270,38 @@ class PropagateRunTimeInfo[Exp: Expression,
    * States that were visited go into the set of visited States.
    */
   case class DeltaEdgesAdded(todoPair: TodoPair, graph: AbstractGraph, visited: Set[State])
-  case class Delta(concreteKa: KontAddr, abstractKa: KontAddr) {
+
+  trait Delta {
+    def applyDelta(state: State): State
+    def relevantForEdge(edge: Edge): Boolean
+  }
+
+  case class DeltaReplaceKontAddr(concreteKa: KontAddr, abstractKa: KontAddr) extends Delta {
 
     def applyDelta(state: State): State = {
       val abstractKaKonts = actionRApplier.getKonts(state, abstractKa)
-      val addedKontsState = actionRApplier.addKonts(state, concreteKa, abstractKaKonts)
       /* Safe to remove ALL Konts at abstractKa, because there shouldn't be any Konts at abstractKa that are not */
-      actionRApplier.removeKonts(addedKontsState, abstractKa)
+      val removedKontsState = actionRApplier.removeKonts(state, abstractKa)
+      actionRApplier.addKonts(removedKontsState, concreteKa, abstractKaKonts)
     }
 
     def relevantForEdge(edge: Edge): Boolean =
       usesKontAddr(edge, abstractKa)
 
+  }
+
+  case class DeltaUseKontStore(diffKontStore: KontStore[KontAddr], kontStore: KontStore[KontAddr]) extends Delta {
+
+    def applyDelta(state: State): State = {
+      actionRApplier.replaceKontStore(state, kontStore)
+    }
+
+    def relevantForEdge(edge: Edge): Boolean = {
+      diffKontStore.forall({
+        case (ka, _) =>
+          ! usesKontAddr(edge, ka)
+      })
+    }
   }
 
   protected def addAllEdgesDelta(initialState: State,
@@ -373,8 +399,7 @@ class PropagateRunTimeInfo[Exp: Expression,
     Logger.log(s"Size of visited set ${visited.size}", Logger.D)
     Logger.log(s"Size of todo set ${todoPair.todo.size}", Logger.D)
     val checkSubsumes = true
-    todoPair.todo.headOption
-    match {
+    todoPair.todo.headOption match {
       case None =>
         graph
       case Some(newState) =>

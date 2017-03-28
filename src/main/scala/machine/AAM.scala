@@ -687,6 +687,10 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       state.kstore.lookup(ka)
     }
 
+    def getKontStore(state: State): KontStore[KontAddr] = {
+      state.kstore
+    }
+
     def addKonts(state: State, ka: KontAddr, konts: Set[Kont[KontAddr]]): State = {
       val newKStore = konts.foldLeft(state.kstore)( (newKStore, kont) => newKStore.extend(ka, kont) )
       state.copy(kstore = newKStore)
@@ -695,6 +699,10 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     def removeKonts(state: State, ka: KontAddr): State = {
       val newKStore = state.kstore.remove(ka)
       state.copy(kstore = newKStore)
+    }
+
+    def replaceKontStore(state: State, kontStore: KontStore[KontAddr]): State = {
+      state.copy(kstore = kontStore)
     }
 
     def joinStates(states: Set[State]): JoinedInfo = {
@@ -765,11 +773,11 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       * @param state2
       * @return
       */
-    def deltaKStore(state1: State, state2: State): Option[Iterable[(KontAddr, KontAddr)]] = {
+    def deltaKStore(state1: State, state2: State): Option[Either[Iterable[(KontAddr, KontAddr)], KontStore[KontAddr]]] = {
       val kstoreDiff1 = state1.kstore.diff(state2.kstore)
       val kstoreDiff2 = state2.kstore.diff(state1.kstore)
       val castedKstoreDiff1 = kstoreDiff1.asInstanceOf[BasicKontStore[KontAddr]]
-//      val castedKstoreDiff2 = kstoreDiff2.asInstanceOf[BasicKontStore[KontAddr]]
+      val castedKstoreDiff2 = kstoreDiff2.asInstanceOf[BasicKontStore[KontAddr]]
       if (state1.store == state2.store && state1.a == state2.a &&
           state1.control == state2.control && state1.t == state2.t) {
         val kstoresEquivalent = kstoreDiff1.forall({
@@ -778,8 +786,13 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
             val konts2 = kstoreDiff2.lookup(convertedKa1)
             konts1 == konts2
         })
+        val s1 = castedKstoreDiff1.content.values.toSet.flatten
+        val s2 = castedKstoreDiff2.content.values.toSet.flatten
+        val kstoresContentsEqual = s1 == s2
         if (kstoresEquivalent) {
-          Some(castedKstoreDiff1.content.keys.map( (ka: KontAddr) => (ka, kaConverter.convertKontAddr(ka)) ))
+          Some(Left(castedKstoreDiff1.content.keys.map( (ka: KontAddr) => (ka, kaConverter.convertKontAddr(ka)) )))
+        } else if (kstoresContentsEqual) {
+          Some(Right(kstoreDiff1))
         } else {
           None
         }
