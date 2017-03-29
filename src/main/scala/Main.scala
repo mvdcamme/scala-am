@@ -138,10 +138,16 @@ object Main {
   var currentProgram: String = ""
 
   def printExecutionTimes[Abs : AbstractValue](result: Output[Abs], benchmarks_results_file: String): Unit = {
-    val file = new File(benchmarks_results_file)
-    val bw = new BufferedWriter(new FileWriter(file, true))
-    bw.write(s"$currentProgram: ${result.time}\n")
-    bw.close()
+    val runningTimeFile = new File(benchmarks_results_file)
+    val split = benchmarks_results_file.split('.')
+    val tracesMetricsFileName = split.init.foldLeft("")( (path, part) => path + part ) + "_metrics." + split.last
+    val tracesMetricsFile = new File(tracesMetricsFileName)
+    val runningTimeBw = new BufferedWriter(new FileWriter(runningTimeFile, true))
+    val tracesMetricsBw = new BufferedWriter(new FileWriter(tracesMetricsFile, true))
+    runningTimeBw.write(s"$currentProgram;${result.time}\n")
+    tracesMetricsBw.write(s"$currentProgram;${TracesMetrics.getNumberOfTraces};${TracesMetrics.getTracesLength}\n")
+    runningTimeBw.close()
+    tracesMetricsBw.close()
   }
 
   /**

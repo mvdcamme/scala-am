@@ -186,6 +186,7 @@ class Tracer[Exp : Expression, Abs : AbstractValue, Addr : Address, Time : Times
       } else {
         traceFull
       }
+      TracesMetrics.addTraceLength(optimizedTraceFull.trace.length)
       TracerContext(labelCounters, TraceNode[TraceFull](curTraceNode.label, optimizedTraceFull, curTraceNode.info) :: traceNodes, Some(curTraceNode))
   }
 
