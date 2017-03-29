@@ -273,6 +273,12 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     }
 
     action match {
+      case _: ActionGuardT[Exp, HybridLattice.Hybrid, HybridAddress] =>
+        TracesMetrics.incNumberOfGuardsApplied()
+      case _ =>
+    }
+
+    action match {
       case ActionAllocVarsT(variables) =>
         val addresses = variables.map(v => addr.variable(v, t))
         val (ρ1, σ1) = variables.zip(addresses).foldLeft((ρ, σ))({ case ((ρ2, σ2), (currV, currA)) => (ρ2.extend(currV, currA), σ2.extend(currA, abs.bottom)) })
@@ -305,10 +311,12 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         val σ1 = σ.extend(addr, lit)
         ActionStep(ProgramState(control, ρ, σ1, kstore, a, t, lit, vStack), action)
       case ActionLookupVariableT(varName, _, _) =>
+        TracesMetrics.incNumberOfVarLookups()
         val newV = σ.lookup(ρ.lookup(varName).get)
         ActionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, vStack), action)
       case ActionLookupVariablePushT(varName, _, _) => ρ.lookup(varName) match {
         case Some(address) =>
+          TracesMetrics.incNumberOfVarLookups()
           val newV = σ.lookup(address)
           ActionStep(ProgramState(control, ρ, σ, kstore, a, t, newV, StoreVal[HybridValue, HybridAddress](newV) :: vStack), action)
         case None =>
@@ -318,6 +326,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         val next = if (a == HaltKontAddress) { HaltKontAddress } else { kstore.lookup(a).head.next }
         ActionStep(ProgramState(TracingControlKont(a), ρ, σ, kstore, next, t, v, vStack), action)
       case ActionPrimCallT(n: Integer, fExp, argsExps) =>
+        TracesMetrics.incNumberOfGenericPrimitivesApplied()
         val (vals, _) = popStackItems(vStack, n)
         val operator = vals.last.getVal
         ActionStep(applyPrimitive(operator, n, fExp, argsExps), action)

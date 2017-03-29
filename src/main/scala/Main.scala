@@ -145,7 +145,9 @@ object Main {
     val runningTimeBw = new BufferedWriter(new FileWriter(runningTimeFile, true))
     val tracesMetricsBw = new BufferedWriter(new FileWriter(tracesMetricsFile, true))
     runningTimeBw.write(s"$currentProgram;${result.time}\n")
-    tracesMetricsBw.write(s"$currentProgram;${TracesMetrics.getNumberOfTraces};${TracesMetrics.getTracesLength}\n")
+    tracesMetricsBw.write(s"$currentProgram;${TracesMetrics.getNumberOfTraces};${TracesMetrics.getTracesLength};" +
+                          s"${TracesMetrics.getNumberOfVarLookups};${TracesMetrics.getNumberOfGenericPrimitivesApplied};" +
+                          s"${TracesMetrics.getNumberOfGuardsApplied}\n")
     runningTimeBw.close()
     tracesMetricsBw.close()
   }

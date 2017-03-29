@@ -19,7 +19,8 @@ class Store[Addr : Address, Abs : AbstractValue](content: Map[Addr, (Int, Abs)],
   })
   def lookup(a: Addr): Abs = content.get(a) match {
     case None => throw new Exception(s"Unbound address (should not happen): $a")
-    case Some(v) => v._2
+    case Some(v) =>
+      v._2
   }
   /** Looks up a value in the store (returning bottom if value not present) */
   def lookupBot(a: Addr): Abs = content.getOrElse(a, (0, abs.bottom))._2
