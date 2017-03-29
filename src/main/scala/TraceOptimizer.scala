@@ -316,7 +316,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     def loop(trace: Trace, acc: Trace): Trace = trace match {
       case Nil => acc.reverse
       case (actionState1@(_, someInfo)) :: (actionState2@(ActionPrimCallT(n, fExp, argsExps), _)) :: rest => someInfo match {
-        case Some(PrimitiveAppliedInfo(_, vStack)) =>
+        case Some(DefaultInfo(vStack)) =>
           val operands = vStack.take(n - 1).map(_.getVal)
           val operator = vStack(n - 1).getVal
           val operandsTypes = HybridLattice.checkValuesTypes(operands)

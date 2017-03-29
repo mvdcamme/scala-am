@@ -501,7 +501,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     case ActionPrimCallT(_, _, _) =>
       Some(PrimitiveAppliedInfo(v, vStack))
     case _ =>
-      None
+      Some(DefaultInfo(vStack))
   }
 
   def concretableState = this
