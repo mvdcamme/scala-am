@@ -162,11 +162,11 @@ object Main {
     println(s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")
 
     /* JIT warm-up */
-    var i = 1
-    while (i < 2) {
-      i += 1
-      calcResult()
-    }
+//    var i = 1
+//    while (i < 2) {
+//      i += 1
+//      calcResult()
+//    }
 
     val result = calcResult()
     output match {
