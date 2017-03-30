@@ -239,7 +239,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
     })
   }
 
-  private def doOneConstantFold(firstPart: Trace, trace: Trace): Option[Trace] = {
+  private def doOneConstantFold(firstPart: Trace, trace: Trace): Trace = {
     findNextEndPrimCall(trace) match {
       case Some((traceBefore, traceAtPrimCall)) =>
        findNextStartFunCall(traceAtPrimCall.tail) match {
@@ -257,36 +257,45 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
                    val newTrace = betweenInnerEndPrimCallAndOuterStartMark ++ traceAtStartCall
                    doOneConstantFold(newFirstPart, newTrace)
                  case _ =>
-                   checkPrimitive(traceBetweenMarks, n).flatMap({ (traceAfterOperatorPush) =>
-                     //val guard = (ActionGuardSamePrimitive(), None)
-                     val replacingConstantAction: TraceInstructionInfo = (ActionReachedValueT[Exp, HybridValue, HybridAddress](result), None)
-                     val actionEndOptimizedBlock = (ActionEndOptimizedBlock[Exp, HybridValue, HybridAddress](), None)
-                     val actionStartOptimizedBlock = (ActionStartOptimizedBlock[Exp, HybridValue, HybridAddress](), None)
-                     val replacingTrace = firstPart ++ (traceBefore :+ actionEndOptimizedBlock :+ replacingConstantAction) ++
-                                          /* Add all parts of the inner optimized blocks, except for the constants themselves that were folded there; those are folded away in the new block */
-                                          optimizedBlocks.foldLeft(List(): Trace)({ (acc, current) => acc ++ current.filter({ (actionState) => ! actionState._1.isInstanceOf[ActionReachedValueT[Exp, Abs, Addr]] })}) ++
-                                          (traceAfterOperatorPush :+ actionStartOptimizedBlock) ++ traceAtStartCall.tail
-                     Some(replacingTrace)
-                   })
+                   val primitiveChecked = checkPrimitive(traceBetweenMarks, n)
+                   primitiveChecked match {
+                     case None =>
+                       val newFirstPart = firstPart ++ (traceBefore :+ traceAtPrimCall.head) ++ traceBetweenMarks :+ traceAtStartCall.head
+                       doOneConstantFold(newFirstPart, traceAtStartCall.tail)
+                     case Some(traceAfterOperatorPush) =>
+                       //val guard = (ActionGuardSamePrimitive(), None)
+                       val replacingConstantAction: TraceInstructionInfo = (ActionReachedValueT[Exp, HybridValue, HybridAddress](result), None)
+                       println(replacingConstantAction)
+                       val actionEndOptimizedBlock = (ActionEndOptimizedBlock[Exp, HybridValue, HybridAddress](), None)
+                       val actionStartOptimizedBlock = (ActionStartOptimizedBlock[Exp, HybridValue, HybridAddress](), None)
+                       val replacingTrace = firstPart ++ (traceBefore :+ actionEndOptimizedBlock :+ replacingConstantAction) ++
+                         /* Add all parts of the inner optimized blocks, except for the constants themselves that were folded there; those are folded away in the new block */
+                         optimizedBlocks.foldLeft(List(): Trace)({ (acc, current) => acc ++ current.filter({ (actionState) => ! actionState._1.isInstanceOf[ActionReachedValueT[Exp, Abs, Addr]] })}) ++
+                         (traceAfterOperatorPush :+ actionStartOptimizedBlock) ++ traceAtStartCall.tail
+                       replacingTrace
+                   }
                }
              /* Should not happen: a primitive application block should always contains an ActionPrimCallTraced */
-             case None => None
+             case None =>
+               firstPart ++ trace
            }
            /* Start of the primitive application is not part of the trace (e.g. in the case of (+ 1 (traced-loop) 2) ) */
-         case None => None
+         case None =>
+           firstPart ++ trace
        }
       /* Absolutely no primitive is applied in the given trace  */
-      case None => None
+      case None =>
+        firstPart ++ trace
     }
   }
 
   private def optimizeConstantFolding(traceFull: TraceFull): TraceFull = {
     def loop(trace: Trace): Trace = {
-      doOneConstantFold(List(), trace) match {
-        case Some(updatedTrace) =>
-          loop(updatedTrace)
-        case None =>
-          trace
+      val updated = doOneConstantFold(List(), trace)
+      if (updated == trace) {
+        trace
+      } else {
+        loop(updated)
       }
     }
     val optimizedTrace = loop(traceFull.trace.reverse).reverse
