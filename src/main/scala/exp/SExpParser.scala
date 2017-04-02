@@ -72,6 +72,9 @@ trait SExpTokens extends Tokens {
   case class TRightParen() extends SExpToken {
     def chars = ")"
   }
+  case object TDot extends SExpToken {
+    def chars = "."
+  }
 }
 
 class SExpLexer extends Lexical with SExpTokens {
@@ -123,6 +126,9 @@ class SExpLexer extends Lexical with SExpTokens {
   def rightParen: Parser[SExpToken] = chr(')') ^^ { _ =>
     TRightParen()
   }
+  def dot: Parser[SExpToken] = chr('.') ^^ { _ =>
+    TDot
+  }
   def float: Parser[SExpToken] =
     sign ~ rep(digit) ~ '.' ~ rep(digit) ^^ {
       case s ~ pre ~ _ ~ post =>
@@ -135,7 +141,7 @@ class SExpLexer extends Lexical with SExpTokens {
     }
   def token: Parser[SExpToken] =
     nonRelevant ~> positioned({
-      bool | float | integer | character | string | identifier |
+      bool | dot | float | integer | character | string | identifier |
         quote | leftParen | rightParen
     }) <~ nonRelevant
 }
@@ -179,6 +185,7 @@ object SExpParser extends TokenParsers {
     }
   }
 
+  def dot = elem("dot", _ == TDot)
   def leftParen = elem("left parenthesis", _.isInstanceOf[TLeftParen])
   def rightParen = elem("right parenthesis", _.isInstanceOf[TRightParen])
   def quote = elem("quote", _.isInstanceOf[TQuote])
@@ -194,8 +201,15 @@ object SExpParser extends TokenParsers {
       case ns: NoSuccess => ns
     }
   }
+  def dotted: Parser[SExp] = Parser { in =>
+    (dot ~> exp)(in) match {
+      case Success(e, in1) => Success(SExpIdentifier(".", in.pos), in1)
+      case ns: NoSuccess => ns
+    }
 
-  def exp: Parser[SExp] = value | identifier | list | quoted
+  }
+
+  def exp: Parser[SExp] = dotted | value | identifier | list | quoted
   def expList: Parser[List[SExp]] = rep1(exp)
 
   def parse(s: String): List[SExp] = expList(new lexical.Scanner(s)) match {
