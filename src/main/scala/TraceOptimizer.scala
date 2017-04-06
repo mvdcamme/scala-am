@@ -318,6 +318,11 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       case AbstractType.AbstractInt => hybridMachine.primitives.MinusInteger
       case _ => prim
     }
+    case hybridMachine.primitives.Times => operandsTypes match {
+      case AbstractType.AbstractFloat => hybridMachine.primitives.TimesFloat
+      case AbstractType.AbstractInt => hybridMachine.primitives.TimesInteger
+      case _ => prim
+    }
     case _ => prim
   }
 

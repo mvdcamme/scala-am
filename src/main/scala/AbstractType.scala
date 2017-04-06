@@ -69,7 +69,7 @@ object AbstractType {
       case AbstractTop => AbstractTop
       case AbstractInt  => handleGenericBinOp(op, that)
       case AbstractFloat => op match {
-        case PlusF | MinusF => AbstractFloat
+        case PlusF | MinusF | TimesF => AbstractFloat
         case _ => handleGenericBinOp(op, that)
       }
       case _ => super.binaryOp(op)(that)
@@ -92,7 +92,7 @@ object AbstractType {
     override def binaryOp(op: BinaryOperator)(that: AbstractType) = that match {
       case AbstractTop => AbstractTop
       case AbstractInt => op match {
-        case PlusI | MinusI | Modulo => AbstractInt
+        case PlusI | MinusI | TimesI | Modulo => AbstractInt
         case _ => handleGenericBinOp(op, that, AbstractInt)
       }
       case AbstractFloat => handleGenericBinOp(op, that, AbstractFloat)

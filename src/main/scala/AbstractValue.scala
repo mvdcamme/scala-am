@@ -13,6 +13,9 @@ trait Primitive[Addr, Abs] {
    * @return either an error, or the value returned by the primitive along with the updated store
    */
   def call[Exp : Expression, Time : Timestamp](fexp : Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time): Either[String, (Abs, Store[Addr, Abs])]
+
+  def genericArithmeticOperation: Boolean = false
+
 }
 
 object UnaryOperator extends Enumeration {
@@ -28,7 +31,7 @@ import UnaryOperator._
 
 object BinaryOperator extends Enumeration {
   type BinaryOperator = Value
-  val Plus, PlusF, PlusI, Minus, MinusF, MinusI, Times, Div, Modulo, /* Arithmetic operations */
+  val Plus, PlusF, PlusI, Minus, MinusF, MinusI, Times, TimesF, TimesI, Div, Modulo, /* Arithmetic operations */
   Lt, /* Arithmetic comparison */
   NumEq, Eq, /* Equality checking (number equality, physical equality) */
   StringAppend /* string operations */
@@ -140,6 +143,8 @@ class Primitives[Addr : Address, Abs : AbstractValue] {
   def minusF = abs.binaryOp(BinaryOperator.MinusF) _
   def minusI = abs.binaryOp(BinaryOperator.MinusI) _
   def times = abs.binaryOp(BinaryOperator.Times) _
+  def timesF = abs.binaryOp(BinaryOperator.TimesF) _
+  def timesI = abs.binaryOp(BinaryOperator.TimesI) _
   def div = abs.binaryOp(BinaryOperator.Div) _
   def modulo = abs.binaryOp(BinaryOperator.Modulo) _
   def lt = abs.binaryOp(BinaryOperator.Lt) _
@@ -228,6 +233,7 @@ class Primitives[Addr : Address, Abs : AbstractValue] {
         case Left(err) => Left(err)
       }
     }
+    override def genericArithmeticOperation = true
   }
   object PlusFloat extends VariadicOperation {
     val name = "+f"
@@ -259,6 +265,7 @@ class Primitives[Addr : Address, Abs : AbstractValue] {
         case Left(err) => Left(err)
       }
     }
+    override def genericArithmeticOperation = true
   }
   object MinusFloat extends VariadicOperation {
     val name = "-f"
@@ -288,6 +295,27 @@ class Primitives[Addr : Address, Abs : AbstractValue] {
       case Nil => Right(abs.inject(1))
       case x :: rest => call(rest) match {
         case Right(y) => Right(times(x, y))
+        case Left(err) => Left(err)
+      }
+    }
+    override def genericArithmeticOperation = true
+  }
+  object TimesFloat extends VariadicOperation {
+    val name = "*f"
+    def call(args: List[Abs]) = args match {
+      case Nil => Right(abs.inject(1))
+      case x :: rest => call(rest) match {
+        case Right(y) => Right(timesF(x, y))
+        case Left(err) => Left(err)
+      }
+    }
+  }
+  object TimesInteger extends VariadicOperation {
+    val name = "*i"
+    def call(args: List[Abs]) = args match {
+      case Nil => Right(abs.inject(1))
+      case x :: rest => call(rest) match {
+        case Right(y) => Right(timesI(x, y))
         case Left(err) => Left(err)
       }
     }
@@ -385,7 +413,7 @@ class Primitives[Addr : Address, Abs : AbstractValue] {
 
   /** Bundles all the primitives together */
   val all: List[Primitive[Addr, Abs]] = List(
-    Plus, PlusFloat, PlusInteger, Minus, MinusFloat, MinusInteger, Times, Div,
+    Plus, PlusFloat, PlusInteger, Minus, MinusFloat, MinusInteger, Times, TimesFloat, TimesInteger, Div,
     BinaryOperation("quotient", div),
     BinaryOperation("<", lt), // TODO: <, <=, =, >, >= should accept any number of arguments
     BinaryOperation("<=", (x, y) => abs.or(lt(x, y), numEq(x, y))),

@@ -188,7 +188,11 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
     val operands: List[HybridValue] = vals.take(n - 1).map(_.getVal)
     val primitive: Option[Primitive[HybridAddress, HybridValue]] = abs.getPrimitive[HybridAddress, HybridValue](operator)
     val result = primitive match {
-      case Some(p) => p.call(fExp, argsExps.zip(operands.reverse), σ, t)
+      case Some(p) =>
+        if (p.genericArithmeticOperation) {
+          TracesMetrics.incNumberOfGenericPrimitivesApplied()
+        }
+        p.call(fExp, argsExps.zip(operands.reverse), σ, t)
       case None => throw new NotAPrimitiveException(s"Operator $fExp not a primitive: $operator")
     }
     result match {
@@ -326,7 +330,7 @@ case class ProgramState[Exp : Expression, Time : Timestamp]
         val next = if (a == HaltKontAddress) { HaltKontAddress } else { kstore.lookup(a).head.next }
         ActionStep(ProgramState(TracingControlKont(a), ρ, σ, kstore, next, t, v, vStack), action)
       case ActionPrimCallT(n: Integer, fExp, argsExps) =>
-        TracesMetrics.incNumberOfGenericPrimitivesApplied()
+        // TracesMetrics.incNumberOfGenericPrimitivesApplied()
         val (vals, _) = popStackItems(vStack, n)
         val operator = vals.last.getVal
         ActionStep(applyPrimitive(operator, n, fExp, argsExps), action)

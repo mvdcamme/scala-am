@@ -49,6 +49,7 @@ object AbstractConcrete {
       case AbstractFloat(v2) => op match {
         case PlusF => AbstractFloat(v + v2)
         case MinusF => AbstractFloat(v - v2)
+        case TimesF => AbstractFloat(v * v2)
         case _ => handleGenericBinOp(op, that, v, v2)
       }
       case AbstractInt(v2) => handleGenericBinOp(op, that, v, v2)
@@ -80,6 +81,7 @@ object AbstractConcrete {
       case AbstractInt(v2) => op match {
         case PlusI => AbstractInt(v + v2)
         case MinusI => AbstractInt(v - v2)
+        case TimesI => AbstractInt(v * v2)
         case Modulo => AbstractInt(v % v2)
         case _ => handleGenericBinOp(op, that, v, v2, { (f) => AbstractInt(f.toInt) })
       }
