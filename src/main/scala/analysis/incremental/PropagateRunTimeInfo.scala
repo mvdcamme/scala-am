@@ -381,7 +381,7 @@ class PropagateRunTimeInfo[Exp: Expression,
         //        val originalStateId = prunedGraph.nodeId(originalState)
         //        Logger.log(s"Incrementally evaluating original state ${initialGraph.nodeId(originalState)} " +
         //                   s"(currentID: $originalStateId) $originalState with new state $newState", LogPropagation)
-        if (actionRApplier.halted(newState)) {
+        if (stateInfoProvider.halted(newState)) {
           Logger.log(s"State halted", LogPropagation)
           evalLoop(todoPair.dropHead, visited + newState, graph, stepCount, initialGraph, prunedGraph)
         } else if (visited.contains(newState)) {

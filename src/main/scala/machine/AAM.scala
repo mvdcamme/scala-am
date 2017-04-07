@@ -664,8 +664,6 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       control && a && t && kstore && store
     }
 
-    def halted(state: State): Boolean = state.halted
-
     def evaluatedFalse(state: State): Boolean = state.control match {
       case ControlKont(v) =>
         sabs.isFalse(v)
@@ -720,6 +718,8 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
   object AAMStateInfoProvider extends StateInfoProvider[State] {
 
     val kaConverter = new ConvertTimestampKontAddrConverter[Exp](DefaultHybridTimestampConverter)
+
+    def halted(state: State): Boolean = state.halted
 
     def deltaStoreEmpty(state1: State, state2: State): Boolean = {
       val storeDiff1 = state1.store.diff(state2.store)

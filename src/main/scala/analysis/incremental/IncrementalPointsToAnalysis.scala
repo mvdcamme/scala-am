@@ -4,9 +4,10 @@ class IncrementalPointsToAnalysis[Exp : Expression,
                                   Abs : IsSchemeLattice,
                                   Addr : Address,
                                   Time : Timestamp,
-                                  State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor : StateInfoProvider]
+                                  State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
                                  (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr]]])
                                  (implicit actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State],
+                                           stateInfoProvider: StateInfoProvider[State],
                                            analysisFlags: AnalysisFlags) {
 
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
@@ -70,8 +71,8 @@ class IncrementalPointsToAnalysis[Exp : Expression,
       Logger.log(s"Graphs have a different size: graph1 ${graph1.nodes}, graph2: ${graph2.nodes}", Logger.U)
       false
     } else {
-      val haltedStates1 = graph1.nodes.filter(actionRApplier.halted)
-      val haltedStates2 = graph2.nodes.filter(actionRApplier.halted)
+      val haltedStates1 = graph1.nodes.filter(stateInfoProvider.halted)
+      val haltedStates2 = graph2.nodes.filter(stateInfoProvider.halted)
       Logger.log(s"haltedStates2: $haltedStates2", Logger.U)
       val joinedState1 = actionRApplier.joinStates(haltedStates1)
       val joinedState2 = actionRApplier.joinStates(haltedStates2)

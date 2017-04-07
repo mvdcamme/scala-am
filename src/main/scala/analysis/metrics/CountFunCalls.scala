@@ -1,4 +1,4 @@
-import java.io.{FileWriter, BufferedWriter, File}
+import java.io.{BufferedWriter, File, FileWriter}
 
 case class CountedFunCalls(nrOfCalls: Int, totalNrOfFunctionsPointedTo: Int)
 

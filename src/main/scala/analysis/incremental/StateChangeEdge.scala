@@ -8,8 +8,6 @@ trait ActionReplayApplier[Exp, Abs, Addr, Time, State <: StateTrait[Exp, Abs, Ad
   def subsumes(s1: State, s2: State): Boolean
   def statesEqual(s1: State, s2: State): Boolean
 
-  def halted(state: State): Boolean
-
   def evaluatedFalse(state: State): Boolean
   def evaluatedTrue(state: State): Boolean
 
