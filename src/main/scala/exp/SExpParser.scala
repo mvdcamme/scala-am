@@ -90,7 +90,7 @@ class SExpLexer extends Lexical with SExpTokens {
   def sign: Parser[Option[Char]] = opt(chr('+') | chr('-'))
   def stringContent: Parser[String] = {
     ('\\' ~ any ~ stringContent ^^ { case '\\' ~ c ~ s => "\\$c$s" }) |
-      (rep(chrExcept('\"', '\n')) ^^ (_.mkString))
+      (rep(chrExcept('\"')) ^^ (_.mkString))
   }
 
   def bool: Parser[SExpToken] =
@@ -106,9 +106,9 @@ class SExpLexer extends Lexical with SExpTokens {
     }
   def character: Parser[SExpToken] =
     '#' ~> '\\' ~> any ^^ (c => TCharacter(c))
-  def stringEnding: Parser[String] = chrExcept('\\', '\n') ^^ (_.toString)
+  def stringEnding: Parser[String] = chrExcept('\\') ^^ (_.toString)
   def string: Parser[SExpToken] = {
-    ('\"' ~> stringContent ~ chrExcept('\\', '\n') <~ '\"' ^^ {
+    ('\"' ~> stringContent ~ chrExcept('\\') <~ '\"' ^^ {
       case s ~ ending => TString(s + ending)
     }) |
       ('\"' ~> stringContent <~ '\"' ^^ (s => TString(s)))
