@@ -409,7 +409,7 @@ object Main {
       inspect: Boolean,
       benchmarks_results_file: String): Unit = {
     def calcResult() = {
-      machine.eval(sem.parse(program), sem, output.isDefined, timeout)
+      machine.eval(currentProgram, sem.parse(program), sem, output.isDefined, timeout)
     }
     runBasic[Exp, Abs, Addr, Time](machine,
                                    output,
@@ -424,13 +424,13 @@ object Main {
                 Addr: Address,
                 Time: Timestamp](
       machine: AbstractMachineTraced[Exp, Abs, Addr, Time])(
-      program: String,
+      programName: String,
       output: Option[String],
       timeout: Option[Long],
       inspect: Boolean,
       benchmarks_results_file: String): Unit = {
     def calcResult() = {
-      machine.eval(machine.sem.parse(program), output.isDefined, timeout)
+      machine.eval(programName, machine.sem.parse(programName), output.isDefined, timeout)
     }
     runBasic[Exp, Abs, Addr, Time](machine,
                                    output,
@@ -563,7 +563,7 @@ object Main {
             val machine = new HybridConcreteMachine[pointsLattice.L](pointsToAnalysisLauncher, config.analysisFlags)
 
             def calcResult(program: String)() = {
-              machine.eval(sem.parse(program), sem, config.dotfile.isDefined, config.timeout)
+              machine.eval(currentProgram, sem.parse(program), sem, config.dotfile.isDefined, config.timeout)
             }
 
             (program: String) =>

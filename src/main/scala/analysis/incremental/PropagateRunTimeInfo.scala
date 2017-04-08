@@ -7,7 +7,7 @@ class PropagateRunTimeInfo[Exp: Expression,
                            State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
                           (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr]]])
                           (implicit actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State],
-                                    stateInfoProvider: StateInfoProvider[State],
+                                    stateInfoProvider: StateInfoProvider[Exp, Abs, Addr, Time, State],
                                     analysisFlags: AnalysisFlags) {
 
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
@@ -288,7 +288,7 @@ class PropagateRunTimeInfo[Exp: Expression,
              notContinuedTodo: TodoPair,
              visited: Set[State],
              graph: AbstractGraph): DeltaEdgesAdded = {
-      Logger.log(s"In loop iteration", Logger.U)
+      Logger.log(s"In loop iteration", Logger.D)
       todoForThisOptimisation.todo.headOption match {
         case None =>
           DeltaEdgesAdded(notContinuedTodo, graph, visited)

@@ -286,7 +286,8 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     loop(s, Set(), Set(), new Graph[State, List[FilterAnnotation]]().addNode(initStateSet.head))
   }
 
-  def eval(exp: Exp,
+  def eval(programName: String,
+           exp: Exp,
            sem: Semantics[Exp, Abs, Addr, Time],
            graph: Boolean,
            timeout: Option[Long]): Output[Abs] =

@@ -19,7 +19,7 @@ abstract class Tests[Exp: Expression, Addr: Address, Time: Timestamp](
   val machine: AbstractMachine[Exp, Abs, Addr, Time]
 
   def checkResult(program: String, answer: Abs) = {
-    val result = machine.eval(sem.parse(program), sem, false, None)
+    val result = machine.eval(program, sem.parse(program), sem, false, None)
     assert(result.containsFinalValue(answer))
   }
   def check(table: TableFor2[String, Abs]) =

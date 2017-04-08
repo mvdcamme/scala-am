@@ -118,7 +118,7 @@ abstract class Benchmarks(dir: String,
           val output = scala.Console.withOut(new java.io.OutputStream {
             override def write(b: Int) {}
           }) {
-            machine.eval(sem.parse(program), sem, false, timeout)
+            machine.eval(config.program, sem.parse(program), sem, false, timeout)
           }
           MachineOutput(output.time, output.numberOfStates, output.timedOut)
         } catch {

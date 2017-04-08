@@ -7,7 +7,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
                                   State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
                                  (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr]]])
                                  (implicit actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State],
-                                           stateInfoProvider: StateInfoProvider[State],
+                                           stateInfoProvider: StateInfoProvider[Exp, Abs, Addr, Time, State],
                                            analysisFlags: AnalysisFlags) {
 
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]

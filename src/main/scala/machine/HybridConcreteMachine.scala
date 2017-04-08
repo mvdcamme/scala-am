@@ -351,7 +351,8 @@ class HybridConcreteMachine[
     * Performs the evaluation of an expression, possibly writing the output graph
     * in a file, and returns the set of final states reached
     */
-  def eval(exp: SchemeExp,
+  def eval(programName: String,
+           exp: SchemeExp,
            sem: Semantics[SchemeExp,
                           ConcreteConcreteLattice.L,
                           HybridAddress.A,
@@ -376,7 +377,7 @@ class HybridConcreteMachine[
         case NoIncrementalAnalysis =>
         case IncrementalAnalysisEvery(analysisInterval) =>
           if (stepCount % analysisInterval == 0) {
-            pointsToAnalysisLauncher.incrementalAnalysis(state, stepCount)
+            pointsToAnalysisLauncher.incrementalAnalysis(state, stepCount, programName)
           }
       }
 
@@ -562,7 +563,7 @@ class HybridConcreteMachine[
       Environment.initial[HybridAddress.A](sem.initialEnv),
       Store.initial[HybridAddress.A, ConcreteValue](
         sem.initialStore))
-    pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState)
+    pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState, programName)
 
     FunctionsCalledMetric.resetConcreteFunctionsCalled()
     loop(initialState,

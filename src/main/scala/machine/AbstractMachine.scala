@@ -77,7 +77,8 @@ trait AbstractMachine[Exp, Abs, Addr, Time]
     * evaluation. @param timeout is the timeout in ns, when reached, the
     * evaluation stops and the currently computed results are returned.
     */
-  def eval(exp: Exp,
+  def eval(programName: String,
+           exp: Exp,
            sem: Semantics[Exp, Abs, Addr, Time],
            graph: Boolean = false,
            timeout: Option[Long] = None): Output[Abs]
@@ -103,7 +104,8 @@ trait AbstractMachineTraced[Exp, Abs, Addr, Time]
     * implementing the Output trait, containing information about the
     * evaluation.
     */
-  def eval(exp: Exp,
+  def eval(programName: String,
+           exp: Exp,
            graph: Boolean = false,
            timeout: Option[Long] = None): Output[Abs]
 }

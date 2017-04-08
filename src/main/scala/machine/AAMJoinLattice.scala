@@ -207,7 +207,11 @@ class AAMJoinLattice[Exp : Expression, Abs : JoinLattice, Addr : Address, Time :
     * Performs the evaluation of an expression, possibly writing the output graph
     * in a file, and returns the set of final states reached
     */
-  def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Option[Long]): Output[Abs] = {
+  def eval(programName: String,
+           exp: Exp,
+           sem: Semantics[Exp, Abs, Addr, Time],
+           graph: Boolean,
+           timeout: Option[Long]): Output[Abs] = {
     kickstartEval(State.inject(exp, sem.initialEnv, sem.initialStore), sem, None, timeout, graph)
   }
 

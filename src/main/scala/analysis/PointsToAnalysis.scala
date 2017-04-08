@@ -122,12 +122,20 @@ class PointsToAnalysisLauncher[
   val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]
 
   val pointsToAnalysis = new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
-  val metricsComputer = new CountFunCalls[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.State]
+  val countFunCallsMetricsComputer = new CountFunCalls[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.State]
+  val countNonConstantsMetricsComputer = new CountNonConstants[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.State](lip.pointsTo)
 
   val incrementalMetricsOutputPath = s"${GlobalFlags.ANALYSIS_PATH}Closures_Points_To/incremental.txt"
   val initialMetricsOutputPath = s"${GlobalFlags.ANALYSIS_PATH}Closures_Points_To/initial_analysis.txt"
   val prunedMetricsOutputPath = s"${GlobalFlags.ANALYSIS_PATH}Closures_Points_To/pruned.txt"
   val runTimeAnalysisMetricsOutputPath = s"${GlobalFlags.ANALYSIS_PATH}Closures_Points_To/run_time.txt"
+
+  val pointsToOutputPath =s"${GlobalFlags.ANALYSIS_PATH}/Points_To/"
+
+  private def runMetrics(graph: AbstractGraph, stepCount: Integer, funCallsMetricPath: String, programName:String): Unit = {
+    countFunCallsMetricsComputer.computeAndWriteMetrics(graph, stepCount, funCallsMetricPath, programName)
+    countNonConstantsMetricsComputer.computeAndWriteMetrics(graph, stepCount, pointsToOutputPath, programName)
+  }
 
   def runStaticAnalysisGeneric(
       currentProgramState: PS,
@@ -157,22 +165,22 @@ class PointsToAnalysisLauncher[
     runStaticAnalysisGeneric(currentProgramState, stepSwitched, None)
   }
 
-  private def initializeAnalyses(graph: AbstractGraph): Unit = {
+  private def initializeAnalyses(graph: AbstractGraph, programName: String): Unit = {
     new BufferedWriter(new FileWriter(new File(initialMetricsOutputPath), false))
-    metricsComputer.computeAndWriteMetrics(graph, -1, initialMetricsOutputPath)
+    runMetrics(graph, -1, initialMetricsOutputPath, programName)
     new BufferedWriter(new FileWriter(new File(incrementalMetricsOutputPath), false))
     new BufferedWriter(new FileWriter(new File(prunedMetricsOutputPath), false))
     new BufferedWriter(new FileWriter(new File(runTimeAnalysisMetricsOutputPath), false))
   }
 
-  def runInitialStaticAnalysis(currentProgramState: PS): Unit =
+  def runInitialStaticAnalysis(currentProgramState: PS, programName: String): Unit =
     runStaticAnalysisGeneric(currentProgramState,
                              None,
                              Some("initial_graph.dot")) match {
       case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.GraphNode] =>
         result.output.toDotFile("initial_graph.dot")
         incrementalAnalysis.initializeGraph(result.output.graph)
-        initializeAnalyses(result.output.graph)
+        initializeAnalyses(result.output.graph, programName)
       case other =>
         throw new Exception(s"Expected initial analysis to produce a graph, got $other instead")
     }
@@ -190,20 +198,20 @@ class PointsToAnalysisLauncher[
 
   def end(): Unit = incrementalAnalysis.end()
 
-  protected def filterReachable(stepCount: Int): Unit = {
+  protected def filterReachable(stepCount: Int, programName: String): Unit = {
     val optionPrunedGraph = incrementalAnalysis.filterReachable(stepCount)
     optionPrunedGraph.foreach( (prunedGraph) => {
-      metricsComputer.computeAndWriteMetrics(prunedGraph, stepCount, prunedMetricsOutputPath)
+      runMetrics(prunedGraph, stepCount, prunedMetricsOutputPath, programName)
       aam.AAMGraphPrinter.printGraph(prunedGraph, s"${GlobalFlags.ANALYSIS_PATH}Incremental/pruned_graph_$stepCount.dot")
     })
   }
 
-  protected def applyEdgeActions(concreteState: PS, stepCount: Int): Unit = {
+  protected def applyEdgeActions(concreteState: PS, stepCount: Int, programName: String): Unit = {
     val applyEdgeActions = () => {
       val convertedState = convertStateAAM(aam, concSem, abstSem, concreteState)
       val optionIncrementalGraph: Option[AbstractGraph] = incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
       optionIncrementalGraph.foreach( (incrementalGraph) => {
-        metricsComputer.computeAndWriteMetrics(incrementalGraph, stepCount, incrementalMetricsOutputPath)
+        runMetrics(incrementalGraph, stepCount, incrementalMetricsOutputPath, programName)
         aam.AAMGraphPrinter.printGraph(incrementalGraph, s"${GlobalFlags.ANALYSIS_PATH}Incremental/incremental_graph_$stepCount.dot")
 //        assert(incrementalGraph.nodes.size <= incrementalAnalysis.prunedGraph.get.nodes.size)
 //        assert(incrementalGraph.edges.size <= incrementalAnalysis.prunedGraph.get.edges.size)
@@ -212,7 +220,7 @@ class PointsToAnalysisLauncher[
             output.toDotFile(s"${GlobalFlags.ANALYSIS_PATH}Run_time/run_time_$stepCount.dot")
             output.graph.asInstanceOf[AbstractGraph]
         }
-        metricsComputer.computeAndWriteMetrics(completelyNewGraph, stepCount, runTimeAnalysisMetricsOutputPath)
+        runMetrics(completelyNewGraph, stepCount, runTimeAnalysisMetricsOutputPath, programName)
         val areEqual = incrementalAnalysis.subsumedGraphsEqual(completelyNewGraph, incrementalGraph)
         Logger.log(s"Graphs equal? $areEqual\n", Logger.U)
         assert(areEqual)
@@ -221,10 +229,10 @@ class PointsToAnalysisLauncher[
     wrapAbstractEvaluation(applyEdgeActions)
   }
 
-  def incrementalAnalysis(concreteState: PS, stepCount: Int): Unit = {
-    filterReachable(stepCount)
+  def incrementalAnalysis(concreteState: PS, stepCount: Int, programName: String): Unit = {
+    filterReachable(stepCount, programName)
     if (analysisFlags.doPropagationPhase) {
-      applyEdgeActions(concreteState, stepCount)
+      applyEdgeActions(concreteState, stepCount, programName)
     }
   }
 

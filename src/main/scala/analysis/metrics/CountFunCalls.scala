@@ -6,13 +6,13 @@ class CountFunCalls[Exp : Expression,
                     Abs : IsSchemeLattice,
                     Addr : Address,
                     Time: Timestamp,
-                    State <: StateTrait[Exp, Abs, Addr, Time]] {
-
-  type FunctionsMap = Map[(Exp, Time), Set[Abs]]
+                    State <: StateTrait[Exp, Abs, Addr, Time]] extends Metric[Exp, Abs, Addr, Time, State] {
 
   val sabs = implicitly[IsSchemeLattice[Abs]]
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
+
+  type FunctionsMap = Map[(Exp, Time), Set[Abs]]
 
   private def constructFunctionCallsMap(graph: AbstractGraph): FunctionsMap = {
     val initialMap: FunctionsMap = Map()
@@ -42,7 +42,7 @@ class CountFunCalls[Exp : Expression,
     CountedFunCalls(map.size, map.values.foldLeft(0)( (sum, set) => sum + set.size) )
   }
 
-  def computeAndWriteMetrics(graph: AbstractGraph, stepCount: Int, path: String): Unit = {
+  override def computeAndWriteMetrics(graph: AbstractGraph, stepCount: Int, path: String, program: String): Unit = {
     val map = constructFunctionCallsMap(graph)
     val results = countFunctionCalls(map)
     val totalNrOfFunctionsCalled = FunctionsCalledMetric.getConcreteFunctionsCalled + results.nrOfCalls

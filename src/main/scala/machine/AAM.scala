@@ -390,7 +390,8 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     * Performs the evaluation of an expression, possibly writing the output graph
     * in a file, and returns the set of final states reached
     */
-  def eval(exp: Exp,
+  def eval(programName: String,
+           exp: Exp,
            sem: Semantics[Exp, Abs, Addr, Time],
            graph: Boolean,
            timeout: Option[Long]): Output[Abs] =
@@ -715,11 +716,14 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
 
   }
 
-  object AAMStateInfoProvider extends StateInfoProvider[State] {
+  object AAMStateInfoProvider extends StateInfoProvider[Exp, Abs, Addr, Time, State] {
 
     val kaConverter = new ConvertTimestampKontAddrConverter[Exp](DefaultHybridTimestampConverter)
 
-    def halted(state: State): Boolean = state.halted
+    def halted(state: State): Boolean =
+      state.halted
+    def store(state: State): Store[Addr, Abs] =
+      state.store
 
     def deltaStoreEmpty(state1: State, state2: State): Boolean = {
       val storeDiff1 = state1.store.diff(state2.store)

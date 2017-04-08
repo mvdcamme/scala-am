@@ -497,7 +497,8 @@ class AAC[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     }
   }
 
-  def eval(exp: Exp,
+  def eval(programName: String,
+           exp: Exp,
            sem: Semantics[Exp, Abs, Addr, Time],
            graph: Boolean,
            timeout: Option[Long]): Output[Abs] =
