@@ -94,7 +94,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
 //        Logger.log(s"Graphs are not the same:\n$joinedState1\n$joinedState2", Logger.U)
         Logger.log(s"Diff of store:\nstore1 - store2: $diff1\nstore2 - store1: $diff2", Logger.U)
         Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: $kdiff1\nkstore2 - kstore1: $kdiff2", Logger.U)
-        Logger.log(s"Diff of errors:\nerrors1 - errors2: $errorsDiff1\nstore2 - store1: $errorsDiff2", Logger.U)
+        Logger.log(s"Diff of errors:\nerrors1 - errors2: $errorsDiff1\nerrors2 - errors1: $errorsDiff2", Logger.U)
         Logger.log(s"Graphs are not the same:\n$joinedState1\n$joinedState2", Logger.U)
       }
       result
