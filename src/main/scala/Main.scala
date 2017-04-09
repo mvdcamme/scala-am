@@ -247,11 +247,11 @@ object Config {
       c.copy(analysisFlags = c.analysisFlags.copy(runTimeAnalysisInterval = runTimeAnalysisInterval))
     }
     } text ("Launch an incremental analysis every x execution steps")
-    opt[Unit]('q', "incremental_optimisation") action { (_, c) =>
-      c.copy(analysisFlags = c.analysisFlags.copy(incrementalOptimisation = false))
+    opt[Unit]("disable_skip_iteration_optimisation") action { (_, c) =>
+      c.copy(analysisFlags = c.analysisFlags.copy(skipIterationOptimisation = false))
     } text ("Turn optimisation of incremental analysis OFF")
-    opt[Unit]('z', "extra_incremental_optimisation") action { (_, c) =>
-      c.copy(analysisFlags = c.analysisFlags.copy(extraIncrementalOptimisation = false))
+    opt[Unit]("disable_delta_optimisation") action { (_, c) =>
+      c.copy(analysisFlags = c.analysisFlags.copy(deltaOptimisation = false))
     } text ("Turn extra optimisation of incremental analysis OFF")
     opt[Unit]("disable_propagation") action { (_, c) =>
       c.copy(analysisFlags = c.analysisFlags.copy(doPropagationPhase = false))

@@ -399,7 +399,7 @@ class PropagateRunTimeInfo[Exp: Expression,
           })
           evalLoop(todoPair.dropHead, visited, updatedGraph, stepCount, initialGraph, prunedGraph)
         } else {
-          val applyOptimisation = analysisFlags.extraIncrementalOptimisation
+          val applyOptimisation = analysisFlags.deltaOptimisation
           lazy val optionDeltas: Option[Iterable[Delta]] = extraOptimisationApplicable(newState, todoPair.mapping(newState), prunedGraph)
           if (applyOptimisation && optionDeltas.isDefined) {
             Logger.log(s"Extra optimisation applicable: ${optionDeltas.get}", Logger.U)
@@ -438,7 +438,7 @@ class PropagateRunTimeInfo[Exp: Expression,
                        initialGraph: AbstractGraph,
                        prunedGraph: AbstractGraph): AbstractGraph = {
     rootNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.U))
-    if (analysisFlags.incrementalOptimisation && rootNodes.size == 1 && rootNodes.head == convertedState) {
+    if (analysisFlags.skipIterationOptimisation && rootNodes.size == 1 && rootNodes.head == convertedState) {
       Logger.log(s"Skipping propagation phase because convertedState equals single root state", Logger.U)
       prunedGraph
     } else {

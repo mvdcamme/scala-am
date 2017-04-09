@@ -1,9 +1,8 @@
-case class AnalysisFlags(
-    incrementalAnalysisInterval: IncrementalAnalysisInterval = NoIncrementalAnalysis,
-    runTimeAnalysisInterval: RunTimeAnalysisInterval = NoRunTimeAnalysis,
-    incrementalOptimisation: Boolean = true,
-    extraIncrementalOptimisation: Boolean = true,
-    doPropagationPhase: Boolean = true)
+case class AnalysisFlags(incrementalAnalysisInterval: IncrementalAnalysisInterval = NoIncrementalAnalysis,
+                         runTimeAnalysisInterval: RunTimeAnalysisInterval = NoRunTimeAnalysis,
+                         skipIterationOptimisation: Boolean = true,
+                         deltaOptimisation: Boolean = true,
+                         doPropagationPhase: Boolean = true)
 
 sealed trait IncrementalAnalysisInterval
 case object NoIncrementalAnalysis extends IncrementalAnalysisInterval
