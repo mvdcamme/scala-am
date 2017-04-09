@@ -1,0 +1,5 @@
+All files are taken from ftp://cw.vub.ac.be/pub/courses/curriculum/AlgoDat1/programmacode/
+
+Removed comments from files (because the parser currently cannot handle comments within S-expressions.
+
+Added tests to some files. Test should normally evaluate to #t.
