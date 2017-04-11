@@ -373,8 +373,7 @@ class PropagateRunTimeInfo[Exp: Expression,
     Logger.log(s"Size of visited set ${visited.size}", Logger.D)
     Logger.log(s"Size of todo set ${todoPair.todo.size}", Logger.D)
     val checkSubsumes = true
-    todoPair.todo.headOption
-    match {
+    todoPair.todo.headOption match {
       case None =>
         graph
       case Some(newState) =>

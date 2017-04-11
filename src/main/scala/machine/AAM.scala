@@ -266,7 +266,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     case ControlEval(exp, _) =>
       filters + EvaluatingExpression(exp)
     case ControlKont(v) =>
-      if (filters.machineExists( (filter: MachineFilterAnnotation) => filter match {
+      if (filters.machineExists({
         case FrameFollowed(frame) =>
           frame.meaningfullySubsumes
         case _ =>
