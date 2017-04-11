@@ -162,7 +162,7 @@ class PruneUnreachableNodes[Exp : Expression,
       case Nil =>
         oldReachables
       case node :: rest =>
-        val reachables = ReachablesIntermediateResult(oldReachables.graph, oldReachables.nodesDone, rest)
+        val reachables = ReachablesIntermediateResult(oldReachables.graph.addNode(node), oldReachables.nodesDone, rest)
         val newReachables = addReachableEdges(reachables, node, prunedGraph)
         breadthFirst(newReachables, prunedGraph)
     }
