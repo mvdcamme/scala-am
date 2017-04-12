@@ -1,0 +1,21 @@
+#lang scribble/manual
+@title{Hogere Orde Procedures}
+
+@include-section["let.rkt"]
+@include-section["omg-env-letster.rkt"]
+@include-section["ex95.rkt"]
+@include-section["ex94-2.rkt"]
+@include-section["ex96.rkt"]
+@include-section["ex96-p.rkt"]
+@include-section["sum.rkt"]
+@include-section["Simpson.rkt"]
+@include-section["accumulate.rkt"]
+@include-section["filtered-accumulate.rkt"]
+@include-section["max.rkt"]
+@include-section["reeks.rkt"]
+@include-section["lambda2.rkt"]
+@include-section["lambda.rkt"]
+@include-section["do-n.rkt"]
+@include-section["vkv.rkt"]
+@include-section["repeated.rkt"]
+@include-section["combine-special.rkt"]
