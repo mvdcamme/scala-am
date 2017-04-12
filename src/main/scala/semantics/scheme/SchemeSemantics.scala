@@ -67,7 +67,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     Set(addPushActionR(action))
 
   protected def addPushDataActionT(currentValue: Abs,
-                               frameGenerator: Abs => Frame,
+                               frameGenerator: FrameGenerator[Abs],
                                actionGenerator: Frame => ActionPush[SchemeExp, Abs, Addr]):
   Set[EdgeInformation[SchemeExp, Abs, Addr]] = {
     val currentFrame = frameGenerator(currentValue)
@@ -150,7 +150,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                             store: Store[Addr, Abs],
                             t: Time,
                             currentValue: Abs,
-                            frameGeneratorGenerator: (SchemeExp, List[SchemeExp]) => Abs => Frame): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
+                            frameGeneratorGenerator: (SchemeExp, List[SchemeExp]) => FrameGenerator[Abs]): Set[EdgeInformation[SchemeExp, Abs, Addr]] =
     toeval match {
       case Nil =>
         evalCall(f, fexp, args.reverse, store, t)
@@ -160,6 +160,42 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         val actionGenerator = (frame: Frame) => ActionPush(frame, e, env, store)
         addPushDataActionT(currentValue, frameGenerator, actionGenerator)
     }
+
+  case class PlaceOperatorFuncallOperandsFrameGenerator(fexp: SchemeExp,
+                                                        e: SchemeExp,
+                                                        args: List[(SchemeExp, Abs)],
+                                                        rest: List[SchemeExp],
+                                                        env: Environment[Addr])
+    extends FrameGenerator[Abs] {
+    def apply(value: Abs): Frame = {
+      FrameFuncallOperands(value, fexp, e, args, rest, env)
+    }
+  }
+
+  case class LetFrameGenerator(variable: String,
+                               frameVariable: String,
+                               bindings: List[(String, Abs)],
+                               toeval: List[(String, SchemeExp)],
+                               body: List[SchemeExp],
+                               env: Environment[Addr])
+    extends FrameGenerator[Abs] {
+    def apply(value: Abs): Frame = {
+      FrameLet(variable, (frameVariable, value) :: bindings, toeval, body, env)
+    }
+  }
+
+  case class PlaceOperandFuncallOperandsFrameGenerator(f: Abs,
+                                                       fexp: SchemeExp,
+                                                       e: SchemeExp,
+                                                       cur: SchemeExp,
+                                                       args: List[(SchemeExp, Abs)],
+                                                       rest: List[SchemeExp],
+                                                       env: Environment[Addr])
+    extends FrameGenerator[Abs] {
+    def apply(value: Abs): Frame = {
+      FrameFuncallOperands(f, fexp, e, (cur, value) :: args, rest, env)
+    }
+  }
 
   /*
    * To be called after popping a FrameFuncallOperator continuation.
@@ -180,7 +216,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       case Nil =>
         evalCall(f, fexp, List(), store, t)
       case e :: rest =>
-        val frameGenerator = (value: Abs) => FrameFuncallOperands(value, fexp, e, Nil, rest, env)
+        val frameGenerator = PlaceOperatorFuncallOperandsFrameGenerator(fexp, e, Nil, rest, env)
         val frame = frameGenerator(currentValue)
         val actionGenerator = (frame: Frame) => ActionPush(frame, e, env, store)
         addPushDataActionT(currentValue, frameGenerator, actionGenerator)
@@ -335,8 +371,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       case frame: FrameFuncallOperands[Abs, Addr, Time] =>
         val frameGeneratorGenerator =
           (e: SchemeExp, rest: List[SchemeExp]) =>
-            (value: Abs) =>
-              FrameFuncallOperands(frame.f, frame.fexp, e, (frame.cur, value) :: frame.args, rest, frame.env)
+            PlaceOperandFuncallOperandsFrameGenerator(frame.f, frame.fexp, e, frame.cur, frame.args, rest, frame.env)
         funcallArgs(frame.f, frame.fexp, (frame.cur, v) :: frame.args, frame.toeval, frame.env, store, t, v, frameGeneratorGenerator)
       case frame: FrameIf[Abs, Addr, Time] =>
         conditional(v, addEvalActionT(ActionEval(frame.cons, frame.env, store)), addEvalActionT(ActionEval(frame.alt, frame.env, store)))
@@ -353,8 +388,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           val EdgeInformation(action, actionEdges, filters) = evalBody(frame.body, env1, store1)
           Set(EdgeInformation(action, ActionDefineAddressesPopR[SchemeExp, Abs, Addr](addresses) :: actionEdges, filters))
         case (variable, e) :: toeval =>
-          val newFrameGenerator =
-            (value: Abs) => FrameLet(variable, (frame.variable, value) :: frame.bindings, toeval, frame.body, frame.env)
+          val newFrameGenerator = LetFrameGenerator(variable, frame.variable, frame.bindings, toeval, frame.body, frame.env)
           val actionGenerator = (currentFrame: Frame) => ActionPush(currentFrame, e, frame.env, store)
           addPushDataActionT(v, newFrameGenerator, actionGenerator)
       }

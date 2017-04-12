@@ -4,6 +4,10 @@ trait ActionReplay[Exp, Abs, Addr] {
   def ticksTime: Boolean = false
 }
 
+trait FrameGenerator[Abs] {
+  def apply(value: Abs): Frame
+}
+
 /*
  * Extend store with the given addresses, initialized to the bottom value.
  */
@@ -65,7 +69,7 @@ case class ActionEvalPushR[Exp: Expression, Abs: JoinLattice, Addr: Address](
 case class ActionEvalPushDataR[Exp: Expression, Abs: JoinLattice, Addr: Address](
     e: Exp,
     env: Environment[Addr],
-    frameGenerator: Abs => Frame)
+    frameGenerator: FrameGenerator[Abs])
     extends ActionReplay[Exp, Abs, Addr]
     with PushesKStack[Exp, Abs, Addr]
 
