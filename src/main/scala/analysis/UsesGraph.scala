@@ -37,6 +37,7 @@ case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Addr
   }
 
   def isSubsumptionAnnotation: Boolean = {
+    assert(GlobalFlags.AAM_CHECK_SUBSUMES, "Should not be called if there are no subsumpion edges")
     if (machineExists( (filter: MachineFilterAnnotation) => filter match {
       case StateSubsumed =>
         true
@@ -114,7 +115,9 @@ case class EdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address
 
 object EdgeAnnotation {
 
-  def subsumptionEdge[Exp : Expression, Abs : IsSchemeLattice, Addr : Address]: EdgeAnnotation[Exp, Abs, Addr] =
+  def subsumptionEdge[Exp : Expression, Abs : IsSchemeLattice, Addr : Address]: EdgeAnnotation[Exp, Abs, Addr] = {
+    assert(GlobalFlags.AAM_CHECK_SUBSUMES, "Should not be called if flag is turned off")
     EdgeAnnotation(FilterAnnotations(Set(StateSubsumed), Set()), Nil)
+  }
 
 }
