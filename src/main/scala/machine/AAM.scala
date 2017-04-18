@@ -286,7 +286,6 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
                     stopEval: Option[State => Boolean],
                     timeout: Option[Long],
                     stepSwitched: Option[Int]): AAMOutput = {
-    val checkSubsumes = true
     def loop(todo: Set[State],
              visited: Set[State],
              halted: Set[State],
@@ -300,7 +299,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
             if (visited.contains(s)) {
               /* If we already visited the state, we ignore it. */
               loop(todo.tail, visited, halted, startingTime, graph)
-            } else if (checkSubsumes && visited.exists(s2 => s2.subsumes(s))) {
+            } else if (GlobalFlags.AAM_CHECK_SUBSUMES && visited.exists(s2 => s2.subsumes(s))) {
               /* If the state is subsumed by another already visited state,
                * we ignore it. The subsumption part reduces the number of visited
                * states but leads to non-determinism due to the non-determinism
