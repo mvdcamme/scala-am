@@ -1,5 +1,7 @@
 import ConcreteConcreteLattice.ConcreteValue
 
+import scala.annotation.tailrec
+
 class PruneUnreachableNodes[Exp : Expression,
                             Abs : IsSchemeLattice,
                             Addr : Address,
@@ -156,7 +158,8 @@ class PruneUnreachableNodes[Exp : Expression,
     }
   }
 
-  def breadthFirst(oldReachables: ReachablesIntermediateResult,
+  @tailrec
+  private def breadthFirst(oldReachables: ReachablesIntermediateResult,
                    prunedGraph: AbstractGraph): ReachablesIntermediateResult =
     oldReachables.todoQueue match {
       case Nil =>
