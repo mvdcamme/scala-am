@@ -379,7 +379,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
                                boundVariables: Set[String]): TraceInstructionInfo = {
 
       def generateIndex(variable: String): Option[Integer] = {
-        if (registerIndex < RegisterStore.MAX_REGISTERS) {
+        if (registerIndex < RegisterStore.MAX_REGISTERS && initialState.ρ.lookup(variable).isDefined) {
           val someIndex = Some(registerIndex)
           registerIndex += 1
           someIndex
