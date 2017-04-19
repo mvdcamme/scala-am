@@ -83,7 +83,8 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
       }
       optimizedTrace = optimizedTrace :+ actionStateMap
     }
-    trace.foreach(handleAction(_))
+    trace.foreach(handleAction)
+    stack.foreach(_.isUsed = true)
     optimizedTrace.filter(_.isUsed).map(_.actionState)
   }
 
@@ -96,6 +97,7 @@ class TraceOptimizer[Exp : Expression, Abs, Addr, Time : Timestamp](val sem: Sem
    ********************************************************************************************************************/
 
   private def optimizeEnvironmentLoading(traceFull: TraceFull): TraceFull = {
+
     def isAnInterferingAction(action: TraceInstruction) = action match {
       case ActionAllocVarsT(_) |
            ActionEndTrace(_) |
