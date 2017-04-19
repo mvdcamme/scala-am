@@ -82,7 +82,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
             val next = NormalKontAddress[Exp, Time](e, t)
             val kont = Kont(frame, a)
             EdgeComponents(State(ControlEval(e, env), store, kstore.extend(next, kont), next, time.tick(t)),
-                           filters + KontAddrPushed(next),
+                           filters,// + KontAddrPushed(next),
                            actions)
           }
           /* When a value needs to be evaluated, we go to an eval state */
@@ -446,7 +446,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     protected def addFrameFollowed(frame: Frame): FrameFollowed[Abs] =
       FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]])
     protected def addKontAddrPopped(a: KontAddr, next: KontAddr): KontAddrPopped = KontAddrPopped(a, next)
-    protected def addKontAddrPushed(next: KontAddr): KontAddrPushed = KontAddrPushed(next)
+//    protected def addKontAddrPushed(next: KontAddr): KontAddrPushed = KontAddrPushed(next)
 
     private def frameSavedOperands(state: State): Set[(List[Abs], Kont[KontAddr])] =
       state.kstore.lookup(state.a).map( (kont) => kont.frame match {
@@ -591,18 +591,18 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         val next = NormalKontAddress[Exp, Time](e, state.t)
         val kont = Kont(frame, state.a)
         val evaluatingExp = addEvaluateExp(e)
-        val pushedAddr = addKontAddrPushed(next)
+//        val pushedAddr = addKontAddrPushed(next)
         val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
-        Set((newState, Set[MachineFilterAnnotation](evaluatingExp, pushedAddr)))
+        Set((newState, Set[MachineFilterAnnotation](evaluatingExp))) //, pushedAddr)))
       case ActionEvalPushDataR(e, env, frameGenerator) =>
         val next = NormalKontAddress[Exp, Time](e, state.t)
         val currentValue = assertedGetControlKontValue(state)
         val frame = frameGenerator(currentValue)
         val kont = Kont(frame, state.a)
         val evaluatingExp = addEvaluateExp(e)
-        val pushedAddr = addKontAddrPushed(next)
+//        val pushedAddr = addKontAddrPushed(next)
         val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
-        Set((newState, Set[MachineFilterAnnotation](evaluatingExp, pushedAddr)))
+        Set((newState, Set[MachineFilterAnnotation](evaluatingExp))) //, pushedAddr)))
       case a: ActionLookupAddressR[Exp, Abs, Addr] =>
         val value = state.store.lookup(a.a) match {
           case Some(value) =>

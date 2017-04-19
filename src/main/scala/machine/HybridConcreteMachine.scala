@@ -419,7 +419,7 @@ class HybridConcreteMachine[
                 case EdgeInformation(ActionPush(frame, e, env, store2, _), actions, semanticsFilters) =>
                   val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                   val kont = Kont(frame, a)
-                  val machineFilters = Set[MachineFilterAnnotation](KontAddrPushed(next),
+                  val machineFilters = Set[MachineFilterAnnotation](//KontAddrPushed(next),
                                                                     EvaluatingExpression(e))
                   Right(StepSucceeded(State(ControlEval(e, env), store2, kstore.extend(next, kont), next, time.tick(t)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
@@ -474,7 +474,7 @@ class HybridConcreteMachine[
                                           actions))
                     case EdgeInformation(ActionPush(frame, e, env, store2, _), actions, semanticsFilters) =>
                       val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
-                      val machineFilters = Set[MachineFilterAnnotation](KontAddrPushed(next),
+                      val machineFilters = Set[MachineFilterAnnotation](//KontAddrPushed(next),
                                                                         KontAddrPopped(oldA, a),
                                                                         EvaluatingExpression(e),
                                                                         FrameFollowed(originFrameCast))

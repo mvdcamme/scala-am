@@ -52,10 +52,10 @@ case class KontAddrPopped(oldA: KontAddr, newA: KontAddr)
 /*
  * Pushed a continuation address.
  */
-case class KontAddrPushed(a: KontAddr)
-  extends MachineFilterAnnotation {
-  override def toString = s"Pushed = $a"
-}
+//case class KontAddrPushed(a: KontAddr)
+//  extends MachineFilterAnnotation {
+//  override def toString = s"Pushed = $a"
+//}
 
 /*
  * State not explored further because it was already subsumed by another state in the graph.

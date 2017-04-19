@@ -131,9 +131,9 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
       val convertedOldKa = kontAddrConverter.convertKontAddr(oldKa)
       val convertedNewKa = kontAddrConverter.convertKontAddr(newKa)
       KontAddrPopped(convertedOldKa, convertedNewKa)
-    case KontAddrPushed(ka) =>
-      val convertedKa = kontAddrConverter.convertKontAddr(ka)
-      KontAddrPushed(convertedKa)
+//    case KontAddrPushed(ka) =>
+//      val convertedKa = kontAddrConverter.convertKontAddr(ka)
+//      KontAddrPushed(convertedKa)
     case _ =>
       filter
   }
@@ -159,8 +159,8 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
             true
           case filter: KontAddrPopped =>
             abstractEdge._1.filters.contains(filter)
-          case filter: KontAddrPushed =>
-            abstractEdge._1.filters.contains(filter)
+//          case filter: KontAddrPushed =>
+//            abstractEdge._1.filters.contains(filter)
           case ThenBranchTaken =>
             abstractEdge._1.filters.contains(ThenBranchTaken)
         })

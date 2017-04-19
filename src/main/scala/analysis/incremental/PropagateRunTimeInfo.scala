@@ -252,8 +252,8 @@ class PropagateRunTimeInfo[Exp: Expression,
     filters.machineExists({
       case KontAddrPopped(oldKa, newKa) =>
         oldKa == ka || newKa == ka
-      case KontAddrPushed(newKa) =>
-        newKa == ka
+//      case KontAddrPushed(newKa) =>
+//        newKa == ka
       case _ =>
         false
     })
