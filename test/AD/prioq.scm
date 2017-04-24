@@ -1,6 +1,9 @@
 (define (make-item priority element)
   (cons priority element))
 
+(define true #t)
+(define false #f)
+
 (define (get-priority item) (car item))
 
 (define (get-element item) (cdr item))
@@ -46,3 +49,8 @@
           (error "unknown request
                  -- create-priority-queue" m))))
     dispatch))
+
+(define c (create-priority-queue))
+((c 'enqueue) 3 "g")
+((c 'enqueue) 1 "f")
+((c 'enqueue) 5 "x")
