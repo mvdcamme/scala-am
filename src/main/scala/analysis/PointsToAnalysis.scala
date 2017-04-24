@@ -63,8 +63,7 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
     val result: List[(Addr, Option[Int])] = storeValues.foldLeft(initial)({
       case (result, (address, value)) =>
         val numberOfObjectsPointedTo = pointsTo(value)
-        if (relevantAddress(address) && numberOfObjectsPointedTo
-              .getOrElse(1) > 0) {
+        if (relevantAddress(address) && numberOfObjectsPointedTo.getOrElse(1) > 0) {
           /* List all addresses pointing to more than one value */
           (address, numberOfObjectsPointedTo) :: result
         } else {

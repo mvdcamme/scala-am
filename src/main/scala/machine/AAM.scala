@@ -261,8 +261,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
    * Checks whether the given (successor) state is a eval-state. If so, adds an EvaluatingExpression
    * annotation to the list of edge annotations.
    */
-  def addSuccStateFilter(s: State, filters: FilterAnnotations[Exp, Abs, Addr]): FilterAnnotations[Exp, Abs, Addr] = s.control
-  match {
+  def addSuccStateFilter(s: State, filters: FilterAnnotations[Exp, Abs, Addr]): FilterAnnotations[Exp, Abs, Addr] = s.control match {
     case ControlEval(exp, _) =>
       filters + EvaluatingExpression(exp)
     case ControlKont(v) =>
@@ -716,6 +715,20 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
   }
 
   object AAMStateInfoProvider extends StateInfoProvider[Exp, Abs, Addr, Time, State] {
+
+    def evalExp(state: State) = state.control match {
+      case ControlEval(exp, _) =>
+        Some(exp)
+      case _ =>
+        None
+    }
+
+    def valueReached(state: State) = state.control match {
+      case ControlKont(value) =>
+        Some(value)
+      case _ =>
+        None
+    }
 
     val kaConverter = new ConvertTimestampKontAddrConverter[Exp](DefaultHybridTimestampConverter)
 

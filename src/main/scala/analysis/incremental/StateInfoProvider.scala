@@ -1,5 +1,8 @@
 trait StateInfoProvider[Exp, Abs, Addr, Time, State <: StateTrait[Exp, Abs, Addr, Time]] {
 
+  def evalExp(state: State): Option[Exp]
+  def valueReached(state: State): Option[Abs]
+
   def halted(state: State): Boolean
   def store(state: State): Store[Addr, Abs]
 

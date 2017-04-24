@@ -734,11 +734,7 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
           if (pointsTo(value)) Some(1) else Some(0)
         case Elements(values) =>
           values.foldLeft[Option[scala.Int]](Some(0))((acc, value) => acc.flatMap( (res) =>
-            Some(if
-          (pointsTo
-          (value))
-            1
-          else 0) ))
+            Some(if (pointsTo(value)) 1 else 0) ))
       }
     }
 
