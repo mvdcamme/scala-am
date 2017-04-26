@@ -42,7 +42,7 @@ class CountFunCalls[Exp : Expression,
     CountedFunCalls(map.size, map.values.foldLeft(0)( (sum, set) => sum + set.size) )
   }
 
-  override def computeAndWriteMetrics(graph: AbstractGraph, stepCount: Int, path: String, program: String): Unit = {
+  def computeAndWriteMetrics(graph: AbstractGraph, stepCount: Int, path: String, program: String): Unit = {
     val map = constructFunctionCallsMap(graph)
     val results = countFunctionCalls(map)
     val totalNrOfFunctionsCalled = FunctionsCalledMetric.getConcreteFunctionsCalled + results.nrOfCalls

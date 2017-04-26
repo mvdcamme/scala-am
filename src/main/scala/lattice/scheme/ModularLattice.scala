@@ -946,7 +946,7 @@ class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
 
 class PointsToLattice(counting: Boolean) extends SchemeLattice {
   import PointsToString._
-  import ConcreteBoolean._
+  import PointsToBoolean._
   import PointsToInteger._
   import PointsToFloat._
   import PointsToChar._
@@ -974,7 +974,12 @@ class PointsToLattice(counting: Boolean) extends SchemeLattice {
             PointsToChar.pointsTo(c)
           case lattice.Symbol(sym) =>
             PointsToSymbol.pointsTo(sym)
-          case _ => Some(0)
+          case lattice.Bool(b) =>
+            PointsToBoolean.pointsTo(b)
+//          case lattice.Bot =>
+//            Some(1)
+          case _ =>
+            Some(0)
         }
 
         x match {
@@ -983,8 +988,7 @@ class PointsToLattice(counting: Boolean) extends SchemeLattice {
           case lattice.Elements(values) =>
             values.toList.foldLeft[Option[Int]](Some(0))( (acc, v) => acc.flatMap( (x) => pointsTo(v).flatMap( (y: Int)
             =>
-              Some(y
-              + x)) ))
+              Some(y + x)) ))
         }
       }
     }

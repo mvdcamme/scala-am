@@ -75,14 +75,22 @@ class PruneUnreachableNodes[Exp : Expression,
                s"concreteEdgeInfos = $filters, $filters", Logger.D)
     addNodesVisited(currentNodes)
     /* First follow all StateSubsumed edges before trying to use the concrete edge information */
-    val nodesSubsumedEdgesFollowed: Set[State] = currentNodes // currentNodes.flatMap(followStateSubsumedEdges(_, prunedGraph))
+    val nodesSubsumedEdgesFollowed: Set[State] = if (GlobalFlags.AAM_CHECK_SUBSUMES) {
+      currentNodes.flatMap(followStateSubsumedEdges(_, prunedGraph))
+    } else {
+      currentNodes
+    }
     Logger.log(s"In step $stepNumber, followed subsumption edges: ${nodesSubsumedEdgesFollowed.map(initialGraph.nodeId)}", Logger.D)
     addNodesVisited(nodesSubsumedEdgesFollowed)
     val succNodes = nodesSubsumedEdgesFollowed.flatMap(computeSuccNode(convertFrameFun, _, filters, prunedGraph))
     addNodesVisited(succNodes)
     Logger.log(s"succNodes = ${succNodes.zip(succNodes.map(initialGraph.nodeId))}", Logger.D)
     Logger.log(s"In step $stepNumber, succNodes before subsumption edges: ${succNodes.map(initialGraph.nodeId)}", Logger.D)
-    val newCurrentNodes = succNodes // succNodes.flatMap(followStateSubsumedEdges(_, prunedGraph))
+    val newCurrentNodes = if (GlobalFlags.AAM_CHECK_SUBSUMES) {
+      succNodes.flatMap(followStateSubsumedEdges(_, prunedGraph))
+    } else {
+      succNodes
+    }
     concreteNodes = concreteNodes :+ (stepNumber, currentNodes.size, currentNodes.toList.map(initialGraph.nodeId))
     Logger.log(s"In step $stepNumber after: newCurrentNodes = ${newCurrentNodes.zip(currentNodes.map(initialGraph.nodeId))}", Logger.D)
     newCurrentNodes
@@ -160,7 +168,7 @@ class PruneUnreachableNodes[Exp : Expression,
 
   @tailrec
   private def breadthFirst(oldReachables: ReachablesIntermediateResult,
-                   prunedGraph: AbstractGraph): ReachablesIntermediateResult =
+                           prunedGraph: AbstractGraph): ReachablesIntermediateResult =
     oldReachables.todoQueue match {
       case Nil =>
         oldReachables

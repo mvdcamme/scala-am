@@ -324,7 +324,7 @@ class HybridMachine[
       case InterpreterStep(trace, SignalFalse()) =>
         continueWithProgramState(trace)
       case InterpreterStep(trace, SignalStartAnalysis()) =>
-        pointsToAnalysisLauncher.runStaticAnalysis(ps, Some(stepCount))
+        pointsToAnalysisLauncher.runStaticAnalysis(ps, Some(stepCount), "TODO", Nil, Set()) // TODO
         continueWithProgramState(trace)
       case InterpreterStep(trace, signal) =>
         handleSignalRegular(trace, signal)
@@ -336,7 +336,7 @@ class HybridMachine[
       case InterpreterStep(trace, SignalFalse()) =>
         continueWithProgramStateTracing(trace)
       case InterpreterStep(trace, SignalStartAnalysis()) =>
-        pointsToAnalysisLauncher.runStaticAnalysis(ps, Some(stepCount))
+        pointsToAnalysisLauncher.runStaticAnalysis(ps, Some(stepCount), "TODO", Nil, Set()) // TODO
         continueWithProgramStateTracing(trace)
       case InterpreterStep(trace, signal) =>
         handleSignalTracing(trace, signal)

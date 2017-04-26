@@ -9,16 +9,20 @@ class CountNonConstants[Exp : Expression,
                       (implicit stateInfoProvider: StateInfoProvider[Exp, Abs, Addr, Time, State])
   extends Metric[Exp, Abs, Addr, Time, State] {
 
+  val abs = implicitly[JoinLattice[Abs]]
+
+  type ExpStack = List[Exp]
+
   val sabs = implicitly[IsSchemeLattice[Abs]]
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
 
-  def traverse(graph: AbstractGraph): Map[Exp, Set[Abs]] = {
+  def traverse(graph: AbstractGraph, expStack: ExpStack): Map[Exp, Abs] = {
 
-    var map: Map[Exp, Set[Abs]] = Map()
+    var map: Map[Exp, Abs] = Map()
 
     @scala.annotation.tailrec
-    def loop(todo: Set[(State, List[Exp])], visited: Set[State]): Map[Exp, Set[Abs]] = todo.headOption match {
+    def loop(todo: Set[(State, ExpStack)], visited: Set[State]): Map[Exp, Abs] = todo.headOption match {
       case None =>
         map
       case Some((state, stack)) if visited.contains(state) =>
@@ -30,9 +34,10 @@ class CountNonConstants[Exp : Expression,
         } else if (stateInfoProvider.valueReached(state).isDefined) {
           stack match {
             case exp :: rest =>
-              map = map + (exp -> (map.getOrElse(exp, Set()) + stateInfoProvider.valueReached(state).get))
+              map = map + (exp -> abs.join(map.getOrElse(exp, abs.bottom), stateInfoProvider.valueReached(state).get))
               rest
             case Nil =>
+              assert(false) // Stack should not be empty
               Nil
           }
         } else {
@@ -44,48 +49,51 @@ class CountNonConstants[Exp : Expression,
 
     graph.getNode(0) match {
       case None =>
+        Logger.log(s"ids of graph are ${graph.ids}", Logger.U)
         throw new Exception("Should not happen")
       case Some(state) =>
-        if (stateInfoProvider.evalExp(state).isDefined) {
-          val exp = stateInfoProvider.evalExp(state).get
-          loop(Set((state, List(exp))), Set())
-        } else {
-          loop(Set((state, Nil)), Set())
-        }
+        loop(Set((state, expStack)), Set())
     }
   }
-
-//  def end(graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr]]): Unit = {
-//    val map = traverse(graph)
-//    for ( (exp, values) <- map ) {
-//      Logger.log(s"${values.size} elements for exp $exp at position ${implicitly[Expression[Exp]].pos(exp)}", Logger.U)
-//      Logger.log(s"Values: $values", Logger.U)
-//    }
-//  }
 
   /*
    * nrNonConstants: total number of expressions that don't point to exactly 1 value
    * sum: total nr of values each exp points to: if x -> {1} and {1, 2}, sum for x alone would be 3
    * nrOfTops: total number of top values the exps point to
    */
-  case class MetricsToWrite(nrNonConstants: Int, sum: Int, nrOfTops: Int)
+  case class MetricsToWrite(nrNonConstants: Int,
+                            sum: Int,
+                            nrOfTops: Int,
+                            averageValuesPerExp: Double,
+                            averageTopsPerExp: Double,
+                            averageBothPerExp: Double) {
+    def toCSVRow: String = {
+      s"$nrNonConstants;$sum;$nrOfTops;$averageValuesPerExp;$averageTopsPerExp;$averageBothPerExp"
+    }
+  }
 
-  private def calculateMetrics(storeTuples: Set[(Exp, Boolean, Int, Boolean)]): MetricsToWrite = {
-    if (storeTuples.isEmpty) {
-      MetricsToWrite(0, 0, 0)
+  private def calculateMetrics(expTuples: Set[(Exp, Boolean, Int, Boolean)]): MetricsToWrite = {
+    if (expTuples.isEmpty) {
+      MetricsToWrite(0, 0, 0, 0.0, 0.0, 0.0)
     } else {
-      val (nrNonConstants, sum, nrOfTops) = storeTuples.foldLeft((0, 0, 0))({
+      val nrOfExps = expTuples.size
+      val (nrNonConstants, sum, nrOfTops) = expTuples.foldLeft((0, 0, 0))({
         case ((nrNonConstants, sum, nrOfTops), (_, isNonConstant, y, isTop)) =>
           (if (isNonConstant) nrNonConstants + 1 else nrNonConstants, sum + y, if (isTop) nrOfTops + 1 else nrOfTops)
       })
-      MetricsToWrite(nrNonConstants, sum, nrOfTops)
+      MetricsToWrite(nrNonConstants,
+                     sum,
+                     nrOfTops,
+                     (sum: Double) / nrOfExps,
+                     (nrOfTops: Double) / nrOfExps,
+                     (sum + nrOfTops : Double) / nrOfExps)
     }
   }
 
   private def writeMetrics(stepSwitched: Int, metrics: MetricsToWrite, directoryPath: String, inputProgramName: String): Unit = {
     val outputFileName = inputProgramName.replace('/', '_')
     val path = s"$directoryPath$outputFileName.txt"
-    val output = s"$stepSwitched;${metrics.nrNonConstants};${metrics.sum};${metrics.nrOfTops}"
+    val output = s"$stepSwitched;" + metrics.toCSVRow
     Logger.log(output, Logger.U)
     val file = new File(path)
     val bw = new BufferedWriter(new FileWriter(file, true))
@@ -93,25 +101,36 @@ class CountNonConstants[Exp : Expression,
     bw.close()
   }
 
-  def computeAndWriteMetrics(graph: AbstractGraph, stepCount: Int, path: String, inputProgramName: String): Unit = {
-    val values: Set[(Exp, Set[Abs])] = traverse(graph).toSet
-    val finalValuesPointedTo: Set[(Exp, Boolean, Int, Boolean)] = values.map({
-      case (exp, values) =>
-        val (isNonConstant, sum, isTop) = values.foldLeft[(Boolean, Int, Boolean)]((false, 0, false))({
-          case ((nrNonConstants, sum, isTop), value) =>
-            pointsTo(value) match {
-              case Some(x) =>
-                (if (x > 1) true else false, sum + x, isTop)
-              case None =>
-                (true, sum, true)
-            }
-        })
+  def computeAndWriteMetrics(graph: AbstractGraph,
+                             stepCount: Int,
+                             path: String,
+                             inputProgramName: String,
+                             expStack: ExpStack,
+                             expSet: Set[Exp]): Unit = {
+    val valuesMap: Map[Exp, Abs] = traverse(graph, expStack)
+    val valuesSet: Set[(Exp, Abs)] = valuesMap.toSet
+    val valuesPointedTo: Set[(Exp, Boolean, Int, Boolean)] = valuesSet.map({
+      case (exp, value) =>
+        val (isNonConstant, sum, isTop): (Boolean, Int, Boolean) = pointsTo(value) match {
+          case Some(x) =>
+            if (x <= 0) Logger.log(s"Value $value points to $x separate values", Logger.U)
+            (if (x > 1) true else false, x, false)
+          case None =>
+            (true, 1, true)
+        }
         (exp, isNonConstant, sum, isTop)
     })
+    val expsDisappearedSet: Set[(Exp, Boolean, Int, Boolean)] = expSet.flatMap( (exp: Exp) => {
+      if (valuesMap.contains(exp)) {
+        Set[(Exp, Boolean, Int, Boolean)]()
+      } else {
+        Set[(Exp, Boolean, Int, Boolean)]((exp, false, 1, false))
+      }
+    })
+    val finalValuesPointedTo = valuesPointedTo ++ expsDisappearedSet
+    Logger.log(s"Final values are $finalValuesPointedTo", Logger.U)
     val metrics = calculateMetrics(finalValuesPointedTo)
     writeMetrics(stepCount, metrics, path, inputProgramName)
   }
-
-
 
 }

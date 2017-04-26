@@ -12,6 +12,15 @@ class HybridConcreteMachine[
                             HybridAddress.A,
                             HybridTimestamp.T] {
 
+  private var expStack: List[SchemeExp] = Nil
+  private var expSet: Set[SchemeExp] = Set()
+  def popExp(): Unit =
+    expStack = expStack.tail
+  def pushExp(exp: SchemeExp): Unit = {
+    expSet = expSet + exp
+    expStack = exp :: expStack
+  }
+
   def name = "HybridConcreteMachine"
 
   var stepCount: Integer = 0
@@ -370,14 +379,14 @@ class HybridConcreteMachine[
         case NoRunTimeAnalysis =>
         case RunTimeAnalysisEvery(analysisInterval) =>
           if (stepCount % analysisInterval == 0) {
-            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount))
+            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, expStack, expSet)
           }
       }
       analysisFlags.incrementalAnalysisInterval match {
         case NoIncrementalAnalysis =>
         case IncrementalAnalysisEvery(analysisInterval) =>
           if (stepCount % analysisInterval == 0) {
-            pointsToAnalysisLauncher.incrementalAnalysis(state, stepCount, programName)
+            pointsToAnalysisLauncher.incrementalAnalysis(state, stepCount, programName, expStack, expSet)
           }
       }
 
@@ -406,6 +415,7 @@ class HybridConcreteMachine[
 
         def step(control: Control): Either[ConcreteMachineOutput, StepSucceeded] = control match {
           case ControlEval(e, env) =>
+            pushExp(e)
             val edgeInfos = sem.stepEval(e, env, store, t)
             if (edgeInfos.size == 1) {
               val onlyEdgeInfo = edgeInfos.head
@@ -448,6 +458,7 @@ class HybridConcreteMachine[
             }
 
           case ControlKont(v) =>
+            popExp()
             /* pop a continuation */
             if (a == HaltKontAddress) {
               Left(ConcreteMachineOutputValue(
@@ -516,6 +527,7 @@ class HybridConcreteMachine[
             }
 
           case ControlError(err) =>
+            popExp()
             Left(ConcreteMachineOutputError(
               (System.nanoTime - start) / Math.pow(10, 9),
               count,
