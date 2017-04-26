@@ -22,5 +22,5 @@ object GlobalFlags {
 
   val ANALYSIS_PATH = "../scala-am misc/Analysis/"
 
-  val AAM_CHECK_SUBSUMES = false
+  val AAM_CHECK_SUBSUMES = true
 }
