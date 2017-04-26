@@ -38,7 +38,7 @@ case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Addr
 
   def isSubsumptionAnnotation: Boolean = {
     assert(GlobalFlags.AAM_CHECK_SUBSUMES, "Should not be called if there are no subsumpion edges")
-    if (machineExists( (filter: MachineFilterAnnotation) => filter match {
+    if (machineExists({
       case StateSubsumed =>
         true
       case _ => false

@@ -360,8 +360,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       } else {
         todo.headOption match {
           case Some((s, l)) =>
-            if (visited.contains((s, l)) || visited
-                  .exists({ case (s2, _) => s2.subsumes(s) })) {
+            if (visited.contains((s, l)) || visited.exists({ case (s2, _) => s2.subsumes(s) })) {
               loop(todo.tail, visited, finalValue, startingTime)
             } else if (s.halted) {
               loop(todo.tail, visited + ((s, l)), finalValue match {
