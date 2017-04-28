@@ -4,9 +4,10 @@ class CountNonConstants[Exp : Expression,
                         Abs : IsSchemeLattice,
                         Addr : Address,
                         Time: Timestamp,
-                        State <: StateTrait[Exp, Abs, Addr, Time]]
-                      (pointsTo: Abs => Option[Int])
-                      (implicit stateInfoProvider: StateInfoProvider[Exp, Abs, Addr, Time, State])
+                        State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
+                       (pointsTo: Abs => Option[Int])
+                       (implicit stateInfoProvider: StateInfoProvider[Exp, Abs, Addr, Time, State],
+                                 actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State])
   extends Metric[Exp, Abs, Addr, Time, State] {
 
   val abs = implicitly[JoinLattice[Abs]]
@@ -16,6 +17,34 @@ class CountNonConstants[Exp : Expression,
   val sabs = implicitly[IsSchemeLattice[Abs]]
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
+
+  private def finalStates(graph: AbstractGraph): Set[State] = {
+    graph.nodes.filter(stateInfoProvider.halted)
+  }
+
+  private def finalStores(graph: AbstractGraph): Set[Store[Addr, Abs]] = {
+    finalStates(graph).map(stateInfoProvider.store)
+  }
+
+  val filterEdgeFilterAnnotations = new FilterEdgeFilterAnnotations[Exp, Abs, Addr, Time, State]
+
+  def followStateSubsumedEdges(node: State, prunedGraph: AbstractGraph): Set[State] =
+    if (prunedGraph.nodeEdges(node).isEmpty) {
+      Set(node)
+    } else {
+      val edges = prunedGraph.nodeEdges(node)
+      edges.headOption match {
+        case None =>
+          Set()
+        case Some(edge) if edge._1.filters.isSubsumptionAnnotation =>
+          val filterSubsumptionEdges = filterEdgeFilterAnnotations.findMinimallySubsumingEdges(edges)
+          filterSubsumptionEdges.flatMap( (edge) => {
+            followStateSubsumedEdges(edge._2, prunedGraph)
+          })
+        case Some(edge) =>
+          Set(node)
+      }
+    }
 
   def traverse(graph: AbstractGraph, expStack: ExpStack): Map[Exp, Abs] = {
 
@@ -34,7 +63,8 @@ class CountNonConstants[Exp : Expression,
         } else if (stateInfoProvider.valueReached(state).isDefined) {
           stack match {
             case exp :: rest =>
-              map = map + (exp -> abs.join(map.getOrElse(exp, abs.bottom), stateInfoProvider.valueReached(state).get))
+              val old = map.getOrElse(exp, abs.bottom)
+              map = map + (exp -> abs.join(old, stateInfoProvider.valueReached(state).get))
               rest
             case Nil =>
               assert(false) // Stack should not be empty
@@ -44,7 +74,11 @@ class CountNonConstants[Exp : Expression,
           stack
         }
         val newStates = edges.map( (edge) => (edge._2, newStack) )
-        loop(todo.tail ++ newStates, visited + state)
+        val subsumptionEdgesFollowed = newStates.flatMap( (tuple) => {
+          val newSet = followStateSubsumedEdges(tuple._1, graph)
+          newSet.map( (state) => (state, tuple._2) )
+        })
+        loop(todo.tail ++ subsumptionEdgesFollowed, visited + state)
     }
 
     graph.getNode(0) match {
@@ -52,7 +86,8 @@ class CountNonConstants[Exp : Expression,
         Logger.log(s"ids of graph are ${graph.ids}", Logger.U)
         throw new Exception("Should not happen")
       case Some(state) =>
-        loop(Set((state, expStack)), Set())
+        val states = followStateSubsumedEdges(state, graph)
+        loop(states.map( (state) => (state, expStack) ), Set())
     }
   }
 
@@ -86,7 +121,7 @@ class CountNonConstants[Exp : Expression,
                      nrOfTops,
                      (sum: Double) / nrOfExps,
                      (nrOfTops: Double) / nrOfExps,
-                     (sum + nrOfTops : Double) / nrOfExps)
+                     (sum + (nrOfTops * 4) : Double) / nrOfExps)
     }
   }
 
@@ -114,9 +149,12 @@ class CountNonConstants[Exp : Expression,
         val (isNonConstant, sum, isTop): (Boolean, Int, Boolean) = pointsTo(value) match {
           case Some(x) =>
             if (x <= 0) Logger.log(s"Value $value points to $x separate values", Logger.U)
-            (if (x > 1) true else false, x, false)
+            if (x > 1) {
+              Logger.log(s"Value $value points to $x separate values", Logger.D)
+            }
+            (x > 1, x, false)
           case None =>
-            (true, 1, true)
+            (true, 0, true)
         }
         (exp, isNonConstant, sum, isTop)
     })
@@ -128,9 +166,35 @@ class CountNonConstants[Exp : Expression,
       }
     })
     val finalValuesPointedTo = valuesPointedTo ++ expsDisappearedSet
-    Logger.log(s"Final values are $finalValuesPointedTo", Logger.U)
+    Logger.log(s"valuesPointedTo are $valuesPointedTo", Logger.D)
+    Logger.log(s"expsDisappearedSet are $expsDisappearedSet", Logger.D)
+    Logger.log(s"Final values are $finalValuesPointedTo", Logger.D)
+    Logger.log(s"Number of exps is ${finalValuesPointedTo.size}", Logger.D)
     val metrics = calculateMetrics(finalValuesPointedTo)
     writeMetrics(stepCount, metrics, path, inputProgramName)
   }
+
+//  def computeAndWriteMetrics(graph: AbstractGraph, //For addresses
+//                             stepCount: Int,
+//                             path: String,
+//                             inputProgramName: String,
+//                             expStack: ExpStack,
+//                             expSet: Set[Exp]): Unit = {
+//    val valuesSet: Set[(Addr, Abs)] = joinStores(finalStores(graph)).filter( (tuple) => ! implicitly[Address[Addr]].isPrimitive(tuple._1))
+//    val valuesPointedTo: Set[(Addr, Boolean, Int, Boolean)] = valuesSet.map({
+//      case (addr, value) =>
+//        val (isNonConstant, sum, isTop): (Boolean, Int, Boolean) = pointsTo(value) match {
+//          case Some(x) =>
+//            if (x <= 0) Logger.log(s"Value $value points to $x separate values", Logger.U)
+//            (if (x >= 1) true else false, x - 1, false)
+//          case None =>
+//            (true, 0, true)
+//        }
+//        (addr, isNonConstant, sum, isTop)
+//    })
+//    Logger.log(s"Final values are $valuesPointedTo", Logger.U)
+//    val metrics = calculateMetrics(valuesPointedTo)
+//    writeMetrics(stepCount, metrics, path, inputProgramName)
+//  }
 
 }

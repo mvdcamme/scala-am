@@ -141,8 +141,10 @@ class PointsToAnalysisLauncher[
                          programName:String,
                          expStack: List[SchemeExp] = Nil,
                          expSet: Set[SchemeExp] = Set()): Unit = {
-    countFunCallsMetricsComputer.computeAndWriteMetrics(graph, stepCount, funCallsMetricPath, programName)
-    countNonConstantsMetricsComputer.computeAndWriteMetrics(graph, stepCount, pointsToMetricPath, programName, expStack, expSet)
+    Stopwatch.doPaused({
+      countFunCallsMetricsComputer.computeAndWriteMetrics(graph, stepCount, funCallsMetricPath, programName)
+      countNonConstantsMetricsComputer.computeAndWriteMetrics(graph, stepCount, pointsToMetricPath, programName, expStack, expSet)
+    })
   }
 
   def runStaticAnalysisGeneric(

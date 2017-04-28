@@ -962,7 +962,7 @@ class PointsToLattice(counting: Boolean) extends SchemeLattice {
 
         def pointsTo(value: lattice.Value): Option[scala.Int] = value match {
           case lattice.Prim(_) | lattice.Closure(_, _) | lattice.Cons(_, _) |
-              lattice.Vec(_, _, _) | lattice.VectorAddress(_) =>
+               lattice.Nil | lattice.Vec(_, _, _) | lattice.VectorAddress(_) =>
             Some(1)
           case lattice.Str(s) =>
             PointsToString.pointsTo(s)
