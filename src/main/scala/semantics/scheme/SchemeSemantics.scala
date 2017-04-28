@@ -92,12 +92,15 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                 val timeTick = ActionTimeTickExpR[SchemeExp, Abs, Addr](fexp)
                 val makeActionRs = (edgeAnnotation: ActionReplay[SchemeExp, Abs, Addr]) =>
                   List(defAddr, edgeAnnotation, timeTick, cloCall)
-                if (body.length == 1) {
-                  val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), body.head, env2, store, argsv)
+                if (body.length == 1) { //TODO enable tail-call optimization again by removing push of frame
+                  val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, FrameReturn[Abs, Addr, Time](), (SchemeLambda
+                  (args, body, pos),
+                    env1), body.head, env2, store, argsv)
                   EdgeInformation(action, makeActionRs(ActionEvalR(body.head, env2)), Set())
                 }
                 else {
-                  val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, (SchemeLambda(args, body, pos), env1), SchemeBegin(body, pos), env2, store, argsv)
+                  val action = ActionStepIn[SchemeExp, Abs, Addr](fexp, FrameReturn[Abs, Addr, Time](), (SchemeLambda(args, body, pos),
+                    env1), SchemeBegin(body, pos), env2, store, argsv)
                   EdgeInformation(action, makeActionRs(ActionEvalR[SchemeExp, Abs, Addr](SchemeBegin(body, pos),
                     env2)), Set())
                 }
@@ -366,6 +369,9 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
 
   def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time) =
     frame match {
+      case _: FrameReturn[Abs, Addr, Time] =>
+        noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, store),
+                       List(ActionReachedValueT[SchemeExp, Abs, Addr](v)))
       case frame: FrameFuncallOperator[Abs, Addr, Time] =>
         funcallArgs(v, frame.fexp, frame.args, frame.env, store, t)
       case frame: FrameFuncallOperands[Abs, Addr, Time] =>
@@ -537,8 +543,8 @@ class SchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         ActionPush(frame, e, env, store, effs ++ effects)
       case ActionEval(e, env, store, effs) =>
         ActionEval(e, env, store, effs ++ effects)
-      case ActionStepIn(fexp, clo, e, env, store, argsv, effs) =>
-        ActionStepIn(fexp, clo, e, env, store, argsv, effs ++ effects)
+      case ActionStepIn(fexp, frame, clo, e, env, store, argsv, effs) =>
+        ActionStepIn(fexp, frame, clo, e, env, store, argsv, effs ++ effects)
       case ActionError(err) => action
     }
 

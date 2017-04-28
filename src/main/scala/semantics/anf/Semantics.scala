@@ -14,6 +14,7 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
   case class FrameLetrec(v: String, a: Addr, body: ANFExp, env: Environment[Addr]) extends ANFFrame {
     override def toString() = s"FrameLetrec(${v.toString})"
   }
+  case object ANFFrameReturn extends ANFFrame
 
   /** Performs evaluation of an atomic expression, returning either an error or the produced value */
   def atomicEval(e: ANFAtomicExp, env: Environment[Addr], store: Store[Addr, Abs]): MayFail[(Abs, Set[Effect[Addr]])] = e match {
@@ -56,7 +57,8 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
           case (ANFLambda(args, body, pos), env) => if (args.length == argsv.length) {
             /* To call a closure, bind the arguments and step into the function */
             bindArgs(args.zip(argsv.reverse), env, store, t) match {
-              case (env2, store, _) => ActionStepIn(f, (ANFLambda(args, body, pos), env), body, env2, store, argsv,
+              case (env2, store, _) => ActionStepIn(f, ANFFrameReturn, (ANFLambda(args, body, pos), env), body, env2,
+                store, argsv,
                 effects)
             }
           } else { ActionError[ANFExp, Abs, Addr](ArityError(f.toString, args.length, argsv.length)) }
@@ -120,6 +122,8 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
     /* Just bind the variable to the reached value, since it has already been allocated */
     case FrameLetrec(variable, vara, body, env) =>
       simpleAction(ActionEval(body, env, store.update(vara, v)))
+    case ANFFrameReturn =>
+      simpleAction(ActionReachedValue[ANFExp, Abs, Addr](v, store))
   }
 
   def parse(program: String): ANFExp = ANF.parse(program)

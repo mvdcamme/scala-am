@@ -306,3 +306,15 @@ case class FrameDefine[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
               envReaches: Environment[Addr] => Set[Addr],
               addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
 }
+
+case class FrameReturn[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]()
+    extends SchemeFrame[Abs, Addr, Time] {
+  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
+    convertEnv: Environment[Addr] => Environment[Addr],
+    abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
+    FrameReturn[OtherAbs, Addr, Time]()
+
+  def reaches(valueReaches: Abs => Set[Addr],
+              envReaches: Environment[Addr] => Set[Addr],
+              addressReaches: Addr => Set[Addr]): Set[Addr] = Set()
+}

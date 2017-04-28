@@ -57,7 +57,8 @@ class AAMJoinLattice[Exp : Expression, Abs : JoinLattice, Addr : Address, Time :
         /* When a value needs to be evaluated, we go to an eval state */
         case ActionEval(e, env, store, _) => Set(State(ControlEval(e, env), store, kstore, a, time.tick(t)))
         /* When a function is stepped in, we also go to an eval state */
-        case ActionStepIn(fexp, _, e, env, store, _, _) => Set(State(ControlEval(e, env), store, kstore, a, time.tick(t, fexp)))
+        case ActionStepIn(fexp, _, _, e, env, store, _, _) => Set(State(ControlEval(e, env), store, kstore, a, time
+          .tick(t, fexp)))
         /* When an error is reached, we go to an error state */
         case ActionError(err) => Set(State(ControlError(err), store, kstore, a, time.tick(t)))
       })

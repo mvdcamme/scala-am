@@ -85,7 +85,7 @@ class ConcreteMachine[
                        time.tick(t),
                        start,
                        count + 1)
-                case ActionStepIn(fexp, _, e, env, store2, _, _) =>
+                case ActionStepIn(fexp, _, _, e, env, store2, _, _) =>
                   loop(ControlEval(e, env),
                        store2,
                        stack,
@@ -132,7 +132,7 @@ class ConcreteMachine[
                            time.tick(t),
                            start,
                            count + 1)
-                    case ActionStepIn(fexp, _, e, env, store2, _, _) =>
+                    case ActionStepIn(fexp, _, _, e, env, store2, _, _) =>
                       loop(ControlEval(e, env),
                            store2,
                            tl,

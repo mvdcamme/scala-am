@@ -439,7 +439,7 @@ class HybridConcreteMachine[
                   Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
-                case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
+                case EdgeInformation(ActionStepIn(fexp, _, _, e, env, store2, _, _), actions, semanticsFilters) =>
                   val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
                   Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
@@ -499,7 +499,7 @@ class HybridConcreteMachine[
                       Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
                                           FilterAnnotations(machineFilters, semanticsFilters),
                                           actions))
-                    case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
+                    case EdgeInformation(ActionStepIn(fexp, _, _, e, env, store2, _, _), actions, semanticsFilters) =>
                       val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                                                                         EvaluatingExpression(e),
                                                                         FrameFollowed[ConcreteValue](originFrameCast))
