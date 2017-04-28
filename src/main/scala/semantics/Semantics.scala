@@ -298,7 +298,6 @@ case class ActionEval[Exp: Expression, Abs: JoinLattice, Addr: Address](
   */
 case class ActionStepIn[Exp: Expression, Abs: JoinLattice, Addr: Address](
     fexp: Exp,
-    frame: Frame,
     clo: (Exp, Environment[Addr]),
     e: Exp,
     env: Environment[Addr],

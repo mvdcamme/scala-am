@@ -316,7 +316,7 @@ class AAC[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
                             time.tick(t)),
              kstore,
              contexts)
-          case ActionStepIn(fexp, _, clo, e, env, store, argsv, _) => {
+          case ActionStepIn(fexp, clo, e, env, store, argsv, _) => {
             val ctx = Context(clo, argsv, store, t)
             (states + State(ControlEval(e, env),
                             store,

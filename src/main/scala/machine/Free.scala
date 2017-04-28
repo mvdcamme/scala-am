@@ -68,7 +68,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
             time.tick(t))
         case ActionEval(e, env, store, _) =>
           State(ControlEval(e, env), store, kstore, k, time.tick(t))
-        case ActionStepIn(fexp, _, _, e, env, store, _, _) =>
+        case ActionStepIn(fexp, _, e, env, store, _, _) =>
           State(ControlEval(e, env), store, kstore, k, time.tick(t, fexp))
         case ActionError(err) =>
           State(ControlError(err), store, kstore, k, time.tick(t))

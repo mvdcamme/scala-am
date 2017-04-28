@@ -60,7 +60,7 @@ class AAMGlobalStore[
             (acc._1 + State(ControlEval(e, env), a, time.tick(t)),
              acc._2.includeDelta(store2.delta),
              acc._3)
-          case ActionStepIn(fexp, _, _, e, env, store2, _, _) =>
+          case ActionStepIn(fexp, _, e, env, store2, _, _) =>
             (acc._1 + State(ControlEval(e, env), a, time.tick(t)),
              acc._2.includeDelta(store2.delta),
              acc._3)
