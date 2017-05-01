@@ -34,9 +34,14 @@ class CountNonConstants[Exp : Expression,
     joinedStore.toSet
   }
 
-  private def getNonPrimitiveAddresses(stores: Set[Store[Addr, Abs]]): Set[(Addr, Abs)] = {
+  private def getNonPrimitiveAddressesStore(stores: Set[Store[Addr, Abs]]): Set[(Addr, Abs)] = {
     joinStores(stores).filter( (tuple) => ! addr.isPrimitive(tuple._1) )
   }
+
+  private def getNonPrimitiveAddresses(addresses: Set[Addr]): Set[Addr] = {
+    addresses.filter( (a) => ! addr.isPrimitive(a) )
+  }
+
 
   trait MetricsToWrite {
     def toCSVRow: String
@@ -45,7 +50,10 @@ class CountNonConstants[Exp : Expression,
   }
 
   object MetricsToWrite {
-    def init: MetricsToWriteImpl = MetricsToWriteImpl(0, 0, 0, 0, 0)
+    def init: MetricsToWriteImpl =
+      MetricsToWriteImpl(0, 0, 0, 0, 0)
+    def init(nrOfConcreteAddresses: Int): MetricsToWriteImpl =
+      MetricsToWriteImpl(nrOfConcreteAddresses, nrOfConcreteAddresses, 0, nrOfConcreteAddresses, 0)
 
     /*
      * nrNonConstants: total number of addresses that don't point to exactly 1 value
@@ -73,11 +81,11 @@ class CountNonConstants[Exp : Expression,
     }
   }
 
-  private def calculateMetrics(values: Set[(Addr, Abs)]): MetricsToWrite = {
+  private def calculateMetrics(values: Set[(Addr, Abs)], addressesUsed: Set[Addr]): MetricsToWrite = {
     if (values.isEmpty) {
-      MetricsToWrite.init
+      MetricsToWrite.init(addressesUsed.size)
     } else {
-      val metrics = values.foldLeft(MetricsToWrite.init)({
+      val analysisMetrics = values.foldLeft(MetricsToWrite.init)({
         case (metrics, (a, value)) => pointsTo(value) match {
           case Some(x) =>
             if (x <= 0) Logger.log(s"Value $value of address $a points to $x separate values", Logger.U)
@@ -86,7 +94,19 @@ class CountNonConstants[Exp : Expression,
             metrics.addTop
         }
       })
-      metrics
+      /*
+       * Make sure that all addresses that have appeared in the concrete run until now, but that don't appear in the
+       * graph also point to exactly ONE value (since this addresses point to purely a concrete value).
+       */
+      val finalMetrics = addressesUsed.foldLeft(analysisMetrics)({
+        case (metrics, a) =>
+          if (values.exists(_._1 == a)) {
+            metrics
+          } else {
+            metrics.addNonTop(1)
+          }
+      })
+      finalMetrics
     }
   }
 
@@ -105,10 +125,10 @@ class CountNonConstants[Exp : Expression,
                              stepCount: Int,
                              path: String,
                              inputProgramName: String,
-                             expStack: ExpStack,
-                             expSet: Set[Exp]): Unit = {
-    val valuesSet: Set[(Addr, Abs)] = getNonPrimitiveAddresses(finalStores(graph))
-    val metrics = calculateMetrics(valuesSet)
+                             addressesUsed: Set[Addr]): Unit = {
+    val valuesSet: Set[(Addr, Abs)] = getNonPrimitiveAddressesStore(finalStores(graph))
+    val nonPrimitiveAddressesUsed = getNonPrimitiveAddresses(addressesUsed)
+    val metrics = calculateMetrics(valuesSet, nonPrimitiveAddressesUsed)
     writeMetrics(stepCount, metrics, path, inputProgramName)
   }
 

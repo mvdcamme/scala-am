@@ -324,7 +324,9 @@ class HybridMachine[
       case InterpreterStep(trace, SignalFalse()) =>
         continueWithProgramState(trace)
       case InterpreterStep(trace, SignalStartAnalysis()) =>
-        pointsToAnalysisLauncher.runStaticAnalysis(ps, Some(stepCount), "TODO", Nil, Set()) // TODO
+        val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
+        val convertedCurrentAddresses = ps.σ.toSet.map(_._1).map(addressConverter.convertAddress)
+        pointsToAnalysisLauncher.runStaticAnalysis(ps, Some(stepCount), "TODO", convertedCurrentAddresses) // TODO
         continueWithProgramState(trace)
       case InterpreterStep(trace, signal) =>
         handleSignalRegular(trace, signal)
@@ -336,7 +338,9 @@ class HybridMachine[
       case InterpreterStep(trace, SignalFalse()) =>
         continueWithProgramStateTracing(trace)
       case InterpreterStep(trace, SignalStartAnalysis()) =>
-        pointsToAnalysisLauncher.runStaticAnalysis(ps, Some(stepCount), "TODO", Nil, Set()) // TODO
+        val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
+        val convertedCurrentAddresses = ps.σ.toSet.map(_._1).map(addressConverter.convertAddress)
+        pointsToAnalysisLauncher.runStaticAnalysis(ps, Some(stepCount), "TODO", convertedCurrentAddresses) // TODO
         continueWithProgramStateTracing(trace)
       case InterpreterStep(trace, signal) =>
         handleSignalTracing(trace, signal)

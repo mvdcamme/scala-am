@@ -12,15 +12,6 @@ class HybridConcreteMachine[
                             HybridAddress.A,
                             HybridTimestamp.T] {
 
-  private var expStack: List[SchemeExp] = Nil
-  private var expSet: Set[SchemeExp] = Set()
-  def popExp(): Unit =
-    expStack = expStack.tail
-  def pushExp(exp: SchemeExp): Unit = {
-    expSet = expSet + exp
-    expStack = exp :: expStack
-  }
-
   def name = "HybridConcreteMachine"
 
   var stepCount: Integer = 0
@@ -375,18 +366,23 @@ class HybridConcreteMachine[
     ConcreteMachineOutput = {
 
       Logger.log(s"stepCount: $stepCount", Logger.N)
+      val currentAddresses: Set[HybridAddress.A] = state.store.toSet.map(_._1)
       analysisFlags.runTimeAnalysisInterval match {
         case NoRunTimeAnalysis =>
         case RunTimeAnalysisEvery(analysisInterval) =>
           if (stepCount % analysisInterval == 0) {
-            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, expStack, expSet)
+            val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
+            val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
+            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, convertedCurrentAddresses)
           }
       }
       analysisFlags.incrementalAnalysisInterval match {
         case NoIncrementalAnalysis =>
         case IncrementalAnalysisEvery(analysisInterval) =>
           if (stepCount % analysisInterval == 0) {
-            pointsToAnalysisLauncher.incrementalAnalysis(state, stepCount, programName, expStack, expSet)
+            val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
+            val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
+            pointsToAnalysisLauncher.incrementalAnalysis(state, stepCount, programName, convertedCurrentAddresses)
           }
       }
 
@@ -415,7 +411,6 @@ class HybridConcreteMachine[
 
         def step(control: Control): Either[ConcreteMachineOutput, StepSucceeded] = control match {
           case ControlEval(e, env) =>
-            pushExp(e)
             val edgeInfos = sem.stepEval(e, env, store, t)
             if (edgeInfos.size == 1) {
               val onlyEdgeInfo = edgeInfos.head
@@ -458,7 +453,6 @@ class HybridConcreteMachine[
             }
 
           case ControlKont(v) =>
-            popExp()
             /* pop a continuation */
             if (a == HaltKontAddress) {
               Left(ConcreteMachineOutputValue(
@@ -527,7 +521,6 @@ class HybridConcreteMachine[
             }
 
           case ControlError(err) =>
-            popExp()
             Left(ConcreteMachineOutputError(
               (System.nanoTime - start) / Math.pow(10, 9),
               count,
