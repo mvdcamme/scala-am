@@ -145,12 +145,19 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
   def filterSingleEdgeInfo(abstractEdges: Set[Edge],
                            concreteEdgeInfo: FilterAnnotation): Set[Edge] =
     concreteEdgeInfo match {
-
-      case info: FrameFollowed[Abs] =>
-        findMinimallySubsumesFrameFollowedEdges(abstractEdges, info.frame)
-
       case _ =>
         abstractEdges.filter( (abstractEdge: Edge) => concreteEdgeInfo match {
+          case filter: FrameFollowed[Abs] =>
+            abstractEdge._1.filters.exists({
+              case abstractEdgeFilter: FrameFollowed[Abs] =>
+                /*
+                 * Check whether the frame on the abstract edge subsumes the "concrete" frame, unless the "subsumes"
+                 * relation is not meaningful (read: is not implemented) for this frame.
+                 */
+                (! abstractEdgeFilter.frame.meaningfullySubsumes) || abstractEdgeFilter.frame.subsumes(filter.frame)
+              case _ =>
+                false
+            })
           case ElseBranchTaken =>
             abstractEdge._1.filters.contains(ElseBranchTaken)
           case filter: EvaluatingExpression[Exp] =>

@@ -85,9 +85,11 @@ case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Addr
             (implicit d: DummyImplicit): Boolean =
     machineFilters.exists(pred)
 
-  def exists(pred: SemanticsFilterAnnotation => Boolean)
-            (implicit d: DummyImplicit): Boolean =
-    semanticsFilters.exists(pred)
+  def exists(pred: FilterAnnotation => Boolean)
+            (implicit d: DummyImplicit): Boolean = {
+    val allFilters = machineFilters ++ semanticsFilters
+    allFilters.exists(pred)
+  }
 
 //  def exists(pred: FilterExists)
 //            (implicit d: DummyImplicit): Boolean =
