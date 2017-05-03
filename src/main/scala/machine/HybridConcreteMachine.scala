@@ -95,81 +95,14 @@ class HybridConcreteMachine[
       case ControlError(_) => Colors.Red
     }
 
-    /**
-      * Converts all addresses in the store.
-      * @param σ The store for which all addresses must be converted.
-      * @return A new store with all addresses converted.
-      */
-    /* Currently, we don't actually convert addresses in the environment or store, so at the moment,
-     * this function is just the identity function. */
-    private def convertSto[AbstL: IsConvertableLattice](
-        σ: Store[HybridAddress.A, AbstL]): Store[HybridAddress.A, AbstL] = σ
-
-    private def convertKStoreToFrames[KAddr <: KontAddr: KontAddress](
-        concSem: ConvertableSemantics[SchemeExp,
-                                      ConcreteValue,
-                                      HybridAddress.A,
-                                      HybridTimestamp.T],
-        abstSem: BaseSchemeSemantics[ConcreteValue,
-                                     HybridAddress.A,
-                                     HybridTimestamp.T],
-        initialKontAddress: KAddr,
-        mapKontAddress: (KontAddr, Environment[HybridAddress.A]) => KAddr,
-        kontStore: KontStore[KontAddr],
-        ρ: Environment[HybridAddress.A],
-        a: KontAddr,
-        vStack: List[Storable[ConcreteValue, HybridAddress.A]])
-      : (KAddr, KontStore[KAddr]) = {
-
-      @tailrec
-      def loop(a: KontAddr,
-               vStack: List[Storable[ConcreteValue, HybridAddress.A]],
-               ρ: Environment[HybridAddress.A],
-               stack: List[
-                 (KontAddr,
-                  Option[Frame],
-                  List[Storable[ConcreteValue, HybridAddress.A]],
-                  Environment[HybridAddress.A])]): (KAddr, KontStore[KAddr]) =
-        a match {
-          case HaltKontAddress =>
-            stack.foldLeft[(KAddr, KontStore[KAddr])](
-              (initialKontAddress, KontStore.empty[KAddr]))({
-              case ((actualNext, extendedKontStore),
-                    (a, someNewSemFrame, newVStack, newρ)) =>
-                someNewSemFrame match {
-                  case Some(newSemFrame) =>
-                    val convertedA = mapKontAddress(a, newρ)
-                    (convertedA,
-                     extendedKontStore.extend(convertedA,
-                                              Kont(newSemFrame, actualNext)))
-                  case None =>
-                    (actualNext, extendedKontStore)
-                }
-
-            })
-          case _ =>
-            val Kont(frame, next) = kontStore.lookup(a).head
-            val (someNewSemFrame, newVStack, newρ) =
-              concSem.convertToAbsSemanticsFrame(frame, ρ, vStack, abstSem)
-            loop(next,
-                 newVStack,
-                 newρ,
-                 (a, someNewSemFrame, newVStack, newρ) :: stack)
-        }
-      loop(a, vStack, ρ, Nil)
-    }
-
     private def convertStore[AbstL: IsConvertableLattice](
         store: Store[HybridAddress.A, ConcreteValue],
-        convertValue: ConcreteValue => AbstL)
-      : Store[HybridAddress.A, AbstL] = {
+        convertValue: ConcreteValue => AbstL): Store[HybridAddress.A, AbstL] = {
       var valuesConvertedStore = Store.empty[HybridAddress.A, AbstL]
       def addToNewStore(tuple: (HybridAddress.A, ConcreteValue)): Boolean = {
-        val convertedAddress =
-          new DefaultHybridAddressConverter[SchemeExp]().convertAddress(tuple._1)
+        val convertedAddress = new DefaultHybridAddressConverter[SchemeExp]().convertAddress(tuple._1)
         val convertedValue = convertValue(tuple._2)
-        valuesConvertedStore =
-          valuesConvertedStore.extend(convertedAddress, convertedValue)
+        valuesConvertedStore = valuesConvertedStore.extend(convertedAddress, convertedValue)
         true
       }
       store.forall(addToNewStore)

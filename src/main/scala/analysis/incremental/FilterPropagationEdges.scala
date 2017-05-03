@@ -92,6 +92,9 @@ class FilterPropagationEdges[Exp: Expression,
       })
       result
     })
+    Logger.log(s"FilterWithKStore: relevantActualFrames = $relevantActualFrames", Logger.D)
+    Logger.log(s"FilterWithKStore: edges = $edges", Logger.D)
+    Logger.log(s"FilterWithKStore: ${filteredEdgesWith ++ edgesWithout}", Logger.D)
     filteredEdgesWith ++ edgesWithout
   }
 

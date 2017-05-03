@@ -57,7 +57,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
 
   def applyEdgeActions(convertedState: State, stepCount: Int): Option[AbstractGraph] = {
     assertInitialized()
-    Logger.log(s"Propagating run-time info for step $stepCount", Logger.U)
+    Logger.log(s"Propagating run-time info for step $stepCount with current nodes $currentNodes", Logger.U)
     lastPropagatedGraph = Some(propagateRunTimeInfo.applyEdgeActions(convertedState, stepCount, currentNodes,
                                                                      initialGraph.get, lastPropagatedGraph.get))
     currentNodes = Set(convertedState)

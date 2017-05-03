@@ -554,7 +554,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         }
         assert(completeValues.length == addresses.length, s"Length of $addresses does not match length of $completeValues")
         val addressValues = addresses.zip(completeValues) //TODO why do we need to reverse the arguments???
-        val newStore = addressValues.foldLeft(state.store)((store, tuple) => store.extend(tuple._1, tuple._2))
+        val newStore = addressValues.foldLeft(state.store)( (store, tuple) => store.extend(tuple._1, tuple._2) )
         (state.copy(store = newStore), kont)
       })
     }
