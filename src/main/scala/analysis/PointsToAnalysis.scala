@@ -248,7 +248,9 @@ class PointsToAnalysisLauncher[
   }
 
   def incrementalAnalysis(concreteState: PS, stepCount: Int, programName: String, addressesUsed: Set[HybridAddress.A]): Unit = {
-    filterReachable(stepCount, programName, addressesUsed)
+    if (! analysisFlags.doPropagationPhase) {
+      filterReachable(stepCount, programName, addressesUsed)
+    }
     if (analysisFlags.doPropagationPhase) {
       applyEdgeActions(concreteState, stepCount, programName, addressesUsed)
     }
