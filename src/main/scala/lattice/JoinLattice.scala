@@ -482,7 +482,7 @@ object PointsToInteger extends PointsTo[ConcreteInteger.I](3) {
       case Top => float.top
       case Precise(v) => concreteIsInteger.toFloat(v)(float)
     }
-    def random(n: L): L = applyAndCheckUnary(n, concreteIsInteger.random)
+    def random(n: L): L = Top //applyAndCheckUnary(n, concreteIsInteger.random)
     def plus(n1: L, n2: L): L =
       applyAndCheckBinary(n1, n2, concreteIsInteger.plus)
     def minus(n1: L, n2: L): L =
@@ -507,7 +507,7 @@ object PointsToFloat extends PointsTo[ConcreteFloat.F](3) {
     def inject(n: Float) = checkSize(concreteIsFloat.inject(n))
     def ceiling(n: F) = applyAndCheckUnary(n, concreteIsFloat.ceiling)
     def log(n: F) = applyAndCheckUnary(n, concreteIsFloat.log)
-    def random(n: F) = applyAndCheckUnary(n, concreteIsFloat.random)
+    def random(n: F) = Top //applyAndCheckUnary(n, concreteIsFloat.random)
     def plus(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteIsFloat.plus)
     def minus(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteIsFloat.minus)
     def times(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteIsFloat.times)
