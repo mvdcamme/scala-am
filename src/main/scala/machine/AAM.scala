@@ -123,7 +123,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
          * applied.
          */
         case _: ActionEvalPushR[Exp, Abs, Addr] => true
-        case _: ActionEvalPushDataR[Exp, Abs, Addr] => true
+        case _: ActionEvalPushDataR[Exp, Abs, Addr] => assert(false, "Should not happen"); true
         case _ => false
       })) {
         ActionPopKontT[Exp, Abs, Addr]() :: actions
@@ -467,14 +467,14 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
           (List(), kont)
       })
 
-    protected def popKont(state: State): Set[(State, Set[MachineFilterAnnotation])] = {
+    protected def popKont(state: State): Set[(State, Set[MachineFilterAnnotation], Frame)] = {
       val konts = state.kstore.lookup(state.a)
       konts.map( (kont: Kont[KontAddr]) => {
         val frame = kont.frame
         val next = kont.next
         val kontPopped = addKontAddrPopped(state.a, next)
         val frameFollowed = addFrameFollowed(frame)
-        (state.copy(a = next), Set[MachineFilterAnnotation](kontPopped, frameFollowed))
+        (state.copy(a = next), Set[MachineFilterAnnotation](kontPopped, frameFollowed), frame)
       })
     }
 
@@ -593,14 +593,18 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
         Set((newState, Set[MachineFilterAnnotation](evaluatingExp))) //, pushedAddr)))
       case ActionEvalPushDataR(e, env, frameGenerator) =>
-        val next = NormalKontAddress[Exp, Time](e, state.t)
-        val currentValue = assertedGetControlKontValue(state)
-        val frame = frameGenerator(currentValue)
-        val kont = Kont(frame, state.a)
-        val evaluatingExp = addEvaluateExp(e)
-//        val pushedAddr = addKontAddrPushed(next)
-        val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
-        Set((newState, Set[MachineFilterAnnotation](evaluatingExp))) //, pushedAddr)))
+        val kontPoppedTriples = popKont(state)
+        kontPoppedTriples.flatMap({
+          case (state, machineFilters, framePopped) =>
+            val next = NormalKontAddress[Exp, Time](e, state.t)
+            val currentValue = assertedGetControlKontValue(state)
+            val frame = frameGenerator(currentValue, framePopped)
+            val kont = Kont(frame, state.a)
+            val evaluatingExp = addEvaluateExp(e)
+            //        val pushedAddr = addKontAddrPushed(next)
+            val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
+            Set((newState, machineFilters + evaluatingExp)) //, pushedAddr)))
+        })
       case a: ActionLookupAddressR[Exp, Abs, Addr] =>
         val value = state.store.lookup(a.a) match {
           case Some(value) =>
@@ -610,7 +614,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         }
         Set(noEdgeFilters(state.copy(control = ControlKont(value))))
       case ActionPopKontT() =>
-        popKont(state)
+        popKont(state).map( (triple) => (triple._1, triple._2) )
       case a: ActionPrimCallT[SchemeExp, Abs, Addr] =>
         val savedOperandsKontsSet: Set[(List[Abs], Kont[KontAddr])] = frameSavedOperands(state)
         //val valuesSet = addControlKontValue(state, savedOperandsKontsSet)

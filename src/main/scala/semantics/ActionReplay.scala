@@ -5,7 +5,7 @@ trait ActionReplay[Exp, Abs, Addr] {
 }
 
 trait FrameGenerator[Abs] {
-  def apply(value: Abs): Frame
+  def apply(value: Abs, frame: Frame): Frame
 }
 
 /*
@@ -71,7 +71,9 @@ case class ActionEvalPushDataR[Exp: Expression, Abs: JoinLattice, Addr: Address]
     env: Environment[Addr],
     frameGenerator: FrameGenerator[Abs])
     extends ActionReplay[Exp, Abs, Addr]
-    with PushesKStack[Exp, Abs, Addr]
+    with PushesKStack[Exp, Abs, Addr] {
+  override def popsKont = true
+}
 
 case class ActionLookupAddressR[Exp: Expression, Abs: JoinLattice, Addr: Address](
     a: Addr)
