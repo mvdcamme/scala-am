@@ -3,7 +3,8 @@ class FilterPropagationEdges[Exp: Expression,
                              Addr: Address,
                              Time: Timestamp,
                              State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
-                            (implicit actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State]) {
+                            (implicit actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State],
+                                      stateInfoProvider: StateInfoProvider[Exp, Abs, Addr, Time, State]) {
 
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
@@ -17,7 +18,7 @@ class FilterPropagationEdges[Exp: Expression,
      * containing a ThenBranchTaken-annotation.
      */
     val filteredTrue: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasSemanticsFilter(_, ThenBranchTaken)) &&
-      (! actionRApplier.evaluatedTrue(newState))) {
+      (!actionRApplier.evaluatedTrue(newState))) {
       edges.filter(!hasSemanticsFilter(_, ThenBranchTaken))
     } else {
       edges
@@ -28,7 +29,7 @@ class FilterPropagationEdges[Exp: Expression,
      */
     val filteredFalse: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasSemanticsFilter(_, ElseBranchTaken)) &&
       (!actionRApplier.evaluatedFalse(newState))) {
-      edges.filter(! hasSemanticsFilter(_, ElseBranchTaken))
+      edges.filter(!hasSemanticsFilter(_, ElseBranchTaken))
     } else {
       edges
     }
@@ -42,16 +43,28 @@ class FilterPropagationEdges[Exp: Expression,
 
   def filterWithKStore(newState: State, edges: Set[Edge]): Set[Edge] = {
 
-    type RelevantFrame = FrameFuncallOperands[Abs, HybridAddress.A, HybridTimestamp.T]
+    type RelevantOperandsFrame = FrameFuncallOperands[Abs, HybridAddress.A, HybridTimestamp.T]
+    type RelevantOperatorFrame = FrameFuncallOperator[Abs, HybridAddress.A, HybridTimestamp.T]
     val sabs = implicitly[IsSchemeLattice[Abs]]
     /*
-     * Checks if the given frame directly leads to a closure call. If yes, returns the frame, casted as a RelevantFrame.
+     * Checks if the given frame directly leads to a closure call. If yes, returns the closure that will be called
      * If not, returns None.
      */
-    def frameLeadsToClosureCall(frame: Frame): Option[RelevantFrame] = frame match {
-      case frame: RelevantFrame =>
+    def frameLeadsToClosureCall(frame: Frame): Option[Abs] = frame match {
+      case frame: RelevantOperandsFrame =>
         if (sabs.getClosures(frame.f).nonEmpty && frame.toeval.isEmpty) {
-          Some(frame)
+          Some(frame.f)
+        } else {
+          None
+        }
+      case frame: RelevantOperatorFrame =>
+        val functionToBeCalled = stateInfoProvider.valueReached(newState).get
+        /*
+         * A FrameFuncallOperator can directly lead to a function call if it doesn't have any arguments to evaluate.
+         * In this case the closure that will be called is currently stored in the control-component of the state.
+         */
+        if (frame.args.isEmpty && sabs.getClosures(functionToBeCalled).nonEmpty) {
+          Some(functionToBeCalled)
         } else {
           None
         }
@@ -59,43 +72,52 @@ class FilterPropagationEdges[Exp: Expression,
         None
     }
 
-    val actualKonts = actionRApplier.getTopKonts(newState)
-    val relevantActualFrames: Set[RelevantFrame] = actualKonts.map(_.frame).flatMap((frame: Frame) => {
-      val optionRelevantFrame = frameLeadsToClosureCall(frame)
-      optionRelevantFrame.fold[Set[RelevantFrame]](Set())((relevantFrame: RelevantFrame) => Set(relevantFrame))
-    })
-
     /*
-     * edgesWith: all edges that contain a FrameFollowed EdgeAnnotation with a frame that leads to a closure call.
-     * edgesWithout: all edges that don't satisfy the above condition.
+     * Trying to filter potential edges using the continuation store is only relevant when a continuation state
+     * has actually been reached.
+     * If not, the continuation store is irrelevant so this function should just return all edges.
      */
-    val (edgesWith, edgesWithout) = edges.partition( (edge) => {
-      val filters = edge._1.filters
-      filters.machineExists({
-        case annot: FrameFollowed[Abs] =>
-          frameLeadsToClosureCall(annot.frame).isDefined
-        case _ =>
-          false
+    if (stateInfoProvider.valueReached(newState).isEmpty) {
+      edges
+    } else {
+      val actualKonts = actionRApplier.getTopKonts(newState)
+      val closuresToBeCalled: Set[Abs] = actualKonts.map(_.frame).flatMap((frame: Frame) => {
+        val optionRelevantClosure = frameLeadsToClosureCall(frame)
+        optionRelevantClosure.fold[Set[Abs]](Set())((relevantFrame: Abs) => Set(relevantFrame))
       })
-    })
 
-    val filteredEdgesWith: Set[Edge] = relevantActualFrames.flatMap( (relevantFrame) => {
-      val actualClosures = sabs.getClosures(relevantFrame.f)
-      val actualLambdas: Set[Exp] = actualClosures.map(_._1)
-      val result: Set[Edge] = edgesWith.filter( (edge: Edge) => {
-        edge._1.actions.exists({
-          case actionClosureCall: ActionClosureCallR[Exp, Abs, Time] =>
-            actualLambdas.contains(actionClosureCall.lambda)
+      /*
+       * edgesWith: all edges that contain a FrameFollowed EdgeAnnotation with a frame that leads to a closure call.
+       * edgesWithout: all edges that don't satisfy the above condition.
+       */
+      val (edgesWith, edgesWithout) = edges.partition((edge) => {
+        val filters = edge._1.filters
+        filters.machineExists({
+          case annot: FrameFollowed[Abs] =>
+            frameLeadsToClosureCall(annot.frame).isDefined
           case _ =>
             false
         })
       })
-      result
-    })
-    Logger.log(s"FilterWithKStore: relevantActualFrames = $relevantActualFrames", Logger.D)
-    Logger.log(s"FilterWithKStore: edges = $edges", Logger.D)
-    Logger.log(s"FilterWithKStore: ${filteredEdgesWith ++ edgesWithout}", Logger.D)
-    filteredEdgesWith ++ edgesWithout
+
+      val filteredEdgesWith: Set[Edge] = closuresToBeCalled.flatMap((closureToBeCalled) => {
+        val actualClosures = sabs.getClosures(closureToBeCalled)
+        val actualLambdas: Set[Exp] = actualClosures.map(_._1)
+        val result: Set[Edge] = edgesWith.filter((edge: Edge) => {
+          edge._1.actions.exists({
+            case actionClosureCall: ActionClosureCallR[Exp, Abs, Time] =>
+              actualLambdas.contains(actionClosureCall.lambda)
+            case _ =>
+              false
+          })
+        })
+        result
+      })
+      Logger.log(s"FilterWithKStore: closuresToBeCalled = $closuresToBeCalled", Logger.D)
+      Logger.log(s"FilterWithKStore: edges = $edges", Logger.D)
+      Logger.log(s"FilterWithKStore: ${filteredEdgesWith ++ edgesWithout}", Logger.D)
+      filteredEdgesWith ++ edgesWithout
+    }
   }
 
 }
