@@ -4,4 +4,4 @@
                    (if (= n 0)
                        x
                      (rotate (- n 1) y z x)))))
-  (rotate 41 5 #t "hallo"))
+  (rotate 20 5 #t "hallo"))
