@@ -34,11 +34,7 @@ class FilterPropagationEdges[Exp: Expression,
       edges
     }
 
-    val filteredEdges = filteredTrue.intersect(filteredFalse)
-    if (filteredEdges.size != edges.size) {
-      Logger.log(s"## Difference between edges and filteredEdges! ##", Logger.U)
-    }
-    filteredEdges
+    filteredTrue.intersect(filteredFalse)
   }
 
   def filterWithKStore(newState: State, edges: Set[Edge]): Set[Edge] = {
