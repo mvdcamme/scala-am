@@ -249,7 +249,9 @@ class PropagateRunTimeInfo[Exp: Expression,
 
   private def usesKontAddr(edge: Edge, ka: KontAddr): Boolean = {
     val filters = edge._1.filters
-    filters.machineExists({
+    val actions = edge._1.actions
+    /* There's a filter indicating the edge uses ka. */
+    lazy val filterUsesKA = filters.machineExists({
       case KontAddrPopped(oldKa, newKa) =>
         oldKa == ka || newKa == ka
 //      case KontAddrPushed(newKa) =>
@@ -257,6 +259,15 @@ class PropagateRunTimeInfo[Exp: Expression,
       case _ =>
         false
     })
+    lazy val actionUsesKA = actions.exists( (actionR) =>
+      actionR.pushesKontAtExp.fold(false)( (exp) => ka match {
+        case NormalKontAddress(nkaExp, _) =>
+          exp == nkaExp
+        case _ =>
+          false
+      })
+    )
+    filterUsesKA || actionUsesKA
   }
 
   /*
@@ -399,7 +410,7 @@ class PropagateRunTimeInfo[Exp: Expression,
           evalLoop(todoPair.dropHead, visited, updatedGraph, stepCount, initialGraph, prunedGraph)
         } else {
           val applyOptimisation = analysisFlags.deltaOptimisation
-          lazy val optionDeltas: Option[Iterable[Delta]] = extraOptimisationApplicable(newState, todoPair.mapping(newState), prunedGraph)
+          val optionDeltas: Option[Iterable[Delta]] = extraOptimisationApplicable(newState, todoPair.mapping(newState), prunedGraph)
           if (applyOptimisation && optionDeltas.isDefined) {
             Logger.log(s"Extra optimisation applicable: ${optionDeltas.get}", Logger.U)
             val deltas = optionDeltas.get

@@ -1,6 +1,7 @@
 trait ActionReplay[Exp, Abs, Addr] {
   def marksFunctionCall: Boolean = false
   def popsKont: Boolean = false
+  def pushesKontAtExp: Option[Exp] = None
   def ticksTime: Boolean = false
 }
 
@@ -61,7 +62,9 @@ case class ActionEvalPushR[Exp: Expression, Abs: JoinLattice, Addr: Address](
     env: Environment[Addr],
     frame: Frame)
     extends ActionReplay[Exp, Abs, Addr]
-    with PushesKStack[Exp, Abs, Addr]
+    with PushesKStack[Exp, Abs, Addr] {
+  override def pushesKontAtExp = Some(e)
+}
 
 /**
   * To be used when saving a frame that stores data.
@@ -73,6 +76,7 @@ case class ActionEvalPushDataR[Exp: Expression, Abs: JoinLattice, Addr: Address]
     extends ActionReplay[Exp, Abs, Addr]
     with PushesKStack[Exp, Abs, Addr] {
   override def popsKont = true
+  override def pushesKontAtExp = Some(e)
 }
 
 case class ActionLookupAddressR[Exp: Expression, Abs: JoinLattice, Addr: Address](
