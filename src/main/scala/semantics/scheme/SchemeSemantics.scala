@@ -271,19 +271,23 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       noEdgeInfosSet(action, actionEdge)
     case SchemeFuncall(f, args, _) =>
       addPushActionRSet(ActionPush[SchemeExp, Abs, Addr](FrameFuncallOperator(f, args, env), f, env, store))
-    case SchemeIf(cond, cons, alt, _) =>
+    case e @ SchemeIf(cond, cons, alt, _) =>
+      SemanticsConcolicHelper.handleIf(e)
       addPushActionRSet(ActionPush(FrameIf(cons, alt, env), cond, env, store))
     case SchemeLet(Nil, body, _) =>
       Set(evalBody(body, env, store))
     case SchemeLet((v, exp) :: bindings, body, _) =>
+      SemanticsConcolicHelper.handleDefine(v, exp)
       addPushActionRSet(ActionPush(FrameLet(v, List(), bindings, body, env), exp, env, store))
     case SchemeLetStar(Nil, body, _) =>
       Set(evalBody(body, env, store))
     case SchemeLetStar((v, exp) :: bindings, body, _) =>
+      SemanticsConcolicHelper.handleDefine(v, exp)
       addPushActionRSet(ActionPush(FrameLetStar(v, bindings, body, env), exp, env, store))
     case SchemeLetrec(Nil, body, _) =>
       Set(evalBody(body, env, store))
     case SchemeLetrec((v, exp) :: bindings, body, _) =>
+      SemanticsConcolicHelper.handleDefine(v, exp)
       case class ValuesToUpdate(env: Environment[Addr],
                                 store: Store[Addr, Abs],
                                 stateChanges: List[StoreChangeSemantics[Abs, Addr]])
@@ -326,6 +330,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     case SchemeOr(exp :: exps, _) =>
       addPushActionRSet(ActionPush(FrameOr(exps, env), exp, env, store))
     case SchemeDefineVariable(name, exp, _) =>
+      SemanticsConcolicHelper.handleDefine(name, exp)
       addPushActionRSet(ActionPush(FrameDefine(name, env), exp, env, store))
     case SchemeDefineFunction(name, args, body, pos) =>
       val a = addr.variable(name, abs.bottom, t)
@@ -392,6 +397,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           val EdgeInformation(action, actionEdges, filters) = evalBody(frame.body, env1, store1)
           Set(EdgeInformation(action, ActionDefineAddressesPopR[SchemeExp, Abs, Addr](addresses) :: actionEdges, filters))
         case (variable, e) :: toeval =>
+          SemanticsConcolicHelper.handleDefine(variable, e)
           val newFrameGenerator = LetFrameGenerator(variable, frame.variable, frame.bindings, toeval, frame.body, frame.env)
           val actionGenerator = (currentFrame: Frame) => ActionPush(currentFrame, e, frame.env, store)
           addPushDataActionT(v, frame, newFrameGenerator, actionGenerator)
@@ -406,6 +412,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             val EdgeInformation(actions, actionEdges2, edgeInfos) = evalBody(frame.body, env1, store1)
             Set(EdgeInformation(actions, actionEdges ++ actionEdges2, edgeInfos))
           case (variable, exp) :: rest =>
+            SemanticsConcolicHelper.handleDefine(variable, exp)
             val action = ActionPush(FrameLetStar(variable, rest, frame.body, env1), exp, env1, store1)
             noEdgeInfosSet(action, actionEdges :+ ActionEvalPushR(exp, action.env, action.frame))
         }

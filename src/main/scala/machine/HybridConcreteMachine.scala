@@ -1,5 +1,3 @@
-import scala.annotation.tailrec
-
 import ConcreteConcreteLattice.ConcreteValue
 
 class HybridConcreteMachine[
@@ -464,7 +462,7 @@ class HybridConcreteMachine[
         stepped match {
           case Left(output) =>
             output.toDotFile("concrete.dot")
-            pointsToAnalysisLauncher.end
+            pointsToAnalysisLauncher.end()
             output
           case Right(StepSucceeded(succState, filters, actions)) =>
             def convertFrameFun(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
@@ -501,12 +499,17 @@ class HybridConcreteMachine[
       Environment.initial[HybridAddress.A](sem.initialEnv),
       Store.initial[HybridAddress.A, ConcreteValue](
         sem.initialStore))
+    Reporter.disableConcolic()
+    Reporter.clear()
     pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState, programName)
+    Reporter.enableConcolic()
 
     FunctionsCalledMetric.resetConcreteFunctionsCalled()
-    loop(initialState,
+    val result = loop(initialState,
          System.nanoTime,
          0,
          new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
+    Reporter.printReports()
+    result
   }
 }

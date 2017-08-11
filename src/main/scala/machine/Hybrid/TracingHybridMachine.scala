@@ -18,7 +18,7 @@ import ConcreteConcreteLattice.ConcreteValue
   * be evaluated within this environment, whereas a continuation state only
   * contains the value reached.
   */
-class HybridMachine[
+class TracingHybridMachine[
     CAbs : IsConvertableLattice : ConstantableLatticeInfoProvider,
     PAbs : IsConvertableLattice : PointsToableLatticeInfoProvider](
     override val sem: SemanticsTraced[SchemeExp,
