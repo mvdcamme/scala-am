@@ -11,3 +11,4 @@ case class IncrementalAnalysisEvery(interval: Int) extends IncrementalAnalysisIn
 sealed trait RunTimeAnalysisInterval
 case object NoRunTimeAnalysis extends RunTimeAnalysisInterval
 case class RunTimeAnalysisEvery(interval: Int) extends RunTimeAnalysisInterval
+

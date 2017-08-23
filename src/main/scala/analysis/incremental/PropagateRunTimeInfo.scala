@@ -239,10 +239,10 @@ class PropagateRunTimeInfo[Exp: Expression,
        * TODO Should also work if a couple edges actually do use this delta.
        */
 
-      if (originalEdges.forall( (edge: Edge) => ! deltas.exists( (delta: Delta) => usesKontAddr(edge, delta.abstractKa) ) )) {
-        Some(deltas)
-      } else {
+      if (originalEdges.exists( (edge: Edge) => deltas.exists( (delta: Delta) => usesKontAddr(edge, delta.abstractKa) ) )) {
         None
+      } else {
+        Some(deltas)
       }
     }
   }

@@ -19,8 +19,7 @@ object SemanticsConcolicHelper {
       case SchemeValue(ValueInteger(i), _) =>
         Some(ConcolicInt(i))
       case SchemeFuncall(SchemeIdentifier(operatorVar, _), operands, _) =>
-        val validOperator = validBinaryOperators.contains(operatorVar)
-        if (validOperator && operands.size == 2) {
+        if (validBinaryOperators.contains(operatorVar) && operands.size == 2) {
           val operandExpressions = operands.map(generateConcolicExpression)
           (operandExpressions.head, operandExpressions(1)) match {
             case (Some(a: ConcolicAtom), Some(b: ConcolicAtom)) =>
@@ -51,7 +50,7 @@ object SemanticsConcolicHelper {
       val optionConcolicExpression = generateConcolicExpression(exp)
       optionConcolicExpression match {
         case Some(concolicExpression) =>
-          val concolicStatement = ConcolicIdGenerator.newVariable(variableName, ConcolicIdGenerator.newConcolicInput)
+          val concolicStatement = ConcolicIdGenerator.newVariable(variableName, concolicExpression)
           Reporter.addConstraint(concolicStatement)
         case None =>
       }

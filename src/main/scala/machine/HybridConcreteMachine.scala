@@ -509,6 +509,7 @@ class HybridConcreteMachine[
          System.nanoTime,
          0,
          new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
+    Z3.solve(Reporter.getReport)
     Reporter.printReports()
     result
   }
