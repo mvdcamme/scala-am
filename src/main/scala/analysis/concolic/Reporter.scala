@@ -5,7 +5,7 @@ object Reporter {
   type SymbolicEnvironment = List[SymbolicMemoryScope]
 
   private var symbolicMemory: SymbolicEnvironment = List(Map())
-  private var report: PathConstraint = Nil
+  private var currentReport: PathConstraint = Nil
 
   private var doConcolic: Boolean = false
 
@@ -18,7 +18,7 @@ object Reporter {
   }
 
   def clear(): Unit = {
-    report = Nil
+    currentReport = Nil
     symbolicMemory = List(Map())
   }
 
@@ -43,20 +43,20 @@ object Reporter {
     if (doConcolic) {
       exp match {
         case bc: BranchConstraint =>
-          report :+= bc
+          currentReport :+= bc
         case sc: StatementConstraint =>
           addVariable(sc.originalName, sc.symbolicVariable)
-          report :+= sc
+          currentReport :+= sc
       }
     }
   }
 
   def getReport: PathConstraint = {
-    report
+    currentReport
   }
 
   def printReports(): Unit = {
-    report.foreach( (constraint: ConcolicConstraint) => {
+    currentReport.foreach( (constraint: ConcolicConstraint) => {
       println(constraint.toString)
     })
   }
