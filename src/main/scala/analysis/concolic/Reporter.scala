@@ -1,7 +1,10 @@
 object Reporter {
   type PathConstraint = List[ConcolicConstraint]
 
-  private var symbolicMemory: Map[String, String] = Map()
+  type SymbolicMemoryScope = Map[String, String]
+  type SymbolicEnvironment = List[SymbolicMemoryScope]
+
+  private var symbolicMemory: SymbolicEnvironment = List(Map())
   private var report: PathConstraint = Nil
 
   private var doConcolic: Boolean = false
@@ -16,7 +19,24 @@ object Reporter {
 
   def clear(): Unit = {
     report = Nil
-    symbolicMemory = Map()
+    symbolicMemory = List(Map())
+  }
+
+  def pushEnvironment(): Unit = {
+    if (doConcolic) {
+      symbolicMemory ::= Map()
+    }
+  }
+
+  def popEnvironment(): Unit = {
+    if (doConcolic) {
+      symbolicMemory = symbolicMemory.tail
+    }
+  }
+
+  private def addVariable(originalName: String, symbolicVariable: String): Unit = {
+    val updatedCurrentScope: SymbolicMemoryScope = symbolicMemory.head + (originalName -> symbolicVariable)
+    symbolicMemory = updatedCurrentScope :: symbolicMemory.tail
   }
 
   def addConstraint(exp: ConcolicConstraint): Unit = {
@@ -25,7 +45,7 @@ object Reporter {
         case bc: BranchConstraint =>
           report :+= bc
         case sc: StatementConstraint =>
-          symbolicMemory += sc.originalName -> sc.symbolicVariable
+          addVariable(sc.originalName, sc.symbolicVariable)
           report :+= sc
       }
     }
@@ -42,11 +62,17 @@ object Reporter {
   }
 
   def lookupVariable(name: String): Option[String] = {
-    symbolicMemory.get(name)
-  }
-
-  def addVariable(name: String): Unit = {
-
+    def loopEnv(env: SymbolicEnvironment): Option[String] = env match {
+      case scope :: rest => scope.get(name) match {
+        case Some(symVar) =>
+          Some(symVar)
+        case None =>
+          loopEnv(rest)
+      }
+      case Nil =>
+        None
+    }
+    loopEnv(symbolicMemory)
   }
 
 }
