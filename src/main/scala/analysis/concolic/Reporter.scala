@@ -135,6 +135,8 @@ object Reporter {
   def printTree(): Unit = {
     val optRoott = optRoot
     val optCurrentNodee = optCurrentNode
+    val unexplored = SymbolicTreeHelper.findFirstUnexploredNode(optRoot.get)
+    unexplored
   }
 
 }
