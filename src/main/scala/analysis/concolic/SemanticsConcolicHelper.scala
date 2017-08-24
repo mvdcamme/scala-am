@@ -45,13 +45,13 @@ object SemanticsConcolicHelper {
   def handleDefine(variableName: String, exp: SchemeExp): Unit = {
     if (isRandomExpression(exp)) {
       val concolicStatement = ConcolicIdGenerator.newVariable(variableName, ConcolicIdGenerator.newConcolicInput)
-      Reporter.addConstraint(concolicStatement)
+      Reporter.addStatementConstraint(concolicStatement)
     } else {
       val optionConcolicExpression = generateConcolicExpression(exp)
       optionConcolicExpression match {
         case Some(concolicExpression) =>
           val concolicStatement = ConcolicIdGenerator.newVariable(variableName, concolicExpression)
-          Reporter.addConstraint(concolicStatement)
+          Reporter.addStatementConstraint(concolicStatement)
         case None =>
       }
     }
@@ -63,7 +63,7 @@ object SemanticsConcolicHelper {
       case Some(exp) =>
         val baseConstraint = BranchConstraint(exp, exp)
         val actualConstraint = if (thenBranchTaken) baseConstraint else baseConstraint.negate
-        Reporter.addConstraint(actualConstraint)
+        Reporter.addBranchConstraint(actualConstraint, thenBranchTaken)
       case None =>
     }
   }
