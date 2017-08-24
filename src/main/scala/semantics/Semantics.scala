@@ -259,6 +259,12 @@ case class EffectRelease[Addr: Address](target: Addr) extends Effect[Addr] {
 abstract class Action[Exp: Expression, Abs: JoinLattice, Addr: Address]
 
 /**
+  * An action that does not do anything at all.
+  */
+case class ActionNoOp[Exp: Expression, Abs: JoinLattice, Addr: Address]()
+  extends Action[Exp, Abs, Addr] with ActionReplay[Exp, Abs, Addr]
+
+/**
   * A value is reached by the interpreter. As a result, a continuation will be
   * popped with the given reached value.
   */

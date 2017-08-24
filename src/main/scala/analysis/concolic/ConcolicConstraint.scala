@@ -27,12 +27,18 @@ case class BranchConstraint(exp: ConcolicExpression) extends ConcolicConstraint 
   def getLhs = exp.getLhs
   def getOp = exp.getOp
   def getRhs = exp.getRhs
+
+  def negate: BranchConstraint = {
+    BranchConstraint(exp.negate)
+  }
 }
 
 trait ConcolicExpression {
   def getLhs: Option[String]
   def getOp: Option[String]
   def getRhs: Option[String]
+
+  def negate: ConcolicExpression
 }
 
 case class BinaryConcolicExpression(left: ConcolicAtom, op: String, right: ConcolicAtom) extends ConcolicExpression {
@@ -42,12 +48,27 @@ case class BinaryConcolicExpression(left: ConcolicAtom, op: String, right: Conco
   def getLhs = Some(left.toString)
   def getOp = Some(op)
   def getRhs = Some(right.toString)
+
+  override def negate: ConcolicExpression = op match {
+    case "<" =>
+      BinaryConcolicExpression(left, ">=", right)
+    case "<=" =>
+      BinaryConcolicExpression(left, ">", right)
+    case ">" =>
+      BinaryConcolicExpression(left, "<=", right)
+    case ">=" =>
+      BinaryConcolicExpression(left, "<", right)
+    case "=" =>
+      BinaryConcolicExpression(left, "!=", right)
+  }
 }
 
 trait ConcolicAtom extends ConcolicExpression {
   def getLhs = None
   def getOp = None
   def getRhs = None
+
+  def negate: ConcolicExpression = this
 }
 
 case class ConcolicInt(i: Int) extends ConcolicAtom {

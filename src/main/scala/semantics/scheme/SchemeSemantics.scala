@@ -87,8 +87,15 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         case (lambda@(SchemeLambda(args, body, pos)), env1) =>
           val cloCall = ActionClosureCallR[SchemeExp, Abs, Addr](fexp, lambda, env1)
           if (args.length == argsv.length) {
-            bindArgs(args.zip(argsv), env1, store, t) match {
+            val argsZipped: List[(String, (SchemeExp, Abs))] = args.zip(argsv)
+            // Create a StatementConstraint for each parameter
+            bindArgs(argsZipped, env1, store, t) match {
               case (env2, store, boundAddresses) =>
+                argsZipped.map({
+                  case (varName, (exp, value)) =>
+                    SemanticsConcolicHelper.handleDefine(varName, exp)
+                })
+
                 val defAddr = ActionDefineAddressesPopR[SchemeExp, Abs, Addr](boundAddresses.map(_._1))
                 val timeTick = ActionTimeTickExpR[SchemeExp, Abs, Addr](fexp)
                 val makeActionRs = (edgeAnnotation: ActionReplay[SchemeExp, Abs, Addr]) =>
@@ -265,6 +272,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                env: Environment[Addr],
                store: Store[Addr, Abs],
                t: Time) = e match { // Cases in stepEval shouldn't generate any splits in abstract graph
+    case SchemePopSymEnv(_) =>
+      ???
     case λ: SchemeLambda =>
       val action = ActionReachedValue[SchemeExp, Abs, Addr](sabs.inject[SchemeExp, Addr]((λ, env)), store)
       val actionEdge = List(ActionCreateClosureT[SchemeExp, Abs, Addr](λ, Some(env)))
@@ -272,8 +281,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     case SchemeFuncall(f, args, _) =>
       addPushActionRSet(ActionPush[SchemeExp, Abs, Addr](FrameFuncallOperator(f, args, env), f, env, store))
     case e @ SchemeIf(cond, cons, alt, _) =>
-      SemanticsConcolicHelper.handleIf(e)
-      addPushActionRSet(ActionPush(FrameIf(cons, alt, env), cond, env, store))
+      addPushActionRSet(ActionPush(FrameIf(cons, alt, env, e), cond, env, store))
     case SchemeLet(Nil, body, _) =>
       Set(evalBody(body, env, store))
     case SchemeLet((v, exp) :: bindings, body, _) =>
@@ -383,6 +391,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         funcallArgs(frame.f, frame, frame.fexp, (frame.cur, v) :: frame.args, frame.toeval, frame.env, store, t, v,
           frameGeneratorGenerator)
       case frame: FrameIf[Abs, Addr, Time] =>
+        SemanticsConcolicHelper.handleIf(frame.ifExp, sabs.isTrue(v))
         conditional(v, addEvalActionT(ActionEval(frame.cons, frame.env, store)), addEvalActionT(ActionEval(frame.alt, frame.env, store)))
       case frame: FrameLet[Abs, Addr, Time] => frame.toeval match {
         case Nil =>
@@ -436,8 +445,16 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                            actionEdges)
           case None => simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundVariable(frame.variable)))
         }
-      case frame: FrameBegin[Abs, Addr, Time] =>
-        Set(evalBody(frame.rest, frame.env, store))
+      case frame: FrameBegin[Abs, Addr, Time] => frame.rest match {
+        case List(SchemePopSymEnv(_)) =>
+          Reporter.popEnvironment()
+//          val noOpAction = ActionNoOp[SchemeExp, Abs, Addr]()
+          val action = ActionReachedValue[SchemeExp, Abs, Addr](v, store)
+          val actionR = ActionReachedValueT[SchemeExp, Abs, Addr](v)
+          noEdgeInfosSet(action, actionR)
+        case _ =>
+          Set(evalBody(frame.rest, frame.env, store))
+      }
       case frame: FrameCond[Abs, Addr, Time] =>
         val falseValue = sabs.inject(false)
         conditional(v,

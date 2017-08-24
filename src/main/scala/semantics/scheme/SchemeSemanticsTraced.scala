@@ -167,7 +167,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
       case FrameFuncallOperatorT(fexp, args) =>
         popEnvFromVStack(FrameFuncallOperator(fexp, args, _), vStack)
       case FrameIfT(cons, alt) =>
-        popEnvFromVStack(FrameIf(cons, alt, _), vStack)
+        popEnvFromVStack(FrameIf(cons, alt, _, ???), vStack)
       case FrameLetT(variable, bindings, toeval, body) =>
         /* When pushing a FrameLetT continuation on the continuation stack, we possibly push a value on the value stack,
          * in case we have just evaluated an expression for the let-bindings, and we always push an environment.

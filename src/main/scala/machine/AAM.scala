@@ -59,7 +59,8 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       * Semantics.scala), in order to generate a set of states that succeeds this
       * one.
       */
-    private def integrate(a: KontAddr,
+    private def integrate(oldValue: Option[Abs],
+                          a: KontAddr,
                           actionChanges: Set[EdgeInformation[Exp, Abs, Addr]]): Set[EdgeComponents] =
       actionChanges.map( (edgeInformation) => {
         val actions = edgeInformation.actions
@@ -72,6 +73,10 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         })
         val filters = FilterAnnotations[Exp, Abs, Addr](primCallFilter, edgeInformation.semanticsFilters)
         edgeInformation.action match {
+          case ActionNoOp() =>
+            EdgeComponents(State(ControlKont(oldValue.get), store, kstore, a, time.tick(t)),
+              filters,
+              actions)
           /* When a value is reached, we go to a continuation state */
           case ActionReachedValue(v, store, _) =>
             EdgeComponents(State(ControlKont(v), store, kstore, a, time.tick(t)),
@@ -148,14 +153,14 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       control match {
         /* In a eval state, call the semantic's evaluation method */
         case ControlEval(e, env) =>
-          integrate(a, sem.stepEval(e, env, store, t))
+          integrate(Some(sabs.inject(false)), a, sem.stepEval(e, env, store, t))
         /* In a continuation state, call the semantics' continuation method */
         case ControlKont(v) =>
           kstore
             .lookup(a)
             .flatMap({
               case Kont(frame, next) =>
-                val edgeComponents = integrate(next, sem.stepKont(v, frame, store, t))
+                val edgeComponents = integrate(Some(v), next, sem.stepKont(v, frame, store, t))
                 edgeComponents.map({ case EdgeComponents(succState, filterAnnotations, actions) =>
                   /* If step did not generate any EdgeAnnotation, place a FrameFollowed EdgeAnnotation */
                   val replacedFilters = filterAnnotations +

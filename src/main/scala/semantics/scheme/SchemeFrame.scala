@@ -87,7 +87,7 @@ case class FrameFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Time: Times
 }
 
 case class FrameIf[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
-    cons: SchemeExp, alt: SchemeExp, env: Environment[Addr])
+    cons: SchemeExp, alt: SchemeExp, env: Environment[Addr], ifExp: SchemeIf)
     extends SchemeFrame[Abs, Addr, Time] {
 
   override def savesEnv: Option[Environment[Address]] = Some(env)
@@ -105,7 +105,7 @@ case class FrameIf[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
                                          convertEnv: Environment[Addr] => Environment[Addr],
                                          abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-    FrameIf(cons, alt, convertEnv(env))
+    FrameIf(cons, alt, convertEnv(env), ifExp)
 
   def reaches(valueReaches: Abs => Set[Addr],
               envReaches: Environment[Addr] => Set[Addr],

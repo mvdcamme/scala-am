@@ -7,6 +7,10 @@ trait SchemeExp {
   val pos: Position
 }
 
+case class SchemePopSymEnv(pos: Position) extends SchemeExp {
+  override def toString = "SchemePopSymEnv"
+}
+
 /**
   * Bindings must be of the form ([(varname initExp [stepExp])] ...)
   * Test must be of the form: (exp [exp ...])

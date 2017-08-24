@@ -293,8 +293,7 @@ class HybridConcreteMachine[
     def loop(state: State,
              start: Long,
              count: Int,
-             graph: Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]):
-    ConcreteMachineOutput = {
+             graph: Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]): ConcreteMachineOutput = {
 
       Logger.log(s"stepCount: $stepCount", Logger.N)
       val currentAddresses: Set[HybridAddress.A] = state.store.toSet.map(_._1)
@@ -347,6 +346,9 @@ class HybridConcreteMachine[
               val onlyEdgeInfo = edgeInfos.head
               handleFunctionCalled(onlyEdgeInfo)
               onlyEdgeInfo match {
+                case EdgeInformation(ActionNoOp(), actions, _) =>
+                  // Should never happen
+                  ???
                 case EdgeInformation(ActionReachedValue(v, store2, _), actions, semanticsFilters) =>
                   val machineFilters = Set[MachineFilterAnnotation]()
                   Right(StepSucceeded(State(ControlKont(v), store2, kstore, a, time.tick(t)),
@@ -366,6 +368,7 @@ class HybridConcreteMachine[
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
                 case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
+                  Reporter.pushEnvironment()
                   val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
                   Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
@@ -402,6 +405,13 @@ class HybridConcreteMachine[
                   val onlyEdgeInfo = edgeInfos.head
                   handleFunctionCalled(onlyEdgeInfo)
                   onlyEdgeInfo match {
+                    case EdgeInformation(ActionNoOp(), actions, _) =>
+                      val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
+                                                                        FrameFollowed[ConcreteValue](originFrameCast))
+                      // Reuse old value
+                      Right(StepSucceeded(State(ControlKont(v), store, kstore, a, time.tick(t)),
+                                          FilterAnnotations(machineFilters, Set()),
+                                          actions))
                     case EdgeInformation(ActionReachedValue(v, store2, _), actions, semanticsFilters) =>
                       val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                                                                         FrameFollowed[ConcreteValue](originFrameCast))
@@ -425,6 +435,7 @@ class HybridConcreteMachine[
                                           FilterAnnotations(machineFilters, semanticsFilters),
                                           actions))
                     case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
+                      Reporter.pushEnvironment()
                       val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                                                                         EvaluatingExpression(e),
                                                                         FrameFollowed[ConcreteValue](originFrameCast))
@@ -487,12 +498,14 @@ class HybridConcreteMachine[
 
     def inject(exp: SchemeExp,
                env: Environment[HybridAddress.A],
-               sto: Store[HybridAddress.A, ConcreteValue]): State =
-      State(ControlEval(exp, env),
+               sto: Store[HybridAddress.A, ConcreteValue]): State = {
+      val instrumentedExp = ConcolicInstrumenter.instrument(exp)
+      State(ControlEval(instrumentedExp, env),
             sto,
             KontStore.empty[KontAddr],
             HaltKontAddress,
             time.initial(""))
+    }
 
     val initialState = inject(
       exp,
@@ -510,7 +523,6 @@ class HybridConcreteMachine[
          0,
          new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
     Z3.solve(Reporter.getReport)
-    Reporter.printReports()
     result
   }
 }

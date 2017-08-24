@@ -57,12 +57,13 @@ object SemanticsConcolicHelper {
     }
   }
 
-  def handleIf(exp: SchemeIf): Unit = {
+  def handleIf(exp: SchemeIf, thenBranchTaken: Boolean): Unit = {
     val optionConcolicExpression = generateConcolicExpression(exp.cond)
     optionConcolicExpression match {
       case Some(exp) =>
-        val constraint = BranchConstraint(exp)
-        Reporter.addConstraint(constraint)
+        val baseConstraint = BranchConstraint(exp)
+        val actualConstraint = if (thenBranchTaken) baseConstraint else baseConstraint.negate
+        Reporter.addConstraint(actualConstraint)
       case None =>
     }
   }
