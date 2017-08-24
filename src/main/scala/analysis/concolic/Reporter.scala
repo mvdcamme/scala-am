@@ -16,6 +16,7 @@ object Reporter {
   type Setter = (SymbolicNode) => Unit
 
   private def setRoot(symbolicNode: SymbolicNode): Unit = {
+    println("%%%%%%%%%%%")
     optRoot = Some(symbolicNode)
     optCurrentNode = optRoot
   }
@@ -25,6 +26,12 @@ object Reporter {
     case Some(currentNode) => currentNode match {
       case s: StatementSymbolicNode =>
         (symNode: SymbolicNode) => {
+          // Sanity check
+          s.followUp match {
+            case Some(followUp) =>
+              assert(followUp == symNode)
+            case None =>
+          }
           s.followUp = Some(symNode)
           optCurrentNode = Some(symNode)
         }
@@ -35,9 +42,15 @@ object Reporter {
       case b: BranchSymbolicNode =>
         (symNode: SymbolicNode) => {
           if (thenBranchTaken) {
+            // Sanity check
+            assert(!b.thenBranchTaken && b.thenBranch.isEmpty)
+
             b.thenBranchTaken = true
             b.thenBranch = Some(symNode)
           } else {
+            // Sanity check
+            assert(!b.elseBranchTaken && b.elseBranch.isEmpty)
+
             b.elseBranchTaken = true
             b.elseBranch = Some(symNode)
           }
@@ -53,8 +66,15 @@ object Reporter {
   def disableConcolic(): Unit = {
     doConcolic = false
   }
-  def clear(): Unit = {
+  def isConcolicEnabled: Boolean = doConcolic
+  def clear(isFirstClear: Boolean): Unit = {
+    ConcolicIdGenerator.resetId()
     currentReport = Nil
+    optCurrentNode = optRoot
+    if (!isFirstClear) {
+      // Make integrateNode a no-op: currentNode has already been set, and root doesn't change, so nothing needs to be done (correct???)
+      integrateNode = (_) => {}
+    }
     symbolicMemory = List(Map())
   }
   def pushEnvironment(): Unit = {
@@ -137,6 +157,13 @@ object Reporter {
     val optCurrentNodee = optCurrentNode
     val unexplored = SymbolicTreeHelper.findFirstUnexploredNode(optRoot.get)
     unexplored
+  }
+
+  def findUnexploredNode: Option[List[SymbolicNode]] = optRoot match {
+    case Some(root) =>
+      SymbolicTreeHelper.findFirstUnexploredNode(root)
+    case None =>
+      None
   }
 
 }

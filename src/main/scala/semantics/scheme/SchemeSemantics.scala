@@ -91,7 +91,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             // Create a StatementConstraint for each parameter
             bindArgs(argsZipped, env1, store, t) match {
               case (env2, store, boundAddresses) =>
-                argsZipped.map({
+                argsZipped.foreach({
                   case (varName, (exp, value)) =>
                     SemanticsConcolicHelper.handleDefine(varName, exp)
                 })

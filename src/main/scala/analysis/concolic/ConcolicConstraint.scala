@@ -99,6 +99,10 @@ case class ConcolicInput(id: Int) extends ConcolicAtom {
 object ConcolicIdGenerator {
   private var id: Int = 0
 
+  def resetId(): Unit = {
+    id = 0
+  }
+
   def newConcolicInput: ConcolicInput = {
     val current = id
     id += 1

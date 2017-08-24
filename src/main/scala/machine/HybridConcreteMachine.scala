@@ -507,23 +507,34 @@ class HybridConcreteMachine[
             time.initial(""))
     }
 
+    @scala.annotation.tailrec
+    def loopConcolic(initialState: State, isFirstRun: Boolean): ConcreteMachineOutput = {
+      Reporter.clear(isFirstRun)
+      FunctionsCalledMetric.resetConcreteFunctionsCalled()
+      val result = loop(initialState,
+                        System.nanoTime,
+                        0,
+                        new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
+      Reporter.printTree()
+      val unexploredNode = Reporter.findUnexploredNode
+      unexploredNode match {
+        case Some(path) =>
+          ConcolicSolver.solve(path)
+          loopConcolic(initialState, false)
+        case None =>
+          result
+      }
+    }
+
     val initialState = inject(
       exp,
       Environment.initial[HybridAddress.A](sem.initialEnv),
       Store.initial[HybridAddress.A, ConcreteValue](
         sem.initialStore))
     Reporter.disableConcolic()
-    Reporter.clear()
     pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState, programName)
     Reporter.enableConcolic()
 
-    FunctionsCalledMetric.resetConcreteFunctionsCalled()
-    val result = loop(initialState,
-         System.nanoTime,
-         0,
-         new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
-    Z3.solve(Reporter.getReport)
-    Reporter.printTree()
-    result
+    loopConcolic(initialState, true)
   }
 }

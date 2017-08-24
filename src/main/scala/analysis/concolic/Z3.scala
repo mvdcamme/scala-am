@@ -9,9 +9,9 @@
   * ****************************************************************************
   */
 
-import com.microsoft.z3._
-
 import scala.collection.mutable.{Map => MMap}
+
+import com.microsoft.z3._
 
 object Z3 {
 
@@ -50,7 +50,7 @@ object Z3 {
   }
 
   private def getLhs(constraint: ConcolicConstraint): ConcolicExpression = constraint match {
-    case BranchConstraint(exp) => exp match {
+    case BranchConstraint(exp, _) => exp match {
       case BinaryConcolicExpression(lhs, _, _) =>
         lhs
       case _ =>
@@ -66,7 +66,7 @@ object Z3 {
       exp
   }
   private def getRhs(constraint: ConcolicConstraint): Option[ConcolicExpression] = constraint match {
-    case BranchConstraint(exp) => exp match {
+    case BranchConstraint(exp, _) => exp match {
       case BinaryConcolicExpression(_, _, rhs) =>
         Some(rhs)
       case _ =>
@@ -108,7 +108,7 @@ object Z3 {
     }
   }
 
-  def constraintSolver(ctx: Context, conslist: List[ConcolicConstraint]): MMap[String, IntExpr] = {
+  def constraintSolver(ctx: Context, conslist: List[ConcolicConstraint]): MMap[String, Int] = {
     val exprMap: MMap[String, IntExpr] = scala.collection.mutable.HashMap[String, IntExpr]()
     val solver: Solver = ctx.mkSolver
     println(s"Solving constraints $conslist")
@@ -148,7 +148,7 @@ object Z3 {
                     solver.assert_(ctx.mkEq(exprMap(lhs.toString), ctx.mkDiv(exprMap(lhsExp.toString), exprMap(rhsExp.toString))))
               }
             }
-            case BranchConstraint(exp) => exp match {
+            case BranchConstraint(exp, _) => exp match {
               case i @ ConcolicInt(_) =>
               case i @ ConcolicInput(_) =>
               case s @ ConcolicVariable(symVar, _) =>
@@ -176,17 +176,20 @@ object Z3 {
         val consts = model.getConstDecls
         val decls = model.getDecls
         val funDecls = model.getFuncDecls
+        val result = MMap[String, Int]()
         exprMap.foreach({
           case (someString, exp) =>
             if (someString.contains("i")) {
               println(s"$someString should be ${model.getConstInterp(exp)}")
+              result.put(someString, model.getConstInterp(exp).toString.toInt)
             }
         })
         println(s"Works: exprMap = $exprMap")
+        result
       } else {
         println("Uh oh...")
+        ???
       }
-      exprMap
 
 //      if (exp.getOp.isDefined) {
 //        val op: String = exp.getOp.get
@@ -309,7 +312,7 @@ object Z3 {
 //    }
   }
 
-  def solve(constraints: List[ConcolicConstraint]): Option[MMap[String, IntExpr]] = {
+  def solve(constraints: List[ConcolicConstraint]): Option[MMap[String, Int]] = {
     try {
       val cfg: java.util.HashMap[String, String] = new java.util.HashMap[String, String]
       cfg.put("model", "true")
