@@ -13,6 +13,14 @@ import scala.collection.mutable.{Map => MMap}
 
 import com.microsoft.z3._
 
+trait Z3Result
+
+case class Satisfiable(solution: MMap[String, Int]) extends Z3Result
+case object Unsatisfiable extends Z3Result
+case object SomeZ3Error extends Z3Result
+
+
+
 object Z3 {
 
   class TestFailedException extends Exception("Check FAILED") {
@@ -108,7 +116,7 @@ object Z3 {
     }
   }
 
-  def constraintSolver(ctx: Context, conslist: List[ConcolicConstraint]): MMap[String, Int] = {
+  def constraintSolver(ctx: Context, conslist: List[ConcolicConstraint]): Z3Result = {
     val exprMap: MMap[String, IntExpr] = scala.collection.mutable.HashMap[String, IntExpr]()
     val solver: Solver = ctx.mkSolver
     println(s"Solving constraints $conslist")
@@ -184,9 +192,9 @@ object Z3 {
               result.put(someString, model.getConstInterp(exp).toString.toInt)
             }
         })
-        result
+        Satisfiable(result)
       } else {
-        ???
+        Unsatisfiable
       }
 
 //      if (exp.getOp.isDefined) {
@@ -310,28 +318,28 @@ object Z3 {
 //    }
   }
 
-  def solve(constraints: List[ConcolicConstraint]): Option[MMap[String, Int]] = {
+  def solve(constraints: List[ConcolicConstraint]): Z3Result = {
     try {
       val cfg: java.util.HashMap[String, String] = new java.util.HashMap[String, String]
       cfg.put("model", "true")
       val ctx: Context = new Context(cfg)
       if (constraints.nonEmpty) {
-        Some(constraintSolver(ctx, constraints))
+        constraintSolver(ctx, constraints)
       } else {
-        None
+        SomeZ3Error
       }
     } catch {
       case ex: Z3Exception =>
         System.out.println("TEST CASE FAILED: " + ex.getMessage)
         System.out.println("Stack trace: ")
         ex.printStackTrace(System.out)
-        None
+        SomeZ3Error
       case ex: TestFailedException =>
         System.out.println(s"Error solving constraints $constraints")
-        None
+        SomeZ3Error
       case ex: Exception =>
         System.out.println("Unknown Exception: " + ex.getMessage)
-        None
+        SomeZ3Error
     }
   }
 }

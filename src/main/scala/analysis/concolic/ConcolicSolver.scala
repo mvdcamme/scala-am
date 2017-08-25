@@ -12,11 +12,18 @@ object ConcolicSolver {
 
   def getInputs: Map[String, Int] = latestInputs
 
-  def solve(path: List[SymbolicNode]): Unit = {
+  private def doOneSolveIteration(path: List[SymbolicNode]): Unit = {
     resetInputs()
     val constraints = path.map(_.constraint)
     val solutions = Z3.solve(constraints)
-    latestInputs = solutions.get.toMap[String, Int]
+    solutions match {
+      case Satisfiable(solution) =>
+        latestInputs = solution.toMap[String, Int]
+    }
+  }
+  
+  def solve(path: List[SymbolicNode]): Unit = {
+    doOneSolveIteration(path)
   }
 
   def getInput(inputName: String): Option[Int] = {
