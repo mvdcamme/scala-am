@@ -19,6 +19,7 @@ object SymbolicTreeHelper {
             }
             case b: BranchSymbolicNode =>
               if (!b.thenBranchTaken || !b.elseBranchTaken) {
+                assert(b.thenBranchTaken != b.elseBranchTaken, "Should not happen: one of both branches should be True")
                 Some(path)
               } else {
                 // Both branches have already been explored, so continue looking through both branches to find an unexplored node

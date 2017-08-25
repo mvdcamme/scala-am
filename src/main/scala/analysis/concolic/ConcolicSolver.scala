@@ -23,6 +23,7 @@ object ConcolicSolver {
     }
   }
 
+  @scala.annotation.tailrec
   def solve: Boolean = {
     // optIncompletelyExploredPath refers to a path (if there is one) that ends in a BranchNode with at least one branch
     // that has not yet been explored.
@@ -37,6 +38,7 @@ object ConcolicSolver {
         if (wasSuccessful) {
           true
         } else {
+          nodeWasTried(incompletelyExploredPath.last.asInstanceOf[BranchSymbolicNode])
           solve
         }
       case None =>
@@ -46,6 +48,22 @@ object ConcolicSolver {
 
   def getInput(inputName: String): Option[Int] = {
     latestInputs.get(inputName)
+  }
+
+  /**
+    * To be called when someone negated the given node to create a new, unexplored path, but the resulting path
+    * was considered unsatisfiable.
+    * @param node
+    */
+  private def nodeWasTried(node: BranchSymbolicNode): Unit = {
+    assert(node.thenBranchTaken != node.elseBranchTaken, "Should not happen: one of both branches should be True")
+    if (node.thenBranchTaken) {
+      assert(node.elseBranch.isEmpty)
+      node.elseBranchTaken = true
+    } else {
+      assert(node.thenBranch.isEmpty)
+      node.thenBranchTaken = true
+    }
   }
 
   def negatePath(path: List[SymbolicNode]): List[SymbolicNode] = {
