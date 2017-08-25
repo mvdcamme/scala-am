@@ -35,24 +35,35 @@ object SemanticsConcolicHelper {
     }
   }
 
-  private def isRandomExpression(exp: SchemeExp): Boolean = exp match {
+  def isRandomExpression(exp: SchemeExp): Boolean = exp match {
     case SchemeFuncall(SchemeIdentifier("random", _), _, _) =>
       true
     case _ =>
       false
   }
 
-  def handleDefine(variableName: String, exp: SchemeExp): Unit = {
+  /**
+    *
+    * @param variableName
+    * @param exp
+    * @return If exp is an expression for calling the random-function, the name of the input symbolic variable that
+    *         was defined is returned. Otherwise, returns None.
+    */
+  def handleDefine(variableName: String, exp: SchemeExp): Option[String] = {
     if (isRandomExpression(exp)) {
-      val concolicStatement = ConcolicIdGenerator.newVariable(variableName, ConcolicIdGenerator.newConcolicInput)
+      val inputVariable = ConcolicIdGenerator.newConcolicInput
+      val concolicStatement = ConcolicIdGenerator.newVariable(variableName, inputVariable)
       Reporter.addStatementConstraint(concolicStatement)
+      Some(inputVariable.toString)
     } else {
       val optionConcolicExpression = generateConcolicExpression(exp)
       optionConcolicExpression match {
         case Some(concolicExpression) =>
           val concolicStatement = ConcolicIdGenerator.newVariable(variableName, concolicExpression)
           Reporter.addStatementConstraint(concolicStatement)
+          None
         case None =>
+          None
       }
     }
   }

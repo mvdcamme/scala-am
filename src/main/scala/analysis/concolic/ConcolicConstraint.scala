@@ -29,14 +29,14 @@ case class StatementConstraint(symbolicVariable: String, exp: ConcolicExpression
   */
 case class BranchConstraint(trueExp: ConcolicExpression, originalExp: ConcolicExpression) extends ConcolicConstraint {
   override def toString: String = {
-    trueExp.toString
+    originalExp.toString
   }
   def getLhs = trueExp.getLhs
   def getOp = trueExp.getOp
   def getRhs = trueExp.getRhs
 
   def negate: BranchConstraint = {
-    BranchConstraint(trueExp.negate, originalExp)
+    BranchConstraint(trueExp.negate, originalExp.negate)
   }
 }
 

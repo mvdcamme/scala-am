@@ -16,7 +16,6 @@ object Reporter {
   type Setter = (SymbolicNode) => Unit
 
   private def setRoot(symbolicNode: SymbolicNode): Unit = {
-    println("%%%%%%%%%%%")
     optRoot = Some(symbolicNode)
     optCurrentNode = optRoot
   }
@@ -26,14 +25,25 @@ object Reporter {
     case Some(currentNode) => currentNode match {
       case s: StatementSymbolicNode =>
         (symNode: SymbolicNode) => {
-          // Sanity check
+          // Sanity check: if s.followUp is already defined, ONLY set the optCurrentNode variable?
+//          s.followUp match {
+//            case Some(followUp) =>
+//              if (followUp != symNode) {
+//                println("error")
+//                assert(false)
+//              }
+//            case None =>
+//          }
           s.followUp match {
             case Some(followUp) =>
-              assert(followUp == symNode)
+              s.followUp = Some(followUp.combine(symNode))
             case None =>
+              s.followUp = Some(symNode)
           }
-          s.followUp = Some(symNode)
-          optCurrentNode = Some(symNode)
+          // TODO if s.followUp.isDefined, should try to _combine_ two nodes?
+          // if symNode is a BranchNode, with only else-branch taken, and s.followUp is the same BranchNode (from previous iteration)
+          // with only the else-branch taken, s.followUp should now refer to a BranchNode with both branches taken?
+          optCurrentNode =  s.followUp
         }
     }
   }
@@ -42,19 +52,24 @@ object Reporter {
       case b: BranchSymbolicNode =>
         (symNode: SymbolicNode) => {
           if (thenBranchTaken) {
-            // Sanity check
-            assert(!b.thenBranchTaken && b.thenBranch.isEmpty)
+            // Sanity check: if b.thenBranch is already defined, ONLY set the optCurrentNode variable?
+//            assert(!b.thenBranchTaken && b.thenBranch.isEmpty)
 
             b.thenBranchTaken = true
-            b.thenBranch = Some(symNode)
+            if (b.thenBranch.isEmpty) {
+              b.thenBranch = Some(symNode)
+            }
+            optCurrentNode = b.thenBranch
           } else {
-            // Sanity check
-            assert(!b.elseBranchTaken && b.elseBranch.isEmpty)
+            // Sanity check: if b.elseBranchTaken is already defined, ONLY set the optCurrentNode variable?
+//            assert(!b.elseBranchTaken && b.elseBranch.isEmpty)
 
             b.elseBranchTaken = true
-            b.elseBranch = Some(symNode)
+            if (b.elseBranch.isEmpty) {
+              b.elseBranch = Some(symNode)
+            }
+            optCurrentNode = b.elseBranch
           }
-          optCurrentNode = Some(symNode)
         }
     }
   }

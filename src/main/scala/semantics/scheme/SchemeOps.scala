@@ -56,6 +56,6 @@ object SchemeOps {
       /* same sign, same behaviour */
       n1 % n2
     }
-  def random(n: Int): Int = scala.math.abs(scala.util.Random.nextInt % n)
-  def random(n: Float): Float = scala.math.abs(scala.util.Random.nextFloat % n)
+  def random(n: Int): Int = scala.math.abs(scala.util.Random.nextInt % n) + 1 //TODO MV Added + 1 to avoid hitting 0
+  def random(n: Float): Float = scala.math.abs(scala.util.Random.nextFloat % n) + 1 //TODO MV Added + 1 to avoid hitting 0
 }

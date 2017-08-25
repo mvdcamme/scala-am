@@ -510,16 +510,22 @@ class HybridConcreteMachine[
     @scala.annotation.tailrec
     def loopConcolic(initialState: State, isFirstRun: Boolean): ConcreteMachineOutput = {
       Reporter.clear(isFirstRun)
+      println(s"CONCOLIC ITERATION ${ConcolicSolver.getInputs}")
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
       val result = loop(initialState,
                         System.nanoTime,
                         0,
                         new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
-      Reporter.printTree()
-      val unexploredNode = Reporter.findUnexploredNode
-      unexploredNode match {
+      // incompletelyExploredPath refers to a path (if there is one) that ends in a BranchNode with at least one branch
+      // that has not yet been explored.
+      val incompletelyExploredPath = Reporter.findUnexploredNode
+      incompletelyExploredPath match {
         case Some(path) =>
-          ConcolicSolver.solve(path)
+          Reporter.printTree()
+          println(s"Reporter recorded path ${Reporter.getReport}")
+          val unexploredPath = ConcolicSolver.negatePath(path)
+          println(s"Unexplored path would be ${unexploredPath.map(_.constraint)}")
+          ConcolicSolver.solve(unexploredPath)
           loopConcolic(initialState, false)
         case None =>
           result

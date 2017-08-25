@@ -85,7 +85,8 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
                                                              frame.bindings.map((tuple) => (tuple._1, convertValue(tuple._2))),
                                                              frame.toeval,
                                                              frame.body,
-                                                             frame.env)
+                                                             frame.env,
+                                                             frame.optInputVariable)
     case _ => frame
   }
 
@@ -150,7 +151,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
       case FrameDefineT(variable) =>
         /* A FrameDefineT is not handled by these semantics:
          * neither the vStack nor the environment therefore have to be updated */
-        (Some(FrameDefine(variable, ρ)), vStack, ρ)
+        (Some(FrameDefine(variable, ρ, None)), vStack, ρ)
       case FrameFunBodyT(body, toeval) =>
         if (toeval.isEmpty) {
           popEmptyFrameBeginFromVStack(vStack)
@@ -176,7 +177,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
         val n = bindings.length
         val generateFrameFun = (ρ: Environment[Addr], values: List[Abs]) => {
           val newBindings = bindings.zip(values)
-          FrameLet(variable, newBindings, toeval, body, ρ)
+          FrameLet(variable, newBindings, toeval, body, ρ, None)
         }
         popEnvAndValuesFromVStack(generateFrameFun, n, vStack)
       case FrameLetrecT(variable, bindings, body) =>
@@ -184,13 +185,13 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
         val updatedBindings = bindings.map({
           case (variable, exp) => (ρ.lookup(variable).get, exp)
         })
-        popEnvFromVStack(FrameLetrec(addr, updatedBindings, body, _),
+        popEnvFromVStack(FrameLetrec(addr, updatedBindings, body, _, None),
                          vStack)
       case FrameLetStarT(variable, bindings, body) =>
         /* When evaluating a FrameLetStarT continuation, we also push the value v on the stack (similar to the case for
          * FrameLetT, but this is immediately followed by an ActionExtendEnv which pops this value back from the stack.
          * There are therefore never any values for the let* bindings on the value stack. */
-        popEnvFromVStack(FrameLetStar(variable, bindings, body, _),
+        popEnvFromVStack(FrameLetStar(variable, bindings, body, _, None),
                          vStack)
       case FrameSetT(variable) =>
         popEnvFromVStack(FrameSet(variable, _), vStack)

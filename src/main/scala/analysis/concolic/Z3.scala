@@ -184,10 +184,8 @@ object Z3 {
               result.put(someString, model.getConstInterp(exp).toString.toInt)
             }
         })
-        println(s"Works: exprMap = $exprMap")
         result
       } else {
-        println("Uh oh...")
         ???
       }
 
