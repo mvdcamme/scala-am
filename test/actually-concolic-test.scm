@@ -17,7 +17,7 @@
   (display a)
   (display b)
   (if (< a 0)
-      (if (< a 10)
+      (if (< b 10)
           'error
           'ok1)
       'ok2))
