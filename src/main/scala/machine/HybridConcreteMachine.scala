@@ -516,19 +516,11 @@ class HybridConcreteMachine[
                         System.nanoTime,
                         0,
                         new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
-      // incompletelyExploredPath refers to a path (if there is one) that ends in a BranchNode with at least one branch
-      // that has not yet been explored.
-      val incompletelyExploredPath = Reporter.findUnexploredNode
-      incompletelyExploredPath match {
-        case Some(path) =>
-          Reporter.printTree()
-          println(s"Reporter recorded path ${Reporter.getReport}")
-          val unexploredPath = ConcolicSolver.negatePath(path)
-          println(s"Unexplored path would be ${unexploredPath.map(_.constraint)}")
-          ConcolicSolver.solve(unexploredPath)
-          loopConcolic(initialState, false)
-        case None =>
-          result
+      val shouldContinue = ConcolicSolver.solve
+      if (shouldContinue) {
+        loopConcolic(initialState, false)
+      } else {
+        result
       }
     }
 
