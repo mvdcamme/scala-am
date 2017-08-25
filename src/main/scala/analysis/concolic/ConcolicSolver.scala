@@ -30,8 +30,6 @@ object ConcolicSolver {
     val optIncompletelyExploredPath = Reporter.findUnexploredNode
     optIncompletelyExploredPath match {
       case Some(incompletelyExploredPath) =>
-        Reporter.printTree()
-        println(s"Reporter recorded path ${Reporter.getReport}")
         val unexploredPath = ConcolicSolver.negatePath(incompletelyExploredPath)
         println(s"Unexplored path would be ${unexploredPath.map(_.constraint)}")
         val wasSuccessful = doOneSolveIteration(unexploredPath)

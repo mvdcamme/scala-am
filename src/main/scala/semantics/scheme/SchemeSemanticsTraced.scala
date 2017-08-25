@@ -183,7 +183,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
       case FrameLetrecT(variable, bindings, body) =>
         val addr = ρ.lookup(variable).get
         val updatedBindings = bindings.map({
-          case (variable, exp) => (ρ.lookup(variable).get, exp)
+          case (variable, exp) => (ρ.lookup(variable).get, variable, exp)
         })
         popEnvFromVStack(FrameLetrec(addr, updatedBindings, body, _, None),
                          vStack)

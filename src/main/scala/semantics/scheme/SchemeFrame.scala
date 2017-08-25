@@ -168,7 +168,7 @@ case class FrameLetStar[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
 
 case class FrameLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     addr: Addr,
-    bindings: List[(Addr, SchemeExp)],
+    bindings: List[(Addr, String, SchemeExp)],
     body: List[SchemeExp],
     env: Environment[Addr],
     optInputVariable: Option[String])
@@ -182,7 +182,7 @@ case class FrameLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]()
     FrameLetrec(addressConverter.convertAddress(addr.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr],
                 bindings.map( (binding) =>
-                  (addressConverter.convertAddress(binding._1.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr], binding._2)),
+                  (addressConverter.convertAddress(binding._1.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr], binding._2, binding._3)),
                 body,
                 convertEnv(env),
                 optInputVariable)

@@ -516,6 +516,8 @@ class HybridConcreteMachine[
                         System.nanoTime,
                         0,
                         new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
+      Reporter.printTree()
+      println(s"Reporter recorded path ${Reporter.getReport}")
       val shouldContinue = ConcolicSolver.solve
       if (shouldContinue) {
         loopConcolic(initialState, false)

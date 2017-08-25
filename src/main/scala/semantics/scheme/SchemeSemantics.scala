@@ -310,6 +310,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       type X = (ValuesToUpdate, (String, Addr))
       val variables = v :: bindings.map(_._1)
       val addresses = variables.map(v => addr.variable(v, abs.bottom, t))
+      val addressesVariables: List[(Addr, String)] = addresses.zip(variables)
       val initial = ValuesToUpdate(env, store, Nil)
       val ValuesToUpdate(env1, store1, stateChanges) = variables
         .zip(addresses)
@@ -319,7 +320,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                          store.extend(a, abs.bottom),
                          StoreExtendSemantics[Abs, Addr](a, abs.bottom) :: storeChanges)
       })
-      val action = ActionPush(FrameLetrec(addresses.head, addresses.tail.zip(bindings.map(_._2)), body, env1, optInputVariable),
+      val action = ActionPush(FrameLetrec(addresses.head, addressesVariables.tail.zip(bindings.map(_._2)).map( (binding) => (binding._1._1, binding._1._2, binding._2) ), body, env1, optInputVariable),
                               exp, env1, store1)
       val actionEdge = ActionAllocAddressesR[SchemeExp, Abs, Addr](addresses)
       noEdgeInfosSet(action, List(actionEdge, ActionEvalPushR(exp, action.env, action.frame)))
@@ -363,9 +364,11 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             case Some(v) =>
               val action = ActionReachedValue[SchemeExp, Abs, Addr](v, store, Set(EffectReadVariable(a)))
               noEdgeInfosSet(action, List(ActionLookupAddressR[SchemeExp, Abs, Addr](a)))
-            case None => simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundAddress(a.toString)))
+            case None =>
+              simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundAddress(a.toString)))
           }
-        case None => simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundVariable(name)))
+        case None =>
+          simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundVariable(name)))
       }
     case SchemeQuoted(quoted, _) =>
       evalQuoted(quoted, store, t) match {
@@ -455,8 +458,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           // If frame defines an input variable, and if a value is bound to this input variable, use that bound value
           val EdgeInformation(action, actionEdges, edgeInfos) = evalBody(frame.body, frame.env, store.update(frame.addr, concolicV))
           Set(EdgeInformation(action, ActionSetAddressR[SchemeExp, Abs, Addr](frame.addr) :: actionEdges, edgeInfos))
-        case (a1, exp) :: rest =>
-          val optInputVariable = SemanticsConcolicHelper.handleDefine(???, exp)
+        case (a1, varName, exp) :: rest =>
+          val optInputVariable = SemanticsConcolicHelper.handleDefine(varName, exp)
           val action = ActionPush(FrameLetrec(a1, rest, frame.body, frame.env, optInputVariable), exp, frame.env, store.update(frame.addr, concolicV))
           val actionEdges = List[ActionReplay[SchemeExp, Abs, Addr]](ActionSetAddressR(frame.addr),
                                                                      ActionEvalPushR(exp, action.env, action.frame))
@@ -470,7 +473,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                                                                        ActionReachedValueT(valueFalse))
             noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueFalse, store.update(a, v), Set(EffectWriteVariable(a))),
                            actionEdges)
-          case None => simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundVariable(frame.variable)))
+          case None =>
+            simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundVariable(frame.variable)))
         }
       case frame: FrameBegin[Abs, Addr, Time] => frame.rest match {
         case List(SchemePopSymEnv(_)) =>
