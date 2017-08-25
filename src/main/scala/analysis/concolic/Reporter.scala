@@ -56,8 +56,12 @@ object Reporter {
 //            assert(!b.thenBranchTaken && b.thenBranch.isEmpty)
 
             b.thenBranchTaken = true
-            if (b.thenBranch.isEmpty) {
-              b.thenBranch = Some(symNode)
+            b.thenBranch match {
+              case Some(thenBranch) =>
+                val combinedNode = thenBranch.combine(symNode)
+                b.thenBranch = Some(combinedNode)
+              case None =>
+                b.thenBranch = Some(symNode)
             }
             optCurrentNode = b.thenBranch
           } else {
@@ -65,8 +69,12 @@ object Reporter {
 //            assert(!b.elseBranchTaken && b.elseBranch.isEmpty)
 
             b.elseBranchTaken = true
-            if (b.elseBranch.isEmpty) {
-              b.elseBranch = Some(symNode)
+            b.elseBranch match {
+              case Some(elseBranch) =>
+                val combinedNode = elseBranch.combine(symNode)
+                b.elseBranch = Some(combinedNode)
+              case None =>
+                b.elseBranch = Some(symNode)
             }
             optCurrentNode = b.elseBranch
           }

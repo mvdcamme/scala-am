@@ -72,9 +72,9 @@ object SemanticsConcolicHelper {
     val optionConcolicExpression = generateConcolicExpression(exp.cond)
     optionConcolicExpression match {
       case Some(exp) =>
-        val baseConstraint = BranchConstraint(exp, exp)
-        val actualConstraint = if (thenBranchTaken) baseConstraint else baseConstraint.negate
-        Reporter.addBranchConstraint(actualConstraint, thenBranchTaken)
+        val baseConstraint = BranchConstraint(exp)
+//        val actualConstraint = if (thenBranchTaken) baseConstraint else baseConstraint.negate
+        Reporter.addBranchConstraint(baseConstraint, thenBranchTaken)
       case None =>
     }
   }

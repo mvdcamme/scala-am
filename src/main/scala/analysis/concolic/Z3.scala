@@ -50,7 +50,7 @@ object Z3 {
   }
 
   private def getLhs(constraint: ConcolicConstraint): ConcolicExpression = constraint match {
-    case BranchConstraint(exp, _) => exp match {
+    case BranchConstraint(exp) => exp match {
       case BinaryConcolicExpression(lhs, _, _) =>
         lhs
       case _ =>
@@ -66,7 +66,7 @@ object Z3 {
       exp
   }
   private def getRhs(constraint: ConcolicConstraint): Option[ConcolicExpression] = constraint match {
-    case BranchConstraint(exp, _) => exp match {
+    case BranchConstraint(exp) => exp match {
       case BinaryConcolicExpression(_, _, rhs) =>
         Some(rhs)
       case _ =>
@@ -148,7 +148,7 @@ object Z3 {
                     solver.assert_(ctx.mkEq(exprMap(lhs.toString), ctx.mkDiv(exprMap(lhsExp.toString), exprMap(rhsExp.toString))))
               }
             }
-            case BranchConstraint(exp, _) => exp match {
+            case BranchConstraint(exp) => exp match {
               case i @ ConcolicInt(_) =>
               case i @ ConcolicInput(_) =>
               case s @ ConcolicVariable(symVar, _) =>

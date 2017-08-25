@@ -4,9 +4,9 @@ object SymbolicTreeHelper {
 
   def findFirstUnexploredNode(symbolicNode: SymbolicNode): Option[List[SymbolicNode]] = {
     def loop(queue: Queue[List[SymbolicNode]]): Option[List[SymbolicNode]] = {
-      val tailQueue = queue.tail
       queue.headOption match {
         case Some(path) =>
+          val tailQueue = queue.tail
           val latestNode = path.last
           latestNode match {
             case s: StatementSymbolicNode => s.followUp match {

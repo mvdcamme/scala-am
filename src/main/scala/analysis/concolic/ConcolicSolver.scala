@@ -26,11 +26,10 @@ object ConcolicSolver {
   def negatePath(path: List[SymbolicNode]): List[SymbolicNode] = {
     val lastNode = path.last.asInstanceOf[BranchSymbolicNode] // last node of the path should always be a BranchSymbolicNode
     if (!lastNode.thenBranchTaken) {
-      // Explore then-branch
-      val negatedBranchConstraint = lastNode.branch.negate
-      val negatedBranchNode = lastNode.copy(branch = negatedBranchConstraint)
-      path.init :+ negatedBranchNode
+      // Explore then-branch: don't have to do anything:
+      path
     } else {
+      val lastNode = path.last.asInstanceOf[BranchSymbolicNode] // last node of the path should always be a BranchSymbolicNode
       // Explore else-branch
       val negatedBranchConstraint = lastNode.branch.negate
       val negatedBranchNode = lastNode.copy(branch = negatedBranchConstraint)

@@ -22,21 +22,21 @@ case class StatementConstraint(symbolicVariable: String, exp: ConcolicExpression
 
 /**
   *
-  * @param trueExp The concolic expression that was true when this constraint was generated.
-  * @param originalExp The original expression corresponding to the if-expression that was generated. This expression
+  * @par trueExp The concolic expression that was true when this constraint was generated.
+  * @par originalExp The original expression corresponding to the if-expression that was generated. This expression
   *                    may or may not have evaluated to #t. If it did, this expression is equal to trueExp. Otherwise,
   *                    trueExp is the negated form of this expression.
   */
-case class BranchConstraint(trueExp: ConcolicExpression, originalExp: ConcolicExpression) extends ConcolicConstraint {
+case class BranchConstraint(exp: ConcolicExpression) extends ConcolicConstraint {
   override def toString: String = {
-    originalExp.toString
+    exp.toString
   }
-  def getLhs = trueExp.getLhs
-  def getOp = trueExp.getOp
-  def getRhs = trueExp.getRhs
+  def getLhs = exp.getLhs
+  def getOp = exp.getOp
+  def getRhs = exp.getRhs
 
   def negate: BranchConstraint = {
-    BranchConstraint(trueExp.negate, originalExp.negate)
+    BranchConstraint(exp.negate)
   }
 }
 
