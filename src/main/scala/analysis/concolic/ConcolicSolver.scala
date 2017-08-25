@@ -1,4 +1,4 @@
-import scala.collection.mutable.{Map => MMap}
+import SymbolicTreeHelper.TreePath
 
 object ConcolicSolver {
 
@@ -10,9 +10,8 @@ object ConcolicSolver {
 
   def getInputs: Map[String, Int] = latestInputs
 
-  private def doOneSolveIteration(path: List[SymbolicNode]): Boolean = {
+  private def doOneSolveIteration(constraints: List[ConcolicConstraint]): Boolean = {
     resetInputs()
-    val constraints = path.map(_.constraint)
     val solutions = Z3.solve(constraints)
     solutions match {
       case Satisfiable(solution) =>
@@ -27,16 +26,16 @@ object ConcolicSolver {
   def solve: Boolean = {
     // optIncompletelyExploredPath refers to a path (if there is one) that ends in a BranchNode with at least one branch
     // that has not yet been explored.
-    val optIncompletelyExploredPath = Reporter.findUnexploredNode
+    val optIncompletelyExploredPath: Option[TreePath] = Reporter.findUnexploredNode
     optIncompletelyExploredPath match {
       case Some(incompletelyExploredPath) =>
-        val unexploredPath = ConcolicSolver.negatePath(incompletelyExploredPath)
-        println(s"Unexplored path would be ${unexploredPath.map(_.constraint)}")
-        val wasSuccessful = doOneSolveIteration(unexploredPath)
+        val unexploredPath: TreePath = ConcolicSolver.negatePath(incompletelyExploredPath)
+        println(s"Unexplored path would be ${unexploredPath.seen}")
+        val wasSuccessful = doOneSolveIteration(unexploredPath.seen)
         if (wasSuccessful) {
           true
         } else {
-          nodeWasTried(incompletelyExploredPath.last.asInstanceOf[BranchSymbolicNode])
+          nodeWasTried(incompletelyExploredPath.last._1.asInstanceOf[BranchSymbolicNode])
           solve
         }
       case None =>
@@ -64,13 +63,12 @@ object ConcolicSolver {
     }
   }
 
-  def negatePath(path: List[SymbolicNode]): List[SymbolicNode] = {
-    val lastNode = path.last.asInstanceOf[BranchSymbolicNode] // last node of the path should always be a BranchSymbolicNode
+  def negatePath(path: TreePath): TreePath = {
+    val lastNode = path.last._1.asInstanceOf[BranchSymbolicNode] // last node of the path should always be a BranchSymbolicNode
     if (!lastNode.thenBranchTaken) {
       // Explore then-branch: don't have to do anything:
       path
     } else {
-      val lastNode = path.last.asInstanceOf[BranchSymbolicNode] // last node of the path should always be a BranchSymbolicNode
       // Explore else-branch
       val negatedBranchConstraint = lastNode.branch.negate
       val negatedBranchNode = lastNode.copy(branch = negatedBranchConstraint)

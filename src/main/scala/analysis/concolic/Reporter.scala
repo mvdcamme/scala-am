@@ -1,3 +1,5 @@
+import SymbolicTreeHelper.TreePath
+
 object Reporter {
   type PathConstraint = List[ConcolicConstraint]
 
@@ -182,7 +184,7 @@ object Reporter {
     unexplored
   }
 
-  def findUnexploredNode: Option[List[SymbolicNode]] = optRoot match {
+  def findUnexploredNode: Option[TreePath] = optRoot match {
     case Some(root) =>
       SymbolicTreeHelper.findFirstUnexploredNode(root)
     case None =>
