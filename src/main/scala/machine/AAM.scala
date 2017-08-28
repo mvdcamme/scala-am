@@ -41,6 +41,11 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     extends StateTrait[Exp, Abs, Addr, Time] {
     override def toString = control.toString
 
+    def isErrorState: Boolean = control match {
+      case _: ControlError => true
+      case _ => false
+    }
+
     /**
       * Checks whether a states subsumes another, i.e., if it is "bigger". This
       * is used to perform subsumption checking when exploring the state space,

@@ -14,6 +14,8 @@ class HybridConcreteMachine[
 
   var stepCount: Integer = 0
 
+  val errorPathDetector = new ErrorPathDetector[SchemeExp, PAbs, HybridAddress.A, HybridTimestamp.T](pointsToAnalysisLauncher.aam)
+
   trait ConcreteMachineOutput extends Output[ConcreteConcreteLattice.L] {
     def toDotFile(path: String) =
       println("Not generating graph for ConcreteMachine")
@@ -295,15 +297,13 @@ class HybridConcreteMachine[
              count: Int,
              graph: Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]): ConcreteMachineOutput = {
 
-      Logger.log(s"stepCount: $stepCount", Logger.N)
+      Logger.log(s"stepCount: $stepCount", Logger.U)
       val currentAddresses: Set[HybridAddress.A] = state.store.toSet.map(_._1)
       analysisFlags.runTimeAnalysisInterval match {
         case NoRunTimeAnalysis =>
         case RunTimeAnalysisEvery(analysisInterval) =>
           if (stepCount % analysisInterval == 0) {
-            val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
-            val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
-            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, convertedCurrentAddresses)
+            startRunTimeAnalysis(programName, state)
           }
       }
       analysisFlags.incrementalAnalysisInterval match {
@@ -509,6 +509,17 @@ class HybridConcreteMachine[
 
     @scala.annotation.tailrec
     def loopConcolic(initialState: State, isFirstRun: Boolean): ConcreteMachineOutput = {
+      Reporter.disableConcolic()
+      val analysisResult = startRunTimeAnalysis(programName, initialState)
+      Reporter.enableConcolic()
+      analysisResult match {
+        case outputGraph: AnalysisOutputGraph[SchemeExp, PAbs, HybridAddress.A, errorPathDetector.aam.State] =>
+          val errorPaths = errorPathDetector.detectErrors(outputGraph.output.graph)
+          Logger.log(s"### Concolic got error paths $errorPaths", Logger.U)
+        case result =>
+          Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
+      }
+
       Reporter.clear(isFirstRun)
       println(s"CONCOLIC ITERATION ${ConcolicSolver.getInputs}")
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
@@ -536,5 +547,15 @@ class HybridConcreteMachine[
     Reporter.enableConcolic()
 
     loopConcolic(initialState, true)
+  }
+
+  private def startRunTimeAnalysis(
+    programName: String,
+    state: State
+  ): StaticAnalysisResult = {
+    val currentAddresses: Set[HybridAddress.A] = state.store.toSet.map(_._1)
+    val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
+    val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
+    pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, convertedCurrentAddresses)
   }
 }

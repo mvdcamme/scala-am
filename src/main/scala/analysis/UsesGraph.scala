@@ -117,6 +117,9 @@ case class EdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address
 
 object EdgeAnnotation {
 
+  def dummyEdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address] =
+    EdgeAnnotation[Exp, Abs, Addr](FilterAnnotations[Exp, Abs, Addr](Set(), Set()), Nil)
+
   def subsumptionEdge[Exp : Expression, Abs : IsSchemeLattice, Addr : Address]: EdgeAnnotation[Exp, Abs, Addr] = {
     assert(GlobalFlags.AAM_CHECK_SUBSUMES, "Should not be called if flag is turned off")
     EdgeAnnotation(FilterAnnotations(Set(StateSubsumed), Set()), Nil)
