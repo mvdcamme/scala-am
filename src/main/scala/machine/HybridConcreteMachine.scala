@@ -16,6 +16,7 @@ class HybridConcreteMachine[
 
   val errorPathDetector = new ErrorPathDetector[SchemeExp, PAbs, HybridAddress.A, HybridTimestamp.T](pointsToAnalysisLauncher.aam)
 
+
   trait ConcreteMachineOutput extends Output[ConcreteConcreteLattice.L] {
     def toDotFile(path: String) =
       println("Not generating graph for ConcreteMachine")
@@ -512,16 +513,10 @@ class HybridConcreteMachine[
       Reporter.disableConcolic()
       val analysisResult = startRunTimeAnalysis(programName, initialState)
       Reporter.enableConcolic()
-      analysisResult match {
-        case outputGraph: AnalysisOutputGraph[SchemeExp, PAbs, HybridAddress.A, errorPathDetector.aam.State] =>
-          val errorPaths = errorPathDetector.detectErrors(outputGraph.output.graph)
-          Logger.log(s"### Concolic got error paths $errorPaths", Logger.U)
-        case result =>
-          Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
-      }
+      ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult)
 
       Reporter.clear(isFirstRun)
-      println(s"CONCOLIC ITERATION ${ConcolicSolver.getInputs}")
+      Logger.log(s"CONCOLIC ITERATION ${ConcolicSolver.getInputs}", Logger.U)
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
       val result = loop(initialState,
                         System.nanoTime,

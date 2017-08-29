@@ -1,8 +1,6 @@
 class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
   (val aam: AAM[Exp, Abs, Addr, Time]) {
 
-  type aaam = aam.type
-
   type RelevantGraph =  Graph[aam.State, EdgeAnnotation[Exp, Abs, Addr]]
   type Path = List[Binding]
 
@@ -10,7 +8,7 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
     override def toString: String = state.toString
   }
 
-  def detectErrors(graph: RelevantGraph): List[Path] = {
+  def detectErrors(graph: RelevantGraph): List[List[SemanticsFilterAnnotation]] = {
 
     @scala.annotation.tailrec
     def loop(visited: Set[aam.State], worklist: List[Path], acc: List[Path]): List[Path] = worklist.headOption match {
@@ -36,8 +34,22 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
         Nil
       case Some(root) =>
         val start = List(Binding(EdgeAnnotation.dummyEdgeAnnotation, root))
-        loop(Set(), List(start), Nil)
+        val errorPaths = loop(Set(), List(start), Nil)
+        errorPaths.map(filterBranchesTaken)
     }
+  }
+
+  private def filterBranchesTaken(path: Path): List[SemanticsFilterAnnotation] = {
+    path.flatMap({
+      case Binding(edge, _) =>
+        if (edge.filters.semanticsFilters.contains(ThenBranchTaken)) {
+          List(ThenBranchTaken)
+        } else if (edge.filters.semanticsFilters.contains(ElseBranchTaken)) {
+          List(ElseBranchTaken)
+        } else {
+          List()
+        }
+    })
   }
 
 }

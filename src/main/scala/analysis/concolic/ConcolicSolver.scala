@@ -23,13 +23,13 @@ object ConcolicSolver {
   }
 
   @scala.annotation.tailrec
-  def solve: Boolean = {
+  final def solve: Boolean = {
     // optIncompletelyExploredPath refers to a path (if there is one) that ends in a BranchNode with at least one branch
     // that has not yet been explored.
     val optIncompletelyExploredPath: Option[TreePath] = Reporter.findUnexploredNode
     optIncompletelyExploredPath match {
       case Some(incompletelyExploredPath) =>
-        val unexploredPath: TreePath = ConcolicSolver.negatePath(incompletelyExploredPath)
+        val unexploredPath: TreePath = negatePath(incompletelyExploredPath)
         println(s"Unexplored path would be ${unexploredPath.seen}")
         val wasSuccessful = doOneSolveIteration(unexploredPath.seen)
         if (wasSuccessful) {
@@ -74,6 +74,16 @@ object ConcolicSolver {
       val negatedBranchNode = lastNode.copy(branch = negatedBranchConstraint)
       path.init :+ negatedBranchNode
     }
+  }
+
+  def handleAnalysisResult[Abs: IsSchemeLattice]
+    (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
+    (result: StaticAnalysisResult): Unit = result match {
+    case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
+      val errorPaths = errorPathDetector.detectErrors(outputGraph.output.graph)
+      Logger.log(s"### Concolic got error paths $errorPaths", Logger.U)
+    case result =>
+      Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
   }
 
 }
