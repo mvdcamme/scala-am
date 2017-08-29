@@ -511,9 +511,7 @@ class HybridConcreteMachine[
     @scala.annotation.tailrec
     def loopConcolic(initialState: State, nrOfRuns: Int): ConcreteMachineOutput = {
       val analysisResult = startRunTimeAnalysis(programName, initialState)
-      if (nrOfRuns == 2) {
-        ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult)
-      }
+      ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult)
 
       Reporter.clear(nrOfRuns < 2)
       Logger.log(s"CONCOLIC ITERATION ${ConcolicSolver.getInputs}", Logger.U)
@@ -538,7 +536,7 @@ class HybridConcreteMachine[
       Store.initial[HybridAddress.A, ConcreteValue](
         sem.initialStore))
     Reporter.disableConcolic()
-    val analysisResult = pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState, programName)
+    pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState, programName)
     Reporter.enableConcolic()
 
     loopConcolic(initialState, 1)

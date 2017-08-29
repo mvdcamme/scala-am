@@ -190,7 +190,12 @@ object ConcolicSolver {
       val errorPaths = errorPathDetector.detectErrors(outputGraph.output.graph)
       Logger.log(s"### Concolic got error paths $errorPaths", Logger.U)
       initialErrorPaths = Some(errorPaths)
-      negateNodesNotFollowingErrorPath(Reporter.getRoot.get, errorPaths)
+      Reporter.getRoot match {
+        case Some(root) =>
+          negateNodesNotFollowingErrorPath(root, errorPaths)
+        case None =>
+          // Do nothing
+      }
       errorPaths
     case result =>
       Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
