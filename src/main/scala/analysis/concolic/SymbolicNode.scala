@@ -8,6 +8,8 @@ trait SymbolicNode {
     * @return
     */
   def combine(that: SymbolicNode): SymbolicNode
+
+  def deepCopy: SymbolicNode
 }
 
 case class BranchSymbolicNode(branch: BranchConstraint,
@@ -45,7 +47,11 @@ case class BranchSymbolicNode(branch: BranchConstraint,
       assert(false, "Should not happen")
       ???
   }
+
+  def deepCopy: SymbolicNode =
+    BranchSymbolicNode(branch, thenBranchTaken, elseBranchTaken, thenBranch.map(_.deepCopy), elseBranch.map(_.deepCopy))
 }
+
 case class StatementSymbolicNode(statement: StatementConstraint,
                                  var followUp: Option[SymbolicNode])
   extends SymbolicNode {
@@ -58,4 +64,7 @@ case class StatementSymbolicNode(statement: StatementConstraint,
       assert(false, "Should not happen")
       ???
   }
+
+  def deepCopy: SymbolicNode =
+    StatementSymbolicNode(statement, followUp.map(_.deepCopy))
 }

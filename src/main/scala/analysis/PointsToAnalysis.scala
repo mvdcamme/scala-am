@@ -191,7 +191,7 @@ class PointsToAnalysisLauncher[
     new BufferedWriter(new FileWriter(new File(runTimeAnalysisMetricsOutputPath), false))
   }
 
-  def runInitialStaticAnalysis(currentProgramState: PS, programName: String): Unit =
+  def runInitialStaticAnalysis(currentProgramState: PS, programName: String): StaticAnalysisResult =
     runStaticAnalysisGeneric(currentProgramState,
                              None,
                              Some("initial_graph.dot")) match {
@@ -199,6 +199,7 @@ class PointsToAnalysisLauncher[
         result.output.toDotFile("initial_graph.dot")
         incrementalAnalysis.initializeGraph(result.output.graph)
         initializeAnalyses(result.output.graph, programName)
+        result
       case other =>
         throw new Exception(s"Expected initial analysis to produce a graph, got $other instead")
     }

@@ -18,6 +18,6 @@
   (display b)
   (if (< a 0)
       (if (< b 10)
-          (error "error1")
+          'ok1
           (error "error2"))
       'ok2))

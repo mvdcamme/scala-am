@@ -17,6 +17,8 @@ object Reporter {
 
   type Setter = (SymbolicNode) => Unit
 
+  def getRoot: Option[SymbolicNode] = optRoot
+
   private def setRoot(symbolicNode: SymbolicNode): Unit = {
     optRoot = Some(symbolicNode)
     optCurrentNode = optRoot

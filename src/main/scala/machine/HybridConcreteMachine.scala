@@ -509,13 +509,13 @@ class HybridConcreteMachine[
     }
 
     @scala.annotation.tailrec
-    def loopConcolic(initialState: State, isFirstRun: Boolean): ConcreteMachineOutput = {
-      Reporter.disableConcolic()
+    def loopConcolic(initialState: State, nrOfRuns: Int): ConcreteMachineOutput = {
       val analysisResult = startRunTimeAnalysis(programName, initialState)
-      Reporter.enableConcolic()
-      ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult)
+      if (nrOfRuns == 2) {
+        ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult)
+      }
 
-      Reporter.clear(isFirstRun)
+      Reporter.clear(nrOfRuns < 2)
       Logger.log(s"CONCOLIC ITERATION ${ConcolicSolver.getInputs}", Logger.U)
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
       val result = loop(initialState,
@@ -526,7 +526,7 @@ class HybridConcreteMachine[
       println(s"Reporter recorded path ${Reporter.getReport}")
       val shouldContinue = ConcolicSolver.solve
       if (shouldContinue) {
-        loopConcolic(initialState, false)
+        loopConcolic(initialState, nrOfRuns + 1)
       } else {
         result
       }
@@ -538,19 +538,22 @@ class HybridConcreteMachine[
       Store.initial[HybridAddress.A, ConcreteValue](
         sem.initialStore))
     Reporter.disableConcolic()
-    pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState, programName)
+    val analysisResult = pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState, programName)
     Reporter.enableConcolic()
 
-    loopConcolic(initialState, true)
+    loopConcolic(initialState, 1)
   }
 
   private def startRunTimeAnalysis(
     programName: String,
     state: State
   ): StaticAnalysisResult = {
+    Reporter.disableConcolic()
     val currentAddresses: Set[HybridAddress.A] = state.store.toSet.map(_._1)
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
     val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
-    pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, convertedCurrentAddresses)
+    val result = pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, convertedCurrentAddresses)
+    Reporter.enableConcolic()
+    result
   }
 }
