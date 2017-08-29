@@ -344,6 +344,9 @@ class HybridConcreteMachine[
           case ControlEval(e, env) =>
             val edgeInfos = sem.stepEval(e, env, store, t)
             if (edgeInfos.size == 1) {
+
+              startRunTimeAnalysisIfIfEncountered(programName, state)
+
               val onlyEdgeInfo = edgeInfos.head
               handleFunctionCalled(onlyEdgeInfo)
               onlyEdgeInfo match {
@@ -403,6 +406,9 @@ class HybridConcreteMachine[
                 val a = frames.head.next
                 val edgeInfos = sem.stepKont(v, frame, store, t)
                 if (edgeInfos.size == 1) {
+
+                  startRunTimeAnalysisIfIfEncountered(programName, state)
+
                   val onlyEdgeInfo = edgeInfos.head
                   handleFunctionCalled(onlyEdgeInfo)
                   onlyEdgeInfo match {
@@ -511,7 +517,6 @@ class HybridConcreteMachine[
     @scala.annotation.tailrec
     def loopConcolic(initialState: State, nrOfRuns: Int): ConcreteMachineOutput = {
       val analysisResult = startRunTimeAnalysis(programName, initialState)
-      ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult)
 
       Reporter.clear(nrOfRuns < 2)
       Logger.log(s"CONCOLIC ITERATION ${ConcolicSolver.getInputs}", Logger.U)
@@ -536,16 +541,40 @@ class HybridConcreteMachine[
       Store.initial[HybridAddress.A, ConcreteValue](
         sem.initialStore))
     Reporter.disableConcolic()
-    pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState, programName)
+    val analysisResult = pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState, programName)
     Reporter.enableConcolic()
 
+    // Use initial static analysis to detect paths to errors
+    if (ConcolicRunTimeFlags.checkAnalysis) {
+      ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult, Reporter.getRoot, true)
+    }
     loopConcolic(initialState, 1)
   }
 
-  private def startRunTimeAnalysis(
-    programName: String,
-    state: State
-  ): StaticAnalysisResult = {
+  /**
+    * If an if-expression has just been encountered (and a corresponding branch node has been made), launch a
+    * rum-time static analysis and use the results to further prune the symbolic tree.
+    * @param programName
+    * @param state
+    */
+  private def startRunTimeAnalysisIfIfEncountered(programName: String, state: State): Unit = {
+    if (ConcolicRunTimeFlags.wasIfEncountered && ConcolicRunTimeFlags.checkAnalysis && ConcolicRunTimeFlags.checkRunTimeAnalysis) {
+      val optRoot = Reporter.getRoot
+      val optCurrentNode = Reporter.getCurrentNode
+//      val optBranchFollowedCurrentNode = optCurrentNode
+      val optBranchFollowedCurrentNode = optCurrentNode.flatMap( (node) => {
+        val asBranchNode = node.asInstanceOf[BranchSymbolicNode]
+        if (Reporter.getTookThenBranchLast)
+          asBranchNode.thenBranch
+        else
+          asBranchNode.elseBranch
+        } )
+      val analysisResult = startRunTimeAnalysis(programName, state)
+      ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult, optBranchFollowedCurrentNode, false)
+    }
+  }
+
+  private def startRunTimeAnalysis(programName: String, state: State): StaticAnalysisResult = {
     Reporter.disableConcolic()
     val currentAddresses: Set[HybridAddress.A] = state.store.toSet.map(_._1)
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]

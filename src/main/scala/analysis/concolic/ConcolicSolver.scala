@@ -94,7 +94,8 @@ object ConcolicSolver {
           negateAllSuccessors(b.thenBranch.get)
         }
       } else if (b.thenBranch.isDefined) {
-        negateNodesNotFollowingErrorPath(b.thenBranch.get, startsWithThen)
+        val tailStartsWithThen = startsWithThen.map(_.tail)
+        negateNodesNotFollowingErrorPath(b.thenBranch.get, tailStartsWithThen)
       }
 
       if (startsWithElse.isEmpty) {
@@ -104,7 +105,8 @@ object ConcolicSolver {
           negateAllSuccessors(b.elseBranch.get)
         }
       } else if (b.elseBranch.isDefined) {
-        negateNodesNotFollowingErrorPath(b.elseBranch.get, startsWithElse)
+        val tailStartsWithElse = startsWithElse.map(_.tail)
+        negateNodesNotFollowingErrorPath(b.elseBranch.get, tailStartsWithElse)
       }
   }
 
@@ -185,21 +187,28 @@ object ConcolicSolver {
 
   def handleAnalysisResult[Abs: IsSchemeLattice]
     (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult): List[ErrorPath] = result match {
-    case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
-      val errorPaths = errorPathDetector.detectErrors(outputGraph.output.graph)
-      Logger.log(s"### Concolic got error paths $errorPaths", Logger.U)
-      initialErrorPaths = Some(errorPaths)
-      Reporter.getRoot match {
-        case Some(root) =>
-          negateNodesNotFollowingErrorPath(root, errorPaths)
-        case None =>
-          // Do nothing
+    (result: StaticAnalysisResult, startNode: Option[SymbolicNode], isInitial: Boolean): List[ErrorPath] = {
+    if (ConcolicRunTimeFlags.checkAnalysis) {
+      result match {
+        case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
+          val errorPaths = errorPathDetector.detectErrors(outputGraph.output.graph)
+          Logger.log(s"### Concolic got error paths $errorPaths", Logger.U)
+          if (isInitial) initialErrorPaths = Some(errorPaths)
+
+          startNode match {
+            case Some(node) =>
+              negateNodesNotFollowingErrorPath(node, errorPaths)
+            case None =>
+            // Do nothing
+          }
+          errorPaths
+        case result =>
+          Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
+          Nil
       }
-      errorPaths
-    case result =>
-      Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
+    } else {
       Nil
+    }
   }
 
 }

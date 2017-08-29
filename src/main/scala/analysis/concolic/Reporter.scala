@@ -18,10 +18,10 @@ object Reporter {
 
   private var optCurrentErrorPaths: Option[List[ErrorPath]] = None
 
-
   type Setter = (SymbolicNode) => Unit
 
   def getRoot: Option[SymbolicNode] = optRoot
+  def getCurrentNode: Option[SymbolicNode] = optCurrentNode
 
   private def setRoot(symbolicNode: SymbolicNode): Unit = {
     optRoot = Some(symbolicNode)
@@ -90,6 +90,8 @@ object Reporter {
     }
   }
 
+  private var tookThenBranchLast: Boolean = false
+  def getTookThenBranchLast: Boolean = tookThenBranchLast
 
   def enableConcolic(): Unit = {
     doConcolic = true
@@ -159,30 +161,35 @@ object Reporter {
     }
     val symbolicNode = branchConstraintToNode(constraint, thenBranchTaken)
 
-    optCurrentErrorPaths match {
-      case Some(currentErrorPaths) =>
-        // If node does not follow a path along which an error is located, make the corresponding branch ineligable for testing
-        val nonEmptyPaths = currentErrorPaths.filter(_.nonEmpty)
-        val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
-        val startsWithElse = nonEmptyPaths.filter(_.head == ElseBranchTaken)
-        if (startsWithElse.isEmpty) {
-          symbolicNode.elseBranchTaken = true
-        }
-        if (startsWithThen.isEmpty) {
-          symbolicNode.thenBranchTaken = true
-        }
+    if (ConcolicRunTimeFlags.checkAnalysis) {
+      optCurrentErrorPaths match {
+        case Some(currentErrorPaths) =>
+          // If node does not follow a path along which an error is located, make the corresponding branch ineligable for testing
+          val nonEmptyPaths = currentErrorPaths.filter(_.nonEmpty)
+          val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
+          val startsWithElse = nonEmptyPaths.filter(_.head == ElseBranchTaken)
+          if (startsWithElse.isEmpty) {
+            symbolicNode.elseBranchTaken = true
+          }
+          if (startsWithThen.isEmpty) {
+            symbolicNode.thenBranchTaken = true
+          }
 
-        if (thenBranchTaken) {
-          // Continue with paths which follow the then-branch.
-          optCurrentErrorPaths = Some(startsWithThen)
-        } else {
-          // Continue with paths which follow the else-branch.
-          optCurrentErrorPaths = Some(startsWithElse)
-        }
-      case None =>
-        Logger.log("Reporter not doing anything with error paths", Logger.U)
+          if (thenBranchTaken) {
+            // Continue with paths which follow the then-branch.
+            val tailStartsWithThen = startsWithThen.map(_.tail)
+            optCurrentErrorPaths = Some(tailStartsWithThen)
+          } else {
+            // Continue with paths which follow the else-branch.
+            val tailStartsWithElse = startsWithElse.map(_.tail)
+            optCurrentErrorPaths = Some(tailStartsWithElse)
+          }
+        case None =>
+          Logger.log("Reporter not doing anything with error paths", Logger.U)
         // Do nothing
+      }
     }
+    tookThenBranchLast = thenBranchTaken
     addConstraint(constraint, symbolicNode, Some(thenBranchTaken))
   }
 

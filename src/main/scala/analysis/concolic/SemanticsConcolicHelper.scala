@@ -50,32 +50,39 @@ object SemanticsConcolicHelper {
     *         was defined is returned. Otherwise, returns None.
     */
   def handleDefine(variableName: String, exp: SchemeExp): Option[String] = {
-    if (isRandomExpression(exp)) {
-      val inputVariable = ConcolicIdGenerator.newConcolicInput
-      val concolicStatement = ConcolicIdGenerator.newVariable(variableName, inputVariable)
-      Reporter.addStatementConstraint(concolicStatement)
-      Some(inputVariable.toString)
-    } else {
-      val optionConcolicExpression = generateConcolicExpression(exp)
-      optionConcolicExpression match {
-        case Some(concolicExpression) =>
-          val concolicStatement = ConcolicIdGenerator.newVariable(variableName, concolicExpression)
-          Reporter.addStatementConstraint(concolicStatement)
-          None
-        case None =>
-          None
+    if (Reporter.isConcolicEnabled) {
+      if (isRandomExpression(exp)) {
+        val inputVariable = ConcolicIdGenerator.newConcolicInput
+        val concolicStatement = ConcolicIdGenerator.newVariable(variableName, inputVariable)
+        Reporter.addStatementConstraint(concolicStatement)
+        Some(inputVariable.toString)
+      } else {
+        val optionConcolicExpression = generateConcolicExpression(exp)
+        optionConcolicExpression match {
+          case Some(concolicExpression) =>
+            val concolicStatement = ConcolicIdGenerator.newVariable(variableName, concolicExpression)
+            Reporter.addStatementConstraint(concolicStatement)
+            None
+          case None =>
+            None
+        }
       }
+    } else {
+      None
     }
   }
 
   def handleIf(exp: SchemeIf, thenBranchTaken: Boolean): Unit = {
-    val optionConcolicExpression = generateConcolicExpression(exp.cond)
-    optionConcolicExpression match {
-      case Some(exp) =>
-        val baseConstraint = BranchConstraint(exp)
-//        val actualConstraint = if (thenBranchTaken) baseConstraint else baseConstraint.negate
-        Reporter.addBranchConstraint(baseConstraint, thenBranchTaken)
-      case None =>
+    if (Reporter.isConcolicEnabled) {
+      val optionConcolicExpression = generateConcolicExpression(exp.cond)
+      optionConcolicExpression match {
+        case Some(exp) =>
+          val baseConstraint = BranchConstraint(exp)
+          //        val actualConstraint = if (thenBranchTaken) baseConstraint else baseConstraint.negate
+          ConcolicRunTimeFlags.setIfEncountered()
+          Reporter.addBranchConstraint(baseConstraint, thenBranchTaken)
+        case None =>
+      }
     }
   }
 

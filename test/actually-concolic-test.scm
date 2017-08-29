@@ -8,16 +8,16 @@
 ;      x
 ;      (loop (- n 1) (+ x 1))))
 
-(let* ((a (random 99))
-       (b (random 99)))
+(let* ((a (random 9999))
+       (b (random 9999)))
       ; (c (random 99))
       ; (d (+ a b))
       ; (h f))
   ;(loop 5 (random 99))
   (display a)
   (display b)
-  (if (< a 0)
-      (if (< b 10)
-          'ok1
+  (if (< a 5)
+      (if (< b 5)
+          (error "error1")
           (error "error2"))
       'ok2))
