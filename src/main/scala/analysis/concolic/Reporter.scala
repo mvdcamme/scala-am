@@ -1,6 +1,8 @@
 import SymbolicTreeHelper.TreePath
 
 object Reporter {
+
+  type ErrorPath = List[SemanticsFilterAnnotation]
   type PathConstraint = List[ConcolicConstraint]
 
   type SymbolicMemoryScope = Map[String, String]
@@ -13,6 +15,8 @@ object Reporter {
 
   private var optRoot: Option[SymbolicNode] = None
   private var optCurrentNode: Option[SymbolicNode] = None
+
+  private var optCurrentErrorPaths: Option[List[ErrorPath]] = None
 
 
   type Setter = (SymbolicNode) => Unit
@@ -98,6 +102,7 @@ object Reporter {
     ConcolicIdGenerator.resetId()
     currentReport = Nil
     optCurrentNode = optRoot
+    optCurrentErrorPaths = ConcolicSolver.getInitialErrorPaths
     if (!isFirstClear) {
       // Make integrateNode a no-op: currentNode has already been set, and root doesn't change, so nothing needs to be done (correct???)
       integrateNode = (_) => {}
@@ -153,6 +158,31 @@ object Reporter {
       return
     }
     val symbolicNode = branchConstraintToNode(constraint, thenBranchTaken)
+
+    optCurrentErrorPaths match {
+      case Some(currentErrorPaths) =>
+        // If node does not follow a path along which an error is located, make the corresponding branch ineligable for testing
+        val nonEmptyPaths = currentErrorPaths.filter(_.nonEmpty)
+        val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
+        val startsWithElse = nonEmptyPaths.filter(_.head == ElseBranchTaken)
+        if (startsWithElse.isEmpty) {
+          symbolicNode.elseBranchTaken = true
+        }
+        if (startsWithThen.isEmpty) {
+          symbolicNode.thenBranchTaken = true
+        }
+
+        if (thenBranchTaken) {
+          // Continue with paths which follow the then-branch.
+          optCurrentErrorPaths = Some(startsWithThen)
+        } else {
+          // Continue with paths which follow the else-branch.
+          optCurrentErrorPaths = Some(startsWithElse)
+        }
+      case None =>
+        Logger.log("Reporter not doing anything with error paths", Logger.U)
+        // Do nothing
+    }
     addConstraint(constraint, symbolicNode, Some(thenBranchTaken))
   }
 

@@ -13,8 +13,10 @@ object ConcolicSolver {
   private def resetInputs(): Unit = {
     latestInputs = Map()
   }
-
   def getInputs: Map[String, Int] = latestInputs
+
+  private var initialErrorPaths: Option[List[ErrorPath]] = None
+  def getInitialErrorPaths: Option[List[ErrorPath]] = initialErrorPaths
 
   private def doOneSolveIteration(constraints: List[ConcolicConstraint]): Boolean = {
     resetInputs()
@@ -186,8 +188,9 @@ object ConcolicSolver {
     (result: StaticAnalysisResult): List[ErrorPath] = result match {
     case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
       val errorPaths = errorPathDetector.detectErrors(outputGraph.output.graph)
-      negateNodesNotFollowingErrorPath(Reporter.getRoot.get, errorPaths)
       Logger.log(s"### Concolic got error paths $errorPaths", Logger.U)
+      initialErrorPaths = Some(errorPaths)
+      negateNodesNotFollowingErrorPath(Reporter.getRoot.get, errorPaths)
       errorPaths
     case result =>
       Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
