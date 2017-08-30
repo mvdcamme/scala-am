@@ -8,8 +8,8 @@
 ;      x
 ;      (loop (- n 1) (+ x 1))))
 
-(let* ((a (random 9999))
-       (b (random 9999)))
+(let* ((a (random 2))
+       (b (random 2)))
       ; (c (random 99))
       ; (d (+ a b))
       ; (h f))

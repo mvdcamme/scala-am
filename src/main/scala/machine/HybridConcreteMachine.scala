@@ -561,15 +561,20 @@ class HybridConcreteMachine[
     if (ConcolicRunTimeFlags.wasIfEncountered && ConcolicRunTimeFlags.checkAnalysis && ConcolicRunTimeFlags.checkRunTimeAnalysis) {
       val optRoot = Reporter.getRoot
       val optCurrentNode = Reporter.getCurrentNode
-//      val optBranchFollowedCurrentNode = optCurrentNode
-      val optBranchFollowedCurrentNode = optCurrentNode.flatMap( (node) => {
-        val asBranchNode = node.asInstanceOf[BranchSymbolicNode]
-        if (Reporter.getTookThenBranchLast)
-          asBranchNode.thenBranch
-        else
-          asBranchNode.elseBranch
-        } )
-      val analysisResult = startRunTimeAnalysis(programName, state)
+      val optBranchFollowedCurrentNode = optCurrentNode
+//      val optBranchFollowedCurrentNode = optCurrentNode.flatMap( (node) => {
+//        val asBranchNode = node.asInstanceOf[BranchSymbolicNode]
+//        if (Reporter.getTookThenBranchLast)
+//          asBranchNode.thenBranch
+//        else
+//          asBranchNode.elseBranch
+//        } )
+      assert(state.control.isInstanceOf[ControlKont])
+      val bt = implicitly[IsSchemeLattice[ConcreteValue]].inject(true)
+      val bf = implicitly[IsSchemeLattice[ConcreteValue]].inject(false)
+      val b = implicitly[IsSchemeLattice[ConcreteValue]].join(bt, bf)
+      val updatedState = state.copy(control = ControlKont(b))
+      val analysisResult = startRunTimeAnalysis(programName, updatedState)
       ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult, optBranchFollowedCurrentNode, false)
     }
   }

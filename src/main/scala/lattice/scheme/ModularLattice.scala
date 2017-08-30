@@ -814,7 +814,10 @@ object ConcreteConcreteLattice extends SchemeLattice {
       case lattice.Str(s) =>
         convLat.inject(s.asInstanceOf[ISet[String]].toList.head)
       case lattice.Bool(b) =>
-        convLat.inject(b.asInstanceOf[ISet[Boolean]].toList.head)
+//        b.asInstanceOf[ISet[Boolean]].toList.reduce( (a, b) => lattice.isSchemeLattice.)
+        val mapped = b.asInstanceOf[ISet[Boolean]].toList.map(convLat.inject)
+        mapped.reduce( (a, b) => convLat.join(a, b)) // TODO MV
+//        convLat.inject(b.asInstanceOf[ISet[Boolean]].toList.head)
       case lattice.Int(i) =>
         convLat.inject(i.asInstanceOf[ISet[Int]].toList.head)
       case lattice.Float(f) =>
