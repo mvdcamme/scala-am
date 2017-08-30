@@ -1,6 +1,6 @@
 (define (f) (error "error f"))
 (define (g) 'ok)
-(let ((a (random 100000))
+(let ((a (random 300000))
       (b (random 300000))
       (h f)
       (i f))

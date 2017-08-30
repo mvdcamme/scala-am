@@ -1,7 +1,7 @@
 object ConcolicRunTimeFlags {
 
   val checkAnalysis: Boolean = true
-  val checkRunTimeAnalysis: Boolean = true
+  val checkRunTimeAnalysis: Boolean = false
 
   private var ifEncountered: Boolean = false
 

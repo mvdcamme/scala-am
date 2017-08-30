@@ -570,11 +570,11 @@ class HybridConcreteMachine[
 //          asBranchNode.elseBranch
 //        } )
       assert(state.control.isInstanceOf[ControlKont])
-      val bt = implicitly[IsSchemeLattice[ConcreteValue]].inject(true)
-      val bf = implicitly[IsSchemeLattice[ConcreteValue]].inject(false)
-      val b = implicitly[IsSchemeLattice[ConcreteValue]].join(bt, bf)
-      val updatedState = state.copy(control = ControlKont(b))
-      val analysisResult = startRunTimeAnalysis(programName, updatedState)
+//      val bt = implicitly[IsSchemeLattice[ConcreteValue]].inject(true)
+//      val bf = implicitly[IsSchemeLattice[ConcreteValue]].inject(false)
+//      val b = implicitly[IsSchemeLattice[ConcreteValue]].join(bt, bf)
+//      val updatedState = state.copy(control = ControlKont(b))
+      val analysisResult = startRunTimeAnalysis(programName, state)
       ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult, optBranchFollowedCurrentNode, false)
     }
   }

@@ -949,12 +949,12 @@ class ConstantPropagationLattice(counting: Boolean) extends SchemeLattice {
 
 class PointsToLattice(counting: Boolean) extends SchemeLattice {
   import PointsToString._
-  import PointsToBoolean._
+  import Type.T
   import PointsToInteger._
   import PointsToFloat._
   import PointsToChar._
   import PointsToSymbol._
-  val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](counting)
+  val lattice = new MakeSchemeLattice[S, T, I, F, C, Sym](counting)
   type L = lattice.LSet
   implicit val isSchemeLattice: IsConvertableLattice[lattice.LSet] =
     lattice.isSchemeLatticeSet
@@ -978,7 +978,7 @@ class PointsToLattice(counting: Boolean) extends SchemeLattice {
           case lattice.Symbol(sym) =>
             PointsToSymbol.pointsTo(sym)
           case lattice.Bool(b) =>
-            PointsToBoolean.pointsTo(b)
+            None //TODO MV Originally: PointsToBoolean.pointsTo(b)
 //          case lattice.Bot =>
 //            Some(1)
           case _ =>
