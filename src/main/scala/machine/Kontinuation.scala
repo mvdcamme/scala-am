@@ -1,6 +1,7 @@
 import scalaz.Scalaz._
 
 trait Frame {
+<<<<<<< HEAD
   type AbstractValue //TODO remove?
   type Address
   type Timestamp //TODO remove?
@@ -19,6 +20,11 @@ trait Frame {
 }
 trait KontAddress[A] {
   def descriptor: Descriptor[KontAddress[A]] = new BasicDescriptor[KontAddress[A]]
+=======
+  def subsumes(that: Frame): Boolean = {
+    this.equals(that)
+  }
+>>>>>>> 9de48f824fa56370876d922b957948f007216898
 }
 
 case class Kont[KontAddr: KontAddress](frame: Frame, next: KontAddr) {
@@ -28,7 +34,12 @@ case class Kont[KontAddr: KontAddress](frame: Frame, next: KontAddr) {
   }
 }
 
+<<<<<<< HEAD
 abstract class KontStore[KontAddr: KontAddress] {
+=======
+abstract class KontStore[KontAddr : KontAddress] {
+  def keys: Iterable[KontAddr]
+>>>>>>> 9de48f824fa56370876d922b957948f007216898
   def lookup(a: KontAddr): Set[Kont[KontAddr]]
   def extend(a: KontAddr, kont: Kont[KontAddr]): KontStore[KontAddr]
   def join(that: KontStore[KontAddr]): KontStore[KontAddr]
@@ -66,9 +77,14 @@ abstract class KontStore[KontAddr: KontAddress] {
   def descriptor: Descriptor[KontStore[KontAddr]] = new BasicDescriptor[KontStore[KontAddr]]
 }
 
+<<<<<<< HEAD
 case class BasicKontStore[KontAddr: KontAddress](
     content: Map[KontAddr, Set[Kont[KontAddr]]])
     extends KontStore[KontAddr] {
+=======
+case class BasicKontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kont[KontAddr]]]) extends KontStore[KontAddr] {
+  def keys = content.keys
+>>>>>>> 9de48f824fa56370876d922b957948f007216898
   def lookup(a: KontAddr) = content.getOrElse(a, Set())
   override def toString = content.toString
   def extend(a: KontAddr, kont: Kont[KontAddr]) =
@@ -155,10 +171,15 @@ class BasicKontStoreDescriptor[KontAddr : KontAddress] extends Descriptor[BasicK
 
 }
 
+<<<<<<< HEAD
 case class TimestampedKontStore[KontAddr: KontAddress](
     content: Map[KontAddr, Set[Kont[KontAddr]]],
     timestamp: Int)
     extends KontStore[KontAddr] {
+=======
+case class TimestampedKontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kont[KontAddr]]], timestamp: Int) extends KontStore[KontAddr] {
+  def keys = content.keys
+>>>>>>> 9de48f824fa56370876d922b957948f007216898
   def lookup(a: KontAddr) = content.getOrElse(a, Set())
   override def toString = content.toString
   def extend(a: KontAddr, kont: Kont[KontAddr]) =

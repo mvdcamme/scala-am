@@ -22,4 +22,4 @@
 
 (define vect (vector 9 5 1 7 8 9 4 6 2 3 ))
 (bubble-sort vect)
-(equal? vect (vector 1 2 3 4 5 6 7 8 9 9))s
+(equal? vect (vector 1 2 3 4 5 6 7 8 9 9))

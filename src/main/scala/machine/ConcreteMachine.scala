@@ -8,6 +8,7 @@ class ConcreteMachine[
     extends EvalKontMachine[Exp, Abs, Addr, Time] {
   def name = "ConcreteMachine"
 
+<<<<<<< HEAD
   trait ConcreteMachineOutput extends Output[Abs] {
     def toDotFile(path: String) =
       println("Not generating graph for ConcreteMachine")
@@ -17,29 +18,42 @@ class ConcreteMachine[
                                         numberOfStates: Int,
                                         err: String)
       extends ConcreteMachineOutput {
+=======
+  trait ConcreteMachineOutput extends Output {
+    def toFile(path: String)(output: GraphOutput) = println("Not generating graph for ConcreteMachine")
+  }
+
+  case class ConcreteMachineOutputError(store: Store[Addr, Abs], time: Double, numberOfStates: Int, err: String) extends ConcreteMachineOutput {
+>>>>>>> 9de48f824fa56370876d922b957948f007216898
     def finalValues = {
       println(s"Execution failed: $err")
       Set()
     }
-    def containsFinalValue(v: Abs) = false
     def timedOut = false
   }
+<<<<<<< HEAD
   case class ConcreteMachineOutputTimeout(time: Double, numberOfStates: Int)
       extends ConcreteMachineOutput {
+=======
+  case class ConcreteMachineOutputTimeout(store: Store[Addr, Abs], time: Double, numberOfStates: Int) extends ConcreteMachineOutput {
+>>>>>>> 9de48f824fa56370876d922b957948f007216898
     def finalValues = Set()
-    def containsFinalValue(v: Abs) = false
     def timedOut = true
   }
+<<<<<<< HEAD
   case class ConcreteMachineOutputValue(time: Double,
                                         numberOfStates: Int,
                                         v: Abs)
       extends ConcreteMachineOutput {
+=======
+  case class ConcreteMachineOutputValue(store: Store[Addr, Abs], time: Double, numberOfStates: Int, v: Abs) extends ConcreteMachineOutput {
+>>>>>>> 9de48f824fa56370876d922b957948f007216898
     def finalValues = Set(v)
-    def containsFinalValue(v2: Abs) = v == v2
     def timedOut = false
   }
 
   /**
+<<<<<<< HEAD
     * Performs the evaluation of an expression, possibly writing the output graph
     * in a file, and returns the set of final states reached
     */
@@ -103,11 +117,35 @@ class ConcreteMachine[
                 (System.nanoTime - start) / Math.pow(10, 9),
                 count,
                 s"execution was not concrete (got ${edges.size} actions instead of 1)")
+=======
+   * Performs the evaluation of an expression, possibly writing the output graph
+   * in a file, and returns the set of final states reached
+   */
+  def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Timeout): Output = {
+    def loop(control: Control, store: Store[Addr, Abs], stack: List[Frame], t: Time, count: Int): ConcreteMachineOutput = {
+      if (timeout.reached) {
+        ConcreteMachineOutputTimeout(store, timeout.time, count)
+      } else {
+        control match {
+          case ControlEval(e, env) =>
+            val actions = sem.stepEval(e, env, store, t)
+            if (actions.size == 1) {
+              actions.head match {
+                case ActionReachedValue(v, store2, _) => loop(ControlKont(v), store2, stack, Timestamp[Time].tick(t), count + 1)
+                case ActionPush(frame, e, env, store2, _) => loop(ControlEval(e, env), store2, frame :: stack, Timestamp[Time].tick(t), count + 1)
+                case ActionEval(e, env, store2, _) => loop(ControlEval(e, env), store2, stack, Timestamp[Time].tick(t), count + 1)
+                case ActionStepIn(fexp, _, e, env, store2, _, _) => loop(ControlEval(e, env), store2, stack, Timestamp[Time].tick(t, fexp), count + 1)
+                case ActionError(err) => ConcreteMachineOutputError(store, timeout.time, count, err.toString)
+              }
+            } else {
+              ConcreteMachineOutputError(store, timeout.time, count, s"execution was not concrete (got ${actions.size} actions instead of 1)")
+>>>>>>> 9de48f824fa56370876d922b957948f007216898
             }
           case ControlKont(v) =>
             /* pop a continuation */
             stack match {
               case frame :: tl =>
+<<<<<<< HEAD
                 val edges = sem.stepKont(v, frame, store, t)
                 if (edges.size == 1) {
                   edges.head.action match {
@@ -162,14 +200,37 @@ class ConcreteMachine[
               (System.nanoTime - start) / Math.pow(10, 9),
               count,
               err.toString)
+=======
+                val actions = sem.stepKont(v, frame, store, t)
+                if (actions.size == 1) {
+                  actions.head match {
+                    case ActionReachedValue(v, store2, _) => loop(ControlKont(v), store2, tl, Timestamp[Time].tick(t), count + 1)
+                    case ActionPush(frame, e, env, store2, _) => loop(ControlEval(e, env), store2, frame :: tl, Timestamp[Time].tick(t), count + 1)
+                    case ActionEval(e, env, store2, _) => loop(ControlEval(e, env), store2, tl, Timestamp[Time].tick(t), count + 1)
+                    case ActionStepIn(fexp, _, e, env, store2, _, _) => loop(ControlEval(e, env), store2, tl, Timestamp[Time].tick(t, fexp), count + 1)
+                    case ActionError(err) => ConcreteMachineOutputError(store, timeout.time, count, err.toString)
+                  }
+                } else {
+                  ConcreteMachineOutputError(store, timeout.time, count, s"execution was not concrete (got ${actions.size} actions instead of 1)")
+                }
+              case Nil => ConcreteMachineOutputValue(store, timeout.time, count, v)
+            }
+          case ControlError(err) =>
+            ConcreteMachineOutputError(store, timeout.time, count, err.toString)
+>>>>>>> 9de48f824fa56370876d922b957948f007216898
         }
       }
     }
     loop(ControlEval(exp, Environment.initial[Addr](sem.initialEnv)),
+<<<<<<< HEAD
          Store.initial[Addr, Abs](sem.initialStore),
          Nil,
          time.initial(""),
          System.nanoTime,
          0)
+=======
+      Store.initial[Addr, Abs](sem.initialStore),
+      Nil, Timestamp[Time].initial(""), 0)
+>>>>>>> 9de48f824fa56370876d922b957948f007216898
   }
 }

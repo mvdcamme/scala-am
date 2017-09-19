@@ -1,81 +1,83 @@
 /**
-  * Abstract syntax of Scheme programs (probably far from complete)
-  */
-import scala.util.parsing.input.Position
-
+ * Abstract syntax of Scheme programs (probably far from complete)
+ */
 trait SchemeExp {
   val pos: Position
+}
+object SchemeExp {
+  implicit val isExp: Expression[SchemeExp] = new Expression[SchemeExp] {
+    def pos(e: SchemeExp) = e.pos
+  }
 }
 
 case class SchemePopSymEnv(pos: Position) extends SchemeExp {
   override def toString = "SchemePopSymEnv"
 }
 
-/**
-  * Bindings must be of the form ([(varname initExp [stepExp])] ...)
-  * Test must be of the form: (exp [exp ...])
-  * Commands must be of the form [exp ...]
-  *
-  * Example of a valid do-expression:
-  *
-  * (do ((a 1 (+ a 1)
-  *      (b 1 (+ b 2))
-  *     ((= a 10) 'stop)
-  *     (displayln a) (displayln b))
-  *
-  * Iteration then stops when a becomes 10
-  *
-  * Also valid:
-  *
-  * (do ()
-  *     (#t))
-  *
-  * Also valid:
-  *
-  * (do ((a 1))
-  *     ((= a 10))
-  *     (set! a (+ a 1)))
-  */
-case class SchemeDo(bindings: List[(String, SchemeExp, SchemeExp)],
-                    test: (SchemeExp, List[SchemeExp]),
-                    commands: List[SchemeExp],
-                    pos: Position)
-    extends SchemeExp {
-  override def toString(): String = {
-    val bi =
-      bindings
-        .map({ case (name, init, step) => s"($name $init $step)" })
-        .mkString(" ")
-    val te = s"(${test._1} ${test._2.mkString(" ")})"
-    val co = commands.mkString(" ")
-    s"(do ($bi) $te $co)"
-  }
-}
+// TODO MV Finish
+///**
+//  * Bindings must be of the form ([(varname initExp [stepExp])] ...)
+//  * Test must be of the form: (exp [exp ...])
+//  * Commands must be of the form [exp ...]
+//  *
+//  * Example of a valid do-expression:
+//  *
+//  * (do ((a 1 (+ a 1)
+//  *      (b 1 (+ b 2))
+//  *     ((= a 10) 'stop)
+//  *     (displayln a) (displayln b))
+//  *
+//  * Iteration then stops when a becomes 10
+//  *
+//  * Also valid:
+//  *
+//  * (do ()
+//  *     (#t))
+//  *
+//  * Also valid:
+//  *
+//  * (do ((a 1))
+//  *     ((= a 10))
+//  *     (set! a (+ a 1)))
+//  */
+//case class SchemeDo(bindings: List[(String, SchemeExp, SchemeExp)],
+//                    test: (SchemeExp, List[SchemeExp]),
+//                    commands: List[SchemeExp],
+//                    pos: Position)
+//    extends SchemeExp {
+//  override def toString(): String = {
+//    val bi =
+//      bindings
+//        .map({ case (name, init, step) => s"($name $init $step)" })
+//        .mkString(" ")
+//    val te = s"(${test._1} ${test._2.mkString(" ")})"
+//    val co = commands.mkString(" ")
+//    s"(do ($bi) $te $co)"
+//  }
+//}
+//
+///**
+//  * An amb expression: (amb exp1 ...).
+//  * Used by the non-deterministic, ambiguous, Scheme interpreter. See SICP chapter 4.3.
+//  */
+//case class SchemeAmb(exps: List[SchemeExp], pos: Position) extends SchemeExp {
+//  override def toString() = {
+//    val expsString = exps.mkString(" ")
+//    s"(amb $expsString)"
+//  }
+//}
+//
+//case class SchemeStartAnalysis(pos: Position) extends SchemeExp {
+//  override def toString() = "(start-analysis)"
+//}
 
 /**
-  * An amb expression: (amb exp1 ...).
-  * Used by the non-deterministic, ambiguous, Scheme interpreter. See SICP chapter 4.3.
-  */
-case class SchemeAmb(exps: List[SchemeExp], pos: Position) extends SchemeExp {
-  override def toString() = {
-    val expsString = exps.mkString(" ")
-    s"(amb $expsString)"
-  }
-}
-
-case class SchemeStartAnalysis(pos: Position) extends SchemeExp {
-  override def toString() = "(start-analysis)"
-}
-
-/**
-  * A lambda expression: (lambda (args...) body...)
-  * Not supported: "rest"-arguments, of the form (lambda arg body), or (lambda (arg1 . args) body...)
-  */
-case class SchemeLambda(args: List[String],
-                        body: List[SchemeExp],
-                        pos: Position)
-    extends SchemeExp {
-  override def toString() = {
+ * A lambda expression: (lambda (args...) body...)
+ * Not supported: "rest"-arguments, of the form (lambda arg body), or (lambda (arg1 . args) body...)
+ */
+case class SchemeLambda(args: List[Identifier], body: List[SchemeExp], pos: Position) extends SchemeExp {
+  require(body.nonEmpty)
+  override def toString = {
     val a = args.mkString(" ")
     val b = body.mkString(" ")
     s"(lambda ($a) $b)"
@@ -83,11 +85,10 @@ case class SchemeLambda(args: List[String],
 }
 
 /**
-  * A function call: (f args...)
-  */
-case class SchemeFuncall(f: SchemeExp, args: List[SchemeExp], pos: Position)
-    extends SchemeExp {
-  override def toString() = {
+ * A function call: (f args...)
+ */
+case class SchemeFuncall(f: SchemeExp, args: List[SchemeExp], pos: Position) extends SchemeExp {
+  override def toString = {
     if (args.isEmpty) {
       s"($f)"
     } else {
@@ -98,118 +99,97 @@ case class SchemeFuncall(f: SchemeExp, args: List[SchemeExp], pos: Position)
 }
 
 /**
-  * An if statement: (if cond cons alt)
-  * If without alt clauses need to be encoded with an empty begin as alt clause
-  */
-case class SchemeIf(cond: SchemeExp,
-                    cons: SchemeExp,
-                    alt: SchemeExp,
-                    pos: Position)
-    extends SchemeExp {
-  override def toString() = s"(if $cond $cons $alt)"
+ * An if statement: (if cond cons alt)
+ * If without alt clauses need to be encoded with an empty begin as alt clause
+ */
+case class SchemeIf(cond: SchemeExp, cons: SchemeExp, alt: SchemeExp, pos: Position) extends SchemeExp {
+  override def toString = s"(if $cond $cons $alt)"
 }
 
 /**
-  * Let-bindings: (let ((v1 e1) ...) body...)
-  */
-case class SchemeLet(bindings: List[(String, SchemeExp)],
-                     body: List[SchemeExp],
-                     pos: Position)
-    extends SchemeExp {
-  override def toString() = {
-    val bi =
-      bindings.map({ case (name, exp) => s"($name $exp)" }).mkString(" ")
+ * Let-bindings: (let ((v1 e1) ...) body...)
+ */
+case class SchemeLet(bindings: List[(Identifier, SchemeExp)], body: List[SchemeExp], pos: Position) extends SchemeExp {
+  override def toString = {
+    val bi = bindings.map({ case (name, exp) => s"($name $exp)" }).mkString(" ")
     val bo = body.mkString(" ")
     s"(let ($bi) $bo)"
   }
 }
 
 /**
-  * Let*-bindings: (let* ((v1 e1) ...) body...)
-  */
-case class SchemeLetStar(bindings: List[(String, SchemeExp)],
-                         body: List[SchemeExp],
-                         pos: Position)
-    extends SchemeExp {
-  override def toString() = {
-    val bi =
-      bindings.map({ case (name, exp) => s"($name $exp)" }).mkString(" ")
+ * Let*-bindings: (let* ((v1 e1) ...) body...)
+ */
+case class SchemeLetStar(bindings: List[(Identifier, SchemeExp)], body: List[SchemeExp], pos: Position) extends SchemeExp {
+  override def toString = {
+    val bi = bindings.map({ case (name, exp) => s"($name $exp)" }).mkString(" ")
     val bo = body.mkString(" ")
     s"(let* ($bi) $bo)"
   }
 }
 
 /**
-  * Letrec-bindings: (letrec ((v1 e1) ...) body...)
-  */
-case class SchemeLetrec(bindings: List[(String, SchemeExp)],
-                        body: List[SchemeExp],
-                        pos: Position)
-    extends SchemeExp {
-  override def toString() = {
-    val bi =
-      bindings.map({ case (name, exp) => s"($name $exp)" }).mkString(" ")
+ * Letrec-bindings: (letrec ((v1 e1) ...) body...)
+ */
+case class SchemeLetrec(bindings: List[(Identifier, SchemeExp)], body: List[SchemeExp], pos: Position) extends SchemeExp {
+  override def toString = {
+    val bi = bindings.map({ case (name, exp) => s"($name $exp)" }).mkString(" ")
     val bo = body.mkString(" ")
     s"(letrec ($bi) $bo)"
   }
 }
 
+  // TODO MV Finish
+///**
+// * Named-let: (let name ((v1 e1) ...) body...)
+// */
+//case class SchemeNamedLet(name: Identifier, bindings: List[(Identifier, SchemeExp)], body: List[SchemeExp], pos: Position) extends SchemeExp {
+//  override def toString = {
+//    val bi = bindings.map({ case (name, exp) => s"($name $exp)" }).mkString(" ")
+//    val bo = body.mkString(" ")
+//    s"(let $name ($bi) $bo)"
+//  }
+//}
 /**
-  * A set! expression: (set! variable value)
-  */
-case class SchemeSet(variable: String, value: SchemeExp, pos: Position)
-    extends SchemeExp {
-  override def toString() = s"(set! $variable $value)"
+ * A set! expression: (set! variable value)
+ */
+case class SchemeSet(variable: Identifier, value: SchemeExp, pos: Position) extends SchemeExp {
+  override def toString = s"(set! $variable $value)"
 }
 
 /**
-  * A begin clause: (begin body...)
-  */
-case class SchemeBegin(exps: List[SchemeExp], pos: Position)
-    extends SchemeExp {
-  override def toString() = {
+ * A begin clause: (begin body...)
+ */
+case class SchemeBegin(exps: List[SchemeExp], pos: Position) extends SchemeExp {
+  override def toString = {
     val body = exps.mkString(" ")
     s"(begin $body)"
   }
 }
 
 /**
-  * A cond expression: (cond (test1 body1...) ...)
-  */
-case class SchemeCond(clauses: List[(SchemeExp, List[SchemeExp])],
-                      pos: Position)
-    extends SchemeExp {
-  override def toString() = {
-    val c = clauses
-      .map({
-        case (cond, cons) => {
-          val b = cons.mkString(" ")
-          s"($cond $b)"
-        }
-      })
-      .mkString(" ")
+ * A cond expression: (cond (test1 body1...) ...)
+ */
+case class SchemeCond(clauses: List[(SchemeExp, List[SchemeExp])], pos: Position) extends SchemeExp {
+  override def toString = {
+    val c = clauses.map({ case (cond, cons) => {
+      val b = cons.mkString(" ")
+      s"($cond $b)"
+    }}).mkString(" ")
     s"(cond $c)"
   }
 }
 
 /**
-  * A case expression: (case key ((vals1...) body1...) ... (else default...))
-  */
-case class SchemeCase(key: SchemeExp,
-                      clauses: List[(List[SchemeValue], List[SchemeExp])],
-                      default: List[SchemeExp],
-                      pos: Position)
-    extends SchemeExp {
-  override def toString() = {
-    val c = clauses
-      .map({
-        case (datums, cons) => {
-          val d = datums.mkString(" ")
-          val b = cons.mkString(" ")
-          s"(($d) $b)"
-        }
-      })
-      .mkString(" ")
+ * A case expression: (case key ((vals1...) body1...) ... (else default...))
+ */
+case class SchemeCase(key: SchemeExp, clauses: List[(List[SchemeValue], List[SchemeExp])], default: List[SchemeExp], pos: Position) extends SchemeExp {
+  override def toString = {
+    val c = clauses.map({ case (datums, cons) => {
+      val d = datums.mkString(" ")
+      val b = cons.mkString(" ")
+      s"(($d) $b)"
+    }}).mkString(" ")
     if (default.isEmpty) {
       s"(case $key $c)"
     } else {
@@ -222,7 +202,7 @@ case class SchemeCase(key: SchemeExp,
   * An and expression: (and exps...)
   */
 case class SchemeAnd(exps: List[SchemeExp], pos: Position) extends SchemeExp {
-  override def toString() = {
+  override def toString = {
     val e = exps.mkString(" ")
     s"(and $e)"
   }
@@ -232,29 +212,24 @@ case class SchemeAnd(exps: List[SchemeExp], pos: Position) extends SchemeExp {
   * An or expression: (or exps...)
   */
 case class SchemeOr(exps: List[SchemeExp], pos: Position) extends SchemeExp {
-  override def toString() = {
+  override def toString = {
     val e = exps.mkString(" ")
     s"(or $e)"
   }
 }
 
 /**
-  * A variable definition: (define name value)
-  */
-case class SchemeDefineVariable(name: String, value: SchemeExp, pos: Position)
-    extends SchemeExp {
-  override def toString() = s"(define $name $value)"
+ * A variable definition: (define name value)
+ */
+case class SchemeDefineVariable(name: Identifier, value: SchemeExp, pos: Position) extends SchemeExp {
+  override def toString = s"(define $name $value)"
 }
 
 /**
-  * A function definition: (define (name args...) body...)
-  */
-case class SchemeDefineFunction(name: String,
-                                args: List[String],
-                                body: List[SchemeExp],
-                                pos: Position)
-    extends SchemeExp {
-  override def toString() = {
+ * A function definition: (define (name args...) body...)
+ */
+case class SchemeDefineFunction(name: Identifier, args: List[Identifier], body: List[SchemeExp], pos: Position) extends SchemeExp {
+  override def toString = {
     val a = args.mkString(" ")
     val b = body.mkString(" ")
     s"(define ($name $a) $b)"
@@ -262,10 +237,22 @@ case class SchemeDefineFunction(name: String,
 }
 
 /**
-  * An identifier: name
-  */
-case class SchemeIdentifier(name: String, pos: Position) extends SchemeExp {
-  override def toString() = name
+ * Do notation: (do ((<variable1> <init1> <step1>) ...) (<test> <expression> ...) <command> ...)
+ */
+case class SchemeDo(vars: List[(Identifier, SchemeExp, Option[SchemeExp])], test: SchemeExp, finals: List[SchemeExp], commands: List[SchemeExp], pos: Position) extends SchemeExp {
+  override def toString = {
+    val varsstr = vars.map({ case (v, i, s) => s"($v $i $s)" }).mkString(" ")
+    val finalsstr = finals.mkString(" ")
+    val commandsstr = commands.mkString(" ")
+    s"(do ($varsstr) ($test $finalsstr) $commandsstr)"
+  }
+}
+/**
+ * An identifier: name
+ */
+case class SchemeVar(id: Identifier) extends SchemeExp {
+  val pos = id.pos
+  override def toString = id.name
 }
 
 /**
@@ -274,65 +261,100 @@ case class SchemeIdentifier(name: String, pos: Position) extends SchemeExp {
   * a simple s-expression, because that's exactly what it should be.
   */
 case class SchemeQuoted(quoted: SExp, pos: Position) extends SchemeExp {
-  override def toString() = s"'$quoted"
+  override def toString = s"'$quoted"
 }
 
 /**
   * A literal value (number, symbol, string, ...)
   */
 case class SchemeValue(value: Value, pos: Position) extends SchemeExp {
-  override def toString() = value.toString
+  override def toString = value.toString
 }
 
 /**
-  * Compare-and-swap, concurrency synchronization primitive.
-  */
-case class SchemeCas(variable: String,
-                     eold: SchemeExp,
-                     enew: SchemeExp,
-                     pos: Position)
-    extends SchemeExp {
-  override def toString() = s"(cas $variable $eold $enew)"
+ * Compare-and-swap, concurrency synchronization primitive.
+ */
+case class SchemeCas(variable: Identifier, eold: SchemeExp, enew: SchemeExp, pos: Position) extends SchemeExp {
+  override def toString = s"(c/cas $variable $eold $enew)"
 }
 
 /**
-  * Compare-and-swap on a vector
-  */
-case class SchemeCasVector(variable: String,
-                           index: SchemeExp,
-                           eold: SchemeExp,
-                           enew: SchemeExp,
-                           pos: Position)
-    extends SchemeExp {
-  override def toString() = s"(cas-vector $variable $index $eold $enew)"
+ * Compare-and-swap on a vector
+ */
+case class SchemeCasVector(variable: Identifier, index: SchemeExp, eold: SchemeExp, enew: SchemeExp, pos: Position) extends SchemeExp {
+  override def toString = s"(c/cas-vector $variable $index $eold $enew)"
 }
 
 /**
   * Acquire a lock
   */
 case class SchemeAcquire(exp: SchemeExp, pos: Position) extends SchemeExp {
-  override def toString() = s"(acquire $exp)"
+  override def toString = s"(c/acquire $exp)"
 }
 
 /**
   * Release a lock
   */
 case class SchemeRelease(exp: SchemeExp, pos: Position) extends SchemeExp {
-  override def toString() = s"(release $exp)"
+  override def toString = s"(c/release $exp)"
 }
 
 /**
   * Spawn a new thread to compute an expression
   */
 case class SchemeSpawn(exp: SchemeExp, pos: Position) extends SchemeExp {
-  override def toString() = s"(spawn $exp)"
+  override def toString = s"(c/spawn $exp)"
 }
 
 /**
   * Wait for a thread (whose identifier is the value of exp) to terminate
   */
 case class SchemeJoin(exp: SchemeExp, pos: Position) extends SchemeExp {
-  override def toString() = s"(join $exp)"
+  override def toString = s"(c/join $exp)"
+}
+
+/**
+ * Send a message to an actor
+ */
+case class SchemeSend(target: SchemeExp, message: Identifier, args: List[SchemeExp], pos: Position) extends SchemeExp {
+  val a = args.mkString(" ")
+  override def toString = if (args.isEmpty) s"(a/send $target $message)" else s"(send $target $message $a)"
+}
+
+/**
+ * Create an actor from a behavior
+ */
+case class SchemeCreate(actor: SchemeExp, args: List[SchemeExp], pos: Position) extends SchemeExp {
+  val a = (actor :: args).mkString(" ")
+  override def toString = s"(a/create $a)"
+}
+
+/**
+ * Change the behavior of the current actor
+ */
+case class SchemeBecome(actor: SchemeExp, args: List[SchemeExp], pos: Position) extends SchemeExp {
+  val a = (actor :: args).mkString(" ")
+  override def toString = s"(a/become $a)"
+}
+
+/**
+ * Terminate the execution of an actor
+ */
+case class SchemeTerminate(pos: Position) extends SchemeExp {
+  override def toString = "(a/terminate)"
+}
+
+/**
+ * Define a behavior
+ */
+case class SchemeActor(name: String, xs: List[Identifier], defs: Map[String, (List[Identifier], List[SchemeExp])], pos: Position) extends SchemeExp {
+  val xss = xs.mkString(" ")
+  val defss = defs.toList.map({ case (msg, (args, body)) =>
+    val argss = args.mkString(" ")
+    val bodys = body.mkString(" ")
+    s"($msg ($argss) $bodys)"
+  }).mkString(" ")
+  override def toString = s"(a/actor $name ($xss) ($defss))"
 }
 
 /**
@@ -340,296 +362,237 @@ case class SchemeJoin(exp: SchemeExp, pos: Position) extends SchemeExp {
   */
 trait SchemeCompiler {
 
+// TODO MV Finish
+// TODO MV Also add new keyword names to list of reserved names
+//  def compile(exp: SExp): SchemeExp = exp match {
+//    case SExpPair(
+//        SExpId("do"),
+//        SExpPair(bindings, SExpPair(cond, commands, _), _),
+//        _) =>
+//      SchemeDo(compileDoBindings(bindings),
+//               compileDoCond(cond),
+//               compileBody(commands),
+//               exp.pos)
+//    case SExpPair(SExpId("amb"), body, _) =>
+//      SchemeAmb(compileBody(body), exp.pos)
+//    case SExpPair(SExpId("start-analysis"),
+//                  SExpValue(ValueNil, _),
+//                  _) =>
+//      SchemeStartAnalysis(exp.pos)
+//    case SExpPair(SExpId("quote"),
+//                  SExpPair(quoted, SExpValue(ValueNil, _), _),
+//                  _) =>
   /**
     * Reserved keywords
     */
-  val reserved: List[String] = List("do",
-                                    "amb",
-                                    "lambda",
-                                    "if",
-                                    "let",
-                                    "let*",
-                                    "letrec",
-                                    "cond",
-                                    "case",
-                                    "set!",
-                                    "begin",
-                                    "define",
-                                    "cas",
-                                    "acquire",
-                                    "release",
-                                    "cas-vector")
+  val reserved: List[String] = List("lambda", "if", "let", "let*", "letrec", "cond", "case", "set!", "begin", "define", "do", "c/cas", "c/acquire", "c/release", "c/cas-vector", "c/spawn", "c/join", "a/create", "a/become", "a/send", "a/terminate", "a/actor")
 
   def compile(exp: SExp): SchemeExp = exp match {
-    case SExpPair(
-        SExpIdentifier("do", _),
-        SExpPair(bindings, SExpPair(cond, commands, _), _),
-        _) =>
-      SchemeDo(compileDoBindings(bindings),
-               compileDoCond(cond),
-               compileBody(commands),
-               exp.pos)
-    case SExpPair(SExpIdentifier("amb", _), body, _) =>
-      SchemeAmb(compileBody(body), exp.pos)
-    case SExpPair(SExpIdentifier("start-analysis", _),
-                  SExpValue(ValueNil, _),
-                  _) =>
-      SchemeStartAnalysis(exp.pos)
-    case SExpPair(SExpIdentifier("quote", _),
-                  SExpPair(quoted, SExpValue(ValueNil, _), _),
-                  _) =>
+    case SExpPair(SExpId(Identifier("quote", _)), SExpPair(quoted, SExpValue(ValueNil, _), _), _) =>
       compile(SExpQuoted(quoted, exp.pos))
-    case SExpPair(SExpIdentifier("quote", _), _, _) =>
+    case SExpPair(SExpId(Identifier("quote", _)), _, _) =>
       throw new Exception(s"Invalid Scheme quote: $exp (${exp.pos})")
-    case SExpPair(SExpIdentifier("lambda", _),
-                  SExpPair(args, SExpPair(first, rest, _), _),
-                  _) =>
-      SchemeLambda(compileArgs(args),
-                   compile(first) :: compileBody(rest),
-                   exp.pos)
-    case SExpPair(SExpIdentifier("lambda", _), _, _) =>
+    case SExpPair(SExpId(Identifier("lambda", _)),
+      SExpPair(args, SExpPair(first, rest, _), _), _) =>
+      SchemeLambda(compileArgs(args), compile(first) :: compileBody(rest), exp.pos)
+    case SExpPair(SExpId(Identifier("lambda", _)), _, _) =>
       throw new Exception(s"Invalid Scheme lambda: $exp (${exp.pos})")
-    case SExpPair(SExpIdentifier("if", _),
-                  SExpPair(
-                  cond,
-                  SExpPair(cons, SExpPair(alt, SExpValue(ValueNil, _), _), _),
-                  _),
-                  _) =>
+    case SExpPair(SExpId(Identifier("if", _)),
+      SExpPair(cond, SExpPair(cons, SExpPair(alt, SExpValue(ValueNil, _), _), _), _), _) =>
       SchemeIf(compile(cond), compile(cons), compile(alt), exp.pos)
-    case SExpPair(SExpIdentifier("if", _),
-                  SExpPair(cond, SExpPair(cons, SExpValue(ValueNil, _), _), _),
-                  _) =>
+    case SExpPair(SExpId(Identifier("if", _)),
+      SExpPair(cond, SExpPair(cons, SExpValue(ValueNil, _), _), _), _) =>
       /* Empty else branch is replaced by #f (R5RS states it's unspecified) */
-      SchemeIf(compile(cond),
-               compile(cons),
-               SchemeValue(ValueBoolean(false), exp.pos),
-               exp.pos)
-    case SExpPair(SExpIdentifier("if", _), _, _) =>
-      throw new Exception(s"Invalid Scheme if: $exp (${exp.pos})")
-    case SExpPair(SExpIdentifier("let", _),
-                  SExpPair(bindings, SExpPair(first, rest, _), _),
-                  _) =>
-      SchemeLet(compileBindings(bindings),
-                compile(first) :: compileBody(rest),
-                exp.pos)
-    case SExpPair(SExpIdentifier("let", _), _, _) =>
+      SchemeIf(compile(cond), compile(cons), SchemeValue(ValueBoolean(false), exp.pos), exp.pos)
+    case SExpPair(SExpId(Identifier("if", _)), _, _) =>
+        throw new Exception(s"Invalid Scheme if: $exp (${exp.pos})")
+    case SExpPair(SExpId(Identifier("let", _)),
+      SExpPair(SExpId(name), SExpPair(bindings, SExpPair(first, rest, _), _), _), _) =>
+      SchemeNamedLet(name, compileBindings(bindings), compile(first) :: compileBody(rest), exp.pos)
+    case SExpPair(SExpId(Identifier("let", _)),
+      SExpPair(bindings, SExpPair(first, rest, _), _), _) =>
+      SchemeLet(compileBindings(bindings), compile(first) :: compileBody(rest), exp.pos)
+    case SExpPair(SExpId(Identifier("let", _)), _, _) =>
       throw new Exception(s"Invalid Scheme let: $exp")
-    case SExpPair(SExpIdentifier("let*", _),
-                  SExpPair(bindings, SExpPair(first, rest, _), _),
-                  _) =>
-      SchemeLetStar(compileBindings(bindings),
-                    compile(first) :: compileBody(rest),
-                    exp.pos)
-    case SExpPair(SExpIdentifier("let*", _), _, _) =>
+    case SExpPair(SExpId(Identifier("let*", _)),
+      SExpPair(bindings, SExpPair(first, rest, _), _), _) =>
+      SchemeLetStar(compileBindings(bindings), compile(first) :: compileBody(rest), exp.pos)
+    case SExpPair(SExpId(Identifier("let*", _)), _, _) =>
       throw new Exception(s"Invalid Scheme let*: $exp")
-    case SExpPair(SExpIdentifier("letrec", _),
-                  SExpPair(bindings, SExpPair(first, rest, _), _),
-                  _) =>
-      SchemeLetrec(compileBindings(bindings),
-                   compile(first) :: compileBody(rest),
-                   exp.pos)
-    case SExpPair(SExpIdentifier("letrec", _), _, _) =>
+    case SExpPair(SExpId(Identifier("letrec", _)),
+      SExpPair(bindings, SExpPair(first, rest, _), _), _) =>
+      SchemeLetrec(compileBindings(bindings), compile(first) :: compileBody(rest), exp.pos)
+    case SExpPair(SExpId(Identifier("letrec", _)), _, _) =>
       throw new Exception(s"Invalid Scheme letrec: $exp")
-    case SExpPair(SExpIdentifier("set!", _),
-                  SExpPair(SExpIdentifier(variable, _),
-                           SExpPair(value, SExpValue(ValueNil, _), _),
-                           _),
-                  _) =>
-      SchemeSet(variable, compile(value), exp.pos)
-    case SExpPair(SExpIdentifier("set!", _), _, _) =>
+    case SExpPair(SExpId(Identifier("set!", _)),
+      SExpPair(SExpId(v), SExpPair(value, SExpValue(ValueNil, _), _), _), _) =>
+      SchemeSet(v, compile(value), exp.pos)
+    case SExpPair(SExpId(Identifier("set!", _)), _, _) =>
       throw new Exception(s"Invalid Scheme set!: $exp")
-    case SExpPair(SExpIdentifier("begin", _), body, _) =>
+    case SExpPair(SExpId(Identifier("begin", _)), body, _) =>
       SchemeBegin(compileBody(body), exp.pos)
-    case SExpPair(SExpIdentifier("cond", _), clauses, _) =>
+    case SExpPair(SExpId(Identifier("cond", _)), clauses, _) =>
       SchemeCond(compileCondClauses(clauses), exp.pos)
-    case SExpPair(SExpIdentifier("case", _), SExpPair(exp, clauses, _), _) => {
+    case SExpPair(SExpId(Identifier("case", _)), SExpPair(exp, clauses, _), _) =>
       val (c, d) = compileCaseClauses(clauses)
       SchemeCase(compile(exp), c, d, exp.pos)
-    }
-    case SExpPair(SExpIdentifier("and", _), args, _) =>
+    case SExpPair(SExpId(Identifier("and", _)), args, _) =>
       SchemeAnd(compileBody(args), exp.pos)
-    case SExpPair(SExpIdentifier("or", _), args, _) =>
+      case SExpPair(SExpId(Identifier("or", _)), args, _) =>
       SchemeOr(compileBody(args), exp.pos)
-    case SExpPair(SExpIdentifier("define", _),
-                  SExpPair(SExpIdentifier(name, _),
-                           SExpPair(value, SExpValue(ValueNil, _), _),
-                           _),
-                  _) =>
+    case SExpPair(SExpId(Identifier("define", _)),
+      SExpPair(SExpId(name), SExpPair(value, SExpValue(ValueNil, _), _), _), _) =>
       SchemeDefineVariable(name, compile(value), exp.pos)
-    case SExpPair(SExpIdentifier("define", _),
-                  SExpPair(SExpPair(SExpIdentifier(name, _), args, _),
-                           SExpPair(first, rest, _),
-                           _),
-                  _) =>
-      SchemeDefineFunction(name,
-                           compileArgs(args),
-                           compile(first) :: compileBody(rest),
-                           exp.pos)
-    case SExpPair(SExpIdentifier("cas", _),
-                  SExpPair(
-                  SExpIdentifier(variable, _),
-                  SExpPair(eold, SExpPair(enew, SExpValue(ValueNil, _), _), _),
-                  _),
-                  _) =>
+    case SExpPair(SExpId(Identifier("define", _)),
+      SExpPair(SExpPair(SExpId(name), args, _),
+        SExpPair(first, rest, _), _), _) =>
+      SchemeDefineFunction(name, compileArgs(args), compile(first) :: compileBody(rest), exp.pos)
+    case SExpPair(SExpId(Identifier("do", _)),
+      SExpPair(bindings, SExpPair(SExpPair(test, finals, _), commands, _), _), _) =>
+      SchemeDo(compileDoBindings(bindings), compile(test), compileBody(finals), compileBody(commands), exp.pos)
+    case SExpPair(SExpId(Identifier("c/cas", _)),
+      SExpPair(SExpId(variable),
+        SExpPair(eold, SExpPair(enew, SExpValue(ValueNil, _), _), _), _), _) =>
       SchemeCas(variable, compile(eold), compile(enew), exp.pos)
-    case SExpPair(SExpIdentifier("cas", _), _, _) =>
+    case SExpPair(SExpId(Identifier("c/cas", _)), _, _) =>
       throw new Exception(s"Invalid Scheme cas: $exp")
-    case SExpPair(SExpIdentifier("cas-vector", _),
-                  SExpPair(
-                  SExpIdentifier(variable, _),
-                  SExpPair(
-                  index,
-                  SExpPair(eold, SExpPair(enew, SExpValue(ValueNil, _), _), _),
-                  _),
-                  _),
-                  _) =>
-      SchemeCasVector(variable,
-                      compile(index),
-                      compile(eold),
-                      compile(enew),
-                      exp.pos)
-    case SExpPair(SExpIdentifier("cas-vector", _), _, _) =>
+    case SExpPair(SExpId(Identifier("c/cas-vector", _)),
+      SExpPair(SExpId(variable),
+        SExpPair(index, SExpPair(eold, SExpPair(enew, SExpValue(ValueNil, _), _), _), _), _), _) =>
+      SchemeCasVector(variable, compile(index), compile(eold), compile(enew), exp.pos)
+    case SExpPair(SExpId(Identifier("c/cas-vector", _)), _, _) =>
       throw new Exception(s"Indavil Scheme cas-vector: $exp")
-    case SExpPair(SExpIdentifier("acquire", _),
-                  SExpPair(exp, SExpValue(ValueNil, _), _),
-                  _) =>
+    case SExpPair(SExpId(Identifier("c/acquire", _)),
+      SExpPair(exp, SExpValue(ValueNil, _), _), _) =>
       SchemeAcquire(compile(exp), exp.pos)
-    case SExpPair(SExpIdentifier("acquire", _), _, _) =>
+    case SExpPair(SExpId(Identifier("c/acquire", _)), _, _) =>
       throw new Exception(s"Invalid Scheme acquire: $exp")
-    case SExpPair(SExpIdentifier("release", _),
-                  SExpPair(exp, SExpValue(ValueNil, _), _),
-                  _) =>
+    case SExpPair(SExpId(Identifier("c/release", _)),
+      SExpPair(exp, SExpValue(ValueNil, _), _), _) =>
       SchemeRelease(compile(exp), exp.pos)
-    case SExpPair(SExpIdentifier("release", _), _, _) =>
+  case SExpPair(SExpId(Identifier("c/release", _)), _, _) =>
       throw new Exception(s"Invalid Scheme release: $exp")
-    case SExpPair(SExpIdentifier("spawn", _),
-                  SExpPair(exp, SExpValue(ValueNil, _), _),
-                  _) =>
+    case SExpPair(SExpId(Identifier("c/spawn", _)),
+      SExpPair(exp, SExpValue(ValueNil, _), _), _) =>
       SchemeSpawn(compile(exp), exp.pos)
-    case SExpPair(SExpIdentifier("spawn", _), _, _) =>
+    case SExpPair(SExpId(Identifier("c/spawn", _)), _, _) =>
       throw new Exception(s"Invalid Scheme spawn: $exp")
-    case SExpPair(SExpIdentifier("join", _),
-                  SExpPair(exp, SExpValue(ValueNil, _), _),
-                  _) =>
+    case SExpPair(SExpId(Identifier("c/join", _)),
+      SExpPair(exp, SExpValue(ValueNil, _), _), _) =>
       SchemeJoin(compile(exp), exp.pos)
-    case SExpPair(SExpIdentifier("join", _), _, _) =>
+    case SExpPair(SExpId(Identifier("c/join", _)), _, _) =>
       throw new Exception(s"Invalid Scheme join: $exp")
+
+    case SExpPair(SExpId(Identifier("a/send", _)), SExpPair(target, SExpPair(SExpId(message), args, _), _), _) =>
+      SchemeSend(compile(target), message, compileBody(args), exp.pos)
+    case SExpPair(SExpId(Identifier("a/send", _)), _, _) =>
+      throw new Exception(s"Invalid Scheme send: $exp (${exp.pos})")
+    case SExpPair(SExpId(Identifier("a/become", _)), SExpPair(actor, args, _), _) =>
+      SchemeBecome(compile(actor), compileBody(args), exp.pos)
+    case SExpPair(SExpId(Identifier("a/become", _)), _, _) =>
+      throw new Exception(s"Invalid Scheme become: $exp (${exp.pos})")
+    case SExpPair(SExpId(Identifier("a/create", _)), SExpPair(actor, args, _), _) =>
+      SchemeCreate(compile(actor), compileBody(args), exp.pos)
+    case SExpPair(SExpId(Identifier("a/create", _)), _, _) =>
+      throw new Exception(s"Invalid Scheme create: $exp (${exp.pos})")
+    case SExpPair(SExpId(Identifier("a/terminate", _)), SExpValue(ValueNil, _), _) =>
+      SchemeTerminate(exp.pos)
+    case SExpPair(SExpId(Identifier("a/actor", _)), SExpPair(SExpValue(ValueString(name), _), SExpPair(args, defs, _), _), _) =>
+      SchemeActor(name, compileArgs(args), compileActorDefs(defs).map({ case (n, v) => (n.name, v) }).toMap, exp.pos)
+    case SExpPair(SExpId(Identifier("a/actor", _)), _, _) =>
+      throw new Exception(s"Invalid Scheme actor: $exp (${exp.pos})")
+
     case SExpPair(f, args, _) =>
       SchemeFuncall(compile(f), compileBody(args), exp.pos)
-    case SExpIdentifier(name, _) =>
-      if (reserved.contains(name)) {
-        throw new Exception(s"Invalid Scheme identifier (reserved): $exp")
-      } else {
-        SchemeIdentifier(name, exp.pos)
-      }
+    case SExpId(v) => if (reserved.contains(v.name)) {
+      throw new Exception(s"Invalid Scheme identifier (reserved): $exp")
+    } else {
+      SchemeVar(v)
+    }
     case SExpValue(value, _) => SchemeValue(value, exp.pos)
     case SExpQuoted(quoted, _) => SchemeQuoted(quoted, exp.pos)
   }
 
-  def compileArgs(args: SExp): List[String] = args match {
-    case SExpPair(SExpIdentifier(id, _), rest, _) => id :: compileArgs(rest)
+  def compileActorDefs(defs: SExp): List[(Identifier, (List[Identifier], List[SchemeExp]))] = defs match {
+    case SExpPair(SExpPair(SExpId(m), SExpPair(args, body, _), _), rest, _) =>
+      (m, (compileArgs(args), compileBody(body))) :: compileActorDefs(rest)
     case SExpValue(ValueNil, _) => Nil
-    case _ => throw new Exception(s"Invalid Scheme argument list: $args")
+    case _ => throw new Exception(s"Invalid Scheme actor definition: $defs (${defs.pos})")
+  }
+
+  def compileArgs(args: SExp): List[Identifier] = args match {
+    case SExpPair(SExpId(id), rest, _) => id :: compileArgs(rest)
+    case SExpValue(ValueNil, _) => Nil
+    case _ => throw new Exception(s"Invalid Scheme argument list: $args (${args.pos})")
   }
 
   def compileBody(body: SExp): List[SchemeExp] = body match {
     case SExpPair(exp, rest, _) => compile(exp) :: compileBody(rest)
     case SExpValue(ValueNil, _) => Nil
-    case _ => throw new Exception(s"Invalid Scheme body: $body")
+    case _ => throw new Exception(s"Invalid Scheme body: $body (${body.pos})")
+  }
+  def compileBindings(bindings: SExp): List[(Identifier, SchemeExp)] = bindings match {
+    case SExpPair(SExpPair(SExpId(v),
+      SExpPair(value, SExpValue(ValueNil, _), _), _), rest, _) =>
+      if (reserved.contains(v.name)) {
+        throw new Exception(s"Invalid Scheme identifier (reserved): $v (${bindings.pos})")
+      } else {
+        (v, compile(value)) :: compileBindings(rest)
+      }
+    case SExpValue(ValueNil, _) => Nil
+    case _ => throw new Exception(s"Invalid Scheme bindings: $bindings (${bindings.pos})")
   }
 
-  def compileDoCond(cond: SExp): (SchemeExp, List[SchemeExp]) = cond match {
-    case SExpPair(cond, exps, _) =>
-      (compile(cond), compileBody(exps))
-    case _ =>
-      throw new Exception(s"Invalid Scheme do-condition: $cond")
+  def compileDoBindings(bindings: SExp): List[(Identifier, SchemeExp, Option[SchemeExp])] = bindings match {
+    case SExpPair(SExpPair(SExpId(v),
+      SExpPair(value, SExpValue(ValueNil, _), _), _), rest, _) =>
+      if (reserved.contains(v.name)) {
+        throw new Exception(s"Invalid Scheme identifier (reserved): $v (${bindings.pos})")
+      } else {
+        (v, compile(value), None) :: compileDoBindings(rest)
+      }
+    case SExpPair(SExpPair(SExpId(v),
+      SExpPair(value, SExpPair(step, SExpValue(ValueNil, _), _), _), _), rest, _) =>
+      if (reserved.contains(v.name)) {
+        throw new Exception(s"Invalid Scheme identifier (reserved): $v (${bindings.pos})")
+      } else {
+        (v, compile(value), Some(compile(step))) :: compileDoBindings(rest)
+      }
+    case SExpValue(ValueNil, _) => Nil
+    case _ => throw new Exception(s"Invalid Scheme do-bindings: $bindings (${bindings.pos})")
   }
 
-  def compileDoBindings(bindings: SExp): List[(String, SchemeExp, SchemeExp)] =
-    bindings match {
-      case SExpPair(
-          SExpPair(
-          SExpIdentifier(name, _),
-          SExpPair(init, restOfBinding, _),
-          _),
-          rest,
-          _) =>
-        if (reserved.contains(name)) {
-          throw new Exception(s"Invalid Scheme identifier (reserved): $name")
-        } else {
-          val step = restOfBinding match {
-            case SExpPair(step, SExpValue(ValueNil, _), _) =>
-              compile(step)
-            case SExpValue(ValueNil, pos) =>
-              SchemeIdentifier(name, pos)
-          }
-          (name, compile(init), step) :: compileDoBindings(rest)
-        }
-      case SExpValue(ValueNil, _) => Nil
-      case _ => throw new Exception(s"Invalid Scheme bindings: $bindings")
-    }
+  def compileCondClauses(clauses: SExp): List[(SchemeExp, List[SchemeExp])] = clauses match {
+    case SExpPair(SExpPair(SExpId(Identifier("else", _)), SExpPair(first, rest, _), _),
+                  SExpValue(ValueNil, _), _) =>
+      List((SchemeValue(ValueBoolean(true), clauses.pos), compile(first) :: compileBody(rest)))
+    case SExpPair(SExpPair(cond, SExpPair(first, rest, _), _), restClauses, _) =>
+      (compile(cond), compile(first) :: compileBody(rest)) :: compileCondClauses(restClauses)
+    case SExpPair(SExpPair(cond, SExpValue(ValueNil, _), _), restClauses, _) =>
+      (compile(cond), Nil) :: compileCondClauses(restClauses)
+    case SExpValue(ValueNil, _) => Nil
+    case _ => throw new Exception(s"Invalid Scheme cond clauses: $clauses ${clauses.pos})")
+  }
 
-  def compileBindings(bindings: SExp): List[(String, SchemeExp)] =
-    bindings match {
-      case SExpPair(SExpPair(SExpIdentifier(name, _),
-                             SExpPair(value, SExpValue(ValueNil, _), _),
-                             _),
-                    rest,
-                    _) =>
-        if (reserved.contains(name)) {
-          throw new Exception(s"Invalid Scheme identifier (reserved): $name")
-        } else {
-          (name, compile(value)) :: compileBindings(rest)
-        }
-      case SExpValue(ValueNil, _) => Nil
-      case _ => throw new Exception(s"Invalid Scheme bindings: $bindings")
-    }
-
-  def compileCondClauses(clauses: SExp): List[(SchemeExp, List[SchemeExp])] =
-    clauses match {
-      case SExpPair(
-          SExpPair(SExpIdentifier("else", _), SExpPair(first, rest, _), _),
-          SExpValue(ValueNil, _),
-          _) =>
-        List(
-          (SchemeValue(ValueBoolean(true), clauses.pos),
-           compile(first) :: compileBody(rest)))
-      case SExpPair(SExpPair(cond, SExpPair(first, rest, _), _),
-                    restClauses,
-                    _) =>
-        (compile(cond), compile(first) :: compileBody(rest)) :: compileCondClauses(
-          restClauses)
-      case SExpPair(SExpPair(cond, SExpValue(ValueNil, _), _),
-                    restClauses,
-                    _) =>
-        (compile(cond), Nil) :: compileCondClauses(restClauses)
-      case SExpValue(ValueNil, _) => Nil
-      case _ => throw new Exception(s"Invalid Scheme cond clauses: $clauses")
-    }
-
-  def compileCaseClauses(clauses: SExp)
-    : (List[(List[SchemeValue], List[SchemeExp])], List[SchemeExp]) =
-    clauses match {
-      case SExpPair(
-          SExpPair(SExpIdentifier("else", _), SExpPair(first, rest, _), _),
-          SExpValue(ValueNil, _),
-          _) =>
-        (List(), compile(first) :: compileBody(rest))
-      case SExpPair(SExpPair(objects, body, _), restClauses, _) =>
-        val (compiled, default) = compileCaseClauses(restClauses)
-        ((compileCaseObjects(objects), compileBody(body)) :: compiled, default)
-      case SExpValue(ValueNil, _) => (Nil, Nil)
-      case _ => throw new Exception(s"Invalid Scheme case clauses: $clauses")
-    }
+  def compileCaseClauses(clauses: SExp): (List[(List[SchemeValue], List[SchemeExp])], List[SchemeExp]) = clauses match {
+    case SExpPair(SExpPair(SExpId(Identifier("else", _)), SExpPair(first, rest, _), _),
+                  SExpValue(ValueNil, _), _) =>
+      (List(), compile(first) :: compileBody(rest))
+    case SExpPair(SExpPair(objects, body, _), restClauses, _) =>
+      val (compiled, default) = compileCaseClauses(restClauses)
+      ((compileCaseObjects(objects), compileBody(body)) :: compiled, default)
+    case SExpValue(ValueNil, _) => (Nil, Nil)
+    case _ => throw new Exception(s"Invalid Scheme case clauses: $clauses (${clauses.pos})")
+  }
 
   def compileCaseObjects(objects: SExp): List[SchemeValue] = objects match {
     case SExpPair(SExpValue(v, _), rest, _) =>
       SchemeValue(v, objects.pos) :: compileCaseObjects(rest)
-    case SExpPair(SExpIdentifier(id, _), rest, _) =>
+    case SExpPair(SExpId(id), rest, _) =>
       /* identifiers in case expressions are treated as symbols */
-      SchemeValue(ValueSymbol(id), objects.pos) :: compileCaseObjects(rest)
+      SchemeValue(ValueSymbol(id.name), id.pos) :: compileCaseObjects(rest)
     case SExpValue(ValueNil, _) => Nil
-    case _ => throw new Exception(s"Invalid Scheme case objects: $objects")
+    case _ => throw new Exception(s"Invalid Scheme case objects: $objects (${objects.pos})")
   }
 }
 
@@ -762,13 +725,20 @@ object SchemeRenamer {
               }
           }
       }
+    case SchemeNamedLet(name, bindings, body, pos) =>
+      countl(bindings.map(_._1), names, count) match {
+        case (variables, names1, count1) => renameList(bindings.map(_._2), names1, count1) match {
+          case (exps, count2) => renameList(body, names1, count2) match {
+            case (body1, count3) => (SchemeNamedLet(name /* TODO: rename it as well */, variables.zip(exps), body1, pos), count2)
+          }
+        }
+      }
     case SchemeSet(variable, value, pos) =>
       rename(value, names, count) match {
-        case (value1, count1) =>
-          (SchemeSet(names.get(variable) match {
-            case Some(n) => n
-            case None => variable
-          }, value1, pos), count1)
+        case (value1, count1) => (SchemeSet(names.get(variable.name) match {
+          case Some(n) => Identifier(n, variable.pos)
+          case None => variable
+        }, value1, pos), count1)
       }
     case SchemeBegin(body, pos) =>
       renameList(body, names, count) match {
@@ -834,11 +804,10 @@ object SchemeRenamer {
       }
     case SchemeQuoted(quoted, pos) =>
       (SchemeQuoted(quoted, pos), count)
-    case SchemeIdentifier(name, pos) =>
-      names.get(name) match {
-        case Some(n) => (SchemeIdentifier(n, pos), count)
-        case None => (SchemeIdentifier(name, pos), count) /* keep original name */
-      }
+    case SchemeVar(id) => names.get(id.name) match {
+      case Some(n) => (SchemeVar(Identifier(n, id.pos)), count)
+      case None => (SchemeVar(Identifier(id.name, id.pos)), count) /* keep original name */
+    }
     case SchemeValue(v, pos) =>
       (SchemeValue(v, pos), count)
     case _ => throw new Exception(s"Unhandled expression in renamer: $exp")
@@ -855,52 +824,40 @@ object SchemeRenamer {
     case Nil => (Nil, count)
   }
 
-  def renameLetStarBindings(
-      bindings: List[(String, SchemeExp)],
-      names: NameMap,
-      count: CountMap): (List[(String, SchemeExp)], NameMap, CountMap) =
-    bindings match {
-      case (v, e) :: rest =>
-        count1(v, names, count) match {
-          /* use old names, as with a let* the variable is not yet bound in its
-           * definition */
-          case (v1, names1, count1) =>
-            rename(e, names, count1) match {
-              case (e1, count2) =>
-                renameLetStarBindings(rest, names1, count2) match {
-                  case (rest1, names2, count3) =>
-                    ((v1, e1) :: rest1, names2, count3)
-                }
-            }
+  def renameLetStarBindings(bindings: List[(Identifier, SchemeExp)], names: NameMap, count: CountMap): (List[(Identifier, SchemeExp)], NameMap, CountMap) = bindings match {
+    case (v, e) :: rest =>
+      count1(v, names, count) match {
+        /* use old names, as with a let* the variable is not yet bound in its
+         * definition */
+        case (v1, names1, count1) => rename(e, names, count1) match {
+          case (e1, count2) => renameLetStarBindings(rest, names1, count2) match {
+            case (rest1, names2, count3) =>
+              ((v1, e1) :: rest1, names2, count3)
+          }
         }
-      case Nil => (Nil, names, count)
-    }
+      }
+    case Nil => (Nil, names, count)
+  }
 
   /** To be called when a new variable is introduced in the scope. Adds it to the
     * name map and count map */
-  def count1(variable: String,
-             names: NameMap,
-             count: CountMap): (String, NameMap, CountMap) = {
-    val c: Int = count.get(variable) match {
+  def count1(variable: Identifier, names: NameMap, count: CountMap): (Identifier, NameMap, CountMap) = {
+    val c: Int  = count.get(variable.name) match {
       case Some(x) => x + 1
       case None => 0
     }
     val n = s"_$variable$c"
-    (n, names + (variable -> n), count + (variable -> c))
+    (Identifier(n, variable.pos),
+      names + (variable.name -> n), count + (variable.name -> c))
   }
 
   /** Same as count1 but for a list of variables */
-  def countl(variables: List[String],
-             names: NameMap,
-             count: CountMap): (List[String], NameMap, CountMap) =
-    variables.foldLeft((List[String](), names, count))(
-      (st: (List[String], NameMap, CountMap), v: String) =>
-        st match {
-          case (l, ns, cs) =>
-            count1(v, ns, cs) match {
-              case (v1, ns1, cs1) => ((v1 :: l), ns1, cs1)
-            }
-      }) match {
+  def countl(variables: List[Identifier], names: NameMap, count: CountMap): (List[Identifier], NameMap, CountMap) =
+    variables.foldLeft((List[Identifier](), names, count))(
+      (st: (List[Identifier], NameMap, CountMap), v: Identifier) => st match {
+      case (l, ns, cs) => count1(v, ns, cs) match {
+        case (v1, ns1, cs1) => ((v1 :: l), ns1, cs1)
+      }}) match {
       case (l, ns, cs) => (l.reverse, ns, cs)
     }
 }
@@ -935,27 +892,19 @@ object SchemeDesugarer {
     undefine(exps, List())
   }
 
-  def undefine(exps: List[SchemeExp],
-               defs: List[(String, SchemeExp)]): SchemeExp = exps match {
-    case Nil => SchemeBegin(Nil, scala.util.parsing.input.NoPosition)
-    case SchemeDefineFunction(name, args, body, pos) :: rest =>
-      undefine(SchemeDefineVariable(
-                 name,
-                 SchemeLambda(args, undefineBody(body), exps.head.pos),
-                 pos) :: rest,
-               defs)
-    case SchemeDefineVariable(name, value, _) :: rest =>
-      undefine(rest, (name, value) :: defs)
-    case _ :: _ =>
-      if (defs.isEmpty) {
-        undefineBody(exps) match {
-          case Nil => SchemeBegin(Nil, scala.util.parsing.input.NoPosition)
-          case exp :: Nil => exp
-          case exps => SchemeBegin(exps, exps.head.pos)
-        }
-      } else {
-        SchemeLetrec(defs.reverse, undefineBody(exps), exps.head.pos)
+  def undefine(exps: List[SchemeExp], defs: List[(Identifier, SchemeExp)]): SchemeExp = exps match {
+    case Nil => SchemeBegin(Nil, Position.none)
+    case SchemeDefineFunction(name, args, body, pos) :: rest => undefine(SchemeDefineVariable(name, SchemeLambda(args, undefineBody(body), exps.head.pos), pos) :: rest, defs)
+    case SchemeDefineVariable(name, value, _) :: rest => undefine(rest, (name, undefine1(value)) :: defs)
+    case _ :: _ => if (defs.isEmpty) {
+      undefineBody(exps) match {
+        case Nil => SchemeBegin(Nil, Position.none)
+        case exp :: Nil => exp
+        case exps => SchemeBegin(exps, exps.head.pos)
       }
+    } else {
+      SchemeLetrec(defs.reverse, undefineBody(exps), exps.head.pos)
+    }
   }
 
   def undefine1(exp: SchemeExp): SchemeExp = undefine(List(exp))
@@ -966,35 +915,24 @@ object SchemeDesugarer {
     case SchemeDefineVariable(_, _, _) :: _ => List(undefine(exps, List()))
     case exp :: rest => {
       val exp2 = exp match {
-        case SchemeDo(bindings, test, commands, pos) =>
-          SchemeDo(
-            bindings.map(binding =>
-              (binding._1, undefine1(binding._2), undefine1(binding._3))),
-            (undefine1(test._1), undefineBody(test._2)),
-            undefineBody(commands),
-            pos)
-        case SchemeAmb(exps, pos) => SchemeAmb(exps.map(undefine1), pos)
-        case SchemeStartAnalysis(pos) => SchemeStartAnalysis(pos)
-        case SchemeLambda(args, body, pos) =>
-          SchemeLambda(args, undefineBody(body), pos)
-        case SchemeFuncall(f, args, pos) =>
-          SchemeFuncall(undefine1(f), args.map(undefine1), pos)
-        case SchemeIf(cond, cons, alt, pos) =>
-          SchemeIf(undefine1(cond), undefine1(cons), undefine1(alt), pos)
-        case SchemeLet(bindings, body, pos) =>
-          SchemeLet(bindings.map({ case (b, v) => (b, undefine1(v)) }),
-                    undefineBody(body),
-                    pos)
-        case SchemeLetStar(bindings, body, pos) =>
-          SchemeLetStar(bindings.map({ case (b, v) => (b, undefine1(v)) }),
-                        undefineBody(body),
-                        pos)
-        case SchemeLetrec(bindings, body, pos) =>
-          SchemeLetrec(bindings.map({ case (b, v) => (b, undefine1(v)) }),
-                       undefineBody(body),
-                       pos)
-        case SchemeSet(variable, value, pos) =>
-          SchemeSet(variable, undefine1(value), pos)
+          // TODO MV Finish this
+//        case SchemeDo(bindings, test, commands, pos) =>
+//          SchemeDo(
+//            bindings.map(binding =>
+//              (binding._1, undefine1(binding._2), undefine1(binding._3))),
+//            (undefine1(test._1), undefineBody(test._2)),
+//            undefineBody(commands),
+//            pos)
+//        case SchemeAmb(exps, pos) => SchemeAmb(exps.map(undefine1), pos)
+//        case SchemeStartAnalysis(pos) => SchemeStartAnalysis(pos)
+        case SchemeLambda(args, body, pos) => SchemeLambda(args, undefineBody(body), pos)
+        case SchemeFuncall(f, args, pos) => SchemeFuncall(undefine1(f), args.map(undefine1), pos)
+        case SchemeIf(cond, cons, alt, pos) => SchemeIf(undefine1(cond), undefine1(cons), undefine1(alt), pos)
+        case SchemeLet(bindings, body, pos) => SchemeLet(bindings.map({ case (b, v) => (b, undefine1(v)) }), undefineBody(body), pos)
+        case SchemeLetStar(bindings, body, pos) => SchemeLetStar(bindings.map({ case (b, v) => (b, undefine1(v)) }), undefineBody(body), pos)
+        case SchemeLetrec(bindings, body, pos) => SchemeLetrec(bindings.map({ case (b, v) => (b, undefine1(v)) }), undefineBody(body), pos)
+        case SchemeNamedLet(name, bindings, body, pos) => SchemeNamedLet(name, bindings.map({ case (b, v) => (b, undefine1(v)) }), undefineBody(body), pos)
+        case SchemeSet(variable, value, pos) => SchemeSet(variable, undefine1(value), pos)
         case SchemeBegin(exps, pos) => SchemeBegin(undefineBody(exps), pos)
         case SchemeCond(clauses, pos) =>
           SchemeCond(clauses.map({
@@ -1006,7 +944,10 @@ object SchemeDesugarer {
           }), undefineBody(default), pos)
         case SchemeAnd(args, pos) => SchemeAnd(args.map(undefine1), pos)
         case SchemeOr(args, pos) => SchemeOr(args.map(undefine1), pos)
-        case SchemeIdentifier(name, pos) => SchemeIdentifier(name, pos)
+        case SchemeDo(vars, test, finals, commands, pos) => SchemeDo(
+          vars.map({ case (id, init, step) => (id, undefine1(init), step.map(undefine1)) }),
+          undefine1(test), undefineBody(finals), undefineBody(commands), pos)
+        case SchemeVar(id) => SchemeVar(id)
         case SchemeQuoted(quoted, pos) => SchemeQuoted(quoted, pos)
         case SchemeValue(value, pos) => SchemeValue(value, pos)
         case SchemeCas(variable, eold, enew, pos) =>
@@ -1021,6 +962,11 @@ object SchemeDesugarer {
         case SchemeRelease(exp, pos) => SchemeRelease(undefine1(exp), pos)
         case SchemeSpawn(exp, pos) => SchemeSpawn(undefine1(exp), pos)
         case SchemeJoin(exp, pos) => SchemeJoin(undefine1(exp), pos)
+        case SchemeSend(target, message, args, pos) => SchemeSend(undefine1(target), message, undefineBody(args), pos)
+        case SchemeCreate(beh, args, pos) => SchemeCreate(undefine1(beh), undefineBody(args), pos)
+        case SchemeBecome(beh, args, pos) => SchemeBecome(undefine1(beh), undefineBody(args), pos)
+        case SchemeActor(name, xs, defs, pos) => SchemeActor(name, xs, defs.map({ case (name, (args, body)) => (name, (args, undefineBody(body))) }), pos)
+        case SchemeTerminate(pos) => SchemeTerminate(pos)
       }
       exp2 :: undefineBody(rest)
     }

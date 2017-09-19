@@ -4,6 +4,7 @@
   * AAC.scala and Free.scala.
   */
 /**
+<<<<<<< HEAD
   * The output of the abstract machine
   */
 trait Output[Abs] {
@@ -108,6 +109,62 @@ trait AbstractMachineTraced[Exp, Abs, Addr, Time]
            exp: Exp,
            graph: Boolean = false,
            timeout: Option[Long] = None): Output[Abs]
+=======
+ * The interface of the abstract machine itself.
+ * The abstract machine is parameterized by abstract values, addresses and
+ * expressions. Look into AAM.scala for an example of how to define these
+ * parameters
+ */
+abstract class AbstractMachine[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp] {
+  /** The name of the abstract machine */
+  def name: String
+
+  /**
+   * The output of the abstract machine
+   */
+  trait Output {
+    /**
+     * Returns the set of final values that can be reached by the abstract machine.
+     * Example: the Scheme program (+ 1 2) has as final values the set {3} , in the concrete case.
+     */
+    def finalValues: Set[Abs]
+
+    /**
+     * Checks if the set of final values contains a value that subsumes @param v
+     */
+    def containsFinalValue(v: Abs): Boolean =
+      finalValues.exists(v2 => JoinLattice[Abs].subsumes(v2, v))
+
+    /**
+     * Returns the number of states visited to evaluate the program
+     */
+    def numberOfStates: Int
+
+    /**
+     * Returns the time it took to evaluate the program
+     */
+    def time: Double
+
+    /**
+     * Does this output comes from a computation that timed out?
+     */
+    def timedOut: Boolean
+
+    /**
+     * Outputs the graph computed by the machine in a file, according to the given output format
+     */
+    def toFile(path: String)(output: GraphOutput): Unit
+  }
+
+  /**
+   * Evaluates a program, given a semantics. If @param graph is true, the state
+   * graph will be computed and stored in the output. Returns an object
+   * implementing the Output trait, containing information about the
+   * evaluation. @param timeout is the timeout in ns, when reached, the
+   * evaluation stops and the currently computed results are returned.
+   */
+  def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean = false, timeout: Timeout = Timeout.start(None)): Output
+>>>>>>> 9de48f824fa56370876d922b957948f007216898
 }
 
 /**
@@ -118,10 +175,6 @@ trait AbstractMachineTraced[Exp, Abs, Addr, Time]
 abstract class EvalKontMachine[
     Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     extends AbstractMachine[Exp, Abs, Addr, Time] {
-  def abs = implicitly[JoinLattice[Abs]]
-  def addr = implicitly[Address[Addr]]
-  def exp = implicitly[Expression[Exp]]
-  def time = implicitly[Timestamp[Time]]
 
   /**
     * The control component of the machine
@@ -132,13 +185,28 @@ abstract class EvalKontMachine[
     /** Generates a descriptor for this control. */
     def descriptor: Descriptor[Control] = new ControlDescriptor
   }
+  object Control {
+    import org.json4s._
+    import org.json4s.JsonDSL._
+    import org.json4s.jackson.JsonMethods._
+    import scala.language.implicitConversions
+    import JSON._
+    implicit def controlToJSON(c: Control): JValue = c match {
+      case ControlEval(exp, env) =>
+        ("type" -> "ev") ~ ("exp" -> exp.toString) ~ ("env" -> env)
+      case ControlKont(v) =>
+        ("type" -> "kont") ~ ("value" -> v.toString)
+      case ControlError(err) =>
+        ("type" -> "err") ~ ("error" -> err.toString)
+    }
+  }
 
   /**
     * It can either be an eval component, where an expression needs to be
     * evaluated in an environment
     */
   case class ControlEval(exp: Exp, env: Environment[Addr]) extends Control {
-    override def toString() = s"ev(${exp})"
+    override def toString = s"ev(${exp})"
     def subsumes(that: Control) = that match {
       case ControlEval(exp2, env2) => exp.equals(exp2) && env.subsumes(env2)
       case _ => false
@@ -159,9 +227,9 @@ abstract class EvalKontMachine[
     * continuation should be popped from the stack to continue the evaluation
     */
   case class ControlKont(v: Abs) extends Control {
-    override def toString() = s"ko(${v})"
+    override def toString = s"ko(${v})"
     def subsumes(that: Control) = that match {
-      case ControlKont(v2) => abs.subsumes(v, v2)
+      case ControlKont(v2) => JoinLattice[Abs].subsumes(v, v2)
       case _ => false
     }
   }
@@ -171,7 +239,7 @@ abstract class EvalKontMachine[
     * of arguments in a function call)
     */
   case class ControlError(err: SemanticError) extends Control {
-    override def toString() = s"err($err)"
+    override def toString = s"err($err)"
     def subsumes(that: Control) = that.equals(this)
   }
 }
