@@ -1,6 +1,6 @@
 object GlobalFlags {
 
-  val PRINT_EDGE_ANNOTATIONS_FULL = true
+  val PRINT_EDGE_ANNOTATIONS_FULL = false
   val PRINT_ACTIONS_EXECUTED = false
   val PRINT_ENTIRE_TRACE = false
   val PRINT_EXECUTION_TIME = true
@@ -11,7 +11,7 @@ object GlobalFlags {
    * The current message level. All messages that are logged must have a level greater than or equal to this level
    * in order to be printed.
    */
-  val level = Logger.U
+  val level: Logger.LogLevel.Value = Logger.U
 
   var APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = false
   var APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = false

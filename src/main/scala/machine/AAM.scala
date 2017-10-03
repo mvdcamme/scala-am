@@ -232,7 +232,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     /**
       * Returns the list of final values that can be reached
       */
-    def finalValues =
+    def finalValues: Set[Abs] =
       halted.flatMap(st =>
         st.control match {
           case ControlKont(v) => Set[Abs](v)
@@ -344,7 +344,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     }
     val startingTime = System.nanoTime
     implicit val stateDescriptor = new StateDescriptor()
-    loop(Set(initialState), Set(), Set(), startingTime, new HyperlinkedGraph().addNode(initialState))
+    loop(Set(initialState), Set(), Set(), startingTime, new Graph().addNode(initialState))
   }
 
   def kickstartAnalysis[L](analysis: Analysis[L, Exp, Abs, Addr, Time],

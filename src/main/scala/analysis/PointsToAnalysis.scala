@@ -196,7 +196,6 @@ class PointsToAnalysisLauncher[
                              None,
                              Some("initial_graph.dot")) match {
       case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.GraphNode] =>
-        result.output.toDotFile("initial_graph.dot")
         incrementalAnalysis.initializeGraph(result.output.graph)
         initializeAnalyses(result.output.graph, programName)
       case other =>
@@ -209,7 +208,7 @@ class PointsToAnalysisLauncher[
                                     ConcreteConcreteLattice.L => Abs) => SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
                        => SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T],
                      filters: FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A],
-                     stepNumber: Int) = {
+                     stepNumber: Int): Unit = {
     val convertValueFun = convertValue(abstSem.primitives)
     incrementalAnalysis.computeSuccNodes(convertFrame(concSem, abstSem, convertValueFun), filters, stepNumber)
   }

@@ -1,5 +1,5 @@
 case class TracingFlags(
-    DO_TRACING: Boolean = true,
+    DO_TRACING: Boolean = false,
     TRACING_THRESHOLD: Integer = 5,
     OPTIMIZATION: ShouldApplyOptimization = ApplyAllOptimizations,
     DO_INITIAL_ANALYSIS: Boolean = false,
