@@ -1,0 +1,22 @@
+;;;; -Ob
+
+(define (command-line-arguments) '())
+
+(define (main args)
+  (let* ((n (if (null? args)
+            1
+            (string->number (car args))))
+	 (x (make-vector n 0))
+	 (y (make-vector n 0))
+	 (last (- n 1)))
+    (do ((i 0 (+ i 1)))
+	((= i n))
+      (vector-set! x i (+ i 1)))
+    (do ((k 0 (+ k 1)))
+	((= k 1000))
+      (do ((i last (- i 1)))
+	  ((< i 0))
+	(vector-set! y i (+ (vector-ref x i) (vector-ref y i)))))
+    (display (vector-ref y 0))(display " ")(display (vector-ref y last))))
+
+(main (command-line-arguments))
