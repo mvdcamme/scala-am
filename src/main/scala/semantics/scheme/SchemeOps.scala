@@ -23,6 +23,7 @@ object SchemeOps {
   case object StringLength extends UnaryOperator
   /* Conversions */
   case object NumberToString extends UnaryOperator
+  case object StringToNumber extends UnaryOperator
   case object StringToSymbol extends UnaryOperator
   case object SymbolToString extends UnaryOperator
 

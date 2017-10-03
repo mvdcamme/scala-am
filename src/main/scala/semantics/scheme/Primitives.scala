@@ -108,6 +108,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
   def vectorLength = abs.unaryOp(SchemeOps.VectorLength) _
   def stringAppend = abs.binaryOp(SchemeOps.StringAppend) _
   def stringLength = abs.unaryOp(SchemeOps.StringLength) _
+  def stringToNumber = abs.unaryOp(SchemeOps.StringToNumber) _
   def stringToSymbol = abs.unaryOp(SchemeOps.StringToSymbol) _
   def symbolToString = abs.unaryOp(SchemeOps.SymbolToString) _
   def numberToString = abs.unaryOp(SchemeOps.NumberToString) _
@@ -627,6 +628,11 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Error
+  }
+  object StringToNumber extends NoStoreOperation("string->number", Some(1)) {
+    override def call(x: Abs) = stringToNumber(x)
+    def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.StringToNumber
   }
   object StringToSymbol extends NoStoreOperation("string->symbol", Some(1)) {
     override def call(x: Abs) = stringToSymbol(x)
@@ -1300,7 +1306,8 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
 
   /** Bundles all the primitives together */
   def all: List[Primitive[Addr, Abs]] =
-    List(StringToSymbol,
+    List(StringToNumber,
+         StringToSymbol,
          SymbolToString,
          Plus,
          Minus,
