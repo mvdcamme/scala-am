@@ -244,6 +244,15 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
               case _ =>
                 OperatorNotApplicable("number->string", List(x.toString))
             }
+          case StringToNumber =>
+            x match {
+              case Str(s) =>
+                val mf: MayFail[I] = str.stringToNumber(s)
+                val set = mf.collect[L]( (i: I) => Set(Int(i)), (err: SemanticError) => Set(Bool(bool.inject(false))))
+                set.fold(bottom)(join) //( (res, other) => join(res, other))
+              case _ =>
+                OperatorNotApplicable("string->number", List(x.toString))
+            }
           case StringToSymbol =>
             x match {
               case Str(s) => Symbol(str.stringToSymbol(s))

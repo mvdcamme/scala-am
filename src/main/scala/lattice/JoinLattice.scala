@@ -49,7 +49,11 @@ trait IsString[S] extends IsLatticeElement[S] {
   def inject(s: String): S
   def length[I: IsInteger](s: S): I
   def append(s1: S, s2: S): S
+  def stringToNumber[I: IsInteger](s: S): MayFail[I]
   def stringToSymbol[Sym: IsSymbol](sym: S): Sym
+
+  protected def cannotConvertToNumber: SemanticError =
+    NotSupported("Cannot convert a non-integer string to an integer")
 }
 
 /** A lattice for booleans */
@@ -121,7 +125,15 @@ object ConcreteString {
     def length[I](s: S)(implicit int: IsInteger[I]): I =
       s.foldMap(s => int.inject(s.size))
     def append(s1: S, s2: S): S = s1.foldMap(s1 => s2.map(s2 => s1 + s2))
-    def stringToSymbol[Sym](s: S)(implicit sym: IsSymbol[Sym]) = s.foldMap(s => sym.inject(s))
+    def stringToNumber[I](s: S)(implicit int: IsInteger[I]): MayFail[I] = s.foldMap( (s: String) => {
+      try {
+        MayFailSuccess(int.inject(s.toInt))
+      } catch {
+        case _: java.lang.NumberFormatException =>
+          MayFailError(List(cannotConvertToNumber))
+      }
+    })
+    def stringToSymbol[Sym](s: S)(implicit sym: IsSymbol[Sym]): Sym = s.foldMap(s => sym.inject(s))
     def eql[B](s1: S, s2: S)(implicit bool: IsBoolean[B]): B =
       s1.foldMap(s1 => s2.foldMap(s2 => bool.inject(s1 == s2)))
 
@@ -449,6 +461,11 @@ object PointsToString extends PointsTo[ConcreteString.S](3) {
     def length[I](s: S)(implicit int: IsInteger[I]): I = applyAndCheckOtherUnary(s, (s) => concreteIsString.length(s)
     (int))
     def append(s1: S, s2: S) = applyAndCheckBinary(s1, s2, concreteIsString.append)
+    def stringToNumber[I](s: S)(implicit int: IsInteger[I]): MayFail[I] = s match {
+      case Top => MayFailBoth[I](int.top, List(cannotConvertToNumber))
+      case Precise(vX) =>
+        concreteIsString.stringToNumber(vX)
+    }
     def stringToSymbol[Sym](s: S)(implicit sym: IsSymbol[Sym]) =
       applyAndCheckOtherUnary(s, (s) => concreteIsString.stringToSymbol(s)(sym))
   }
@@ -596,6 +613,11 @@ object Type {
       case (_, Bottom) => Bottom
       case (Top, _) => Top
       case (_, Top) => Top
+    }
+
+    override def stringToNumber[I](s: T)(implicit int: IsInteger[I]): MayFail[I] = s match {
+      case Bottom => MayFailBoth(int.bottom, List(cannotConvertToNumber))
+      case Top => MayFailBoth(int.top, List(cannotConvertToNumber))
     }
     def stringToSymbol[Sym](s: T)(implicit sym: IsSymbol[Sym]) = s match {
       case Bottom => sym.bottom
@@ -757,6 +779,16 @@ object StringConstantPropagation extends ConstantPropagation[String] {
       case (Top, _) => Top
       case (_, Top) => Top
       case (Constant(x), Constant(y)) => Constant(x ++ y)
+    }
+    def stringToNumber[I](s: S)(implicit int: IsInteger[I]): MayFail[I] = s match {
+      case Bottom => MayFailBoth(int.bottom, List(cannotConvertToNumber))
+      case Top => MayFailBoth(int.top, List(cannotConvertToNumber))
+      case Constant(s) => try {
+        MayFailSuccess(int.inject(s.toInt))
+      } catch {
+        case _: java.lang.NumberFormatException =>
+          MayFailError(List(cannotConvertToNumber))
+      }
     }
     def stringToSymbol[Sym](s: S)(implicit sym: IsSymbol[Sym]): Sym = s match {
       case Bottom => sym.bottom
