@@ -577,7 +577,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
       prims.Error
   }
   object StringToNumber extends NoStoreOperation("string->number", Some(1)) {
-    override def call(x: Abs) = stringToSymbol(x)
+    override def call(x: Abs) = stringToNumber(x)
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.StringToNumber
   }
