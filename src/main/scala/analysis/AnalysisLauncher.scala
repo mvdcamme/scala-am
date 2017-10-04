@@ -10,7 +10,7 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
   /* The concrete program state the static analysis gets as input. This state is then converted to an
    * abstract state and fed to the AAM. */
   type PS =
-    ConcreteTracingProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
+    ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
   /* The specific type of AAM used for this analysis: an AAM using the HybridLattice, HybridAddress and ZeroCFA
    * components. */
   type SpecAAM = AAM[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]

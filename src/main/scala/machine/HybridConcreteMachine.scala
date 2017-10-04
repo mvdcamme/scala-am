@@ -80,7 +80,7 @@ class HybridConcreteMachine[
                    kstore: KontStore[KontAddr],
                    a: KontAddr,
                    t: HybridTimestamp.T)
-      extends ConcreteTracingProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
+      extends ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
       with StateTrait[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] {
 
     def halted = control match {

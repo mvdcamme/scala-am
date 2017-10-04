@@ -59,9 +59,7 @@ class ConstantVariableAnalysis[
         states.store.lookup(addr) match {
           case None =>
             /* If the address is not in the store, which shouldn't happen?, definitely keep exploring the state. */
-            Logger.log(
-              s"Found an abstract address $addr not in the store during static analysis",
-              Logger.E)
+            Logger.log(s"Found an abstract address $addr not in the store during static analysis", Logger.E)
             false
           case Some(value) =>
             !isConstantValue(value)
@@ -88,22 +86,14 @@ class ConstantVariableAnalysis[
   }
 }
 
-class ConstantsAnalysisLauncher[
-    Abs: IsConvertableLattice: ConstantableLatticeInfoProvider](
-    concSem: ConvertableSemantics[SchemeExp,
-                                  ConcreteConcreteLattice.L,
-                                  HybridAddress.A,
-                                  HybridTimestamp.T])(
-    implicit tracingFlags: TracingFlags)
+class ConstantsAnalysisLauncher[Abs: IsConvertableLattice: ConstantableLatticeInfoProvider](
+    concSem: ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T])
     extends AnalysisLauncher[Abs] {
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[ConstantableLatticeInfoProvider[Abs]]
 
-  final val constantsAnalysis = new ConstantVariableAnalysis[SchemeExp,
-                                                             Abs,
-                                                             HybridAddress.A,
-                                                             HybridTimestamp.T]
+  val constantsAnalysis = new ConstantVariableAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
 
   protected def launchAnalysis(free: SpecFree)(
       startStates: free.States,
@@ -120,9 +110,7 @@ class ConstantsAnalysisLauncher[
   protected def launchInitialAnalysis(free: SpecFree)(
       startStates: free.States): ConstantAddresses[HybridAddress.A] = {
     Logger.log(s"Running initial static constants analysis", Logger.I)
-    val result =
-      constantsAnalysis.initialAnalyze(free, abstSem, lip.isConstantValue)(
-        startStates)
+    val result = constantsAnalysis.initialAnalyze(free, abstSem, lip.isConstantValue)(startStates)
     Logger.log(s"Finished running initial static constants analysis", Logger.I)
     result
   }
