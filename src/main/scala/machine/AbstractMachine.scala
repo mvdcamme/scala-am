@@ -92,25 +92,6 @@ trait AbstractMachine[Exp, Abs, Addr, Time]
 }
 
 /**
-  * The interface of the abstract machine itself
-  */
-trait AbstractMachineTraced[Exp, Abs, Addr, Time]
-    extends BasicAbstractMachine[Exp, Abs, Addr, Time] {
-  def sem: SemanticsTraced[Exp, Abs, Addr, Time]
-
-  /**
-    * Evaluates a program, given a semantics. If @param graph is true, the state
-    * graph will be computed and stored in the output. Returns an object
-    * implementing the Output trait, containing information about the
-    * evaluation.
-    */
-  def eval(programName: String,
-           exp: Exp,
-           graph: Boolean = false,
-           timeout: Option[Long] = None): Output[Abs]
-}
-
-/**
   * Abstract machine with a control component that works in an eval-kont way: it
   * can either be evaluating something, or have reached a value and will pop a
   * continuation.
@@ -174,15 +155,6 @@ abstract class EvalKontMachine[
     override def toString() = s"err($err)"
     def subsumes(that: Control) = that.equals(this)
   }
-}
-
-abstract class EvalKontMachineTraced[Exp: Expression, Abs: JoinLattice,
-Addr: Address, Time: Timestamp](sem: SemanticsTraced[Exp, Abs, Addr, Time])
-    extends AbstractMachineTraced[Exp, Abs, Addr, Time] {
-  def abs = implicitly[JoinLattice[Abs]]
-  def addr = implicitly[Address[Addr]]
-  def exp = implicitly[Expression[Exp]]
-  def time = implicitly[Timestamp[Time]]
 }
 
 trait GraphPrinter[Graph] {

@@ -99,17 +99,6 @@ object Config {
     case _ => None
   }
 
-  def readBoolStringForTraceFlag(
-      config: Config,
-      boolString: String,
-      genTracingFlags: (Boolean) => TracingFlags): Config = {
-    val someBool = parseBool(boolString)
-    /* If no argument is passed, or if the argument could not be properly parsed,
-     * the default flag is used, i.e. we don't change config. */
-    someBool.fold(config)(bool =>
-      config.copy(tracingFlags = genTracingFlags(bool)))
-  }
-
   object Address extends Enumeration {
     val Classical, ValueSensitive = Value
   }
@@ -188,11 +177,9 @@ object Config {
                     counting: Boolean = false,
                     bound: Int = 100,
                     timeout: Option[Long] = None,
-                    amb: Boolean = false,
                     resultsPath: String = "benchmark_times.txt",
                     analysisPath: Option[String] = None,
-                    analysisFlags: AnalysisFlags = AnalysisFlags(),
-                    tracingFlags: TracingFlags = TracingFlags())
+                    analysisFlags: AnalysisFlags = AnalysisFlags())
 
   val parser = new scopt.OptionParser[Config]("scala-am") {
     head("scala-am", "0.0")
@@ -217,20 +204,6 @@ object Config {
     opt[String]("analysis_output") action { (x, c) =>
       c.copy(analysisPath = Some(x))
     } text ("File to print analysis results to")
-    opt[String]('o', "Optimization") action { (x, c) =>
-      {
-        val optimization: ShouldApplyOptimization = x match {
-          case "A" | "a" | "All" | "all" =>
-            ApplyAllOptimizations
-          case "N" | "n" | "None" | "none" =>
-            ApplyNoOptimizations
-          case string =>
-            val chars = string.toList
-            ApplySpecificOptimizations(chars.map(_.asDigit))
-        }
-        c.copy(tracingFlags = c.tracingFlags.copy(OPTIMIZATION = optimization))
-      }
-    } text ("Apply (dynamic) optimizations")
     opt[String]("inc_analysis") action { (s, c) => {
         val incrAnalysisInterval = s match {
           case "N" | "n" | "None" | "none" => NoIncrementalAnalysis
@@ -256,40 +229,6 @@ object Config {
     opt[Unit]("disable_propagation") action { (_, c) =>
       c.copy(analysisFlags = c.analysisFlags.copy(doPropagationPhase = false))
     } text ("Disable the run-time info propagation phase in the incremental analysis")
-    opt[String]("tracing") action { (b, c) =>
-      readBoolStringForTraceFlag(
-        c,
-        b,
-        bool => c.tracingFlags.copy(DO_TRACING = bool))
-    } text ("Record and execute traces")
-    opt[String]("threshold") action { (x, c) =>
-      c.copy(
-        tracingFlags =
-          c.tracingFlags.copy(TRACING_THRESHOLD = Integer.parseInt(x)))
-    } text ("The minimum threshold required to consider a loop hot")
-
-    opt[String]("initial") action { (b, c) =>
-      readBoolStringForTraceFlag(
-        c,
-        b,
-        bool => c.tracingFlags.copy(DO_INITIAL_ANALYSIS = bool))
-    } text ("Perform an initial static analysis over the program")
-    opt[String]("switch") action { (b, c) =>
-      /* Make sure, for the moment at least, that if runtime analyses are enabled, an initial analysis is also performed. */
-      readBoolStringForTraceFlag(
-        c,
-        b,
-        bool =>
-          if (bool) {
-            c.tracingFlags.copy(SWITCH_ABSTRACT = true,
-                                DO_INITIAL_ANALYSIS = true)
-          } else {
-            c.tracingFlags.copy(SWITCH_ABSTRACT = false)
-        })
-    } text ("Switch to abstract (type) interpretation after recording a trace and use this abstract information to optimize traces.")
-    opt[Unit]("amb") action { (_, c) =>
-      c.copy(amb = true)
-    } text ("Execute ambiguous Scheme instead of normal Scheme")
     opt[Time]('t', "timeout") action { (x, c) =>
       c.copy(timeout = Some(x.nanoSeconds))
     } text ("Timeout (none by default)")
@@ -419,27 +358,6 @@ object Main {
                                    inspect)
   }
 
-  def runTraced[Exp: Expression,
-                Abs: JoinLattice,
-                Addr: Address,
-                Time: Timestamp](
-      machine: AbstractMachineTraced[Exp, Abs, Addr, Time])(
-      programName: String,
-      output: Option[String],
-      timeout: Option[Long],
-      inspect: Boolean,
-      benchmarks_results_file: String): Unit = {
-    def calcResult() = {
-      machine.eval(programName, machine.sem.parse(programName), output.isDefined, timeout)
-    }
-    runBasic[Exp, Abs, Addr, Time](machine,
-                                   output,
-                                   calcResult,
-                                   benchmarks_results_file,
-                                   timeout,
-                                   inspect)
-  }
-
   object Done extends Exception
 
   def fileContent(file: String): String = {
@@ -453,37 +371,7 @@ object Main {
     Config.parser.parse(args, Config.Config()) match {
       case Some(config) => {
 
-        def handleOptimization(): Unit =
-          config.tracingFlags.OPTIMIZATION match {
-            case ApplyNoOptimizations =>
-            case ApplyAllOptimizations =>
-              GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
-              GlobalFlags.APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS =
-                true
-              GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
-              GlobalFlags.APPLY_OPTIMIZATION_MERGE_ACTIONS = true
-              GlobalFlags.APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
-              GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
-            case ApplySpecificOptimizations(ids) =>
-              ids.foreach({
-                case 1 =>
-                  GlobalFlags.APPLY_OPTIMIZATION_CONSTANT_FOLDING = true
-                case 2 =>
-                  GlobalFlags.APPLY_OPTIMIZATION_TYPE_SPECIALIZED_ARITHMETICS =
-                    true
-                case 3 =>
-                  GlobalFlags.APPLY_OPTIMIZATION_VARIABLE_FOLDING = true
-                case 4 =>
-                  GlobalFlags.APPLY_OPTIMIZATION_MERGE_ACTIONS = true
-                case 5 =>
-                  GlobalFlags.APPLY_OPTIMIZATION_ENVIRONMENTS_LOADING = true
-                case 6 =>
-                  GlobalFlags.APPLY_OPTIMIZATION_CONTINUATIONS_LOADING = true
-              })
-          }
-
         GlobalFlags.ANALYSIS_RESULTS_OUTPUT = config.analysisPath
-        handleOptimization()
 
         val lattice: SchemeLattice = config.lattice match {
           case Config.Lattice.Concrete =>
@@ -573,117 +461,6 @@ object Main {
                 config.resultsPath,
                 config.timeout,
                 config.inspect)
-
-//          case Config.Machine.Hybrid => {
-//
-//            implicit val sabsCCLattice =
-//              ConcreteConcreteLattice.isSchemeLattice
-//            implicit val tracingFlags: TracingFlags = config.tracingFlags
-//
-//            val constLattice = new ConstantPropagationLattice(false)
-//            implicit val constConvLattice = constLattice.isSchemeLattice
-//            implicit val constLatInfoProv = constLattice.latticeInfoProvider
-//
-//            val pointsLattice = new PointsToLattice(false)
-//            implicit val pointsConvLattice = pointsLattice.isSchemeLattice
-//            implicit val pointsLatInfoProv = pointsLattice.latticeInfoProvider
-//
-//            implicit val CCLatInfoProv =
-//              ConcreteConcreteLattice.latticeInfoProvider
-//
-//            val sabs =
-//              implicitly[IsConvertableLattice[ConcreteConcreteLattice.L]]
-//
-//            /**
-//              * A factory method for the construction of several components required for running the HybridMachine:
-//              * the semantics, the ConstantsAnalysisLauncher, (possibly, if one can be created) an optimizer for the traces,
-//              * and an injection function for creating an initial state for the machine.
-//              * Construction of these components depends on whether the machine will execute regular Scheme programs
-//              * or Amb-Scheme programs (in which case other semantics and another injection function should be used,
-//              * and no optimizer can be created).
-//              * @param createConstantsAnalysisLauncher A factory-function that, given some SchemeSemantics, creates a ConstantsAnalysisLauncher.
-//              * @return A four-tuple consisting of the four components mentioned above.
-//              */
-//            def constructComponents(
-//                createConstantsAnalysisLauncher: SemanticsTraced[
-//                  SchemeExp,
-//                  ConcreteConcreteLattice.L,
-//                  HybridAddress.A,
-//                  HybridTimestamp.T] with ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A,
-//                  HybridTimestamp.T] =>
-//                  ConstantsAnalysisLauncher[
-//                  constLattice.L])
-//              : (SchemeSemanticsTraced[ConcreteConcreteLattice.L,
-//                                       HybridAddress.A,
-//                                       HybridTimestamp.T],
-//                 ConstantsAnalysisLauncher[constLattice.L],
-//                 Option[SchemeTraceOptimizer[constLattice.L]],
-//                 SchemeExp => TracingProgramState[
-//                   SchemeExp,
-//                   HybridAddress.A,
-//                   HybridTimestamp.T]) = {
-//
-//              if (config.amb) {
-//                val sem =
-//                  new AmbSchemeSemanticsTraced[ConcreteConcreteLattice.L,
-//                                               HybridAddress.A,
-//                                               HybridTimestamp.T](
-//                    new SchemePrimitives[HybridAddress.A,
-//                                         ConcreteConcreteLattice.L])
-//                val constantsAnalysisLauncher =
-//                  createConstantsAnalysisLauncher(sem)
-//                val injectState = { (exp: SchemeExp) =>
-//                  val normalState = new ProgramState[SchemeExp](sem, exp)
-//                  AmbProgramState[SchemeExp](normalState,
-//                                             List(HaltFailFrame()))
-//                }
-//                (sem, constantsAnalysisLauncher, None, injectState)
-//              } else {
-//                val sem = new SchemeSemanticsTraced[ConcreteConcreteLattice.L,
-//                                                    HybridAddress.A,
-//                                                    HybridTimestamp.T](
-//                  new SchemePrimitives[HybridAddress.A,
-//                                       ConcreteConcreteLattice.L])
-//                val constantsAnalysisLauncher =
-//                  createConstantsAnalysisLauncher(sem)
-//                val someOptimizer = Some(
-//                  new SchemeTraceOptimizer[constLattice.L](
-//                    sem,
-//                    constantsAnalysisLauncher))
-//                val injectState = { (exp: SchemeExp) =>
-//                  new ProgramState[SchemeExp](sem, exp)
-//                }
-//                (sem, constantsAnalysisLauncher, someOptimizer, injectState)
-//              }
-//            }
-//
-//            val (sem, constantsAnalysisLauncher, someOptimizer, injectState) =
-//              constructComponents(
-//                new ConstantsAnalysisLauncher[constLattice.L](_))
-//            val pointsToAnalysisLauncher =
-//              new PointsToAnalysisLauncher[pointsLattice.L](sem)(
-//                pointsConvLattice,
-//                pointsLatInfoProv)
-//            val tracerContext =
-//              new SchemeTracer[ConcreteConcreteLattice.L,
-//                               HybridAddress.A,
-//                               HybridTimestamp.T](sem, someOptimizer)
-//            val machine = new HybridMachine[constLattice.L, pointsLattice.L](
-//              sem,
-//              constantsAnalysisLauncher,
-//              pointsToAnalysisLauncher,
-//              tracerContext,
-//              injectState)
-//            (program: String) =>
-//              runTraced[SchemeExp,
-//                        ConcreteConcreteLattice.L,
-//                        HybridAddress.A,
-//                        HybridTimestamp.T](machine)(program,
-//                                                    config.dotfile,
-//                                                    config.timeout,
-//                                                    config.inspect,
-//                                                    config.resultsPath)
-//          }
         }
 
         try {
@@ -694,10 +471,6 @@ object Main {
             }
             if (program == null) throw Done
             if (program.size > 0) startMachineFun(program)
-            //              config.machine match {
-            //                case Config.Machine.Hybrid => runTraced(machine, sem)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
-            //                case _ => run(machine, sem)(program, config.dotfile, config.timeout, config.inspect, config.resultsPath)
-            //              }
           } while (config.file.isEmpty);
         } catch {
           case Done => ()
