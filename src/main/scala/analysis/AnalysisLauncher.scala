@@ -9,8 +9,7 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
 
   /* The concrete program state the static analysis gets as input. This state is then converted to an
    * abstract state and fed to the AAM. */
-  type PS =
-    ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
+  type PS = ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
   /* The specific type of AAM used for this analysis: an AAM using the HybridLattice, HybridAddress and ZeroCFA
    * components. */
   type SpecAAM = AAM[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
@@ -19,6 +18,11 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
   type SpecFree = Free[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
   /* The specific environment used in the concrete state: an environment using the HybridAddress components. */
   type SpecEnv = Environment[HybridAddress.A]
+
+  val aam: SpecAAM = new SpecAAM()
+  implicit val stateDescriptor = new aam.StateDescriptor()
+  implicit val stateChangeEdgeApplier = aam.ActionReplayApplier
+  implicit val stateInfoProvider = aam.AAMStateInfoProvider
 
   protected def switchToAbstract(): Unit = {
     Logger.log("HybridMachine switching to abstract", Logger.I)
@@ -100,5 +104,18 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
     }
     aam.State(convertedControl, store, kstore, a, t)
   }
+
+  def doConcreteStep(convertValue: SchemePrimitives[HybridAddress.A, Abs] => ConcreteConcreteLattice.L => Abs,
+                     convertFrame: (ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
+                                    BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
+                                    ConcreteConcreteLattice.L => Abs)
+                                   => SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
+                                   => SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T],
+                     filters: FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A],
+                     stepNumber: Int): Unit
+  def end(): Unit
+  def incrementalAnalysis(concreteState: PS, stepCount: Int, programName: String, addressesUsed: Set[HybridAddress.A]): Unit
+  def runInitialStaticAnalysis(currentProgramState: PS, programName: String): Unit
+  def runStaticAnalysis(currentProgramState: PS, stepSwitched: Option[Int], programName: String, addressesUsed: Set[HybridAddress.A]): StaticAnalysisResult
 
 }

@@ -2,9 +2,8 @@ import scala.annotation.tailrec
 
 import ConcreteConcreteLattice.ConcreteValue
 
-class HybridConcreteMachine[
-    PAbs: IsConvertableLattice: PointsToableLatticeInfoProvider](
-    pointsToAnalysisLauncher: PointsToAnalysisLauncher[PAbs],
+class HybridConcreteMachine[PAbs: IsConvertableLattice](
+    analysisLauncher: AnalysisLauncher[PAbs],
     analysisFlags: AnalysisFlags)(
     implicit unused1: IsSchemeLattice[ConcreteConcreteLattice.L])
     extends EvalKontMachine[SchemeExp,
@@ -306,7 +305,7 @@ class HybridConcreteMachine[
           if (stepCount % analysisInterval == 0) {
             val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
             val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
-            pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, convertedCurrentAddresses)
+            analysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, convertedCurrentAddresses)
           }
       }
       analysisFlags.incrementalAnalysisInterval match {
@@ -315,7 +314,7 @@ class HybridConcreteMachine[
           if (stepCount % analysisInterval == 0) {
             val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
             val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
-            pointsToAnalysisLauncher.incrementalAnalysis(state, stepCount, programName, convertedCurrentAddresses)
+            analysisLauncher.incrementalAnalysis(state, stepCount, programName, convertedCurrentAddresses)
           }
       }
 
@@ -464,7 +463,7 @@ class HybridConcreteMachine[
         stepped match {
           case Left(output) =>
             output.toDotFile("concrete.dot")
-            pointsToAnalysisLauncher.end
+            analysisLauncher.end
             output
           case Right(StepSucceeded(succState, filters, actions)) =>
             def convertFrameFun(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
@@ -480,7 +479,7 @@ class HybridConcreteMachine[
                   abstSem)
             }
 
-            pointsToAnalysisLauncher.doConcreteStep(convertValue[PAbs], convertFrameFun, filters, stepCount)
+            analysisLauncher.doConcreteStep(convertValue[PAbs], convertFrameFun, filters, stepCount)
             loop(succState, start, count + 1, graph.addEdge(state, filters, succState))
         }
       }
@@ -501,7 +500,7 @@ class HybridConcreteMachine[
       Environment.initial[HybridAddress.A](sem.initialEnv),
       Store.initial[HybridAddress.A, ConcreteValue](
         sem.initialStore))
-    pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState, programName)
+    analysisLauncher.runInitialStaticAnalysis(initialState, programName)
 
     FunctionsCalledMetric.resetConcreteFunctionsCalled()
     loop(initialState,

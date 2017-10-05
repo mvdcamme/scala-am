@@ -451,25 +451,23 @@ object Main {
             genNonTracingMachineStartFun(
               new Free[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Hybrid =>
-
-            implicit val sabsCCLattice =
-              ConcreteConcreteLattice.isSchemeLattice
-
+            implicit val sabsCCLattice = ConcreteConcreteLattice.isSchemeLattice
             val sem = new BaseSchemeSemantics[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](
               new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
-
-            val pointsLattice = new PointsToLattice(false)
-            implicit val pointsConvLattice = pointsLattice.isSchemeLattice
-            implicit val pointsLatInfoProv = pointsLattice.latticeInfoProvider
-
+//            val pointsLattice = new PointsToLattice(false)
+//            implicit val pointsConvLattice = pointsLattice.isSchemeLattice
+//            implicit val pointsLatInfoProv = pointsLattice.latticeInfoProvider
+//            implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
+//            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsLattice.L](sem)(
+//                                                                                         pointsConvLattice,
+//                                                                                         pointsLatInfoProv,
+//                                                                                         config.analysisFlags)
+            val typeLattice = new TypeSetLattice(false)
+            implicit val typeConvLattice = typeLattice.isSchemeLattice
+            implicit val typeLatInfoProv = typeLattice.latticeInfoProvider
             implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
-
-            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsLattice.L](sem)(
-                                                                                         pointsConvLattice,
-                                                                                         pointsLatInfoProv,
-                                                                                         config.analysisFlags)
-
-            val machine = new HybridConcreteMachine[pointsLattice.L](pointsToAnalysisLauncher, config.analysisFlags)
+            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[typeLattice.L](sem)(typeConvLattice, typeLatInfoProv, config.analysisFlags)
+            val machine = new HybridConcreteMachine[typeLattice.L](pointsToAnalysisLauncher, config.analysisFlags)
 
             def calcResult(program: String)() = {
               machine.eval(currentProgram, sem.parse(program), sem, config.dotfile.isDefined, config.timeout)
