@@ -107,14 +107,9 @@ class PointsToAnalysisLauncher[
     (implicit analysisFlags: AnalysisFlags)
     extends AnalysisLauncher[Abs] {
 
-  val aam: SpecAAM = new SpecAAM()
-  implicit val stateDescriptor = new aam.StateDescriptor()
-
   val usesGraph = new UsesGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
   import usesGraph._
 
-  implicit val stateChangeEdgeApplier = aam.ActionReplayApplier
-  implicit val stateInfoProvider = aam.AAMStateInfoProvider
   val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.GraphNode](aam.AAMGraphPrinter)
 
   val abs = implicitly[IsConvertableLattice[Abs]]
@@ -192,9 +187,7 @@ class PointsToAnalysisLauncher[
   }
 
   def runInitialStaticAnalysis(currentProgramState: PS, programName: String): StaticAnalysisResult =
-    runStaticAnalysisGeneric(currentProgramState,
-                             None,
-                             Some("initial_graph.dot")) match {
+    runStaticAnalysisGeneric(currentProgramState, None, Some("initial_graph.dot")) match {
       case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.GraphNode] =>
         result.output.toDotFile("initial_graph.dot")
         incrementalAnalysis.initializeGraph(result.output.graph)

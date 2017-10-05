@@ -1,10 +1,9 @@
 import ConcolicSolver.initialErrorPaths
 import ConcreteConcreteLattice.{ConcreteValue, lattice}
 
-class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvider](
-    pointsToAnalysisLauncher: PointsToAnalysisLauncher[PAbs],
-    analysisFlags: AnalysisFlags)(
-    implicit unused1: IsSchemeLattice[ConcreteConcreteLattice.L])
+class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvider](analysisLauncher: AnalysisLauncher[PAbs],
+                                                                                   analysisFlags: AnalysisFlags)
+                                                                                  (implicit unused1: IsSchemeLattice[ConcreteConcreteLattice.L])
     extends EvalKontMachine[SchemeExp,
                             ConcreteConcreteLattice.L,
                             HybridAddress.A,
@@ -14,7 +13,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
 
   var stepCount: Integer = 0
 
-  val errorPathDetector = new ErrorPathDetector[SchemeExp, PAbs, HybridAddress.A, HybridTimestamp.T](pointsToAnalysisLauncher.aam)
+  val errorPathDetector = new ErrorPathDetector[SchemeExp, PAbs, HybridAddress.A, HybridTimestamp.T](analysisLauncher.aam)
 
   trait ConcolicMachineOutput extends Output[ConcreteConcreteLattice.L] {
     def toDotFile(path: String) = println("Not generating graph for ConcreteMachine")
@@ -406,7 +405,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
 
         stepped match {
           case Left(output) =>
-            pointsToAnalysisLauncher.end()
+            analysisLauncher.end
             output
           case Right(StepSucceeded(succState, filters, actions)) =>
             def convertFrameFun(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
@@ -422,7 +421,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
                   abstSem)
             }
 
-            pointsToAnalysisLauncher.doConcreteStep(convertValue[PAbs], convertFrameFun, filters, stepCount)
+            analysisLauncher.doConcreteStep(convertValue[PAbs], convertFrameFun, filters, stepCount)
             loop(succState, start, count + 1, graph.addEdge(state, filters, succState))
         }
       }
@@ -456,7 +455,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
     val initialState = inject(exp, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue]
                              (sem.initialStore))
     Reporter.disableConcolic()
-    val analysisResult = pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState, programName)
+    val analysisResult = analysisLauncher.runInitialStaticAnalysis(initialState, programName)
     Reporter.enableConcolic()
 
     // Use initial static analysis to detect paths to errors
@@ -495,7 +494,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
     val currentAddresses: Set[HybridAddress.A] = state.store.toSet.map(_._1)
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
     val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
-    val result = pointsToAnalysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, convertedCurrentAddresses)
+    val result = analysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, convertedCurrentAddresses)
     Reporter.enableConcolic()
     result
   }

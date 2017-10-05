@@ -398,22 +398,15 @@ object Main {
             genNonTracingMachineStartFun(
               new Free[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Hybrid =>
-
             implicit val joinLattice: JoinLattice[ConcreteValue] = ConcreteConcreteLattice.isSchemeLattice
             implicit val sabsCCLattice: IsSchemeLattice[ConcreteValue] = ConcreteConcreteLattice.isSchemeLattice
             val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
-            val pointsLattice = new TypeSetLattice(false)
-            implicit val pointsConvLattice = pointsLattice.isSchemeLattice
-            implicit val pointsLatInfoProv = pointsLattice.latticeInfoProvider
-
+            val typeLattice = new TypeSetLattice(false)
+            implicit val typeConvLattice = typeLattice.isSchemeLattice
+            implicit val typeLatInfoProv = typeLattice.latticeInfoProvider
             implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
-
-            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsLattice.L](sem)(
-                                                                                         pointsConvLattice,
-                                                                                         pointsLatInfoProv,
-                                                                                         config.analysisFlags)
-
-            val machine = new ConcolicMachine[pointsLattice.L](pointsToAnalysisLauncher, config.analysisFlags)
+            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[typeLattice.L](sem)(typeConvLattice, typeLatInfoProv, config.analysisFlags)
+            val machine = new ConcolicMachine[typeLattice.L](pointsToAnalysisLauncher, config.analysisFlags)
 
             def calcResult(program: String)() = {
               machine.eval(currentProgram, sem.parse(program), sem, config.dotfile.isDefined, config.timeout)
