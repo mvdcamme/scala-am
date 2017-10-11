@@ -70,12 +70,15 @@ trait IsInteger[I] extends IsLatticeElement[I] {
   def ceiling(n: I): I
   def toFloat[F: IsFloat](n: I): F
   def random(n: I): I
+  /* Returns an integer if n2 is non-negative or a float if n2 is negative */
+  def expt(n1: I, n2: I): I
   def plus(n1: I, n2: I): I
   def minus(n1: I, n2: I): I
   def times(n1: I, n2: I): I
   def div(n1: I, n2: I): I
   def modulo(n1: I, n2: I): I
   def lt[B: IsBoolean](n1: I, n2: I): B
+  def toChar[C: IsChar](n: I): C
   def toString[S: IsString](n: I): S
 }
 
@@ -85,6 +88,7 @@ trait IsFloat[F] extends IsLatticeElement[F] {
   def ceiling(n: F): F
   def log(n: F): F
   def random(n: F): F
+  def expt(n1: F, n2: F): F
   def plus(n1: F, n2: F): F
   def minus(n1: F, n2: F): F
   def times(n1: F, n2: F): F
@@ -186,6 +190,11 @@ object ConcreteInteger {
     def toFloat[F](n: I)(implicit float: IsFloat[F]): F =
       n.foldMap(n => float.inject(n))
     def random(n: I): I = n.map(n => SchemeOps.random(n))
+    def expt(n1: I, n2: I): I = {
+//      TODO Should check whether n2 is negative, and if so, return a float instead
+//      val isPositive = lt(inject(0), n2)
+        n1.foldMap(n1 => n2.map(n2 => Math.pow(n1, n2).toInt))
+    }
     def plus(n1: I, n2: I): I = n1.foldMap(n1 => n2.map(n2 => n1 + n2))
     def minus(n1: I, n2: I): I = n1.foldMap(n1 => n2.map(n2 => n1 - n2))
     def times(n1: I, n2: I): I = n1.foldMap(n1 => n2.map(n2 => n1 * n2))
@@ -196,6 +205,8 @@ object ConcreteInteger {
       n1.foldMap(n1 => n2.foldMap(n2 => bool.inject(n1 < n2)))
     def eql[B](n1: I, n2: I)(implicit bool: IsBoolean[B]): B =
       n1.foldMap(n1 => n2.foldMap(n2 => bool.inject(n1 == n2)))
+    def toChar[C](n: I)(implicit char: IsChar[C]): C =
+      n.foldMap(n => char.inject(n.toChar))
     def toString[S](n: I)(implicit str: IsString[S]): S =
       n.foldMap(n => str.inject(n.toString))
 
@@ -220,6 +231,7 @@ object ConcreteFloat {
     def ceiling(n: F): F = n.map(_.ceil)
     def log(n: F): F = n.map(n => scala.math.log(n.toDouble).toFloat)
     def random(n: F): F = n.map(n => SchemeOps.random(n))
+    def expt(n1: F, n2: F): F = n1.foldMap(n1 => n2.map(n2 => Math.pow(n1, n2).toFloat))
     def plus(n1: F, n2: F): F = n1.foldMap(n1 => n2.map(n2 => n1 + n2))
     def minus(n1: F, n2: F): F = n1.foldMap(n1 => n2.map(n2 => n1 - n2))
     def times(n1: F, n2: F): F = n1.foldMap(n1 => n2.map(n2 => n1 * n2))
@@ -339,6 +351,8 @@ class BoundedInteger(bound: Int) {
     def toFloat[F](n: I)(implicit float: IsFloat[F]): F =
       fold(n, n => float.inject(n))
     def random(n: I): I = Top
+    def expt(n1: I, n2: I): I =
+      foldI(n1, n1 => foldI(n2, n2 => inject(Math.pow(n1, n2).toInt)))
     def plus(n1: I, n2: I): I =
       foldI(n1, n1 => foldI(n2, n2 => inject(n1 + n2)))
     def minus(n1: I, n2: I): I =
@@ -353,6 +367,8 @@ class BoundedInteger(bound: Int) {
       fold(n1, n1 => fold(n2, n2 => bool.inject(n1 < n2)))
     def eql[B](n1: I, n2: I)(implicit bool: IsBoolean[B]): B =
       fold(n1, n1 => fold(n2, n2 => bool.inject(n1 == n2)))
+    def toChar[C](n: I)(implicit char: IsChar[C]): C =
+      fold(n, n => char.inject(n.toChar))
     def toString[S](n: I)(implicit str: IsString[S]): S =
       fold(n, n => str.inject(n.toString))
 
@@ -500,6 +516,8 @@ object PointsToInteger extends PointsTo[ConcreteInteger.I](3) {
       case Precise(v) => concreteIsInteger.toFloat(v)(float)
     }
     def random(n: L): L = Top //applyAndCheckUnary(n, concreteIsInteger.random)
+    def expt(n1: L, n2: L): L =
+      applyAndCheckBinary(n1, n2, concreteIsInteger.expt)
     def plus(n1: L, n2: L): L =
       applyAndCheckBinary(n1, n2, concreteIsInteger.plus)
     def minus(n1: L, n2: L): L =
@@ -512,6 +530,8 @@ object PointsToInteger extends PointsTo[ConcreteInteger.I](3) {
       applyAndCheckBinary(n1, n2, concreteIsInteger.modulo)
     def lt[B](n1: L, n2: L)(implicit bool: IsBoolean[B]): B =
       applyAndCheckOtherBinary(n1, n2, (vX, vY) => concreteIsInteger.lt(vX, vY)(bool))
+    def toChar[C](n: I)(implicit char: IsChar[C]): C =
+      applyAndCheckOtherUnary(n, (v) => concreteIsInteger.toChar(v)(char))
     def toString[S](n: L)(implicit str: IsString[S]): S =
       applyAndCheckOtherUnary(n, (v) => concreteIsInteger.toString(v)(str))
   }
@@ -525,6 +545,7 @@ object PointsToFloat extends PointsTo[ConcreteFloat.F](3) {
     def ceiling(n: F) = applyAndCheckUnary(n, concreteIsFloat.ceiling)
     def log(n: F) = applyAndCheckUnary(n, concreteIsFloat.log)
     def random(n: F) = Top //applyAndCheckUnary(n, concreteIsFloat.random)
+    def expt(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteIsFloat.expt)
     def plus(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteIsFloat.plus)
     def minus(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteIsFloat.minus)
     def times(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteIsFloat.times)
@@ -640,6 +661,7 @@ object Type {
       case Bottom => float.bottom
     }
     def random(n: T): T = n
+    def expt(n1: T, n2: T): T = meet(n1, n2)
     def plus(n1: T, n2: T): T = meet(n1, n2)
     def minus(n1: T, n2: T): T = meet(n1, n2)
     def times(n1: T, n2: T): T = meet(n1, n2)
@@ -648,6 +670,10 @@ object Type {
     def lt[B](n1: T, n2: T)(implicit bool: IsBoolean[B]): B = (n1, n2) match {
       case (Top, Top) => bool.top
       case _ => bool.bottom
+    }
+    def toChar[C](n: T)(implicit char: IsChar[C]): C = n match {
+      case Top => char.top
+      case Bottom => char.bottom
     }
     def toString[S](n: T)(implicit str: IsString[S]): S = n match {
       case Top => str.top
@@ -660,6 +686,7 @@ object Type {
     def ceiling(n: T): T = n
     def log(n: T): T = n
     def random(n: T): T = n
+    def expt(n1: T, n2: T): T = meet(n1, n2)
     def plus(n1: T, n2: T): T = meet(n1, n2)
     def minus(n1: T, n2: T): T = meet(n1, n2)
     def times(n1: T, n2: T): T = meet(n1, n2)
@@ -822,6 +849,7 @@ object IntegerConstantPropagation extends ConstantPropagation[Int] {
       case (Constant(x), Constant(y)) => Constant(op(x, y))
       case _ => Bottom
     }
+    def expt(n1: I, n2: I): I = binop(Math.pow(_, _).toInt, n1, n2)
     def plus(n1: I, n2: I): I = binop(_ + _, n1, n2)
     def minus(n1: I, n2: I): I = binop(_ - _, n1, n2)
     def times(n1: I, n2: I): I = binop(_ * _, n1, n2)
@@ -834,6 +862,11 @@ object IntegerConstantPropagation extends ConstantPropagation[Int] {
       case (Constant(x), Constant(y)) =>
         if (x < y) { bool.inject(true) } else { bool.inject(false) }
       case _ => bool.bottom
+    }
+    def toChar[C](n: I)(implicit char: IsChar[C]): C = n match {
+      case Top => char.top
+      case Constant(x) => char.inject(x.toChar)
+      case Bottom => char.bottom
     }
     def toString[S](n: I)(implicit str: IsString[S]): S = n match {
       case Top => str.top
@@ -865,6 +898,7 @@ object FloatConstantPropagation extends ConstantPropagation[Float] {
         case (Constant(x), Constant(y)) => Constant(op(x, y))
         case _ => Bottom
       }
+    def expt(n1: F, n2: F): F = binop(Math.pow(_, _).toInt, n1, n2)
     def plus(n1: F, n2: F): F = binop(_ + _, n1, n2)
     def minus(n1: F, n2: F): F = binop(_ - _, n1, n2)
     def times(n1: F, n2: F): F = binop(_ * _, n1, n2)

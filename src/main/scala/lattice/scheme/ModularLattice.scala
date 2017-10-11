@@ -237,6 +237,12 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
               case _ =>
                 OperatorNotApplicable("string-length", List(x.toString))
             }
+          case IntegerToChar =>
+            x match {
+              case Int(i) => Char(int.toChar(i))
+              case _ =>
+                OperatorNotApplicable("integer->char", List(x.toString))
+            }
           case NumberToString =>
             x match {
               case Int(n) => Str(int.toString(n))
@@ -249,7 +255,7 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
               case Str(s) =>
                 val mf: MayFail[I] = str.stringToNumber(s)
                 val set = mf.collect[L]( (i: I) => Set(Int(i)), (err: SemanticError) => Set(Bool(bool.inject(false))))
-                set.fold(bottom)(join) //( (res, other) => join(res, other))
+                set.fold(bottom)(join)
               case _ =>
                 OperatorNotApplicable("string->number", List(x.toString))
             }
@@ -269,6 +275,13 @@ class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
       }
 
     def binaryOp(op: BinaryOperator)(x: L, y: L): MayFail[L] = op match {
+      case Expt =>
+        (x, y) match {
+          case (Int(n1), Int(n2)) => Int(int.expt(n1, n2))
+          case (Float(n1), Int(n2)) => Float(float.expt(n1, int.toFloat(n2)))
+          case (Int(n1), Float(n2)) => Float(float.expt(int.toFloat(n1), n2))
+          case (Float(n1), Float(n2)) => Float(float.expt(n1, n2))
+        }
       case Plus =>
         (x, y) match {
           case (Int(n1), Int(n2)) => Int(int.plus(n1, n2))
@@ -875,8 +888,7 @@ object ConcreteConcreteLattice extends SchemeLattice {
       case e: lattice.Element =>
         convertValue(e.v)
       case es: lattice.Elements =>
-        throw new Exception(
-          "ConcreteConcreteLattice shouldn't have an Elements value")
+        throw new Exception(s"ConcreteConcreteLattice shouldn't have an Elements value: $es")
       //TODO es.vs.foldLeft(convLat.bottom)( (acc, e) => lattice.isSchemeLatticeSet.join(acc, e))
     }
 

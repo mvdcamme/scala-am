@@ -22,6 +22,7 @@ object SchemeOps {
   case object VectorLength extends UnaryOperator
   case object StringLength extends UnaryOperator
   /* Conversions */
+  case object IntegerToChar extends UnaryOperator
   case object NumberToString extends UnaryOperator
   case object StringToNumber extends UnaryOperator
   case object StringToSymbol extends UnaryOperator
@@ -30,6 +31,7 @@ object SchemeOps {
   /** Binary operations thatt should be supported by lattices */
   trait BinaryOperator
   /* Arithmetic operations */
+  case object Expt extends BinaryOperator
   case object Plus extends BinaryOperator
   case object PlusFloat extends BinaryOperator /* Plus specialized for floating-point values */
   case object PlusInteger extends BinaryOperator /* Plus specialized for integer values */

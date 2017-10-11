@@ -93,6 +93,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
   def log = abs.unaryOp(SchemeOps.Log) _
   def not = abs.unaryOp(SchemeOps.Not) _
   def random = abs.unaryOp(SchemeOps.Random) _
+  def expt = abs.binaryOp(SchemeOps.Expt) _
   def plus = abs.binaryOp(SchemeOps.Plus) _
   def plusF = abs.binaryOp(SchemeOps.PlusFloat) _
   def plusI = abs.binaryOp(SchemeOps.PlusInteger) _
@@ -108,10 +109,11 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
   def vectorLength = abs.unaryOp(SchemeOps.VectorLength) _
   def stringAppend = abs.binaryOp(SchemeOps.StringAppend) _
   def stringLength = abs.unaryOp(SchemeOps.StringLength) _
+  def integerToString = abs.unaryOp(SchemeOps.IntegerToChar) _
+  def numberToString = abs.unaryOp(SchemeOps.NumberToString) _
   def stringToNumber = abs.unaryOp(SchemeOps.StringToNumber) _
   def stringToSymbol = abs.unaryOp(SchemeOps.StringToSymbol) _
   def symbolToString = abs.unaryOp(SchemeOps.SymbolToString) _
-  def numberToString = abs.unaryOp(SchemeOps.NumberToString) _
 
   abstract class NoStoreOperation(val name: String,
                                   val nargs: Option[Int] = None)
@@ -181,6 +183,13 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
         case x :: y :: Nil => call(fexp, x, y, store)
         case l => call(args.map({ case (_, v) => v }), store)
       }
+  }
+
+  object Expt extends NoStoreOperation("expt") {
+    override def call(x: Abs, y: Abs) = expt(x, y)
+    def convert[Addr: Address, Abs: IsConvertableLattice](
+      prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.Expt
   }
 
   private def applyGenericPlusOperation(
@@ -586,6 +595,12 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.NumberToString
+  }
+  object IntegerToChar extends NoStoreOperation("integer->char", Some(1)) {
+    override def call(x: Abs) = integerToString(x)
+    def convert[Addr: Address, Abs: IsConvertableLattice](
+      prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.IntegerToChar
   }
   object StringAppend extends NoStoreOperation("string-append") {
     override def call(args: List[Abs]) = args match {
@@ -1309,6 +1324,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     List(StringToNumber,
          StringToSymbol,
          SymbolToString,
+         Expt,
          Plus,
          Minus,
          Times,
@@ -1343,6 +1359,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
          Booleanp,
          Vectorp,
          Eq,
+         IntegerToChar,
          NumberToString,
          StringAppend,
          StringLength,
