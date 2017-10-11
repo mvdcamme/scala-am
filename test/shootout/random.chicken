@@ -3,7 +3,7 @@
 ;;; contributed by Anon
 
 (define (command-line-arguments) '())
-(define (argv) '(#f "1000"))
+(define (argv) '(#f 1000))
 
 (define IM   139968)
 (define IA     3877)
@@ -15,13 +15,13 @@
   (/ (* max LAST) IM))
 
 (define (main args)
-  (let ((n (or (and (= (length args) 2) (string->number (cadr args))) 1)))
+  (let ((n (or (and (= (length args) 2) (cadr args)) 1)))
     (let loop ((iter n))
       (if (> iter 1)
 	  (begin
 	    (gen_random 100.0)
 	    (loop (- iter 1)))))
-    (format #t "~,9F\n" (gen_random 100.0))))
+    (display (gen_random 100.0))))
       
 (main (argv))
 

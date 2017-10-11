@@ -47,7 +47,7 @@
   (let ((mm 0)
 	(m1 (mkmatrix size size))
 	(m2 (mkmatrix size size)))
-    (let loop ((iter (string->number n)))
+    (let loop ((iter n))
 	(cond ((> iter 0)
 	       (set! mm (mmult size size m1 m2))
 	       (loop (- iter 1)))))
@@ -55,10 +55,15 @@
 	    (r2 (vector-ref mm 2))
 	    (r3 (vector-ref mm 3))
 	    (r4 (vector-ref mm 4)))
-	(print (vector-ref r0 0) " " (vector-ref r2 3) " "
-	       (vector-ref r3 2) " " (vector-ref r4 4)))))
+	(display (vector-ref r0 0))
+        (display " ")
+        (display (vector-ref r2 3))
+        (display " ")
+        (display (vector-ref r3 2))
+        (display " ")
+        (display (vector-ref r4 4)))))
 
-(apply main (command-line-arguments))
+(main 10)
 
 ; > matrix 10
 ; 270165 1061760 1453695 1856025

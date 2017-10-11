@@ -1,17 +1,15 @@
 ;;;; -Ob
 
-(define (command-line-arguments) '("32"))
+;(define (command-line-arguments) '("32"))
 (define (argv) '())
 
 (define (fib n)
   (cond ((< n 2) 1)
 	(else (+ (fib (- n 2)) (fib (- n 1))))))
 
-(define (main args)
-  (let ((n (if (null? args)
-               1
-               (string->number (car args)))))
+(define (main)
+  (let ((n (string->number "32")))
     (display (fib n))
     (newline)))
 
-(main (command-line-arguments))
+(main)

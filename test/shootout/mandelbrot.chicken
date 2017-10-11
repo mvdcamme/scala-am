@@ -14,49 +14,50 @@
 
 (define (mandelbrot iterations x y n)
   (let ((cr (- (/ (* 2.0 x) n) 1.5)) (ci (- (/ (* 2.0 y) n) 1.0)))
-    (let loop ((i 0) (zr 0.0) (zi 0.0))
-      (let ((zrq (* zr zr)) (ziq (* zi zi)))
-        (cond
-          ((> i iterations) 1)
-          ((> (+ zrq ziq) +limit-sqr+) 0)
-          (else (loop (add1 i) (+ (- zrq ziq) cr) (+ (* 2.0 zr zi) ci)))) ))))
+    (letrec ((loop (lambda (i zr zi)
+                     (let ((zrq (* zr zr)) (ziq (* zi zi)))
+                       (cond
+                         ((> i iterations) 1)
+                         ((> (+ zrq ziq) +limit-sqr+) 0)
+                         (else (loop (add1 i) (+ (- zrq ziq) cr) (+ (* 2.0 zr zi) ci))))))))
+      (loop 0 0.0 0.0))))
 
 (define (main args)
   (let ((n (if (null? args)
                1
                (string->number (car args))))
 
-    (bitnum 0) (byteacc 0))
+        (bitnum 0)
+        (byteacc 0))
 
-    (write-line (string-append "P4\n" (number->string n) " " (number->string n)))
+    (display (string-append "P4\n" (number->string n) " " (number->string n)))
 
-    (let loop-y ((y 0))
+    (letrec ((loop-y (lambda (y)
+                       (if (> y (- n 1)) '()
+                           ; else
+                           (begin
+                             (letrec ((loop-x (lambda (x)
+                                                (if (> x (- n 1)) '()
+                                                    ; else
+                                                    (begin
+                                                      (set! bitnum (add1 bitnum))
+                                                      (set! byteacc (+ (* 2 byteacc) (mandelbrot +iterations+ x y n)))
 
-      (if (> y (- n 1)) '()
-      ; else
-      (begin
-        (let loop-x ((x 0))
+                                                      (cond
+                                                        ((= bitnum 8)
+                                                         (display (integer->char byteacc))
+                                                         (set! bitnum 0)
+                                                         (set! byteacc 0))
 
-          (if (> x (- n 1)) '()
-          ; else
-          (begin
-            (set! bitnum (add1 bitnum))
-            (set! byteacc (+ (* 2 byteacc) (mandelbrot +iterations+ x y n)))
+                                                        ((= x (- n 1))
+                                                         (display (integer->char (* byteacc (expt 2 (- 8 (modulo n 8))))))
+                                                         (set! bitnum 0)
+                                                         (set! byteacc 0)))
 
-            (cond
-              ((= bitnum 8)
-                (write-char (integer->char byteacc))
-                (set! bitnum 0)
-                (set! byteacc 0))
-
-              ((= x (- n 1))
-                (write-char (integer->char (* byteacc (expt 2 (- 8 (modulo n 8))))))
-                (set! bitnum 0)
-                (set! byteacc 0)))
-
-            (loop-x (add1 x)) )))
-
-        (loop-y (add1 y)) ))) ))
+                                                      (loop-x (add1 x)) )))))
+                               (loop-x 0))
+                             (loop-y (add1 y)) )))))
+      (loop-y 0) )))
 
 (main (command-line-arguments))
 

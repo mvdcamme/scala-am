@@ -3,13 +3,13 @@
 ;;;
 ;;; contributed by Anthony Borla
 
-(define (command-line-arguments) '("2500"))
+(define (command-line-arguments) '(2500))
 (define (argv) '())
 
 (define (main args)
   (let ((n (if (null? args)
                1
-               (string->number (car args))))
+               (car args)))
 
     (alt 1) (d2 0) (d3 0) (ds 0) (dc 0)
     (s0 0) (s1 0) (s2 0) (s3 0) (s4 0) (s5 0) (s6 0) (s7 0) (s8 0))
@@ -33,15 +33,15 @@
       (set! s8 (+ s8 (/ alt (- (* 2 d) 1))))
       (set! alt (- alt))) 
 
-    (format #t "~,9F~A(2/3)^k~%" s0 #\tab)
-    (format #t "~,9F~Ak^-0.5~%" s1 #\tab)
-    (format #t "~,9F~A1/k(k+1)~%" s2 #\tab)
-    (format #t "~,9F~AFlint Hills~%" s3 #\tab)
-    (format #t "~,9F~ACookson Hills~%" s4 #\tab)
-    (format #t "~,9F~AHarmonic~%" s5 #\tab)
-    (format #t "~,9F~ARiemann Zeta~%" s6 #\tab)
-    (format #t "~,9F~AAlternating Harmonic~%" s7 #\tab)
-    (format #t "~,9F~AGregory~%" s8 #\tab)))
+    (display s0) (newline)
+    (display s1) (newline)
+    (display s2) (newline)
+    (display s3) (newline)
+    (display s4) (newline)
+    (display s5) (newline)
+    (display s6) (newline)
+    (display s7) (newline)
+    (display s8) (newline)))
 
 (main (command-line-arguments))
 

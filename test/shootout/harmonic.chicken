@@ -8,12 +8,10 @@
 (define (command-line-arguments) '())
 (define (argv) '())
 
-
 (define (sum-harmonic4 n)
-  (do ((i 1 (fx+ i 1))
+  (do ((i 1 (+ i 1))
        (sum 1.0 (+ sum (/ ifloat)))
        (ifloat 2.0 (+ ifloat 1)) )
-      ((fx>= i n) sum) ) )
+      ((>= i n) sum) ) )
 
-(format #t "~,9f~%"
-	(sum-harmonic4 100000))
+(sum-harmonic4 100000)

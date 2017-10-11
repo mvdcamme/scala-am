@@ -1,9 +1,8 @@
-(define (command-line-arguments) '("8"))
+(define (command-line-arguments) '(8))
 (define (argv) '())
 
 (define (main n)
-  (let* ((n (string->number n))
-	 (x 0) )
+  (let* ((x 0))
     (do ((a 0 (+ a 1)))
 	((= a n))
       (do ((b 0 (+ b 1)))
@@ -20,4 +19,4 @@
     (display x)
     (newline)))
 
-(apply main (command-line-arguments))
+(main (car (command-line-arguments)))
