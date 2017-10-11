@@ -12,6 +12,18 @@ case class SchemePopSymEnv(pos: Position) extends SchemeExp {
 }
 
 /**
+  * A named-let binding: (let name ((v1 e1) ...) body ...)
+  *
+  * This is syntactic sugar for:
+  * (letrec ((name (lambda (v1 ...) body ...)))
+  *   (name e1 ...))
+  */
+case class SchemeNamedLet(functionName: String,
+                          params: List[String],
+                          args: List[SchemeExp],
+                          body: List[SchemeExp])
+
+/**
   * Bindings must be of the form ([(varname initExp [stepExp])] ...)
   * Test must be of the form: (exp [exp ...])
   * Commands must be of the form [exp ...]
@@ -398,9 +410,13 @@ trait SchemeCompiler {
                exp.pos)
     case SExpPair(SExpIdentifier("if", _), _, _) =>
       throw new Exception(s"Invalid Scheme if: $exp (${exp.pos})")
-    case SExpPair(SExpIdentifier("let", _),
-                  SExpPair(bindings, SExpPair(first, rest, _), _),
-                  _) =>
+    case SExpPair(SExpIdentifier("let", _), SExpPair(SExpIdentifier(name, namePos), SExpPair(bindings, SExpPair(first, rest, _), _), _), _) =>
+      val compiledBindings = compileBindings(bindings)
+      val body = compile(first) :: compileBody(rest)
+      val lambda = SchemeLambda(compiledBindings.map(_._1), body, namePos)
+      val funcall = SchemeFuncall(SchemeIdentifier(name, namePos), compiledBindings.map(_._2), namePos)
+      SchemeLetrec(List((name, lambda)), List(funcall), exp.pos)
+    case SExpPair(SExpIdentifier("let", _), SExpPair(bindings, SExpPair(first, rest, _), _), _) =>
       SchemeLet(compileBindings(bindings),
                 compile(first) :: compileBody(rest),
                 exp.pos)
