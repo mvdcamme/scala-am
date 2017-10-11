@@ -148,9 +148,8 @@ class PointsToAnalysisLauncher[
     wrapRunAnalysis(
       () => {
         val startState = convertStateAAM(aam, concSem, abstSem, currentProgramState)
-        val result =
-          pointsToAnalysis.analyze(toDotFile,
-                                   aam,
+        val result = pointsToAnalysis.analyze(toDotFile,
+                                               aam,
                                    abstSem,
                                    lip.pointsTo,
                                    (addr) =>
