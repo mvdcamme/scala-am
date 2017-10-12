@@ -325,7 +325,8 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val actionEdge = ActionAllocAddressesR[SchemeExp, Abs, Addr](addresses)
       noEdgeInfosSet(action, List(actionEdge, ActionEvalPushR(exp, action.env, action.frame)))
     case SchemeSet(variable, exp, _) =>
-      addPushActionRSet(ActionPush(FrameSet(variable, env), exp, env, store))
+      val optInputVariable = SemanticsConcolicHelper.handleSet(variable, exp)
+      addPushActionRSet(ActionPush(FrameSet(variable, env, optInputVariable), exp, env, store))
     case SchemeBegin(body, _) =>
       Set(evalBody(body, env, store))
     case SchemeCond(Nil, _) =>
@@ -399,7 +400,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       defaultValue
   }
 
-  private def getConcolicValue(frameLet: FrameLetVariant, defaultValue: Abs): Abs = frameLet.optInputVariable match {
+  private def getConcolicValue(frameLet: FrameMayHaveInputVariable, defaultValue: Abs): Abs = frameLet.optInputVariable match {
     case Some(inputVariable) =>
       lookupInputVariable(inputVariable, defaultValue)
     case None =>
@@ -466,12 +467,13 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           noEdgeInfosSet(action, actionEdges)
       }
       case frame: FrameSet[Abs, Addr, Time] =>
+        val concolicValue = getConcolicValue(frame, v)
         frame.env.lookup(frame.variable) match {
           case Some(a) =>
             val valueFalse = sabs.inject(false)
             val actionEdges = List[ActionReplay[SchemeExp, Abs, Addr]](ActionSetAddressR(a),
                                                                        ActionReachedValueT(valueFalse))
-            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueFalse, store.update(a, v), Set(EffectWriteVariable(a))),
+            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueFalse, store.update(a, concolicValue), Set(EffectWriteVariable(a))),
                            actionEdges)
           case None =>
             simpleAction(ActionError[SchemeExp, Abs, Addr](UnboundVariable(frame.variable)))
@@ -479,7 +481,6 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       case frame: FrameBegin[Abs, Addr, Time] => frame.rest match {
         case List(SchemePopSymEnv(_)) =>
           Reporter.popEnvironment()
-//          val noOpAction = ActionNoOp[SchemeExp, Abs, Addr]()
           val action = ActionReachedValue[SchemeExp, Abs, Addr](v, store)
           val actionR = ActionReachedValueT[SchemeExp, Abs, Addr](v)
           noEdgeInfosSet(action, actionR)

@@ -194,7 +194,7 @@ Time: Timestamp](override val primitives: SchemePrimitives[Addr, Abs])
         popEnvFromVStack(FrameLetStar(variable, bindings, body, _, None),
                          vStack)
       case FrameSetT(variable) =>
-        popEnvFromVStack(FrameSet(variable, _), vStack)
+        popEnvFromVStack(FrameSet(variable, _, None), vStack)
     }
 
   /**

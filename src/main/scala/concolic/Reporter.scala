@@ -127,6 +127,36 @@ object Reporter {
     symbolicMemory = updatedCurrentScope :: symbolicMemory.tail
   }
 
+  def lookupVariable(name: String): Option[ConcolicExpression] = {
+    @scala.annotation.tailrec
+    def loopEnv(env: SymbolicEnvironment): Option[ConcolicExpression] = env match {
+      case scope :: rest => scope.get(name) match {
+        case Some(concolicExp) =>
+          Some(concolicExp)
+        case None =>
+          loopEnv(rest)
+      }
+      case Nil =>
+        None
+    }
+    loopEnv(symbolicMemory)
+  }
+
+  def setVariable(name: String, newConcolicExp: ConcolicExpression): Unit = {
+    def loopEnv(env: SymbolicEnvironment): SymbolicEnvironment = env match {
+      case scope :: rest =>
+        if (scope.contains(name)) {
+          scope.updated(name, newConcolicExp) :: rest
+        } else {
+          scope :: loopEnv(rest)
+        }
+      case Nil =>
+        Nil
+    }
+    val newSymbolicMemory = loopEnv(symbolicMemory)
+    symbolicMemory = newSymbolicMemory
+  }
+
   private def statementConstraintToNode(constraint: StatementConstraint): SymbolicNode =
     StatementSymbolicNode(constraint, None)
   private def branchConstraintToNode(constraint: BranchConstraint, thenBranchTaken: Boolean) =
@@ -195,20 +225,6 @@ object Reporter {
 
   def getReport: PathConstraint = {
     currentReport
-  }
-
-  def lookupVariable(name: String): Option[ConcolicExpression] = {
-    def loopEnv(env: SymbolicEnvironment): Option[ConcolicExpression] = env match {
-      case scope :: rest => scope.get(name) match {
-        case Some(concolicExp) =>
-          Some(concolicExp)
-        case None =>
-          loopEnv(rest)
-      }
-      case Nil =>
-        None
-    }
-    loopEnv(symbolicMemory)
   }
 
   def printReports(): Unit = {

@@ -7,6 +7,7 @@
       ;(i f))
   ;(display a)
   ;(display b)
+  (set! a (random 10000000))
   (if (> (- a c) 5)
       (if (> b 5)
           'ok

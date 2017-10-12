@@ -90,4 +90,26 @@ object SemanticsConcolicHelper {
     }
   }
 
+  def handleSet(variableName: String, exp: SchemeExp): Option[String] = {
+    if (Reporter.isConcolicEnabled) {
+      if (isRandomExpression(exp)) {
+        val inputVariable = ConcolicIdGenerator.newConcolicInput
+        val concolicStatement = ConcolicIdGenerator.newVariable(variableName, inputVariable)
+        Reporter.addStatementConstraint(concolicStatement)
+        Some(inputVariable.toString)
+      } else {
+        val optionConcolicExp = generateConcolicExpression(exp)
+        optionConcolicExp match {
+          case Some(concolicExp) =>
+            Reporter.setVariable(variableName, concolicExp)
+            None
+          case None =>
+            None
+        }
+      }
+    } else {
+      None
+    }
+  }
+
 }
