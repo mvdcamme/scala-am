@@ -1,16 +1,12 @@
 trait ConcolicConstraint {
   override def toString: String
-  def getLhs: Option[String]
   def getOp: Option[String]
   def getRhs: Option[String]
 }
 
-case class StatementConstraint(symbolicVariable: String, exp: ConcolicExpression, originalName: String) extends ConcolicConstraint {
+case class StatementConstraint(variableName: String, exp: ConcolicExpression) extends ConcolicConstraint {
   override def toString: String = {
-    s"$symbolicVariable = $exp"
-  }
-  def getLhs = {
-    Some(symbolicVariable)
+    s"Statement: $variableName = $exp"
   }
   def getOp = {
     Some("=")
@@ -27,11 +23,10 @@ case class StatementConstraint(symbolicVariable: String, exp: ConcolicExpression
   *                    may or may not have evaluated to #t. If it did, this expression is equal to trueExp. Otherwise,
   *                    trueExp is the negated form of this expression.
   */
-case class BranchConstraint(exp: ConcolicExpression) extends ConcolicConstraint {
+case class BranchConstraint(exp: BinaryConcolicExpression) extends ConcolicConstraint {
   override def toString: String = {
-    exp.toString
+    s"Branch: $exp"
   }
-  def getLhs = exp.getLhs
   def getOp = exp.getOp
   def getRhs = exp.getRhs
 
@@ -40,23 +35,16 @@ case class BranchConstraint(exp: ConcolicExpression) extends ConcolicConstraint 
   }
 }
 
-trait ConcolicExpression {
-  def getLhs: Option[String]
-  def getOp: Option[String]
-  def getRhs: Option[String]
+trait ConcolicExpression
 
-  def negate: ConcolicExpression
-}
-
-case class BinaryConcolicExpression(left: ConcolicAtom, op: String, right: ConcolicAtom) extends ConcolicExpression {
+case class BinaryConcolicExpression(left: ConcolicExpression, op: String, right: ConcolicExpression) extends ConcolicExpression {
   override def toString: String = {
     s"$left $op $right"
   }
-  def getLhs = Some(left.toString)
   def getOp = Some(op)
   def getRhs = Some(right.toString)
 
-  override def negate: ConcolicExpression = op match {
+  def negate: BinaryConcolicExpression = op match {
     case "<" =>
       BinaryConcolicExpression(left, ">=", right)
     case "<=" =>
@@ -70,27 +58,19 @@ case class BinaryConcolicExpression(left: ConcolicAtom, op: String, right: Conco
   }
 }
 
-trait ConcolicAtom extends ConcolicExpression {
-  def getLhs = None
-  def getOp = None
-  def getRhs = None
-
-  def negate: ConcolicExpression = this
-}
-
-case class ConcolicInt(i: Int) extends ConcolicAtom {
+case class ConcolicInt(i: Int) extends ConcolicExpression {
   override def toString: String = {
     i.toString
   }
 }
 
-case class ConcolicVariable(symbolicName: String, originalName: String) extends ConcolicAtom {
-  override def toString: String = {
-    s"$symbolicName"
-  }
-}
+//case class ConcolicVariable(symbolicName: String, originalName: String) extends ConcolicAtom {
+//  override def toString: String = {
+//    s"$symbolicName"
+//  }
+//}
 
-case class ConcolicInput(id: Int) extends ConcolicAtom {
+case class ConcolicInput(id: Int) extends ConcolicExpression {
   override def toString: String = {
     s"i$id"
   }
@@ -110,8 +90,6 @@ object ConcolicIdGenerator {
   }
 
   def newVariable(variableName: String, exp: ConcolicExpression): StatementConstraint = {
-    val current = id
-    id += 1
-    StatementConstraint(s"s$current", exp, variableName)
+    StatementConstraint(variableName, exp)
   }
 }

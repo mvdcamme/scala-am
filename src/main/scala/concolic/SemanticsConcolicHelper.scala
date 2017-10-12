@@ -11,8 +11,8 @@ object SemanticsConcolicHelper {
     exp match {
       case SchemeIdentifier(name, _) =>
         Reporter.lookupVariable(name) match {
-          case Some(symbolicVariable) =>
-            Some(ConcolicVariable(symbolicVariable, name))
+          case Some(concolicExp) =>
+            Some(concolicExp)
           case None =>
             None
         }
@@ -22,7 +22,7 @@ object SemanticsConcolicHelper {
         if (validBinaryOperators.contains(operatorVar) && operands.size == 2) {
           val operandExpressions = operands.map(generateConcolicExpression)
           (operandExpressions.head, operandExpressions(1)) match {
-            case (Some(a: ConcolicAtom), Some(b: ConcolicAtom)) =>
+            case (Some(a), Some(b)) =>
               Some(BinaryConcolicExpression(a, operatorVar, b))
             case _ =>
               None
@@ -76,11 +76,15 @@ object SemanticsConcolicHelper {
     if (Reporter.isConcolicEnabled) {
       val optionConcolicExpression = generateConcolicExpression(exp.cond)
       optionConcolicExpression match {
-        case Some(exp) =>
-          val baseConstraint = BranchConstraint(exp)
-          //        val actualConstraint = if (thenBranchTaken) baseConstraint else baseConstraint.negate
-          ConcolicRunTimeFlags.setIfEncountered()
-          Reporter.addBranchConstraint(baseConstraint, thenBranchTaken)
+        case Some(exp) => exp match {
+          case b: BinaryConcolicExpression =>
+            val baseConstraint = BranchConstraint(b)
+            //        val actualConstraint = if (thenBranchTaken) baseConstraint else baseConstraint.negate
+            ConcolicRunTimeFlags.setIfEncountered()
+            Reporter.addBranchConstraint(baseConstraint, thenBranchTaken)
+          case _ =>
+            Logger.log(s"Using a non-BinaryConcolicExpression in a branch constraint: $exp", Logger.E)
+        }
         case None =>
       }
     }

@@ -5,7 +5,7 @@ object Reporter {
   type ErrorPath = List[SemanticsFilterAnnotation]
   type PathConstraint = List[ConcolicConstraint]
 
-  type SymbolicMemoryScope = Map[String, String]
+  type SymbolicMemoryScope = Map[String, ConcolicExpression]
   type SymbolicEnvironment = List[SymbolicMemoryScope]
 
   private var doConcolic: Boolean = false
@@ -122,8 +122,8 @@ object Reporter {
     }
   }
 
-  private def addVariable(originalName: String, symbolicVariable: String): Unit = {
-    val updatedCurrentScope: SymbolicMemoryScope = symbolicMemory.head + (originalName -> symbolicVariable)
+  private def addVariable(originalName: String, concolicExpression: ConcolicExpression): Unit = {
+    val updatedCurrentScope: SymbolicMemoryScope = symbolicMemory.head + (originalName -> concolicExpression)
     symbolicMemory = updatedCurrentScope :: symbolicMemory.tail
   }
 
@@ -151,7 +151,7 @@ object Reporter {
     if (!doConcolic) {
       return
     }
-    addVariable(constraint.originalName, constraint.symbolicVariable)
+    addVariable(constraint.variableName, constraint.exp)
     addConstraint(constraint, statementConstraintToNode(constraint), None)
   }
 
@@ -197,11 +197,11 @@ object Reporter {
     currentReport
   }
 
-  def lookupVariable(name: String): Option[String] = {
-    def loopEnv(env: SymbolicEnvironment): Option[String] = env match {
+  def lookupVariable(name: String): Option[ConcolicExpression] = {
+    def loopEnv(env: SymbolicEnvironment): Option[ConcolicExpression] = env match {
       case scope :: rest => scope.get(name) match {
-        case Some(symVar) =>
-          Some(symVar)
+        case Some(concolicExp) =>
+          Some(concolicExp)
         case None =>
           loopEnv(rest)
       }

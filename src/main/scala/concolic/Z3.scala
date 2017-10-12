@@ -9,9 +9,9 @@
   * ****************************************************************************
   */
 
-import scala.collection.mutable.{Map => MMap}
-
 import com.microsoft.z3._
+
+import scala.collection.mutable.{Map => MMap}
 
 trait Z3Result
 
@@ -26,77 +26,38 @@ object Z3 {
   class TestFailedException extends Exception("Check FAILED") {
   }
 
-  var debug: Boolean = false
-
-  private def atomToExpr(atom: ConcolicAtom, ctx: Context, exprMap: MMap[String, IntExpr]): IntExpr = atom match {
-    case ConcolicInt(i) =>
-      ctx.mkInt(i)
-    case i @ ConcolicInput(_) =>
-      ctx.mkIntConst(i.toString)
-    case ConcolicVariable(symVar, _) =>
-      exprMap(symVar)
-  }
-
-  private def handleExpression(
-    exp: ConcolicExpression,
-    ctx: Context,
-    exprMap: MMap[String, IntExpr],
-    solver: Solver): Unit = exp match {
-    case i@ConcolicInt(_) =>
-      exprMap.put(i.toString, ctx.mkInt(i.i))
-    case i@ConcolicInput(_) =>
-      exprMap.put(i.toString, ctx.mkIntConst(i.toString))
-    case s@ConcolicVariable(symVar, _) =>
-      exprMap.put(s.toString, ctx.mkIntConst(symVar))
-    case BinaryConcolicExpression(lhs, op, rhs) => op match {
-      case "<" =>
-        val lhsExpr = atomToExpr(lhs, ctx, exprMap)
-        val rhsExpr = atomToExpr(rhs, ctx, exprMap)
-        val condition = ctx.mkLt(lhsExpr, rhsExpr)
-        solver.assert_(condition)
-    }
-  }
-
-  private def getLhs(constraint: ConcolicConstraint): ConcolicExpression = constraint match {
-    case BranchConstraint(exp) => exp match {
-      case BinaryConcolicExpression(lhs, _, _) =>
-        lhs
-      case _ =>
-        exp
-    }
-    case StatementConstraint(symVar, _, originalVar) =>
-      ConcolicVariable(symVar, originalVar)
-  }
-  private def getLhs(exp: ConcolicExpression): ConcolicExpression = exp match {
-    case BinaryConcolicExpression(lhs, _, _) =>
-      lhs
-    case _ =>
-      exp
-  }
-  private def getRhs(constraint: ConcolicConstraint): Option[ConcolicExpression] = constraint match {
-    case BranchConstraint(exp) => exp match {
-      case BinaryConcolicExpression(_, _, rhs) =>
-        Some(rhs)
-      case _ =>
-        None
-    }
-    case StatementConstraint(_, exp, _) =>
-      Some(exp)
-  }
-  private def getRhs(exp: ConcolicExpression): Option[ConcolicExpression] = exp match {
-    case BinaryConcolicExpression(_, _, rhs) =>
-      Some(rhs)
-    case _ =>
-      None
-  }
-
-  // TODO Move to ConcolicExpression class
-  private def isSomeVar(exp: ConcolicExpression): Boolean = exp match {
-    case ConcolicVariable(_, _) | ConcolicInput(_) =>
-      true
-    case _ =>
-      false
-  }
+//  private def getLhs(constraint: ConcolicConstraint): ConcolicExpression = constraint match {
+//    case BranchConstraint(exp) => exp match {
+//      case BinaryConcolicExpression(lhs, _, _) =>
+//        lhs
+//      case _ =>
+//        exp
+//    }
+//    case StatementConstraint(symVar, _, originalVar) =>
+//      ConcolicVariable(symVar, originalVar)
+//  }
+//  private def getLhs(exp: ConcolicExpression): ConcolicExpression = exp match {
+//    case BinaryConcolicExpression(lhs, _, _) =>
+//      lhs
+//    case _ =>
+//      exp
+//  }
+//  private def getRhs(constraint: ConcolicConstraint): Option[ConcolicExpression] = constraint match {
+//    case BranchConstraint(exp) => exp match {
+//      case BinaryConcolicExpression(_, _, rhs) =>
+//        Some(rhs)
+//      case _ =>
+//        None
+//    }
+//    case StatementConstraint(_, exp, _) =>
+//      Some(exp)
+//  }
+//  private def getRhs(exp: ConcolicExpression): Option[ConcolicExpression] = exp match {
+//    case BinaryConcolicExpression(_, _, rhs) =>
+//      Some(rhs)
+//    case _ =>
+//      None
+//  }
 
   // TODO Move to ConcolicExpression class
   private def isSomeInt(exp: ConcolicExpression): Boolean = exp match {
@@ -106,77 +67,60 @@ object Z3 {
       false
   }
 
-  private def maybeAddExpToMap(exp: ConcolicExpression, ctx: Context, exprMap: MMap[String, IntExpr]): Unit = {
-    val expString = exp.toString
-    if (isSomeVar(exp)) {
-      // exp is a ConcolicVariable or a ConcolicInput
-      exprMap.put(expString, ctx.mkIntConst(expString))
-    } else if (isSomeInt(exp)) {
-      exprMap.put(expString, ctx.mkInt(expString.toInt))
+  private def expToExpr(exp: ConcolicExpression, ctx: Context, exprMap: MMap[ConcolicInput, IntExpr]): ArithExpr = exp match {
+    case ConcolicInt(i) => ctx.mkInt(i)
+    case i @ ConcolicInput(_) => exprMap.get(i) match {
+        case Some(expr) => expr
+        case None =>
+          val newExpr = ctx.mkIntConst(i.toString)
+          exprMap.put(i, newExpr)
+          newExpr
+      }
+    case BinaryConcolicExpression(lExp, op, rExp) =>
+      val lExpr = expToExpr(lExp, ctx, exprMap)
+      val rExpr = expToExpr(rExp, ctx, exprMap)
+      val expr = op match {
+        case "+" =>
+          ctx.mkAdd(lExpr, rExpr)
+        case "-" =>
+          ctx.mkSub(lExpr, rExpr)
+        case "*" =>
+          ctx.mkMul(lExpr, rExpr)
+        case "/" =>
+          ctx.mkDiv(lExpr, rExpr)
+      }
+      expr
+  }
+
+  private def addConstraint(solver: Solver, ctx: Context,
+                            exprMap: MMap[ConcolicInput, IntExpr], concolicExp: BinaryConcolicExpression): Unit = {
+    concolicExp match {
+      case BinaryConcolicExpression(lhsExp, op, rhsExp) =>
+        val lExpr = expToExpr(lhsExp, ctx, exprMap)
+        val rExpr = expToExpr(rhsExp, ctx, exprMap)
+        op match {
+          case "<" =>
+            solver.assert_(ctx.mkLt(lExpr, rExpr))
+          case "<=" =>
+            solver.assert_(ctx.mkLe(lExpr, rExpr))
+          case ">" =>
+            solver.assert_(ctx.mkGt(lExpr, rExpr))
+          case ">=" =>
+            solver.assert_(ctx.mkGe(lExpr, rExpr))
+          case "=" =>
+            solver.assert_(ctx.mkEq(lExpr, rExpr))
+        }
     }
   }
 
   def constraintSolver(ctx: Context, conslist: List[ConcolicConstraint]): Z3Result = {
-    val exprMap: MMap[String, IntExpr] = scala.collection.mutable.HashMap[String, IntExpr]()
+    val exprMap: MMap[ConcolicInput, IntExpr] = scala.collection.mutable.HashMap[ConcolicInput, IntExpr]()
     val solver: Solver = ctx.mkSolver
-    println(s"Solving constraints $conslist")
-    for (constraint <- conslist) {
-      // Basically assumes that lhs is ALWAYS a symbolic variable: predicates such as (0 < x) are not permitted
-      val lhs = getLhs(constraint)
-      exprMap.put(lhs.toString, ctx.mkIntConst(lhs.toString))
-      val optC = getRhs(constraint)
-      optC match {
-        case Some(c) =>
-          val cString = c.toString
-          val rhs = getLhs(c)
-          val rhsString = rhs.toString
-          maybeAddExpToMap(rhs, ctx, exprMap)
-
-          constraint match {
-            case StatementConstraint(symVar, exp, _) => exp match {
-              case ConcolicInt(i) =>
-                // cString should actually be the same as just i.toString, so ctx.mkInt(i) should equal exprMap(cString)
-                solver.assert_(ctx.mkEq(exprMap(lhs.toString), ctx.mkInt(i)))
-              case ConcolicInput(_) =>
-                solver.assert_(ctx.mkEq(exprMap(lhs.toString), exprMap(cString)))
-              case ConcolicVariable(_, _) =>
-                solver.assert_(ctx.mkEq(exprMap(lhs.toString), exprMap(cString)))
-              case BinaryConcolicExpression(lhsExp, op, rhsExp) =>
-                // if constraint is a StatementConstraint with a BinaryConcolicExpression, rhs of constraint should equal lhs of binary expression
-                assert(rhs == lhsExp)
-                maybeAddExpToMap(rhsExp, ctx, exprMap)
-                op match {
-                  case "+" =>
-                    solver.assert_(ctx.mkEq(exprMap(lhs.toString), ctx.mkAdd(exprMap(lhsExp.toString), exprMap(rhsExp.toString))))
-                  case "-" =>
-                    solver.assert_(ctx.mkEq(exprMap(lhs.toString), ctx.mkSub(exprMap(lhsExp.toString), exprMap(rhsExp.toString))))
-                  case "*" =>
-                    solver.assert_(ctx.mkEq(exprMap(lhs.toString), ctx.mkMul(exprMap(lhsExp.toString), exprMap(rhsExp.toString))))
-                  case "/" =>
-                    solver.assert_(ctx.mkEq(exprMap(lhs.toString), ctx.mkDiv(exprMap(lhsExp.toString), exprMap(rhsExp.toString))))
-              }
-            }
-            case BranchConstraint(exp) => exp match {
-              case i @ ConcolicInt(_) =>
-              case i @ ConcolicInput(_) =>
-              case s @ ConcolicVariable(symVar, _) =>
-              case BinaryConcolicExpression(_, op, _) => op match {
-                case "<" =>
-                    solver.assert_(ctx.mkLt(exprMap(lhs.toString), exprMap(cString)))
-                case "<=" =>
-                  solver.assert_(ctx.mkLe(exprMap(lhs.toString), exprMap(cString)))
-                case ">" =>
-                  solver.assert_(ctx.mkGt(exprMap(lhs.toString), exprMap(cString)))
-                case ">=" =>
-                  solver.assert_(ctx.mkGe(exprMap(lhs.toString), exprMap(cString)))
-                case "=" =>
-                  solver.assert_(ctx.mkEq(exprMap(lhs.toString), exprMap(cString)))
-              }
-            }
-          }
-
-        case None =>
-      }
+    Logger.log(s"Solving constraints $conslist", Logger.U)
+    for (constraint <- conslist) constraint match {
+      case _: StatementConstraint =>
+      case BranchConstraint(exp) =>
+        addConstraint(solver, ctx, exprMap, exp)
     }
       if (Status.SATISFIABLE eq solver.check) {
         val model: Model = solver.getModel
@@ -184,15 +128,13 @@ object Z3 {
         val consts = model.getConstDecls
         val decls = model.getDecls
         val funDecls = model.getFuncDecls
-        val result = MMap[String, Int]()
+        val result = MMap[ConcolicInput, Int]()
         exprMap.foreach({
-          case (someString, exp) =>
-            if (someString.contains("i")) {
-              println(s"$someString should be ${model.getConstInterp(exp)}")
-              result.put(someString, model.getConstInterp(exp).toString.toInt)
-            }
+          case (someInput, exp) =>
+              println(s"$someInput should be ${model.getConstInterp(exp)}")
+              result.put(someInput, model.getConstInterp(exp).toString.toInt)
         })
-        Satisfiable(result)
+        Satisfiable(result.map( { case (key, value) => (key.toString, value) } ))
       } else {
         Unsatisfiable
       }

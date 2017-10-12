@@ -519,7 +519,7 @@ class HybridConcreteMachine[
       val analysisResult = startRunTimeAnalysis(programName, initialState)
 
       Reporter.clear(nrOfRuns < 2)
-      Logger.log(s"CONCOLIC ITERATION ${ConcolicSolver.getInputs}", Logger.U)
+      Logger.log(s"\n\nCONCOLIC ITERATION ${ConcolicSolver.getInputs}", Logger.U)
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
       val result = loop(initialState,
                         System.nanoTime,
