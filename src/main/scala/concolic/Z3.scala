@@ -113,14 +113,12 @@ object Z3 {
     }
   }
 
-  def constraintSolver(ctx: Context, conslist: List[ConcolicConstraint]): Z3Result = {
+  def constraintSolver(ctx: Context, conslist: List[BranchConstraint]): Z3Result = {
     val exprMap: MMap[ConcolicInput, IntExpr] = scala.collection.mutable.HashMap[ConcolicInput, IntExpr]()
     val solver: Solver = ctx.mkSolver
-    Logger.log(s"Solving constraints $conslist", Logger.U)
-    for (constraint <- conslist) constraint match {
-      case _: StatementConstraint =>
-      case BranchConstraint(exp) =>
-        addConstraint(solver, ctx, exprMap, exp)
+    Logger.log(s"Z3 solving constraints $conslist", Logger.U)
+    for (constraint <- conslist) {
+        addConstraint(solver, ctx, exprMap, constraint.exp)
     }
       if (Status.SATISFIABLE eq solver.check) {
         val model: Model = solver.getModel
@@ -260,7 +258,7 @@ object Z3 {
 //    }
   }
 
-  def solve(constraints: List[ConcolicConstraint]): Z3Result = {
+  def solve(constraints: List[BranchConstraint]): Z3Result = {
     try {
       val cfg: java.util.HashMap[String, String] = new java.util.HashMap[String, String]
       cfg.put("model", "true")

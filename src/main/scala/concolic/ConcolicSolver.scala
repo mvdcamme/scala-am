@@ -20,7 +20,12 @@ object ConcolicSolver {
 
   private def doOneSolveIteration(constraints: List[ConcolicConstraint]): Boolean = {
     resetInputs()
-    val solutions = Z3.solve(constraints)
+    val solutions = Z3.solve(constraints.flatMap({
+      case b: BranchConstraint =>
+        List(b)
+      case _ =>
+        Nil
+    }))
     solutions match {
       case Satisfiable(solution) =>
         latestInputs = solution.toMap[String, Int]
