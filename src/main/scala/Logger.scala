@@ -17,9 +17,7 @@ object Logger {
   }
 
   val D = LogLevel.Debug
-  /* Executing traces */
   val V = LogLevel.Verbose
-  /* Starting and ending tracing */
   val I = LogLevel.Info
   val E = LogLevel.Essential
   val U = LogLevel.Urgent

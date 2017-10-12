@@ -114,7 +114,7 @@ class CountNonConstants[Exp : Expression,
     val outputFileName = inputProgramName.replace('/', '_')
     val path = s"$directoryPath$outputFileName.txt"
     val output = s"$stepSwitched;" + metrics.toCSVRow
-    Logger.log(output, Logger.U)
+    Logger.log(output, Logger.I)
     val file = new File(path)
     val bw = new BufferedWriter(new FileWriter(file, true))
     bw.write(output ++ "\n")

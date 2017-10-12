@@ -298,7 +298,7 @@ class HybridConcreteMachine[
              count: Int,
              graph: Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]): ConcreteMachineOutput = {
 
-      Logger.log(s"stepCount: $stepCount", Logger.U)
+      Logger.log(s"stepCount: $stepCount", Logger.V)
       val currentAddresses: Set[HybridAddress.A] = state.store.toSet.map(_._1)
       analysisFlags.runTimeAnalysisInterval match {
         case NoRunTimeAnalysis =>
