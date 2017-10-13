@@ -23,7 +23,7 @@ case class StatementConstraint(variableName: String, exp: ConcolicExpression) ex
   *                    may or may not have evaluated to #t. If it did, this expression is equal to trueExp. Otherwise,
   *                    trueExp is the negated form of this expression.
   */
-case class BranchConstraint(exp: BinaryConcolicExpression) extends ConcolicConstraint {
+case class BranchConstraint(exp: RelationalConcolicExpression) extends ConcolicConstraint {
   override def toString: String = {
     s"Branch: $exp"
   }
@@ -37,24 +37,30 @@ case class BranchConstraint(exp: BinaryConcolicExpression) extends ConcolicConst
 
 trait ConcolicExpression
 
-case class BinaryConcolicExpression(left: ConcolicExpression, op: String, right: ConcolicExpression) extends ConcolicExpression {
+case class ArithmeticalConcolicExpression(op: String, exps: List[ConcolicExpression]) extends ConcolicExpression {
+  override def toString: String = {
+    exps.mkString(s" $op ")
+  }
+}
+
+case class RelationalConcolicExpression(left: ConcolicExpression, op: String, right: ConcolicExpression) extends ConcolicExpression {
   override def toString: String = {
     s"$left $op $right"
   }
   def getOp = Some(op)
   def getRhs = Some(right.toString)
 
-  def negate: BinaryConcolicExpression = op match {
+  def negate: RelationalConcolicExpression = op match {
     case "<" =>
-      BinaryConcolicExpression(left, ">=", right)
+      RelationalConcolicExpression(left, ">=", right)
     case "<=" =>
-      BinaryConcolicExpression(left, ">", right)
+      RelationalConcolicExpression(left, ">", right)
     case ">" =>
-      BinaryConcolicExpression(left, "<=", right)
+      RelationalConcolicExpression(left, "<=", right)
     case ">=" =>
-      BinaryConcolicExpression(left, "<", right)
+      RelationalConcolicExpression(left, "<", right)
     case "=" =>
-      BinaryConcolicExpression(left, "!=", right)
+      RelationalConcolicExpression(left, "!=", right)
   }
 }
 

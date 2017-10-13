@@ -7,7 +7,8 @@ object SemanticsConcolicHelper {
     * @return
     */
   private def generateConcolicExpression(exp: SchemeExp): Option[ConcolicExpression] = {
-    val validBinaryOperators: List[String] = List("<", ">", "=", "<=", ">=", "+", "*", "-", "/")
+    val validArithmeticalOperators: List[String] = List("+", "*", "-", "/")
+    val validRelationalOperators: List[String] = List("<", ">", "=", "<=", ">=")
     exp match {
       case SchemeIdentifier(name, _) =>
         Reporter.lookupVariable(name) match {
@@ -19,14 +20,17 @@ object SemanticsConcolicHelper {
       case SchemeValue(ValueInteger(i), _) =>
         Some(ConcolicInt(i))
       case SchemeFuncall(SchemeIdentifier(operatorVar, _), operands, _) =>
-        if (validBinaryOperators.contains(operatorVar) && operands.size == 2) {
-          val operandExpressions = operands.map(generateConcolicExpression)
+        lazy val operandExpressions = operands.map(generateConcolicExpression)
+        if (validRelationalOperators.contains(operatorVar) && operands.size == 2) {
           (operandExpressions.head, operandExpressions(1)) match {
             case (Some(a), Some(b)) =>
-              Some(BinaryConcolicExpression(a, operatorVar, b))
+              Some(RelationalConcolicExpression(a, operatorVar, b))
             case _ =>
               None
           }
+        } else if (validArithmeticalOperators.contains(operatorVar) && operandExpressions.forall(_.isDefined)) {
+          val arithmeticalExp = ArithmeticalConcolicExpression(operatorVar, operandExpressions.map(_.get))
+          Some(arithmeticalExp)
         } else {
           None
         }
@@ -77,7 +81,7 @@ object SemanticsConcolicHelper {
       val optionConcolicExpression = generateConcolicExpression(exp.cond)
       optionConcolicExpression match {
         case Some(exp) => exp match {
-          case b: BinaryConcolicExpression =>
+          case b: RelationalConcolicExpression =>
             val baseConstraint = BranchConstraint(b)
             //        val actualConstraint = if (thenBranchTaken) baseConstraint else baseConstraint.negate
             ConcolicRunTimeFlags.setIfEncountered()

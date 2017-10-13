@@ -76,26 +76,26 @@ object Z3 {
           exprMap.put(i, newExpr)
           newExpr
       }
-    case BinaryConcolicExpression(lExp, op, rExp) =>
-      val lExpr = expToExpr(lExp, ctx, exprMap)
-      val rExpr = expToExpr(rExp, ctx, exprMap)
+    case ArithmeticalConcolicExpression(op, exps) =>
+      val exprs = exps.map(expToExpr(_, ctx, exprMap))
       val expr = op match {
         case "+" =>
-          ctx.mkAdd(lExpr, rExpr)
+          ctx.mkAdd(exprs: _*)
         case "-" =>
-          ctx.mkSub(lExpr, rExpr)
+          ctx.mkSub(exprs: _*)
         case "*" =>
-          ctx.mkMul(lExpr, rExpr)
+          ctx.mkMul(exprs: _*)
         case "/" =>
-          ctx.mkDiv(lExpr, rExpr)
+          assert(exprs.size == 2) // TODO Refactor ArithmeticalConcolicExpression so there are separate classes for variadic expressions and fixed-size expressions
+          ctx.mkDiv(exprs.head, exprs(1))
       }
       expr
   }
 
   private def addConstraint(solver: Solver, ctx: Context,
-                            exprMap: MMap[ConcolicInput, IntExpr], concolicExp: BinaryConcolicExpression): Unit = {
+                            exprMap: MMap[ConcolicInput, IntExpr], concolicExp: RelationalConcolicExpression): Unit = {
     concolicExp match {
-      case BinaryConcolicExpression(lhsExp, op, rhsExp) =>
+      case RelationalConcolicExpression(lhsExp, op, rhsExp) =>
         val lExpr = expToExpr(lhsExp, ctx, exprMap)
         val rExpr = expToExpr(rhsExp, ctx, exprMap)
         op match {
@@ -263,6 +263,7 @@ object Z3 {
       val cfg: java.util.HashMap[String, String] = new java.util.HashMap[String, String]
       cfg.put("model", "true")
       val ctx: Context = new Context(cfg)
+      println(s"Z3, in solve, constraints are $constraints")
       if (constraints.nonEmpty) {
         constraintSolver(ctx, constraints)
       } else {
