@@ -86,6 +86,55 @@ case class FrameFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Time: Times
       envReaches(env)
 }
 
+case class FrameConcolicFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
+  f: Abs,
+  fexp: SchemeExp,
+  cur: SchemeExp,
+  args: List[(SchemeExp, Abs, Option[ConcolicExpression])],
+  toeval: List[SchemeExp],
+  env: Environment[Addr])
+  extends SchemeFrame[Abs, Addr, Time] {
+
+  override def savesEnv: Option[Environment[Address]] = Some(env)
+  override def savedValues[Abs] = args.map(_._2.asInstanceOf[Abs]) :+ f.asInstanceOf[Abs]
+
+  override def toString: String = s"FrameConcolicFuncallOperands($f, $args, $env)"
+
+  override def meaningfullySubsumes = true
+  override def subsumes(that: Frame): Boolean = that match {
+    case that: FrameConcolicFuncallOperands[Abs, Addr, Time] =>
+      fexp == that.fexp &&
+      cur == that.cur &&
+      toeval == that.toeval &&
+      sabs.subsumes(f, that.f) &&
+      args.zip(that.args).forall( (zipped) =>
+        /* Check whether they have evaluated the same argument expression */
+        zipped._1._1 == zipped._2._1 &&
+        /* and whether the results of this subsume those of that. */
+        sabs.subsumes(zipped._1._2, zipped._2._2)) &&
+      env.subsumes(that.env)
+    case _ =>
+      false
+  }
+
+  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
+    convertEnv: Environment[Addr] => Environment[Addr],
+    abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
+    FrameConcolicFuncallOperands(convertValue(f),
+      fexp,
+      cur,
+      args.map((arg) => (arg._1, convertValue(arg._2), arg._3)),
+      toeval,
+      convertEnv(env))
+
+  def reaches(valueReaches: Abs => Set[Addr],
+    envReaches: Environment[Addr] => Set[Addr],
+    addressReaches: Addr => Set[Addr]): Set[Addr] =
+    valueReaches(f) ++ args.foldLeft[Set[Addr]](Set[Addr]())((acc, arg) =>
+      acc ++ valueReaches(arg._2)) ++
+      envReaches(env)
+}
+
 case class FrameIf[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     cons: SchemeExp, alt: SchemeExp, env: Environment[Addr], ifExp: SchemeIf)
     extends SchemeFrame[Abs, Addr, Time] {

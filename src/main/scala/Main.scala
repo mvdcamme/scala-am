@@ -434,7 +434,7 @@ object Main {
             implicit val sabsCCLattice =
               ConcreteConcreteLattice.isSchemeLattice
 
-            val sem = new BaseSchemeSemantics[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](
+            val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](
               new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
 
             val pointsLattice = new PointsToLattice(false)
@@ -448,7 +448,7 @@ object Main {
                                                                                          pointsLatInfoProv,
                                                                                          config.analysisFlags)
 
-            val machine = new HybridConcreteMachine[pointsLattice.L](pointsToAnalysisLauncher, config.analysisFlags)
+            val machine = new ConcolicMachine[pointsLattice.L](pointsToAnalysisLauncher, config.analysisFlags)
 
             def calcResult(program: String)() = {
               machine.eval(currentProgram, sem.parse(program), sem, config.dotfile.isDefined, config.timeout)
@@ -470,7 +470,7 @@ object Main {
               case None => StdIn.readLine(">>> ")
             }
             if (program == null) throw Done
-            if (program.size > 0) startMachineFun(program)
+            if (program.nonEmpty) startMachineFun(program)
           } while (config.file.isEmpty);
         } catch {
           case Done => ()

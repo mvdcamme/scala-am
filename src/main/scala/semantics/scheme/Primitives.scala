@@ -1,3 +1,5 @@
+import Reporter.SymbolicStore
+
 import scala.annotation.tailrec
 import scalaz.{Plus => _, _}
 import scalaz.Scalaz._
@@ -21,10 +23,12 @@ trait Primitive[Addr, Abs] {
       args: List[(Exp, Abs)],
       store: Store[Addr, Abs],
       t: Time): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]
+  def symbolicCall(concreteArgs: List[Abs],
+                   symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
+    None
 
   def convert[Addr: Address, Abs: IsConvertableLattice](
       prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs]
-
 }
 
 abstract class Primitives[Addr: Address, Abs: JoinLattice] {
@@ -187,6 +191,11 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
 
   object Plus extends NoStoreOperation("+") {
     override def call(args: List[Abs]) = applyGenericPlusOperation(args, plus)
+
+    override def symbolicCall(concreteArgs: List[Abs],
+                              symbolicArgs: List[ConcolicExpression],
+                              store: SymbolicStore): Option[ConcolicExpression] =
+      Some(ArithmeticalConcolicExpression("+", symbolicArgs))
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Plus
@@ -265,7 +274,13 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
   }
   object LessThan extends NoStoreOperation("<", Some(2)) {
     override def call(x: Abs, y: Abs) =
-      lt(x, y) /* TODO: < should accept any number of arguments (same for <= etc.) */
+      lt(x, y)
+
+    /* TODO: < should accept any number of arguments (same for <= etc.) */
+    override def symbolicCall(concreteArgs: List[Abs],
+                              symbolicArgs: List[ConcolicExpression],
+                              store: SymbolicStore): Option[ConcolicExpression] =
+      Some(RelationalConcolicExpression(symbolicArgs.head, name, symbolicArgs(1)))
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.LessThan

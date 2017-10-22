@@ -78,12 +78,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         })
         val filters = FilterAnnotations[Exp, Abs, Addr](primCallFilter, edgeInformation.semanticsFilters)
         edgeInformation.action match {
-          case ActionNoOp() =>
-            EdgeComponents(State(ControlKont(oldValue.get), store, kstore, a, time.tick(t)),
-              filters,
-              actions)
-          /* When a value is reached, we go to a continuation state */
-          case ActionReachedValue(v, store, _) =>
+          case ActionReachedValue(v, _, store, _) =>
             EdgeComponents(State(ControlKont(v), store, kstore, a, time.tick(t)),
                            filters,
                            actions)
@@ -454,7 +449,6 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     protected def addFrameFollowed(frame: Frame): FrameFollowed[Abs] =
       FrameFollowed[Abs](frame.asInstanceOf[SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]])
     protected def addKontAddrPopped(a: KontAddr, next: KontAddr): KontAddrPopped = KontAddrPopped(a, next)
-//    protected def addKontAddrPushed(next: KontAddr): KontAddrPushed = KontAddrPushed(next)
 
     private def frameSavedOperands(state: State): Set[(List[Abs], Kont[KontAddr])] =
       state.kstore.lookup(state.a).map( (kont) => kont.frame match {

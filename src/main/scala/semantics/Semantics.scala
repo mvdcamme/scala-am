@@ -24,6 +24,34 @@ trait BasicSemantics[Exp, Abs, Addr, Time] {
   implicit def exp: Expression[Exp]
   implicit def time: Timestamp[Time]
 
+  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionRs: List[ActionReplay[Exp, Abs, Addr]]): EdgeInformation[Exp, Abs, Addr] =
+    EdgeInformation(action, actionRs, Set())
+
+  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionR: ActionReplay[Exp, Abs, Addr]): EdgeInformation[Exp, Abs, Addr] =
+    noEdgeInfos(action, List(actionR))
+
+  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionRs: List[ActionReplay[Exp, Abs, Addr]]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    Set(noEdgeInfos(action, actionRs))
+
+  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionR: ActionReplay[Exp, Abs, Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    noEdgeInfosSet(action, List(actionR))
+
+  def simpleAction(action: Action[Exp, Abs, Addr]): EdgeInformation[Exp, Abs, Addr] =
+    EdgeInformation(action, Nil, Set())
+
+  def simpleActionSet(action: Action[Exp, Abs, Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    simpleActionSet(Set(action))
+
+  def simpleActionSet(actions: Set[Action[Exp, Abs, Addr]]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    actions.map(EdgeInformation(_, Nil, Set()))
+
+  /** Defines the elements in the initial environment/store */
+  def initialBindings: Iterable[(String, Addr, Abs)] = List()
+  def initialEnv: Iterable[(String, Addr)] =
+    initialBindings.map({ case (name, a, _) => (name, a) })
+  def initialStore: Iterable[(Addr, Abs)] =
+    initialBindings.map({ case (_, a, v) => (a, v) })
+
   /**
     * Binds arguments in the environment and store. Arguments are given as a list
     * of triple, where each triple is made of:
@@ -56,24 +84,6 @@ case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address](
 trait Semantics[Exp, Abs, Addr, Time]
     extends BasicSemantics[Exp, Abs, Addr, Time] {
 
-  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionRs: List[ActionReplay[Exp, Abs, Addr]]): EdgeInformation[Exp, Abs, Addr] =
-    EdgeInformation(action, actionRs, Set())
-
-  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionR: ActionReplay[Exp, Abs, Addr]): EdgeInformation[Exp, Abs, Addr] =
-    noEdgeInfos(action, List(actionR))
-
-  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionRs: List[ActionReplay[Exp, Abs, Addr]]): Set[EdgeInformation[Exp, Abs, Addr]] =
-    Set(noEdgeInfos(action, actionRs))
-
-  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionR: ActionReplay[Exp, Abs, Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
-    noEdgeInfosSet(action, List(actionR))
-
-  def simpleAction(action: Action[Exp, Abs, Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
-    simpleAction(Set(action))
-
-  def simpleAction(actions: Set[Action[Exp, Abs, Addr]]): Set[EdgeInformation[Exp, Abs, Addr]] =
-    actions.map(EdgeInformation(_, Nil, Set()))
-
   /**
     * Defines what actions should be taken when an expression e needs to be
     * evaluated, in environment env with store store
@@ -91,13 +101,6 @@ trait Semantics[Exp, Abs, Addr, Time]
                frame: Frame,
                store: Store[Addr, Abs],
                t: Time): Set[EdgeInformation[Exp, Abs, Addr]]
-
-  /** Defines the elements in the initial environment/store */
-  def initialBindings: Iterable[(String, Addr, Abs)] = List()
-  def initialEnv: Iterable[(String, Addr)] =
-    initialBindings.map({ case (name, a, _) => (name, a) })
-  def initialStore: Iterable[(Addr, Abs)] =
-    initialBindings.map({ case (_, a, v) => (a, v) })
 
 }
 
@@ -194,17 +197,12 @@ case class EffectRelease[Addr: Address](target: Addr) extends Effect[Addr] {
 abstract class Action[Exp: Expression, Abs: JoinLattice, Addr: Address]
 
 /**
-  * An action that does not do anything at all.
-  */
-case class ActionNoOp[Exp: Expression, Abs: JoinLattice, Addr: Address]()
-  extends Action[Exp, Abs, Addr] with ActionReplay[Exp, Abs, Addr]
-
-/**
   * A value is reached by the interpreter. As a result, a continuation will be
   * popped with the given reached value.
   */
 case class ActionReachedValue[Exp: Expression, Abs: JoinLattice, Addr: Address](
     v: Abs,
+    optionConcolicValue: Option[ConcolicExpression],
     store: Store[Addr, Abs],
     effects: Set[Effect[Addr]] = Set[Effect[Addr]]())
     extends Action[Exp, Abs, Addr]
@@ -298,8 +296,7 @@ case class ActionJoin[Exp: Expression, Abs: JoinLattice, Addr: Address](
 /**
   * Base class for semantics that define some helper methods
   */
-abstract class BaseSemantics[
-    Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
+abstract class BaseSemantics[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     extends Semantics[Exp, Abs, Addr, Time] {
   /* wtf scala */
   def abs = implicitly[JoinLattice[Abs]]

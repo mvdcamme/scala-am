@@ -114,10 +114,10 @@ class LamSemantics[Abs: LamLattice, Addr: Address, Time: Timestamp]
 
   /** The stepEval function defines how to perform an evaluation step on an
     * expression */
-  def stepEval(e: LamExp, env: Env, store: Sto, t: Time) = simpleAction(e match {
+  def stepEval(e: LamExp, env: Env, store: Sto, t: Time) = simpleActionSet(e match {
     /* A lambda evaluate to a closure by pairing it with the current environment,
      * and injecting this in the abstract domain */
-    case Lam(_, _, _) => ActionReachedValue[LamExp, Abs, Addr](labs.inject((e, env)), store)
+    case Lam(_, _, _) => ActionReachedValue[LamExp, Abs, Addr](labs.inject((e, env)), None, store)
     /* To evaluate an application, we first have to evaluate e1, and we push a
      * continuation to remember to evaluate e2 in the environment env */
     case App(e1, e2, _) => ActionPush[LamExp, Abs, Addr](FrameArg(e2, env), e1, env, store)
@@ -126,7 +126,7 @@ class LamSemantics[Abs: LamLattice, Addr: Address, Time: Timestamp]
       env.lookup(x) match {
         case Some(a) =>
           store.lookup(a) match {
-            case Some(v) => ActionReachedValue[LamExp, Abs, Addr](v, store)
+            case Some(v) => ActionReachedValue[LamExp, Abs, Addr](v, None, store)
             case None => ActionError[LamExp, Abs, Addr](UnboundAddress(a.toString))
           }
         case None => ActionError[LamExp, Abs, Addr](UnboundVariable(x))
@@ -137,7 +137,7 @@ class LamSemantics[Abs: LamLattice, Addr: Address, Time: Timestamp]
     * have frame as the top continuation on the stack */
   def stepKont(v: Abs, frame: Frame, store: Sto, t: Time) = frame match {
     /* We have evaluated the operator v but still need to evaluate the operator e */
-    case FrameArg(e, env) => simpleAction(ActionPush[LamExp, Abs, Addr](FrameFun(v), e, env, store))
+    case FrameArg(e, env) => simpleActionSet(ActionPush[LamExp, Abs, Addr](FrameFun(v), e, env, store))
     /* We have evaluated both the operator (fun) and the operand (v). We go through
      * the possible closures bound to the operator and for each of them, we
      * have to evaluate their body by extending their environment with their

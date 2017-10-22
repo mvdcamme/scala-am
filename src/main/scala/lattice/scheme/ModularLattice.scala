@@ -797,10 +797,18 @@ object ConcreteConcreteLattice extends SchemeLattice {
   val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](true)
   type L = lattice.LSet
   type ConcreteValue = L
-  val isSchemeLattice: IsConvertableLattice[L] =
-    lattice.isSchemeLatticeSet
-  val latticeInfoProvider: PointsToableLatticeInfoProvider[L] =
-    lattice.isSchemeLatticeSet.latticeInfoProvider
+  val isSchemeLattice: IsConvertableLattice[L] = lattice.isSchemeLatticeSet
+  val latticeInfoProvider: PointsToableLatticeInfoProvider[L] = lattice.isSchemeLatticeSet.latticeInfoProvider
+
+  def simplify(x: L): Option[Value] = x match {
+    case lattice.Element(lattice.Str(s)) => Some(ValueString(s.elemAt(0).get))
+    case lattice.Element(lattice.Bool(b)) => Some(ValueBoolean(b.elemAt(0).get))
+    case lattice.Element(lattice.Int(i)) => Some(ValueInteger(i.elemAt(0).get))
+    case lattice.Element(lattice.Float(f)) => Some(ValueFloat(f.elemAt(0).get))
+    case lattice.Element(lattice.Char(c)) => Some(ValueCharacter(c.elemAt(0).get))
+    case lattice.Element(lattice.Symbol(sym)) => Some(ValueSymbol(sym.elemAt(0).get))
+    case _ => None
+  }
 
   def convert[Exp: Expression, Abs: IsConvertableLattice, Addr: Address](
       x: L,

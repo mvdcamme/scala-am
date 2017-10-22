@@ -1,7 +1,6 @@
 import ConcreteConcreteLattice.ConcreteValue
 
-class HybridConcreteMachine[
-    PAbs: IsConvertableLattice: PointsToableLatticeInfoProvider](
+class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvider](
     pointsToAnalysisLauncher: PointsToAnalysisLauncher[PAbs],
     analysisFlags: AnalysisFlags)(
     implicit unused1: IsSchemeLattice[ConcreteConcreteLattice.L])
@@ -10,22 +9,21 @@ class HybridConcreteMachine[
                             HybridAddress.A,
                             HybridTimestamp.T] {
 
-  def name = "HybridConcreteMachine"
+  def name = "ConcolicMachine"
 
   var stepCount: Integer = 0
 
   val errorPathDetector = new ErrorPathDetector[SchemeExp, PAbs, HybridAddress.A, HybridTimestamp.T](pointsToAnalysisLauncher.aam)
 
-
-  trait ConcreteMachineOutput extends Output[ConcreteConcreteLattice.L] {
+  trait ConcolicMachineOutput extends Output[ConcreteConcreteLattice.L] {
     def toDotFile(path: String) =
       println("Not generating graph for ConcreteMachine")
   }
 
-  case class ConcreteMachineOutputError(time: Double,
+  case class ConcolicMachineOutputError(time: Double,
                                         numberOfStates: Int,
                                         err: String)
-      extends ConcreteMachineOutput {
+      extends ConcolicMachineOutput {
     def finalValues = {
       println(s"Execution failed: $err")
       Set()
@@ -33,17 +31,17 @@ class HybridConcreteMachine[
     def containsFinalValue(v: ConcreteConcreteLattice.L) = false
     def timedOut = false
   }
-  case class ConcreteMachineOutputTimeout(time: Double, numberOfStates: Int)
-      extends ConcreteMachineOutput {
+  case class ConcolicMachineOutputTimeout(time: Double, numberOfStates: Int)
+      extends ConcolicMachineOutput {
     def finalValues = Set()
     def containsFinalValue(v: ConcreteConcreteLattice.L) = false
     def timedOut = true
   }
-  case class ConcreteMachineOutputValue(time: Double,
+  case class ConcolicMachineOutputValue(time: Double,
                                         numberOfStates: Int,
                                         v: ConcreteConcreteLattice.L,
                                         graph: Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]])
-      extends ConcreteMachineOutput {
+      extends ConcolicMachineOutput {
     def finalValues = Set(v)
     def containsFinalValue(v2: ConcreteConcreteLattice.L) = v == v2
     def timedOut = false
@@ -76,7 +74,15 @@ class HybridConcreteMachine[
     }
   }
 
-  case class State(control: Control,
+  trait ConcolicControl extends Control {
+    override def subsumes(that: Control): Boolean = false
+  }
+
+  case class ConcolicControlEval(exp: SchemeExp, env: Environment[HybridAddress.A]) extends ConcolicControl
+  case class ConcolicControlKont(v: ConcreteValue, concolicValue: Option[ConcolicExpression]) extends ConcolicControl
+  case class ConcolicControlError(error: SemanticError) extends ConcolicControl
+
+  case class State(control: ConcolicControl,
                    store: Store[HybridAddress.A, ConcreteConcreteLattice.L],
                    kstore: KontStore[KontAddr],
                    a: KontAddr,
@@ -85,15 +91,15 @@ class HybridConcreteMachine[
       with StateTrait[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] {
 
     def halted = control match {
-      case ControlError(_) => true
-      case ControlKont(_) => a == HaltKontAddress
+      case ConcolicControlError(_) => true
+      case ConcolicControlKont(_, _) => a == HaltKontAddress
       case _ => false
     }
 
     def graphNodeColor = control match {
-      case ControlEval(_, _) => Colors.Green
-      case ControlKont(_) => Colors.Pink
-      case ControlError(_) => Colors.Red
+      case ConcolicControlEval(_, _) => Colors.Green
+      case ConcolicControlKont(_, _) => Colors.Pink
+      case ConcolicControlError(_) => Colors.Red
     }
 
     private def convertStore[AbstL: IsConvertableLattice](
@@ -194,21 +200,21 @@ class HybridConcreteMachine[
     private def reachesControl[KAddr <: KontAddr](concBaseSem: BaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                                   sto: Store[HybridAddress.A, ConcreteValue],
                                                   kstore: KontStore[KAddr])(
-                                                  control: Control)
+                                                  control: ConcolicControl)
     : Set[HybridAddress.A] =
       control match {
-        case ControlEval(_, env) =>
+        case ConcolicControlEval(_, env) =>
           reachesEnvironment(concBaseSem, sto)(env)
-        case ControlKont(value) =>
+        case ConcolicControlKont(value, _) =>
           reachesValue(concBaseSem, sto)(value)
-        case ControlError(_) => Set()
+        case ConcolicControlError(_) => Set()
       }
 
     private def reachesStoreAddresses[KAddr <: KontAddr](concBaseSem: BaseSchemeSemantics[ConcreteValue,
                                                             HybridAddress.A,
                                                             HybridTimestamp.T],
                                                          sto: Store[HybridAddress.A, ConcreteValue])(
-                                                         control: Control,
+                                                         control: ConcolicControl,
                                                          kstore: KontStore[KAddr],
                                                          ka: KAddr): Set[HybridAddress.A] = {
       reachesControl[KAddr](concBaseSem, sto, kstore)(control) ++ reachesKontAddr[KAddr](concBaseSem, sto, kstore)(ka)
@@ -217,7 +223,7 @@ class HybridConcreteMachine[
     private def garbageCollectStore[KAddr <: KontAddr]
                                    (concBaseSem: BaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                     store: Store[HybridAddress.A, ConcreteValue],
-                                    control: Control,
+                                    control: ConcolicControl,
                                     kstore: KontStore[KAddr],
                                     ka: KAddr): Store[HybridAddress.A, ConcreteValue] = {
       reached = Set()
@@ -258,11 +264,11 @@ class HybridConcreteMachine[
 
       val convertedControl: ConvertedControl[SchemeExp, AbstL, HybridAddress.A] =
         control match {
-          case ControlEval(exp, env) =>
+          case ConcolicControlEval(exp, env) =>
             ConvertedControlEval[SchemeExp, AbstL, HybridAddress.A](
               exp,
               convertEnv(env))
-          case ControlKont(v) =>
+          case ConcolicControlKont(v, _) =>
             ConvertedControlKont[SchemeExp, AbstL, HybridAddress.A](
               convertValueFun(v))
         }
@@ -287,16 +293,16 @@ class HybridConcreteMachine[
     */
   def eval(programName: String,
            exp: SchemeExp,
-           sem: Semantics[SchemeExp,
-                          ConcreteConcreteLattice.L,
-                          HybridAddress.A,
-                          HybridTimestamp.T],
+           sem: ConcolicSchemeSemantics[SchemeExp,
+                                        ConcreteConcreteLattice.L,
+                                        HybridAddress.A,
+                                        HybridTimestamp.T],
            graph: Boolean,
            timeout: Option[Long]): Output[ConcreteConcreteLattice.L] = {
     def loop(state: State,
              start: Long,
              count: Int,
-             graph: Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]): ConcreteMachineOutput = {
+             graph: Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]): ConcolicMachineOutput = {
 
       Logger.log(s"stepCount: $stepCount", Logger.V)
       val currentAddresses: Set[HybridAddress.A] = state.store.toSet.map(_._1)
@@ -320,7 +326,7 @@ class HybridConcreteMachine[
       stepCount += 1
 
       if (timeout.exists(System.nanoTime - start > _)) {
-        ConcreteMachineOutputTimeout(
+        ConcolicMachineOutputTimeout(
           (System.nanoTime - start) / Math.pow(10, 9),
           count)
       } else {
@@ -340,57 +346,46 @@ class HybridConcreteMachine[
                                  filters: FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A],
                                  actionTs: List[ActionReplay[SchemeExp, ConcreteValue, HybridAddress.A]])
 
-        def step(control: Control): Either[ConcreteMachineOutput, StepSucceeded] = control match {
-          case ControlEval(e, env) =>
-            val edgeInfos = sem.stepEval(e, env, store, t)
-            if (edgeInfos.size == 1) {
-
-              startRunTimeAnalysisIfIfEncountered(programName, state)
-
-              val onlyEdgeInfo = edgeInfos.head
-              handleFunctionCalled(onlyEdgeInfo)
-              onlyEdgeInfo match {
-                case EdgeInformation(ActionReachedValue(v, store2, _), actions, semanticsFilters) =>
-                  val machineFilters = Set[MachineFilterAnnotation]()
-                  Right(StepSucceeded(State(ControlKont(v), store2, kstore, a, time.tick(t)),
-                                      FilterAnnotations(machineFilters, semanticsFilters),
-                                      actions))
+        def step(control: ConcolicControl): Either[ConcolicMachineOutput, StepSucceeded] = control match {
+          case ConcolicControlEval(e, env) =>
+            val edgeInfo = sem.stepEval(e, env, store, t)
+            startRunTimeAnalysisIfIfEncountered(programName, state)
+            handleFunctionCalled(edgeInfo)
+            edgeInfo match {
+              case EdgeInformation(ActionReachedValue(v, optionConcolicValue, store2, _), actions, semanticsFilters) =>
+                val machineFilters = Set[MachineFilterAnnotation]()
+                Right(StepSucceeded(State(ConcolicControlKont(v, optionConcolicValue), store2, kstore, a, time.tick(t)),
+                  FilterAnnotations(machineFilters, semanticsFilters),
+                  actions))
                 case EdgeInformation(ActionPush(frame, e, env, store2, _), actions, semanticsFilters) =>
                   val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                   val kont = Kont(frame, a)
-                  val machineFilters = Set[MachineFilterAnnotation](//KontAddrPushed(next),
-                                                                    EvaluatingExpression(e))
-                  Right(StepSucceeded(State(ControlEval(e, env), store2, kstore.extend(next, kont), next, time.tick(t)),
+                  val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
+                  Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore.extend(next, kont), next, time.tick(t)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
                 case EdgeInformation(ActionEval(e, env, store2, _), actions, semanticsFilters) =>
                   val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
-                  Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
+                  Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, time.tick(t)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
                 case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
                   Reporter.pushEnvironment()
                   val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
-                  Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
+                  Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
                 case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
-                  Left(ConcreteMachineOutputError(
+                  Left(ConcolicMachineOutputError(
                     (System.nanoTime - start) / Math.pow(10, 9),
                     count,
                     err.toString))
               }
-            } else {
-              Left(ConcreteMachineOutputError(
-                (System.nanoTime - start) / Math.pow(10, 9),
-                count,
-                s"execution was not concrete (got ${edgeInfos.size} actions instead of 1)"))
-            }
 
-          case ControlKont(v) =>
+          case ConcolicControlKont(v, symbolicValue) =>
             /* pop a continuation */
             if (a == HaltKontAddress) {
-              Left(ConcreteMachineOutputValue(
+              Left(ConcolicMachineOutputValue(
                 (System.nanoTime - start) / Math.pow(10, 9),
                 count,
                 v, graph))
@@ -401,58 +396,48 @@ class HybridConcreteMachine[
                 val originFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
                 val oldA = state.a
                 val a = frames.head.next
-                val edgeInfos = sem.stepKont(v, frame, store, t)
-                if (edgeInfos.size == 1) {
-
-                  startRunTimeAnalysisIfIfEncountered(programName, state)
-
-                  val onlyEdgeInfo = edgeInfos.head
-                  handleFunctionCalled(onlyEdgeInfo)
-                  onlyEdgeInfo match {
-                    case EdgeInformation(ActionReachedValue(v, store2, _), actions, semanticsFilters) =>
-                      val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
-                                                                        FrameFollowed[ConcreteValue](originFrameCast))
-                      Right(StepSucceeded(State(ControlKont(v), store2, kstore, a, time.tick(t)),
-                                          FilterAnnotations(machineFilters, semanticsFilters),
-                                          actions))
-                    case EdgeInformation(ActionPush(frame, e, env, store2, _), actions, semanticsFilters) =>
-                      val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
-                      val machineFilters = Set[MachineFilterAnnotation](//KontAddrPushed(next),
-                                                                        KontAddrPopped(oldA, a),
-                                                                        EvaluatingExpression(e),
-                                                                        FrameFollowed(originFrameCast))
-                      Right(StepSucceeded(State(ControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
-                                          FilterAnnotations(machineFilters, semanticsFilters),
-                                          actions))
-                    case EdgeInformation(ActionEval(e, env, store2, _), actions, semanticsFilters) =>
-                      val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
-                                                                        EvaluatingExpression(e),
-                                                                        FrameFollowed[ConcreteValue](originFrameCast))
-                      Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
-                                          FilterAnnotations(machineFilters, semanticsFilters),
-                                          actions))
-                    case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
-                      Reporter.pushEnvironment()
-                      val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
-                                                                        EvaluatingExpression(e),
-                                                                        FrameFollowed[ConcreteValue](originFrameCast))
-                      Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
-                                          FilterAnnotations(machineFilters, semanticsFilters),
-                                          actions))
-                    case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
-                      Left(ConcreteMachineOutputError(
-                        (System.nanoTime - start) / Math.pow(10, 9),
-                        count,
-                        err.toString))
-                  }
-                } else {
-                  Left(ConcreteMachineOutputError(
-                    (System.nanoTime - start) / Math.pow(10, 9),
-                    count,
-                    s"execution was not concrete (got ${edgeInfos.size} actions instead of 1)"))
+                val edgeInfo = sem.stepKont(v, symbolicValue, frame, store, t)
+                startRunTimeAnalysisIfIfEncountered(programName, state)
+                handleFunctionCalled(edgeInfo)
+                edgeInfo match {
+                  case EdgeInformation(ActionReachedValue(v, optionConcolicValue, store2, _), actions, semanticsFilters) =>
+                    val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
+                      FrameFollowed[ConcreteValue](originFrameCast))
+                    Right(StepSucceeded(State(ConcolicControlKont(v, optionConcolicValue), store2, kstore, a, time.tick(t)),
+                      FilterAnnotations(machineFilters, semanticsFilters),
+                      actions))
+                  case EdgeInformation(ActionPush(frame, e, env, store2, _), actions, semanticsFilters) =>
+                    val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
+                    val machineFilters = Set[MachineFilterAnnotation](//KontAddrPushed(next),
+                      KontAddrPopped(oldA, a),
+                      EvaluatingExpression(e),
+                      FrameFollowed(originFrameCast))
+                    Right(StepSucceeded(State(ControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
+                      FilterAnnotations(machineFilters, semanticsFilters),
+                      actions))
+                  case EdgeInformation(ActionEval(e, env, store2, _), actions, semanticsFilters) =>
+                    val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
+                      EvaluatingExpression(e),
+                      FrameFollowed[ConcreteValue](originFrameCast))
+                    Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
+                      FilterAnnotations(machineFilters, semanticsFilters),
+                      actions))
+                  case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
+                    Reporter.pushEnvironment()
+                    val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
+                      EvaluatingExpression(e),
+                      FrameFollowed[ConcreteValue](originFrameCast))
+                    Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
+                      FilterAnnotations(machineFilters, semanticsFilters),
+                      actions))
+                  case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
+                    Left(ConcolicMachineOutputError(
+                      (System.nanoTime - start) / Math.pow(10, 9),
+                      count,
+                      err.toString))
                 }
               } else {
-                Left(ConcreteMachineOutputError(
+                Left(ConcolicMachineOutputError(
                   (System.nanoTime - start) / Math.pow(10, 9),
                   count,
                   s"execution was not concrete (got ${frames.size} frames instead of 1)"))
@@ -460,7 +445,7 @@ class HybridConcreteMachine[
             }
 
           case ControlError(err) =>
-            Left(ConcreteMachineOutputError(
+            Left(ConcolicMachineOutputError(
               (System.nanoTime - start) / Math.pow(10, 9),
               count,
               err.toString))
@@ -505,7 +490,7 @@ class HybridConcreteMachine[
     }
 
     @scala.annotation.tailrec
-    def loopConcolic(initialState: State, nrOfRuns: Int): ConcreteMachineOutput = {
+    def loopConcolic(initialState: State, nrOfRuns: Int): ConcolicMachineOutput = {
       val analysisResult = startRunTimeAnalysis(programName, initialState)
 
       Reporter.clear(nrOfRuns < 2)

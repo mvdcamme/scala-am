@@ -6,11 +6,11 @@ object Reporter {
   type PathConstraint = List[ConcolicConstraint]
 
   type SymbolicMemoryScope = Map[String, ConcolicExpression]
-  type SymbolicEnvironment = List[SymbolicMemoryScope]
+  type SymbolicStore = List[SymbolicMemoryScope]
 
   private var doConcolic: Boolean = false
 
-  private var symbolicMemory: SymbolicEnvironment = List(Map())
+  private var symbolicMemory: SymbolicStore = List(Map())
   private var currentReport: PathConstraint = Nil
 
   private var optRoot: Option[SymbolicNode] = None
@@ -128,8 +128,7 @@ object Reporter {
   }
 
   def lookupVariable(name: String): Option[ConcolicExpression] = {
-    @scala.annotation.tailrec
-    def loopEnv(env: SymbolicEnvironment): Option[ConcolicExpression] = env match {
+    def loopEnv(env: SymbolicStore): Option[ConcolicExpression] = env match {
       case scope :: rest => scope.get(name) match {
         case Some(concolicExp) =>
           Some(concolicExp)
@@ -143,7 +142,7 @@ object Reporter {
   }
 
   def setVariable(name: String, newConcolicExp: ConcolicExpression): Unit = {
-    def loopEnv(env: SymbolicEnvironment): SymbolicEnvironment = env match {
+    def loopEnv(env: SymbolicStore): SymbolicStore = env match {
       case scope :: rest =>
         if (scope.contains(name)) {
           scope.updated(name, newConcolicExp) :: rest

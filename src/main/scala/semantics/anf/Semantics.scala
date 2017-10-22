@@ -36,8 +36,8 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
     e match {
     /* To step an atomic expression, performs atomic evaluation on it */
     case ae: ANFAtomicExp => atomicEval(ae, env, store).collect({
-      case (v, effs) => simpleAction(ActionReachedValue[ANFExp, Abs, Addr](v, store, effs))
-    }, err => simpleAction(ActionError[ANFExp, Abs, Addr](err)))
+      case (v, effs) => simpleActionSet(ActionReachedValue[ANFExp, Abs, Addr](v, None, store, effs))
+    }, err => simpleActionSet(ActionError[ANFExp, Abs, Addr](err)))
     /* Function call is the interesting case */
     case ANFFuncall(f, args, _) =>
       val init : MayFail[(List[(ANFExp, Abs)], Set[Effect[Addr]])] = MayFailSuccess(List(), Set())
@@ -65,15 +65,15 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
         val fromPrim: Set[Action[ANFExp, Abs, Addr]] = sabs.getPrimitives(fv).flatMap(prim =>
           /* To call a primitive, apply the call method with the given arguments and the store */
           prim.call(f, argsv, store, t).collect({
-            case (res, store2, effects2) => Set[Action[ANFExp, Abs, Addr]](ActionReachedValue[ANFExp, Abs, Addr](res, store2, effects ++ effects2))
+            case (res, store2, effects2) => Set[Action[ANFExp, Abs, Addr]](ActionReachedValue[ANFExp, Abs, Addr](res, None, store2, effects ++ effects2))
           }, err => Set[Action[ANFExp, Abs, Addr]](ActionError[ANFExp, Abs, Addr](err))))
         if (fromClo.isEmpty && fromPrim.isEmpty) {
-          simpleAction(ActionError[ANFExp, Abs, Addr](TypeError(fv.toString, "operator", "function",
+          simpleActionSet(ActionError[ANFExp, Abs, Addr](TypeError(fv.toString, "operator", "function",
             "not a function")))
         } else {
           (fromClo ++ fromPrim).map(EdgeInformation[ANFExp, Abs, Addr](_, Nil, Set()))
         }
-      }, err => simpleAction(ActionError[ANFExp, Abs, Addr](err)))
+      }, err => simpleActionSet(ActionError[ANFExp, Abs, Addr](err)))
     /* To evaluate (if cond cons alt), evaluate cons (which is atomic), and
      * depending on the result, either step into cons or alt, or in both */
     case ANFIf(cond, cons, alt, _) =>
@@ -82,44 +82,44 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
           val t = EdgeInformation(ActionEval(cons, env, store, effects), Nil, Set())
           val f = EdgeInformation(ActionEval(alt, env, store, effects), Nil, Set())
           if (sabs.isTrue(v) && sabs.isFalse(v)) { Set(t, f) } else if (sabs.isTrue(v)) { Set(t) } else if (sabs.isFalse(v)) { Set(f) } else { Set() }
-      }, err => simpleAction(ActionError[ANFExp, Abs, Addr](err)))
+      }, err => simpleActionSet(ActionError[ANFExp, Abs, Addr](err)))
     /* To evaluate a let, first evaluate the binding */
     case ANFLet(variable, exp, body, _) =>
-      simpleAction(ActionPush(FrameLet(variable, body, env), exp, env, store))
+      simpleActionSet(ActionPush(FrameLet(variable, body, env), exp, env, store))
     /* Same for letrec, but we need to bind the variable to an undefined value first */
     case ANFLetrec(variable, exp, body, pos) =>
       val vara = addr.variable(variable, abs.bottom, t)
       val env1 = env.extend(variable, vara)
       val store1 = store.extend(vara, abs.bottom)
-      simpleAction(ActionPush(FrameLetrec(variable, vara, body, env1), exp, env1, store1))
+      simpleActionSet(ActionPush(FrameLetrec(variable, vara, body, env1), exp, env1, store1))
     /* A set! needs to update the value of a variable in the store */
     case ANFSet(variable, value, _) => env.lookup(variable) match {
       case Some(vara) => atomicEval(value, env, store).collect({
         case (v, effects) =>
-          simpleAction(ActionReachedValue[ANFExp, Abs, Addr](v, store.update(vara, v), effects + EffectWriteVariable(vara)))
+          simpleActionSet(ActionReachedValue[ANFExp, Abs, Addr](v, None, store.update(vara, v), effects + EffectWriteVariable(vara)))
       }, err =>
-        simpleAction(ActionError[ANFExp, Abs, Addr](err)))
+        simpleActionSet(ActionError[ANFExp, Abs, Addr](err)))
       case None =>
-        simpleAction(ActionError[ANFExp, Abs, Addr](UnboundVariable(variable)))
+        simpleActionSet(ActionError[ANFExp, Abs, Addr](UnboundVariable(variable)))
     }
     /* A quoted identifier is a value */
     case ANFQuoted(SExpIdentifier(sym, _), _) =>
-      simpleAction(ActionReachedValue[ANFExp, Abs, Addr](sabs.injectSymbol(sym), store))
+      simpleActionSet(ActionReachedValue[ANFExp, Abs, Addr](sabs.injectSymbol(sym), None, store))
     /* A quoted s-expression is more complicated to evaluate, as it may require
      * store allocation and is therefore not atomic. We don't deal with them in
      * ANF (they can always be converted into calls to cons). */
     case ANFQuoted(sexp, _) =>
-      simpleAction(ActionError[ANFExp, Abs, Addr](NotSupported("quoted expressions not yet handled in ANF")))
+      simpleActionSet(ActionError[ANFExp, Abs, Addr](NotSupported("quoted expressions not yet handled in ANF")))
   }
 
   def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time) = frame match {
     /* Allocate the variable and bind it to the reached value */
     case FrameLet(variable, body, env) =>
       val vara = addr.variable(variable, v, t)
-      simpleAction(ActionEval(body, env.extend(variable, vara), store.extend(vara, v)))
+      simpleActionSet(ActionEval(body, env.extend(variable, vara), store.extend(vara, v)))
     /* Just bind the variable to the reached value, since it has already been allocated */
     case FrameLetrec(variable, vara, body, env) =>
-      simpleAction(ActionEval(body, env, store.update(vara, v)))
+      simpleActionSet(ActionEval(body, env, store.update(vara, v)))
   }
 
   def parse(program: String): ANFExp = ANF.parse(program)
