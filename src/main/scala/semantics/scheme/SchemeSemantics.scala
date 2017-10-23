@@ -71,7 +71,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                                    frameGenerator: FrameGenerator[Abs],
                                    actionGenerator: Frame => ActionPush[SchemeExp, Abs, Addr]):
   Set[EdgeInformation[SchemeExp, Abs, Addr]] = {
-    val newFrame = frameGenerator(currentValue, currentFrame)
+    val newFrame = frameGenerator(currentValue, None, currentFrame)
     val currentAction = actionGenerator(newFrame)
     noEdgeInfosSet(currentAction, ActionEvalPushDataR(currentAction.e, currentAction.env, frameGenerator))
   }
@@ -91,13 +91,6 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
             // Create a StatementConstraint for each parameter
             val updatedArgsZipped: List[(String, (SchemeExp, Abs))] = argsZipped.map({
               case (varName, (exp, value)) =>
-                val optInputVariable = SemanticsConcolicHelper.handleDefine(varName, exp)
-                val concolicValue = optInputVariable match {
-                  case Some(inputVariable) =>
-                    lookupInputVariable(inputVariable, value)
-                  case None =>
-                    value
-                }
                 (varName, (exp, value))
             })
             bindArgs(updatedArgsZipped, env1, store, t) match {
@@ -183,7 +176,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                                                         rest: List[SchemeExp],
                                                         env: Environment[Addr])
     extends FrameGenerator[Abs] {
-    def apply(value: Abs, frame: Frame): Frame = {
+    def apply(value: Abs, optConcolicValue: Option[ConcolicExpression], frame: Frame): Frame = {
       FrameFuncallOperands(value, fexp, e, args, rest, env)
     }
   }
@@ -193,11 +186,10 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                                bindings: List[(String, Abs)],
                                toeval: List[(String, SchemeExp)],
                                body: List[SchemeExp],
-                               env: Environment[Addr],
-                               optInputVariable: Option[String])
+                               env: Environment[Addr])
     extends FrameGenerator[Abs] {
-    def apply(value: Abs, other: Frame): Frame = {
-      FrameLet(variable, (frameVariable, value) :: other.asInstanceOf[FrameLet[Abs, Addr, Time]].bindings, toeval, body, env, optInputVariable)
+    def apply(value: Abs, optConcolicValue: Option[ConcolicExpression], other: Frame): Frame = {
+      FrameLet(variable, (frameVariable, value) :: other.asInstanceOf[FrameLet[Abs, Addr, Time]].bindings, toeval, body, env)
     }
   }
 
@@ -209,7 +201,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                                                        rest: List[SchemeExp],
                                                        env: Environment[Addr])
     extends FrameGenerator[Abs] {
-    def apply(value: Abs, other: Frame): Frame = {
+    def apply(value: Abs, optConcolicValue: Option[ConcolicExpression], other: Frame): Frame = {
       FrameFuncallOperands(f, fexp, e, (cur, value) :: other.asInstanceOf[FrameFuncallOperands[Abs, Addr, Time]].args, rest, env)
     }
   }
@@ -235,7 +227,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         evalCall(f, fexp, List(), store, t)
       case e :: rest =>
         val frameGenerator = PlaceOperatorFuncallOperandsFrameGenerator(fexp, e, Nil, rest, env)
-        val frame = frameGenerator(currentValue, currentFrame)
+        val frame = frameGenerator(currentValue, None, currentFrame)
         val actionGenerator = (frame: Frame) => ActionPush(frame, e, env, store)
         addPushDataActionT(currentValue, currentFrame, frameGenerator, actionGenerator)
     }
@@ -293,17 +285,14 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     case SchemeLet(Nil, body, _) =>
       Set(evalBody(body, env, store))
     case SchemeLet((v, exp) :: bindings, body, _) =>
-      val optInputVariable = SemanticsConcolicHelper.handleDefine(v, exp)
-      addPushActionRSet(ActionPush(FrameLet(v, List(), bindings, body, env, optInputVariable), exp, env, store))
+      addPushActionRSet(ActionPush(FrameLet(v, List(), bindings, body, env), exp, env, store))
     case SchemeLetStar(Nil, body, _) =>
       Set(evalBody(body, env, store))
     case SchemeLetStar((v, exp) :: bindings, body, _) =>
-      val optInputVariable = SemanticsConcolicHelper.handleDefine(v, exp)
-      addPushActionRSet(ActionPush(FrameLetStar(v, bindings, body, env, optInputVariable), exp, env, store))
+      addPushActionRSet(ActionPush(FrameLetStar(v, bindings, body, env), exp, env, store))
     case SchemeLetrec(Nil, body, _) =>
       Set(evalBody(body, env, store))
     case SchemeLetrec((v, exp) :: bindings, body, _) =>
-      val optInputVariable = SemanticsConcolicHelper.handleDefine(v, exp)
       case class ValuesToUpdate(env: Environment[Addr],
                                 store: Store[Addr, Abs],
                                 stateChanges: List[StoreChangeSemantics[Abs, Addr]])
@@ -312,7 +301,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       val addresses = variables.map(v => addr.variable(v, abs.bottom, t))
       val addressesVariables: List[(Addr, String)] = addresses.zip(variables)
       val initial = ValuesToUpdate(env, store, Nil)
-      val ValuesToUpdate(env1, store1, stateChanges) = variables
+      val ValuesToUpdate(env1, store1, _) = variables
         .zip(addresses)
         .foldLeft[ValuesToUpdate](initial)({
         case (ValuesToUpdate(env, store, storeChanges), (v, a)) =>
@@ -320,13 +309,12 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                          store.extend(a, abs.bottom),
                          StoreExtendSemantics[Abs, Addr](a, abs.bottom) :: storeChanges)
       })
-      val action = ActionPush(FrameLetrec(addresses.head, addressesVariables.tail.zip(bindings.map(_._2)).map( (binding) => (binding._1._1, binding._1._2, binding._2) ), body, env1, optInputVariable),
+      val action = ActionPush(FrameLetrec(addresses.head, variables.head, addressesVariables.tail.zip(bindings.map(_._2)).map( (binding) => (binding._1._1, binding._1._2, binding._2) ), body, env1),
                               exp, env1, store1)
       val actionEdge = ActionAllocAddressesR[SchemeExp, Abs, Addr](addresses)
       noEdgeInfosSet(action, List(actionEdge, ActionEvalPushR(exp, action.env, action.frame)))
     case SchemeSet(variable, exp, _) =>
-      val optInputVariable = SemanticsConcolicHelper.handleSet(variable, exp)
-      addPushActionRSet(ActionPush(FrameSet(variable, env, optInputVariable), exp, env, store))
+      addPushActionRSet(ActionPush(FrameSet(variable, env), exp, env, store))
     case SchemeBegin(body, _) =>
       Set(evalBody(body, env, store))
     case SchemeCond(Nil, _) =>
@@ -348,8 +336,7 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     case SchemeOr(exp :: exps, _) =>
       addPushActionRSet(ActionPush(FrameOr(exps, env), exp, env, store))
     case SchemeDefineVariable(name, exp, _) =>
-      val optInputVariable = SemanticsConcolicHelper.handleDefine(name, exp)
-      addPushActionRSet(ActionPush(FrameDefine(name, env, optInputVariable), exp, env, store))
+      addPushActionRSet(ActionPush(FrameDefine(name, env), exp, env, store))
     case SchemeDefineFunction(name, args, body, pos) =>
       val a = addr.variable(name, abs.bottom, t)
       val lambda = SchemeLambda(args, body, pos)
@@ -392,22 +379,6 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
       }
   }
 
-  private def lookupInputVariable(inputVariable: String, defaultValue: Abs): Abs = ConcolicSolver.getInput(inputVariable) match {
-    case Some(concolicInt) =>
-      sabs.inject(concolicInt)
-    case None =>
-      // No concolic value defined for this input variable
-      defaultValue
-  }
-
-  private def getConcolicValue(frameLet: FrameMayHaveInputVariable, defaultValue: Abs): Abs = frameLet.optInputVariable match {
-    case Some(inputVariable) =>
-      lookupInputVariable(inputVariable, defaultValue)
-    case None =>
-      // No input variable defined: frameLet was not binding an input variable
-      defaultValue
-  }
-
   def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time) =
     frame match {
       case frame: FrameFuncallOperator[Abs, Addr, Time] =>
@@ -419,13 +390,12 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
         funcallArgs(frame.f, frame, frame.fexp, (frame.cur, v) :: frame.args, frame.toeval, frame.env, store, t, v,
           frameGeneratorGenerator)
       case frame: FrameIf[Abs, Addr, Time] =>
-        SemanticsConcolicHelper.handleIf(frame.ifExp, sabs.isTrue(v))
         conditional(v, addEvalActionT(ActionEval(frame.cons, frame.env, store)), addEvalActionT(ActionEval(frame.alt, frame.env, store)))
-      case frame: FrameLet[Abs, Addr, Time] => val concolicV = getConcolicValue(frame, v); frame.toeval match {
+      case frame: FrameLet[Abs, Addr, Time] => frame.toeval match {
         case Nil =>
           val variables = frame.variable :: frame.bindings.reverse.map(_._1)
-          val addresses = variables.map(variable => addr.variable(variable, concolicV, t))
-          val (env1, store1) = ((frame.variable, concolicV) :: frame.bindings)
+          val addresses = variables.map(variable => addr.variable(variable, v, t))
+          val (env1, store1) = ((frame.variable, v) :: frame.bindings)
             .zip(addresses)
             .foldLeft((frame.env, store))({
               case ((env, store), ((variable, value), a)) =>
@@ -434,46 +404,41 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           val EdgeInformation(action, actionEdges, filters) = evalBody(frame.body, env1, store1)
           Set(EdgeInformation(action, ActionDefineAddressesPopR[SchemeExp, Abs, Addr](addresses) :: actionEdges, filters))
         case (variable, e) :: toeval =>
-          val optInputVariable = SemanticsConcolicHelper.handleDefine(variable, e)
-          val newFrameGenerator = LetFrameGenerator(variable, frame.variable, frame.bindings, toeval, frame.body, frame.env, optInputVariable)
+          val newFrameGenerator = LetFrameGenerator(variable, frame.variable, frame.bindings, toeval, frame.body, frame.env)
           val actionGenerator = (currentFrame: Frame) => ActionPush(currentFrame, e, frame.env, store)
-          addPushDataActionT(concolicV, frame, newFrameGenerator, actionGenerator)
+          addPushDataActionT(v, frame, newFrameGenerator, actionGenerator)
       }
       case frame: FrameLetStar[Abs, Addr, Time] =>
-        val concolicV = getConcolicValue(frame, v)
         val a = addr.variable(frame.variable, abs.bottom, t)
         val env1 = frame.env.extend(frame.variable, a)
-        val store1 = store.extend(a, concolicV)
+        val store1 = store.extend(a, v)
         val actionEdges = List(ActionDefineAddressesPopR[SchemeExp, Abs, Addr](List(a)))
         frame.bindings match {
           case Nil =>
             val EdgeInformation(actions, actionEdges2, edgeInfos) = evalBody(frame.body, env1, store1)
             Set(EdgeInformation(actions, actionEdges ++ actionEdges2, edgeInfos))
           case (variable, exp) :: rest =>
-            val optInputVariable = SemanticsConcolicHelper.handleDefine(variable, exp)
-            val action = ActionPush(FrameLetStar(variable, rest, frame.body, env1, optInputVariable), exp, env1, store1)
+            val action = ActionPush(FrameLetStar(variable, rest, frame.body, env1), exp, env1, store1)
             noEdgeInfosSet(action, actionEdges :+ ActionEvalPushR(exp, action.env, action.frame))
         }
-      case frame: FrameLetrec[Abs, Addr, Time] => val concolicV = getConcolicValue(frame, v); frame.bindings match {
+      case frame: FrameLetrec[Abs, Addr, Time] => frame.bindings match {
         case Nil =>
           // If frame defines an input variable, and if a value is bound to this input variable, use that bound value
-          val EdgeInformation(action, actionEdges, edgeInfos) = evalBody(frame.body, frame.env, store.update(frame.addr, concolicV))
+          val EdgeInformation(action, actionEdges, edgeInfos) = evalBody(frame.body, frame.env, store.update(frame.addr, v))
           Set(EdgeInformation(action, ActionSetAddressR[SchemeExp, Abs, Addr](frame.addr) :: actionEdges, edgeInfos))
         case (a1, varName, exp) :: rest =>
-          val optInputVariable = SemanticsConcolicHelper.handleDefine(varName, exp)
-          val action = ActionPush(FrameLetrec(a1, rest, frame.body, frame.env, optInputVariable), exp, frame.env, store.update(frame.addr, concolicV))
+          val action = ActionPush(FrameLetrec(a1, varName, rest, frame.body, frame.env), exp, frame.env, store.update(frame.addr, v))
           val actionEdges = List[ActionReplay[SchemeExp, Abs, Addr]](ActionSetAddressR(frame.addr),
                                                                      ActionEvalPushR(exp, action.env, action.frame))
           noEdgeInfosSet(action, actionEdges)
       }
       case frame: FrameSet[Abs, Addr, Time] =>
-        val concolicValue = getConcolicValue(frame, v)
         frame.env.lookup(frame.variable) match {
           case Some(a) =>
             val valueFalse = sabs.inject(false)
             val actionEdges = List[ActionReplay[SchemeExp, Abs, Addr]](ActionSetAddressR(a),
                                                                        ActionReachedValueT(valueFalse))
-            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueFalse, None, store.update(a, concolicValue), Set(EffectWriteVariable(a))),
+            noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](valueFalse, None, store.update(a, v), Set(EffectWriteVariable(a))),
                            actionEdges)
           case None =>
             simpleActionSet(ActionError[SchemeExp, Abs, Addr](UnboundVariable(frame.variable)))

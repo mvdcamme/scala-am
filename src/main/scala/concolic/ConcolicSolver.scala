@@ -1,9 +1,5 @@
 import SymbolicTreeHelper.TreePath
 
-trait WrappedSymbolicNode
-case class WrappedBranchNode(node: BranchSymbolicNode)
-case class WrappedStatementNode(node: StatementSymbolicNode, var thenPossible: Boolean, var elsePossible: Boolean)
-
 object ConcolicSolver {
 
   type ErrorPath = List[SemanticsFilterAnnotation]
@@ -52,11 +48,6 @@ object ConcolicSolver {
   }
 
   private def negateAllSuccessors(node: SymbolicNode): Unit = node match {
-    case s: StatementSymbolicNode => s.followUp match {
-      case Some(followUp) =>
-        negateAllSuccessors(followUp)
-      case None =>
-    }
     case b: BranchSymbolicNode =>
       b.elseBranchTaken = true
       b.thenBranchTaken = true
@@ -80,13 +71,6 @@ object ConcolicSolver {
     * @param errorPaths
     */
   private def negateNodesNotFollowingErrorPath(node: SymbolicNode, errorPaths: List[ErrorPath]): Unit = node match {
-    case s: StatementSymbolicNode => s.followUp match {
-      case Some(followUp) =>
-        // Continue with follow-up node
-        negateNodesNotFollowingErrorPath(followUp, errorPaths)
-      case None =>
-        // Do nothing
-    }
     case b: BranchSymbolicNode =>
       val nonEmptyPaths = errorPaths.filter(_.nonEmpty)
       val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)

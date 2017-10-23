@@ -1,6 +1,8 @@
 import scala.io.StdIn
 import java.io._
 
+import ConcreteConcreteLattice.ConcreteValue
+
 /**
   * Before looking at this, we recommend seeing how to use this framework. A
   * detailed example is available in LambdaCalculus.scala.
@@ -269,26 +271,9 @@ object Main {
       timeout: Option[Long],
       inspect: Boolean): Unit = {
 
-    def handleJITWarmUp(): Unit = {
-      val warmUpIterations = 2
-      val doWarmUp = false
-
-      if (doWarmUp) {
-        var i = 1
-        while (i < warmUpIterations) {
-          i += 1
-          calcResult()
-        }
-      }
-
-    }
-
     val abs = implicitly[JoinLattice[Abs]]
     val addr = implicitly[Address[Addr]]
-    println(
-      s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")
-
-    handleJITWarmUp()
+    println(s"Running ${machine.name} with lattice ${abs.name} and address ${addr.name}")
 
     val result: Output[Abs] = Stopwatch.doTimed({
       val result = calcResult()
@@ -431,12 +416,12 @@ object Main {
               new Free[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Hybrid =>
 
-            implicit val sabsCCLattice =
+            implicit val joinLattice: JoinLattice[ConcreteValue] =
               ConcreteConcreteLattice.isSchemeLattice
-
+            implicit val sabsCCLattice: IsSchemeLattice[ConcreteValue] =
+              ConcreteConcreteLattice.isSchemeLattice
             val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](
               new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
-
             val pointsLattice = new PointsToLattice(false)
             implicit val pointsConvLattice = pointsLattice.isSchemeLattice
             implicit val pointsLatInfoProv = pointsLattice.latticeInfoProvider

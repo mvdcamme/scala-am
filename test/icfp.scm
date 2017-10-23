@@ -8,7 +8,7 @@
   ;(display a)
   ;(display b)
   (set! a (random 1))
-  (if (> a (+ 1 2 3 4))
+  (if (> a 5)
       (if (> b 5)
           'ok
           (error "i"))

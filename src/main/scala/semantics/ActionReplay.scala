@@ -6,7 +6,7 @@ trait ActionReplay[Exp, Abs, Addr] {
 }
 
 trait FrameGenerator[Abs] {
-  def apply(value: Abs, frame: Frame): Frame
+  def apply(value: Abs, optConcolicValue: Option[ConcolicExpression], frame: Frame): Frame
 }
 
 /*

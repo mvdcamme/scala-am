@@ -43,28 +43,8 @@ case class BranchSymbolicNode(branch: BranchConstraint,
         t1
       }
       t2
-    case _: StatementSymbolicNode =>
-      assert(false, "Should not happen")
-      ???
   }
 
   def deepCopy: SymbolicNode =
     BranchSymbolicNode(branch, thenBranchTaken, elseBranchTaken, thenBranch.map(_.deepCopy), elseBranch.map(_.deepCopy))
-}
-
-case class StatementSymbolicNode(statement: StatementConstraint,
-                                 var followUp: Option[SymbolicNode])
-  extends SymbolicNode {
-  def constraint: ConcolicConstraint = statement
-
-  def combine(that: SymbolicNode): SymbolicNode = that match {
-    case _: StatementSymbolicNode =>
-      this
-    case _: BranchSymbolicNode =>
-      assert(false, "Should not happen")
-      ???
-  }
-
-  def deepCopy: SymbolicNode =
-    StatementSymbolicNode(statement, followUp.map(_.deepCopy))
 }

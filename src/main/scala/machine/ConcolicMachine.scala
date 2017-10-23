@@ -1,4 +1,4 @@
-import ConcreteConcreteLattice.ConcreteValue
+import ConcreteConcreteLattice.{ConcreteValue, lattice}
 
 class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvider](
     pointsToAnalysisLauncher: PointsToAnalysisLauncher[PAbs],
@@ -287,16 +287,21 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
     }
   }
 
+  override def eval(
+    programName: String,
+    exp: SchemeExp,
+    sem: Semantics[SchemeExp, lattice.LSet, HybridAddress.A, HybridTimestamp.T],
+    graph: Boolean,
+    timeout: Option[Long]
+  ): Output[lattice.LSet] = ???
+
   /**
     * Performs the evaluation of an expression, possibly writing the output graph
     * in a file, and returns the set of final states reached
     */
   def eval(programName: String,
            exp: SchemeExp,
-           sem: ConcolicSchemeSemantics[SchemeExp,
-                                        ConcreteConcreteLattice.L,
-                                        HybridAddress.A,
-                                        HybridTimestamp.T],
+           sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T],
            graph: Boolean,
            timeout: Option[Long]): Output[ConcreteConcreteLattice.L] = {
     def loop(state: State,
@@ -348,7 +353,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
 
         def step(control: ConcolicControl): Either[ConcolicMachineOutput, StepSucceeded] = control match {
           case ConcolicControlEval(e, env) =>
-            val edgeInfo = sem.stepEval(e, env, store, t)
+            val edgeInfo = sem.stepConcolicEval(e, env, store, t)
             startRunTimeAnalysisIfIfEncountered(programName, state)
             handleFunctionCalled(edgeInfo)
             edgeInfo match {
@@ -396,7 +401,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
                 val originFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
                 val oldA = state.a
                 val a = frames.head.next
-                val edgeInfo = sem.stepKont(v, symbolicValue, frame, store, t)
+                val edgeInfo = sem.stepConcolicKont(v, symbolicValue, frame, store, t)
                 startRunTimeAnalysisIfIfEncountered(programName, state)
                 handleFunctionCalled(edgeInfo)
                 edgeInfo match {
@@ -412,14 +417,14 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
                       KontAddrPopped(oldA, a),
                       EvaluatingExpression(e),
                       FrameFollowed(originFrameCast))
-                    Right(StepSucceeded(State(ControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
+                    Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
                   case EdgeInformation(ActionEval(e, env, store2, _), actions, semanticsFilters) =>
                     val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                       EvaluatingExpression(e),
                       FrameFollowed[ConcreteValue](originFrameCast))
-                    Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t)),
+                    Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, time.tick(t)),
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
                   case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
@@ -427,7 +432,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
                     val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                       EvaluatingExpression(e),
                       FrameFollowed[ConcreteValue](originFrameCast))
-                    Right(StepSucceeded(State(ControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
+                    Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
                   case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
@@ -444,7 +449,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
               }
             }
 
-          case ControlError(err) =>
+          case ConcolicControlError(err) =>
             Left(ConcolicMachineOutputError(
               (System.nanoTime - start) / Math.pow(10, 9),
               count,
@@ -482,7 +487,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
                env: Environment[HybridAddress.A],
                sto: Store[HybridAddress.A, ConcreteValue]): State = {
       val instrumentedExp = ConcolicInstrumenter.instrument(exp)
-      State(ControlEval(instrumentedExp, env),
+      State(ConcolicControlEval(instrumentedExp, env),
             sto,
             KontStore.empty[KontAddr],
             HaltKontAddress,

@@ -81,8 +81,7 @@ case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address](
     actions: List[ActionReplay[Exp, Abs, Addr]],
     semanticsFilters: Set[SemanticsFilterAnnotation])
 
-trait Semantics[Exp, Abs, Addr, Time]
-    extends BasicSemantics[Exp, Abs, Addr, Time] {
+trait Semantics[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Addr, Time] {
 
   /**
     * Defines what actions should be taken when an expression e needs to be

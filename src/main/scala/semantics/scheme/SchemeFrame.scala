@@ -86,55 +86,6 @@ case class FrameFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Time: Times
       envReaches(env)
 }
 
-case class FrameConcolicFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
-  f: Abs,
-  fexp: SchemeExp,
-  cur: SchemeExp,
-  args: List[(SchemeExp, Abs, Option[ConcolicExpression])],
-  toeval: List[SchemeExp],
-  env: Environment[Addr])
-  extends SchemeFrame[Abs, Addr, Time] {
-
-  override def savesEnv: Option[Environment[Address]] = Some(env)
-  override def savedValues[Abs] = args.map(_._2.asInstanceOf[Abs]) :+ f.asInstanceOf[Abs]
-
-  override def toString: String = s"FrameConcolicFuncallOperands($f, $args, $env)"
-
-  override def meaningfullySubsumes = true
-  override def subsumes(that: Frame): Boolean = that match {
-    case that: FrameConcolicFuncallOperands[Abs, Addr, Time] =>
-      fexp == that.fexp &&
-      cur == that.cur &&
-      toeval == that.toeval &&
-      sabs.subsumes(f, that.f) &&
-      args.zip(that.args).forall( (zipped) =>
-        /* Check whether they have evaluated the same argument expression */
-        zipped._1._1 == zipped._2._1 &&
-        /* and whether the results of this subsume those of that. */
-        sabs.subsumes(zipped._1._2, zipped._2._2)) &&
-      env.subsumes(that.env)
-    case _ =>
-      false
-  }
-
-  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
-    convertEnv: Environment[Addr] => Environment[Addr],
-    abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-    FrameConcolicFuncallOperands(convertValue(f),
-      fexp,
-      cur,
-      args.map((arg) => (arg._1, convertValue(arg._2), arg._3)),
-      toeval,
-      convertEnv(env))
-
-  def reaches(valueReaches: Abs => Set[Addr],
-    envReaches: Environment[Addr] => Set[Addr],
-    addressReaches: Addr => Set[Addr]): Set[Addr] =
-    valueReaches(f) ++ args.foldLeft[Set[Addr]](Set[Addr]())((acc, arg) =>
-      acc ++ valueReaches(arg._2)) ++
-      envReaches(env)
-}
-
 case class FrameIf[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     cons: SchemeExp, alt: SchemeExp, env: Environment[Addr], ifExp: SchemeIf)
     extends SchemeFrame[Abs, Addr, Time] {
@@ -161,18 +112,13 @@ case class FrameIf[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
               addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
 }
 
-trait FrameMayHaveInputVariable {
-  def optInputVariable: Option[String]
-}
-
 case class FrameLet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     variable: String,
     bindings: List[(String, Abs)],
     toeval: List[(String, SchemeExp)],
     body: List[SchemeExp],
-    env: Environment[Addr],
-    optInputVariable: Option[String])
-    extends SchemeFrame[Abs, Addr, Time] with FrameMayHaveInputVariable {
+    env: Environment[Addr])
+    extends SchemeFrame[Abs, Addr, Time] {
 
   override def savesEnv: Option[Environment[Address]] = Some(env)
   override def savedValues[Abs] = bindings.map(_._2.asInstanceOf[Abs])
@@ -184,8 +130,7 @@ case class FrameLet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
              bindings.map((binding) => (binding._1, convertValue(binding._2))),
              toeval,
              body,
-             convertEnv(env),
-             optInputVariable)
+             convertEnv(env))
 
   def reaches(valueReaches: Abs => Set[Addr],
               envReaches: Environment[Addr] => Set[Addr],
@@ -199,16 +144,15 @@ case class FrameLetStar[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     variable: String,
     bindings: List[(String, SchemeExp)],
     body: List[SchemeExp],
-    env: Environment[Addr],
-    optInputVariable: Option[String])
-    extends SchemeFrame[Abs, Addr, Time] with FrameMayHaveInputVariable {
+    env: Environment[Addr])
+    extends SchemeFrame[Abs, Addr, Time] {
 
   override def savesEnv: Option[Environment[Address]] = Some(env)
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
                                          convertEnv: Environment[Addr] => Environment[Addr],
                                          abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-    FrameLetStar(variable, bindings, body, convertEnv(env), optInputVariable)
+    FrameLetStar(variable, bindings, body, convertEnv(env))
 
   def reaches(valueReaches: Abs => Set[Addr],
               envReaches: Environment[Addr] => Set[Addr],
@@ -217,11 +161,11 @@ case class FrameLetStar[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
 
 case class FrameLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     addr: Addr,
+    variable: String,
     bindings: List[(Addr, String, SchemeExp)],
     body: List[SchemeExp],
-    env: Environment[Addr],
-    optInputVariable: Option[String])
-    extends SchemeFrame[Abs, Addr, Time] with FrameMayHaveInputVariable {
+    env: Environment[Addr])
+    extends SchemeFrame[Abs, Addr, Time] {
 
   override def savesEnv: Option[Environment[Address]] = Some(env)
 
@@ -230,11 +174,11 @@ case class FrameLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
                                          abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) = {
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]()
     FrameLetrec(addressConverter.convertAddress(addr.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr],
+                variable,
                 bindings.map( (binding) =>
                   (addressConverter.convertAddress(binding._1.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr], binding._2, binding._3)),
                 body,
-                convertEnv(env),
-                optInputVariable)
+                convertEnv(env))
   }
 
   def reaches(valueReaches: Abs => Set[Addr],
@@ -244,9 +188,8 @@ case class FrameLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
 }
 
 case class FrameSet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
-    variable: String, env: Environment[Addr],
-    optInputVariable: Option[String])
-    extends SchemeFrame[Abs, Addr, Time] with FrameMayHaveInputVariable {
+    variable: String, env: Environment[Addr])
+    extends SchemeFrame[Abs, Addr, Time] {
 
   override def writeEffectsFor(): Set[Address] = env.lookup(variable) match {
     case Some(a) => Set(a)
@@ -258,7 +201,7 @@ case class FrameSet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
                                          convertEnv: Environment[Addr] => Environment[Addr],
                                          abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-    FrameSet(variable, convertEnv(env), optInputVariable)
+    FrameSet(variable, convertEnv(env))
 
   def reaches(valueReaches: Abs => Set[Addr],
               envReaches: Environment[Addr] => Set[Addr],
@@ -351,16 +294,15 @@ case class FrameOr[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
 
 case class FrameDefine[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
     variable: String,
-    env: Environment[Addr],
-    optInputVariable: Option[String])
-    extends SchemeFrame[Abs, Addr, Time] with FrameMayHaveInputVariable {
+    env: Environment[Addr])
+    extends SchemeFrame[Abs, Addr, Time] {
 
   override def savesEnv: Option[Environment[Address]] = Some(env)
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
                                          convertEnv: Environment[Addr] => Environment[Addr],
                                          abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
-    FrameDefine(variable, convertEnv(env), optInputVariable)
+    FrameDefine(variable, convertEnv(env))
 
   def reaches(valueReaches: Abs => Set[Addr],
               envReaches: Environment[Addr] => Set[Addr],

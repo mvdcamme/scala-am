@@ -4,18 +4,6 @@ trait ConcolicConstraint {
   def getRhs: Option[String]
 }
 
-case class StatementConstraint(variableName: String, exp: ConcolicExpression) extends ConcolicConstraint {
-  override def toString: String = {
-    s"Statement: $variableName = $exp"
-  }
-  def getOp = {
-    Some("=")
-  }
-  def getRhs = {
-    Some(exp.toString)
-  }
-}
-
 /**
   *
   * @par trueExp The concolic expression that was true when this constraint was generated.
@@ -93,9 +81,5 @@ object ConcolicIdGenerator {
     val current = id
     id += 1
     ConcolicInput(current)
-  }
-
-  def newVariable(variableName: String, exp: ConcolicExpression): StatementConstraint = {
-    StatementConstraint(variableName, exp)
   }
 }

@@ -39,80 +39,17 @@ object SemanticsConcolicHelper {
     }
   }
 
-  def isRandomExpression(exp: SchemeExp): Boolean = exp match {
-    case SchemeFuncall(SchemeIdentifier("random", _), _, _) =>
-      true
-    case _ =>
-      false
-  }
-
-  /**
-    *
-    * @param variableName
-    * @param exp
-    * @return If exp is an expression for calling the random-function, the name of the input symbolic variable that
-    *         was defined is returned. Otherwise, returns None.
-    */
-  def handleDefine(variableName: String, exp: SchemeExp): Option[String] = {
+  def handleIf(concolicExpression: ConcolicExpression, thenBranchTaken: Boolean): Unit = {
     if (Reporter.isConcolicEnabled) {
-      if (isRandomExpression(exp)) {
-        val inputVariable = ConcolicIdGenerator.newConcolicInput
-        val concolicStatement = ConcolicIdGenerator.newVariable(variableName, inputVariable)
-        Reporter.addStatementConstraint(concolicStatement)
-        Some(inputVariable.toString)
-      } else {
-        val optionConcolicExpression = generateConcolicExpression(exp)
-        optionConcolicExpression match {
-          case Some(concolicExpression) =>
-            val concolicStatement = ConcolicIdGenerator.newVariable(variableName, concolicExpression)
-            Reporter.addStatementConstraint(concolicStatement)
-            None
-          case None =>
-            None
-        }
+      concolicExpression match {
+        case b: RelationalConcolicExpression =>
+          val baseConstraint = BranchConstraint(b)
+          //        val actualConstraint = if (thenBranchTaken) baseConstraint else baseConstraint.negate
+          ConcolicRunTimeFlags.setIfEncountered()
+          Reporter.addBranchConstraint(baseConstraint, thenBranchTaken)
+        case _ =>
+          Logger.log(s"Using a non-BinaryConcolicExpression in a branch constraint: $concolicExpression", Logger.E)
       }
-    } else {
-      None
-    }
-  }
-
-  def handleIf(exp: SchemeIf, thenBranchTaken: Boolean): Unit = {
-    if (Reporter.isConcolicEnabled) {
-      val optionConcolicExpression = generateConcolicExpression(exp.cond)
-      optionConcolicExpression match {
-        case Some(exp) => exp match {
-          case b: RelationalConcolicExpression =>
-            val baseConstraint = BranchConstraint(b)
-            //        val actualConstraint = if (thenBranchTaken) baseConstraint else baseConstraint.negate
-            ConcolicRunTimeFlags.setIfEncountered()
-            Reporter.addBranchConstraint(baseConstraint, thenBranchTaken)
-          case _ =>
-            Logger.log(s"Using a non-BinaryConcolicExpression in a branch constraint: $exp", Logger.E)
-        }
-        case None =>
-      }
-    }
-  }
-
-  def handleSet(variableName: String, exp: SchemeExp): Option[String] = {
-    if (Reporter.isConcolicEnabled) {
-      if (isRandomExpression(exp)) {
-        val inputVariable = ConcolicIdGenerator.newConcolicInput
-        val concolicStatement = ConcolicIdGenerator.newVariable(variableName, inputVariable)
-        Reporter.addStatementConstraint(concolicStatement)
-        Some(inputVariable.toString)
-      } else {
-        val optionConcolicExp = generateConcolicExpression(exp)
-        optionConcolicExp match {
-          case Some(concolicExp) =>
-            Reporter.setVariable(variableName, concolicExp)
-            None
-          case None =>
-            None
-        }
-      }
-    } else {
-      None
     }
   }
 

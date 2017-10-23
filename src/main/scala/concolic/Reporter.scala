@@ -29,32 +29,6 @@ object Reporter {
   }
   private var integrateNode: Setter = setRoot
 
-  private def generateStatementNodeSetter: Setter = optCurrentNode match {
-    case Some(currentNode) => currentNode match {
-      case s: StatementSymbolicNode =>
-        (symNode: SymbolicNode) => {
-          // Sanity check: if s.followUp is already defined, ONLY set the optCurrentNode variable?
-//          s.followUp match {
-//            case Some(followUp) =>
-//              if (followUp != symNode) {
-//                println("error")
-//                assert(false)
-//              }
-//            case None =>
-//          }
-          s.followUp match {
-            case Some(followUp) =>
-              s.followUp = Some(followUp.combine(symNode))
-            case None =>
-              s.followUp = Some(symNode)
-          }
-          // TODO if s.followUp.isDefined, should try to _combine_ two nodes?
-          // if symNode is a BranchNode, with only else-branch taken, and s.followUp is the same BranchNode (from previous iteration)
-          // with only the else-branch taken, s.followUp should now refer to a BranchNode with both branches taken?
-          optCurrentNode =  s.followUp
-        }
-    }
-  }
   private def generateBranchNodeSetter(thenBranchTaken: Boolean): Setter = optCurrentNode match {
     case Some(currentNode) => currentNode match {
       case b: BranchSymbolicNode =>
@@ -122,7 +96,7 @@ object Reporter {
     }
   }
 
-  private def addVariable(originalName: String, concolicExpression: ConcolicExpression): Unit = {
+  def addVariable(originalName: String, concolicExpression: ConcolicExpression): Unit = {
     val updatedCurrentScope: SymbolicMemoryScope = symbolicMemory.head + (originalName -> concolicExpression)
     symbolicMemory = updatedCurrentScope :: symbolicMemory.tail
   }
@@ -156,32 +130,18 @@ object Reporter {
     symbolicMemory = newSymbolicMemory
   }
 
-  private def statementConstraintToNode(constraint: StatementConstraint): SymbolicNode =
-    StatementSymbolicNode(constraint, None)
   private def branchConstraintToNode(constraint: BranchConstraint, thenBranchTaken: Boolean) =
     BranchSymbolicNode(constraint, thenBranchTaken, !thenBranchTaken, None, None)
 
   private def addConstraint(constraint: ConcolicConstraint,
                             symbolicNode: SymbolicNode,
                             thenBranchTaken: Option[Boolean]): Unit = {
-    // TODO To add a new constraint: first call the current Setter, then generate a new Setter depending on the type of the constraint argument
+    // TODO To add a new constraint: first call the current Setter (i.e., integrateNode),
+    // then generate a new Setter depending on the type of the constraint argument
 
     currentReport :+= constraint
     integrateNode(symbolicNode)
-    constraint match {
-      case _: StatementConstraint =>
-        integrateNode = generateStatementNodeSetter
-      case _: BranchConstraint =>
-        integrateNode = generateBranchNodeSetter(thenBranchTaken.get)
-    }
-  }
-
-  def addStatementConstraint(constraint: StatementConstraint): Unit = {
-    if (!doConcolic) {
-      return
-    }
-    addVariable(constraint.variableName, constraint.exp)
-    addConstraint(constraint, statementConstraintToNode(constraint), None)
+    integrateNode = generateBranchNodeSetter(thenBranchTaken.get)
   }
 
   def addBranchConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean): Unit = {
@@ -232,6 +192,7 @@ object Reporter {
     })
   }
   def printTree(): Unit = {
+    // TODO This code is mostly for debugging
     val optRoott = optRoot
     val optCurrentNodee = optCurrentNode
     val unexplored = SymbolicTreeHelper.findFirstUnexploredNode(optRoot.get)

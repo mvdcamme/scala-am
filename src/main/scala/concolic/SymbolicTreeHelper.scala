@@ -32,8 +32,6 @@ object SymbolicTreeHelper {
 
   object TreePath {
     def init(node: SymbolicNode): Either[TreePath, TreePath] = node match {
-      case s: StatementSymbolicNode =>
-        Right(TreePath(List(s), List(s.statement)))
       case b: BranchSymbolicNode =>
         if (!b.thenBranchTaken || !b.elseBranchTaken) {
           // This node has not been fully explored yet, so return this node as an unexplored path
@@ -53,14 +51,6 @@ object SymbolicTreeHelper {
           val tailQueue = queue.tail
           val latestNode = path.last
           latestNode._1 match {
-            case s: StatementSymbolicNode => s.followUp match {
-              case Some(followUp) =>
-                val newPath = path.addStatement(followUp)
-                loop(tailQueue :+ newPath)
-              case None =>
-                // Leaf node: pop queue and continue
-                loop(tailQueue)
-            }
             case b: BranchSymbolicNode =>
               if (!b.thenBranchTaken || !b.elseBranchTaken) {
                 assert(b.thenBranchTaken != b.elseBranchTaken, "Should not happen: one of both branches should be True")

@@ -602,7 +602,7 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
           case (state, machineFilters, framePopped) =>
             val next = NormalKontAddress[Exp, Time](e, state.t)
             val currentValue = assertedGetControlKontValue(state)
-            val frame = frameGenerator(currentValue, framePopped)
+            val frame = frameGenerator(currentValue, None, framePopped)
             val kont = Kont(frame, state.a)
             val evaluatingExp = addEvaluateExp(e)
             //        val pushedAddr = addKontAddrPushed(next)

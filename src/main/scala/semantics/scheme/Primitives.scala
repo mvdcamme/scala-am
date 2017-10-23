@@ -193,8 +193,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     override def call(args: List[Abs]) = applyGenericPlusOperation(args, plus)
 
     override def symbolicCall(concreteArgs: List[Abs],
-                              symbolicArgs: List[ConcolicExpression],
-                              store: SymbolicStore): Option[ConcolicExpression] =
+                              symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
       Some(ArithmeticalConcolicExpression("+", symbolicArgs))
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
@@ -278,8 +277,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
 
     /* TODO: < should accept any number of arguments (same for <= etc.) */
     override def symbolicCall(concreteArgs: List[Abs],
-                              symbolicArgs: List[ConcolicExpression],
-                              store: SymbolicStore): Option[ConcolicExpression] =
+                              symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
       Some(RelationalConcolicExpression(symbolicArgs.head, name, symbolicArgs(1)))
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
@@ -288,12 +286,20 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
   object LessOrEqual extends NoStoreOperation("<=", Some(2)) {
     override def call(x: Abs, y: Abs) =
       lt(x, y).bind(ltres => numEq(x, y).map(eqres => abs.or(ltres, eqres)))
+
+    override def symbolicCall(concreteArgs: List[Abs],
+      symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
+      Some(RelationalConcolicExpression(symbolicArgs.head, name, symbolicArgs(1)))
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.LessOrEqual
   }
   object NumEq extends NoStoreOperation("=", Some(2)) {
     override def call(x: Abs, y: Abs) = numEq(x, y)
+
+    override def symbolicCall(concreteArgs: List[Abs],
+      symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
+      Some(RelationalConcolicExpression(symbolicArgs.head, name, symbolicArgs(1)))
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.NumEq
@@ -301,6 +307,10 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
   object GreaterThan extends NoStoreOperation(">", Some(2)) {
     override def call(x: Abs, y: Abs) =
       LessOrEqual.call(x, y).bind(leres => not(leres))
+
+    override def symbolicCall(concreteArgs: List[Abs],
+      symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
+      Some(RelationalConcolicExpression(symbolicArgs.head, name, symbolicArgs(1)))
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.GreaterThan
@@ -308,6 +318,10 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
   object GreaterOrEqual extends NoStoreOperation(">=", Some(2)) {
     override def call(x: Abs, y: Abs) =
       LessThan.call(x, y).bind(ltres => not(ltres))
+
+    override def symbolicCall(concreteArgs: List[Abs],
+      symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
+      Some(RelationalConcolicExpression(symbolicArgs.head, name, symbolicArgs(1)))
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.GreaterOrEqual
@@ -320,6 +334,9 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
   }
   object Random extends NoStoreOperation("random", Some(1)) {
     override def call(x: Abs) = random(x)
+
+    override def symbolicCall(concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
+      Some(ConcolicIdGenerator.newConcolicInput)
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Random
