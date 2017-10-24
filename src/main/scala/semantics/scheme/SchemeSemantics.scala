@@ -365,12 +365,6 @@ class BaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
           val actionEdges = List(ActionReachedValueT[SchemeExp, Abs, Addr](value, storeChanges = storeChanges))
           noEdgeInfosSet(action, actionEdges)
       }
-    /* The start-analysis expression only has an effect in the SchemeSemanticsTraced; in these semantics, it just
-     * evaluates to #f. */
-    case SchemeStartAnalysis(_) =>
-      val falseValue = sabs.inject(false)
-      noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](falseValue, None, store),
-                     List(ActionReachedValueT[SchemeExp, Abs, Addr](falseValue)))
     case SchemeValue(v, _) =>
       evalValue(v) match {
         case Some(v) => noEdgeInfosSet(ActionReachedValue[SchemeExp, Abs, Addr](v, None, store),

@@ -12,8 +12,6 @@ object ConcolicInstrumenter {
     case SchemeLambda(args, body, pos) =>
       val instrumentedBody = addPopEnvExp(body)
       SchemeLambda(args, instrumentedBody, pos)
-    case SchemeStartAnalysis(_) =>
-      exp
     case SchemeFuncall(f, args, pos) =>
       SchemeFuncall(instrument(f), args.map(instrument), pos)
     case SchemeIf(cond, cons, alt, pos) =>

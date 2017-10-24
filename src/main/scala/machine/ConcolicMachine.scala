@@ -539,18 +539,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
     if (ConcolicRunTimeFlags.wasIfEncountered && ConcolicRunTimeFlags.checkAnalysis && ConcolicRunTimeFlags.checkRunTimeAnalysis) {
       val optCurrentNode = Reporter.getCurrentNode
       val optBranchFollowedCurrentNode = optCurrentNode
-//      val optBranchFollowedCurrentNode = optCurrentNode.flatMap( (node) => {
-//        val asBranchNode = node.asInstanceOf[BranchSymbolicNode]
-//        if (Reporter.getTookThenBranchLast)
-//          asBranchNode.thenBranch
-//        else
-//          asBranchNode.elseBranch
-//        } )
       assert(state.control.isInstanceOf[ControlKont])
-//      val bt = implicitly[IsSchemeLattice[ConcreteValue]].inject(true)
-//      val bf = implicitly[IsSchemeLattice[ConcreteValue]].inject(false)
-//      val b = implicitly[IsSchemeLattice[ConcreteValue]].join(bt, bf)
-//      val updatedState = state.copy(control = ControlKont(b))
       val analysisResult = startRunTimeAnalysis(programName, state)
       ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult, optBranchFollowedCurrentNode, false)
     }

@@ -159,11 +159,11 @@ object Reporter {
           }
 
           if (thenBranchTaken) {
-            // Continue with paths which follow the then-branch.
+            // Continue with paths that follow the then-branch.
             val tailStartsWithThen = startsWithThen.map(_.tail)
             optCurrentErrorPaths = Some(tailStartsWithThen)
           } else {
-            // Continue with paths which follow the else-branch.
+            // Continue with paths that follow the else-branch.
             val tailStartsWithElse = startsWithElse.map(_.tail)
             optCurrentErrorPaths = Some(tailStartsWithElse)
           }

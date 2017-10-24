@@ -63,10 +63,6 @@ case class SchemeAmb(exps: List[SchemeExp], pos: Position) extends SchemeExp {
   }
 }
 
-case class SchemeStartAnalysis(pos: Position) extends SchemeExp {
-  override def toString() = "(start-analysis)"
-}
-
 /**
   * A lambda expression: (lambda (args...) body...)
   * Not supported: "rest"-arguments, of the form (lambda arg body), or (lambda (arg1 . args) body...)
@@ -371,10 +367,6 @@ trait SchemeCompiler {
                exp.pos)
     case SExpPair(SExpIdentifier("amb", _), body, _) =>
       SchemeAmb(compileBody(body), exp.pos)
-    case SExpPair(SExpIdentifier("start-analysis", _),
-                  SExpValue(ValueNil, _),
-                  _) =>
-      SchemeStartAnalysis(exp.pos)
     case SExpPair(SExpIdentifier("quote", _),
                   SExpPair(quoted, SExpValue(ValueNil, _), _),
                   _) =>
@@ -974,7 +966,6 @@ object SchemeDesugarer {
             undefineBody(commands),
             pos)
         case SchemeAmb(exps, pos) => SchemeAmb(exps.map(undefine1), pos)
-        case SchemeStartAnalysis(pos) => SchemeStartAnalysis(pos)
         case SchemeLambda(args, body, pos) =>
           SchemeLambda(args, undefineBody(body), pos)
         case SchemeFuncall(f, args, pos) =>
@@ -1124,7 +1115,6 @@ object SchemeDesugarer {
           List(SchemeFuncall(SchemeIdentifier(uniqueName, pos), inits, pos)),
           pos)
       case SchemeAmb(exps, pos) => SchemeAmb(exps.map(desugarExp), pos)
-      case SchemeStartAnalysis(pos) => SchemeStartAnalysis(pos)
       case SchemeLambda(args, body, pos) =>
         SchemeLambda(args, body.map(desugarExp), pos)
       case SchemeFuncall(f, args, pos) =>

@@ -396,12 +396,6 @@ class ConcolicBaseSchemeSemantics[Addr: Address, Time: Timestamp](
           val actionEdges = List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](value, storeChanges = storeChanges))
           noEdgeInfos(action, actionEdges)
       }
-    /* The start-analysis expression only has an effect in the SchemeSemanticsTraced; in these semantics, it just
-     * evaluates to #f. */
-    case SchemeStartAnalysis(_) =>
-      val falseValue = sabs.inject(false)
-      noEdgeInfos(ActionReachedValue[SchemeExp, ConcreteValue, Addr](falseValue, None, store),
-                     List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](falseValue)))
     case SchemeValue(v, _) =>
       evalValue(v) match {
         case Some(v) =>
