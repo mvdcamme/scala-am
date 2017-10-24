@@ -47,7 +47,7 @@ class AAMGlobalStore[
       : (Set[State], GlobalStore, KontStore[KontAddr]) =
       edges.foldLeft((Set[State](), store, kstore))((acc, edge) =>
         edge match {
-          case ActionReachedValue(v, store2, _) =>
+          case ActionReachedValue(v, _, store2, _) =>
             (acc._1 + State(ControlKont(v), a, time.tick(t)),
              acc._2.includeDelta(store2.delta),
              acc._3)

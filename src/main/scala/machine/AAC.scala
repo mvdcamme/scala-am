@@ -296,7 +296,7 @@ class AAC[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
       edges.foldLeft((Set[State](), kstore, Set[Context]()))({ (acc, edge) =>
         val (states, kstore, contexts) = acc
         edge match {
-          case ActionReachedValue(v, store, _) =>
+          case ActionReachedValue(v, _, store, _) =>
             (states + State(ControlKont(v), store, lkont, kont, time.tick(t)),
              kstore,
              contexts)

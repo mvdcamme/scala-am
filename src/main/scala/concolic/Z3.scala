@@ -26,50 +26,9 @@ object Z3 {
   class TestFailedException extends Exception("Check FAILED") {
   }
 
-//  private def getLhs(constraint: ConcolicConstraint): ConcolicExpression = constraint match {
-//    case BranchConstraint(exp) => exp match {
-//      case BinaryConcolicExpression(lhs, _, _) =>
-//        lhs
-//      case _ =>
-//        exp
-//    }
-//    case StatementConstraint(symVar, _, originalVar) =>
-//      ConcolicVariable(symVar, originalVar)
-//  }
-//  private def getLhs(exp: ConcolicExpression): ConcolicExpression = exp match {
-//    case BinaryConcolicExpression(lhs, _, _) =>
-//      lhs
-//    case _ =>
-//      exp
-//  }
-//  private def getRhs(constraint: ConcolicConstraint): Option[ConcolicExpression] = constraint match {
-//    case BranchConstraint(exp) => exp match {
-//      case BinaryConcolicExpression(_, _, rhs) =>
-//        Some(rhs)
-//      case _ =>
-//        None
-//    }
-//    case StatementConstraint(_, exp, _) =>
-//      Some(exp)
-//  }
-//  private def getRhs(exp: ConcolicExpression): Option[ConcolicExpression] = exp match {
-//    case BinaryConcolicExpression(_, _, rhs) =>
-//      Some(rhs)
-//    case _ =>
-//      None
-//  }
-
-  // TODO Move to ConcolicExpression class
-  private def isSomeInt(exp: ConcolicExpression): Boolean = exp match {
-    case ConcolicInt(_) =>
-      true
-    case _ =>
-      false
-  }
-
   private def expToExpr(exp: ConcolicExpression, ctx: Context, exprMap: MMap[ConcolicInput, IntExpr]): ArithExpr = exp match {
     case ConcolicInt(i) => ctx.mkInt(i)
-    case i @ ConcolicInput(_) => exprMap.get(i) match {
+    case i: ConcolicInput => exprMap.get(i) match {
         case Some(expr) => expr
         case None =>
           val newExpr = ctx.mkIntConst(i.toString)
@@ -129,7 +88,7 @@ object Z3 {
         val result = MMap[ConcolicInput, Int]()
         exprMap.foreach({
           case (someInput, exp) =>
-              println(s"$someInput should be ${model.getConstInterp(exp)}")
+            Logger.log(s"$someInput should be ${model.getConstInterp(exp)}", Logger.U)
               result.put(someInput, model.getConstInterp(exp).toString.toInt)
         })
         Satisfiable(result.map( { case (key, value) => (key.toString, value) } ))
@@ -143,7 +102,7 @@ object Z3 {
       val cfg: java.util.HashMap[String, String] = new java.util.HashMap[String, String]
       cfg.put("model", "true")
       val ctx: Context = new Context(cfg)
-      println(s"Z3, in solve, constraints are $constraints")
+      Logger.log(s"Z3, in solve, constraints are $constraints", Logger.U)
       if (constraints.nonEmpty) {
         constraintSolver(ctx, constraints)
       } else {
@@ -151,15 +110,15 @@ object Z3 {
       }
     } catch {
       case ex: Z3Exception =>
-        System.out.println("TEST CASE FAILED: " + ex.getMessage)
-        System.out.println("Stack trace: ")
+        Logger.log("TEST CASE FAILED: " + ex.getMessage, Logger.U)
+        Logger.log("Stack trace: ", Logger.U)
         ex.printStackTrace(System.out)
         SomeZ3Error
       case ex: TestFailedException =>
-        System.out.println(s"Error solving constraints $constraints")
+        Logger.log(s"Error solving constraints $constraints", Logger.U)
         SomeZ3Error
       case ex: Exception =>
-        System.out.println("Unknown Exception: " + ex.getMessage)
+        Logger.log("Unknown Exception: " + ex.getMessage, Logger.U)
         SomeZ3Error
     }
   }

@@ -48,7 +48,7 @@ class AAMJoinLattice[Exp : Expression, Abs : JoinLattice, Addr : Address, Time :
     private def integrate(a: KontAddr, actions: Set[Action[Exp, Abs, Addr]]): Set[State] =
       actions.flatMap({
         /* When a value is reached, we go to a continuation state */
-        case ActionReachedValue(v, store, _) => Set(State(ControlKont(v), store, kstore, a, time.tick(t)))
+        case ActionReachedValue(v, _, store, _) => Set(State(ControlKont(v), store, kstore, a, time.tick(t)))
         /* When a continuation needs to be pushed, push it in the continuation store */
         case ActionPush(frame, e, env, store, _) => {
           val next = NormalKontAddress[Exp, Time](e, t)

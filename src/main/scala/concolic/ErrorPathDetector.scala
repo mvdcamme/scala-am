@@ -30,7 +30,7 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
 
     graph.getNode(0) match {
       case None =>
-        println("Graph is empty")
+        Logger.log("Graph is empty", Logger.U)
         Nil
       case Some(root) =>
         val start = List(Binding(EdgeAnnotation.dummyEdgeAnnotation, root))

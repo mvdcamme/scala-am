@@ -25,7 +25,7 @@ object ConcolicSolver {
     solutions match {
       case Satisfiable(solution) =>
         latestInputs = solution.toMap[String, Int]
-        println(s"latestInputs are $latestInputs")
+        Logger.log(s"latestInputs are $latestInputs", Logger.U)
         true
       case Unsatisfiable =>
         false
@@ -101,7 +101,7 @@ object ConcolicSolver {
     optIncompletelyExploredPath match {
       case Some(incompletelyExploredPath) =>
         val unexploredPath: TreePath = negatePath(incompletelyExploredPath)
-        println(s"Unexplored path would be ${unexploredPath.seen}")
+        Logger.log(s"Unexplored path would be ${unexploredPath.seen}", Logger.U)
         val wasSuccessful = doOneSolveIteration(unexploredPath.seen)
         if (wasSuccessful) {
           true

@@ -34,9 +34,6 @@ object Reporter {
       case b: BranchSymbolicNode =>
         (symNode: BranchSymbolicNode) => {
           if (thenBranchTaken) {
-            // Sanity check: if b.thenBranch is already defined, ONLY set the optCurrentNode variable?
-//            assert(!b.thenBranchTaken && b.thenBranch.isEmpty)
-
             b.thenBranchTaken = true
             b.thenBranch match {
               case Some(thenBranch) =>
@@ -47,9 +44,6 @@ object Reporter {
             }
             optCurrentNode = b.thenBranch
           } else {
-            // Sanity check: if b.elseBranchTaken is already defined, ONLY set the optCurrentNode variable?
-//            assert(!b.elseBranchTaken && b.elseBranch.isEmpty)
-
             b.elseBranchTaken = true
             b.elseBranch match {
               case Some(elseBranch) =>
@@ -139,7 +133,7 @@ object Reporter {
   private def addConstraint(constraint: BranchConstraint,
                             symbolicNode: BranchSymbolicNode,
                             thenBranchTaken: Boolean): Unit = {
-    // TODO To add a new constraint: first call the current Setter (i.e., integrateNode),
+    // To add a new constraint: first call the current Setter (i.e., integrateNode),
     // then generate a new Setter depending on the type of the constraint argument
 
     currentReport :+= (if (thenBranchTaken) constraint else constraint.negate)
@@ -190,7 +184,7 @@ object Reporter {
   }
 
   def printReports(): Unit = {
-    println(s"Reporter recorded path: ${currentReport.mkString("; ")}")
+    Logger.log(s"Reporter recorded path: ${currentReport.mkString("; ")}", Logger.U)
   }
 
   def printTree(): Unit = {

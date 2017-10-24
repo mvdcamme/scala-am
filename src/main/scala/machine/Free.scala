@@ -57,7 +57,7 @@ class Free[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     private def integrate(k: FreeKontAddr,
                           edges: Set[Action[Exp, Abs, Addr]]): Set[State] =
       edges.map({
-        case ActionReachedValue(v, store, _) =>
+        case ActionReachedValue(v, _, store, _) =>
           State(ControlKont(v), store, kstore, k, time.tick(t))
         case ActionPush(frame, e, env, store, _) =>
           val next = new FreeNormalKontAddress(e, env)
