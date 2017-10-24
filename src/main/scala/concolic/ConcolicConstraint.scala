@@ -1,23 +1,4 @@
-trait ConcolicConstraint {
-  override def toString: String
-  def getOp: Option[String]
-  def getRhs: Option[String]
-}
-
-/**
-  *
-  * @par trueExp The concolic expression that was true when this constraint was generated.
-  * @par originalExp The original expression corresponding to the if-expression that was generated. This expression
-  *                    may or may not have evaluated to #t. If it did, this expression is equal to trueExp. Otherwise,
-  *                    trueExp is the negated form of this expression.
-  */
-case class BranchConstraint(exp: RelationalConcolicExpression) extends ConcolicConstraint {
-  override def toString: String = {
-    s"Branch: $exp"
-  }
-  def getOp = exp.getOp
-  def getRhs = exp.getRhs
-
+case class BranchConstraint(exp: RelationalConcolicExpression) {
   def negate: BranchConstraint = {
     BranchConstraint(exp.negate)
   }

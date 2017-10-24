@@ -3,7 +3,7 @@ import SymbolicTreeHelper.TreePath
 object Reporter {
 
   type ErrorPath = List[SemanticsFilterAnnotation]
-  type PathConstraint = List[ConcolicConstraint]
+  type PathConstraint = List[BranchConstraint]
 
   type SymbolicMemoryScope = Map[String, ConcolicExpression]
   type SymbolicStore = List[SymbolicMemoryScope]

@@ -14,7 +14,7 @@ object ConcolicSolver {
   private var initialErrorPaths: Option[List[ErrorPath]] = None
   def getInitialErrorPaths: Option[List[ErrorPath]] = initialErrorPaths
 
-  private def doOneSolveIteration(constraints: List[ConcolicConstraint]): Boolean = {
+  private def doOneSolveIteration(constraints: List[BranchConstraint]): Boolean = {
     resetInputs()
     val solutions = Z3.solve(constraints.flatMap({
       case b: BranchConstraint =>
