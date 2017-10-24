@@ -350,7 +350,7 @@ class HybridConcreteMachine[
               val onlyEdgeInfo = edgeInfos.head
               handleFunctionCalled(onlyEdgeInfo)
               onlyEdgeInfo match {
-                case EdgeInformation(ActionReachedValue(v, store2, _), actions, semanticsFilters) =>
+                case EdgeInformation(ActionReachedValue(v, _, store2, _), actions, semanticsFilters) =>
                   val machineFilters = Set[MachineFilterAnnotation]()
                   Right(StepSucceeded(State(ControlKont(v), store2, kstore, a, time.tick(t)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
@@ -409,7 +409,7 @@ class HybridConcreteMachine[
                   val onlyEdgeInfo = edgeInfos.head
                   handleFunctionCalled(onlyEdgeInfo)
                   onlyEdgeInfo match {
-                    case EdgeInformation(ActionReachedValue(v, store2, _), actions, semanticsFilters) =>
+                    case EdgeInformation(ActionReachedValue(v, _, store2, _), actions, semanticsFilters) =>
                       val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                                                                         FrameFollowed[ConcreteValue](originFrameCast))
                       Right(StepSucceeded(State(ControlKont(v), store2, kstore, a, time.tick(t)),
@@ -516,7 +516,7 @@ class HybridConcreteMachine[
                         0,
                         new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
       Reporter.printTree()
-      println(s"Reporter recorded path ${Reporter.getReport}")
+      Reporter.printReports()
       val shouldContinue = ConcolicSolver.solve
       if (shouldContinue) {
         loopConcolic(initialState, nrOfRuns + 1)
@@ -549,7 +549,6 @@ class HybridConcreteMachine[
     */
   private def startRunTimeAnalysisIfIfEncountered(programName: String, state: State): Unit = {
     if (ConcolicRunTimeFlags.wasIfEncountered && ConcolicRunTimeFlags.checkAnalysis && ConcolicRunTimeFlags.checkRunTimeAnalysis) {
-      val optRoot = Reporter.getRoot
       val optCurrentNode = Reporter.getCurrentNode
       val optBranchFollowedCurrentNode = optCurrentNode
 //      val optBranchFollowedCurrentNode = optCurrentNode.flatMap( (node) => {

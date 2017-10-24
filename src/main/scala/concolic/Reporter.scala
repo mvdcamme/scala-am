@@ -13,17 +13,17 @@ object Reporter {
   private var symbolicMemory: SymbolicStore = List(Map())
   private var currentReport: PathConstraint = Nil
 
-  private var optRoot: Option[SymbolicNode] = None
-  private var optCurrentNode: Option[SymbolicNode] = None
+  private var optRoot: Option[BranchSymbolicNode] = None
+  private var optCurrentNode: Option[BranchSymbolicNode] = None
 
   private var optCurrentErrorPaths: Option[List[ErrorPath]] = None
 
-  type Setter = (SymbolicNode) => Unit
+  type Setter = (BranchSymbolicNode) => Unit
 
-  def getRoot: Option[SymbolicNode] = optRoot
-  def getCurrentNode: Option[SymbolicNode] = optCurrentNode
+  def getRoot: Option[BranchSymbolicNode] = optRoot
+  def getCurrentNode: Option[BranchSymbolicNode] = optCurrentNode
 
-  private def setRoot(symbolicNode: SymbolicNode): Unit = {
+  private def setRoot(symbolicNode: BranchSymbolicNode): Unit = {
     optRoot = Some(symbolicNode)
     optCurrentNode = optRoot
   }
@@ -32,7 +32,7 @@ object Reporter {
   private def generateBranchNodeSetter(thenBranchTaken: Boolean): Setter = optCurrentNode match {
     case Some(currentNode) => currentNode match {
       case b: BranchSymbolicNode =>
-        (symNode: SymbolicNode) => {
+        (symNode: BranchSymbolicNode) => {
           if (thenBranchTaken) {
             // Sanity check: if b.thenBranch is already defined, ONLY set the optCurrentNode variable?
 //            assert(!b.thenBranchTaken && b.thenBranch.isEmpty)
@@ -81,8 +81,10 @@ object Reporter {
     optCurrentNode = optRoot
     optCurrentErrorPaths = ConcolicSolver.getInitialErrorPaths
     if (!isFirstClear) {
-      // Make integrateNode a no-op: currentNode has already been set, and root doesn't change, so nothing needs to be done (correct???)
-      integrateNode = (_) => {}
+      integrateNode = (node) => {
+        optRoot = Some(optRoot.get.combine(node))
+        optCurrentNode = optRoot
+      }
     }
     symbolicMemory = List(Map())
   }
@@ -134,15 +136,15 @@ object Reporter {
   private def branchConstraintToNode(constraint: BranchConstraint, thenBranchTaken: Boolean) =
     BranchSymbolicNode(constraint, thenBranchTaken, !thenBranchTaken, None, None)
 
-  private def addConstraint(constraint: ConcolicConstraint,
-                            symbolicNode: SymbolicNode,
-                            thenBranchTaken: Option[Boolean]): Unit = {
+  private def addConstraint(constraint: BranchConstraint,
+                            symbolicNode: BranchSymbolicNode,
+                            thenBranchTaken: Boolean): Unit = {
     // TODO To add a new constraint: first call the current Setter (i.e., integrateNode),
     // then generate a new Setter depending on the type of the constraint argument
 
-    currentReport :+= constraint
+    currentReport :+= (if (thenBranchTaken) constraint else constraint.negate)
     integrateNode(symbolicNode)
-    integrateNode = generateBranchNodeSetter(thenBranchTaken.get)
+    integrateNode = generateBranchNodeSetter(thenBranchTaken)
   }
 
   def addBranchConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean): Unit = {
@@ -180,7 +182,7 @@ object Reporter {
       }
     }
     tookThenBranchLast = thenBranchTaken
-    addConstraint(constraint, symbolicNode, Some(thenBranchTaken))
+    addConstraint(constraint, symbolicNode, thenBranchTaken)
   }
 
   def getReport: PathConstraint = {
@@ -188,10 +190,9 @@ object Reporter {
   }
 
   def printReports(): Unit = {
-    currentReport.foreach( (constraint: ConcolicConstraint) => {
-      println(constraint.toString)
-    })
+    println(s"Reporter recorded path: ${currentReport.mkString("; ")}")
   }
+
   def printTree(): Unit = {
     // TODO This code is mostly for debugging
     val optRoott = optRoot

@@ -496,8 +496,6 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
 
     @scala.annotation.tailrec
     def loopConcolic(initialState: State, nrOfRuns: Int): ConcolicMachineOutput = {
-      val analysisResult = startRunTimeAnalysis(programName, initialState)
-
       Reporter.clear(nrOfRuns < 2)
       Logger.log(s"\n\nCONCOLIC ITERATION ${ConcolicSolver.getInputs}", Logger.U)
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
@@ -506,7 +504,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
                         0,
                         new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
       Reporter.printTree()
-      println(s"Reporter recorded path ${Reporter.getReport}")
+      Reporter.printReports()
       val shouldContinue = ConcolicSolver.solve
       if (shouldContinue) {
         loopConcolic(initialState, nrOfRuns + 1)
@@ -539,7 +537,6 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
     */
   private def startRunTimeAnalysisIfIfEncountered(programName: String, state: State): Unit = {
     if (ConcolicRunTimeFlags.wasIfEncountered && ConcolicRunTimeFlags.checkAnalysis && ConcolicRunTimeFlags.checkRunTimeAnalysis) {
-      val optRoot = Reporter.getRoot
       val optCurrentNode = Reporter.getCurrentNode
       val optBranchFollowedCurrentNode = optCurrentNode
 //      val optBranchFollowedCurrentNode = optCurrentNode.flatMap( (node) => {

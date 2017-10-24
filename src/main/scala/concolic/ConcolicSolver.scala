@@ -48,15 +48,14 @@ object ConcolicSolver {
     }
   }
 
-  private def negateAllSuccessors(node: SymbolicNode): Unit = node match {
-    case b: BranchSymbolicNode =>
-      b.elseBranchTaken = true
-      b.thenBranchTaken = true
-      if (b.elseBranch.isDefined) {
-        negateAllSuccessors(b.elseBranch.get)
+  private def negateAllSuccessors(node: BranchSymbolicNode): Unit = {
+      node.elseBranchTaken = true
+      node.thenBranchTaken = true
+      if (node.elseBranch.isDefined) {
+        negateAllSuccessors(node.elseBranch.get)
       }
-      if (b.thenBranch.isDefined) {
-        negateAllSuccessors(b.thenBranch.get)
+      if (node.thenBranch.isDefined) {
+        negateAllSuccessors(node.thenBranch.get)
       }
   }
 
@@ -66,33 +65,32 @@ object ConcolicSolver {
     * @param node
     * @param errorPaths
     */
-  private def negateNodesNotFollowingErrorPath(node: SymbolicNode, errorPaths: List[ErrorPath]): Unit = node match {
-    case b: BranchSymbolicNode =>
-      val nonEmptyPaths = errorPaths.filter(_.nonEmpty)
-      val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
-      val startsWithElse = nonEmptyPaths.filter(_.head == ElseBranchTaken)
+  private def negateNodesNotFollowingErrorPath(node: BranchSymbolicNode, errorPaths: List[ErrorPath]): Unit = {
+    val nonEmptyPaths = errorPaths.filter(_.nonEmpty)
+    val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
+    val startsWithElse = nonEmptyPaths.filter(_.head == ElseBranchTaken)
 
-      if (startsWithThen.isEmpty) {
-        // No errors located along the then-branch of node b
-        b.thenBranchTaken = true
-        if (b.thenBranch.isDefined) {
-          negateAllSuccessors(b.thenBranch.get)
-        }
-      } else if (b.thenBranch.isDefined) {
-        val tailStartsWithThen = startsWithThen.map(_.tail)
-        negateNodesNotFollowingErrorPath(b.thenBranch.get, tailStartsWithThen)
+    if (startsWithThen.isEmpty) {
+      // No errors located along the then-branch of node b
+      node.thenBranchTaken = true
+      if (node.thenBranch.isDefined) {
+        negateAllSuccessors(node.thenBranch.get)
       }
+    } else if (node.thenBranch.isDefined) {
+      val tailStartsWithThen = startsWithThen.map(_.tail)
+      negateNodesNotFollowingErrorPath(node.thenBranch.get, tailStartsWithThen)
+    }
 
-      if (startsWithElse.isEmpty) {
-        // No errors located along the else-branch of node b
-        b.elseBranchTaken = true
-        if (b.elseBranch.isDefined) {
-          negateAllSuccessors(b.elseBranch.get)
-        }
-      } else if (b.elseBranch.isDefined) {
-        val tailStartsWithElse = startsWithElse.map(_.tail)
-        negateNodesNotFollowingErrorPath(b.elseBranch.get, tailStartsWithElse)
+    if (startsWithElse.isEmpty) {
+      // No errors located along the else-branch of node b
+      node.elseBranchTaken = true
+      if (node.elseBranch.isDefined) {
+        negateAllSuccessors(node.elseBranch.get)
       }
+    } else if (node.elseBranch.isDefined) {
+      val tailStartsWithElse = startsWithElse.map(_.tail)
+      negateNodesNotFollowingErrorPath(node.elseBranch.get, tailStartsWithElse)
+    }
   }
 
   @scala.annotation.tailrec
@@ -121,21 +119,28 @@ object ConcolicSolver {
   }
 
   def negatePath(path: TreePath): TreePath = {
-    val lastNode = path.last._1.asInstanceOf[BranchSymbolicNode] // last node of the path should always be a BranchSymbolicNode
-    if (!lastNode.thenBranchTaken) {
-      // Explore then-branch: don't have to do anything
-      path
+    val init = path.init
+    val lastNode = path.last._1
+    if (! lastNode.thenBranchTaken) {
+      init :+ lastNode
     } else {
-      // Explore else-branch
-      val negatedBranchConstraint = lastNode.branch.negate
-      val negatedBranchNode = lastNode.copy(branch = negatedBranchConstraint)
-      path.init :+ negatedBranchNode
+      init.addNegatedNode(lastNode)
     }
+//    val lastNode = path.last._1.asInstanceOf[BranchSymbolicNode] // last node of the path should always be a BranchSymbolicNode
+//    if (!lastNode.thenBranchTaken) {
+//      // Explore then-branch: don't have to do anything
+//      path
+//    } else {
+//      // Explore else-branch
+//      val negatedBranchConstraint = lastNode.branch.negate
+//      val negatedBranchNode = lastNode.copy(branch = negatedBranchConstraint)
+//      path.init :+ negatedBranchNode
+//    }
   }
 
   def handleAnalysisResult[Abs: IsSchemeLattice]
     (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult, startNode: Option[SymbolicNode], isInitial: Boolean): List[ErrorPath] = {
+    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode], isInitial: Boolean): List[ErrorPath] = {
     if (ConcolicRunTimeFlags.checkAnalysis) {
       result match {
         case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
