@@ -25,6 +25,7 @@ object ConcolicSolver {
     solutions match {
       case Satisfiable(solution) =>
         latestInputs = solution.toMap[String, Int]
+        println(s"latestInputs are $latestInputs")
         true
       case Unsatisfiable =>
         false
@@ -58,11 +59,6 @@ object ConcolicSolver {
         negateAllSuccessors(b.thenBranch.get)
       }
   }
-
-//  private def wrapTree(node: SymbolicNode): WrappedSymbolicNode = node match {
-//    case s: StatementSymbolicNode =>
-//
-//  }
 
   /**
     * Makes symbolic nodes which have already been discovered, though not necessarily explored yet, and along which
@@ -98,43 +94,6 @@ object ConcolicSolver {
         negateNodesNotFollowingErrorPath(b.elseBranch.get, tailStartsWithElse)
       }
   }
-
-
-//    errorPath.headOption match {
-//    case Some(head) => path match {
-//      case s: StatementSymbolicNode => s.followUp match {
-//        // Don't look at the error path, just continue with the follow-up of s, if there is one.
-//        case Some(followUp) =>
-//          negateNodesNotFollowingErrorPath(followUp, errorPath)
-//        case None =>
-//          // Do nothing
-//      }
-//      case b: BranchSymbolicNode => head match {
-//        case ThenBranchTaken =>
-//          // Error is located along then-branch, so do not consider the else-branch.
-//          b.elseBranchTaken = true
-//          if (b.elseBranch.isDefined) {
-//            negateAllSuccessors(b.elseBranch.get)
-//          }
-//        case ElseBranchTaken =>
-//
-//      }
-//    }
-//    case None =>
-//      // Do nothing
-//  }
-//
-//  private def followsErrorPath(path: TreePath, errorPaths: List[ErrorPath]): Boolean = {
-//    def loopPath(path: List[SymbolicNode], errorPath: List[ErrorPath]): Boolean = path.headOption match {
-//      case Some(head) => head match {
-//        case b: BranchSymbolicNode =>
-//
-//        case _: StatementSymbolicNode =>
-//          loopPath(path.tail, errorPath)
-//      }
-//    }
-//    loopPath(path.original, errorPaths)
-//  }
 
   @scala.annotation.tailrec
   final def solve: Boolean = {

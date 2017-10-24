@@ -152,7 +152,7 @@ class ConcolicBaseSchemeSemantics[Addr: Address, Time: Timestamp](
         case (res, store2, effects) =>
           val symbolicValue = if (concolicArgsv.map(_._3).forall(_.isDefined)) {
             // symbolicCall only takes place if all concolic argument expressions are defined
-            prim.symbolicCall(concolicArgsv.map(_._2), concolicArgsv.map(_._3.get))
+            prim.symbolicCall(fexp, concolicArgsv.map(_._2), concolicArgsv.map(_._3.get))
           } else {
             None
           }

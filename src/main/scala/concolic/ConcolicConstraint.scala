@@ -64,7 +64,7 @@ case class ConcolicInt(i: Int) extends ConcolicExpression {
 //  }
 //}
 
-case class ConcolicInput(id: Int) extends ConcolicExpression {
+case class ConcolicInput(id: Int, fexp: SchemeExp) extends ConcolicExpression {
   override def toString: String = {
     s"i$id"
   }
@@ -77,9 +77,9 @@ object ConcolicIdGenerator {
     id = 0
   }
 
-  def newConcolicInput: ConcolicInput = {
+  def newConcolicInput(fexp: SchemeExp): ConcolicInput = {
     val current = id
     id += 1
-    ConcolicInput(current)
+    ConcolicInput(current, fexp)
   }
 }

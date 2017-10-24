@@ -593,7 +593,6 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         val next = NormalKontAddress[Exp, Time](e, state.t)
         val kont = Kont(frame, state.a)
         val evaluatingExp = addEvaluateExp(e)
-//        val pushedAddr = addKontAddrPushed(next)
         val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
         Set((newState, Set[MachineFilterAnnotation](evaluatingExp))) //, pushedAddr)))
       case ActionEvalPushDataR(e, env, frameGenerator) =>
@@ -605,7 +604,6 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
             val frame = frameGenerator(currentValue, None, framePopped)
             val kont = Kont(frame, state.a)
             val evaluatingExp = addEvaluateExp(e)
-            //        val pushedAddr = addKontAddrPushed(next)
             val newState = state.copy(control = ControlEval(e, env), kstore = state.kstore.extend(next, kont), a = next)
             Set((newState, machineFilters + evaluatingExp)) //, pushedAddr)))
         })

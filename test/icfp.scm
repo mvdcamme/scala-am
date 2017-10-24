@@ -5,9 +5,9 @@
       (c 10))
       ;(h f)
       ;(i f))
-  ;(display a)
-  ;(display b)
-  (set! a (random 1))
+  (display a)
+  (display b)
+  ;(set! a (random 1))
   (if (> a 5)
       (if (> b 5)
           'ok

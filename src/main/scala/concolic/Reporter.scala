@@ -75,6 +75,7 @@ object Reporter {
   }
   def isConcolicEnabled: Boolean = doConcolic
   def clear(isFirstClear: Boolean): Unit = {
+    InputVariableStore.reset()
     ConcolicIdGenerator.resetId()
     currentReport = Nil
     optCurrentNode = optRoot
