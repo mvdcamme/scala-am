@@ -58,9 +58,6 @@ object Reporter {
     }
   }
 
-  private var tookThenBranchLast: Boolean = false
-  def getTookThenBranchLast: Boolean = tookThenBranchLast
-
   def enableConcolic(): Unit = {
     doConcolic = true
   }
@@ -175,7 +172,6 @@ object Reporter {
         // Do nothing
       }
     }
-    tookThenBranchLast = thenBranchTaken
     addConstraint(constraint, symbolicNode, thenBranchTaken)
   }
 

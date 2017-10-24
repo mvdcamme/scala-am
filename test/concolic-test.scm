@@ -1,5 +1,5 @@
 (define (loop n)
-  (if (= n 0)
+  (if (< n 0)
       99
       (loop (- n 1))))
 

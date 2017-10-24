@@ -506,7 +506,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
       Reporter.printTree()
       Reporter.printReports()
       val shouldContinue = ConcolicSolver.solve
-      if (shouldContinue) {
+      if (nrOfRuns < ConcolicRunTimeFlags.MAX_CONCOLIC_ITERATIONS && shouldContinue) {
         loopConcolic(initialState, nrOfRuns + 1)
       } else {
         result
