@@ -112,7 +112,7 @@ class ConcolicBaseSchemeSemantics[Addr: Address, Time: Timestamp](
             // Add all arguments that have a concolic expression to the symbolic environment
             args.zip(concolicArgsv).foreach({
               case (arg, (_, _, optConcolicExpression)) =>
-              maybeAddSymbolicVariable(arg, optConcolicExpression)
+                maybeAddSymbolicVariable(arg, optConcolicExpression)
             })
             val updatedArgsZipped: List[(String, (SchemeExp, ConcreteValue))] = argsZipped.map({
               case (varName, (exp, value)) =>

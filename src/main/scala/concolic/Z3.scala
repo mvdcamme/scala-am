@@ -68,6 +68,8 @@ object Z3 {
             solver.assert_(ctx.mkGe(lExpr, rExpr))
           case "=" =>
             solver.assert_(ctx.mkEq(lExpr, rExpr))
+          case "!=" =>
+            solver.assert_(ctx.mkNot(ctx.mkEq(lExpr, rExpr)))
         }
     }
   }

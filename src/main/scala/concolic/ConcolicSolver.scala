@@ -29,6 +29,8 @@ object ConcolicSolver {
         true
       case Unsatisfiable =>
         false
+      case SomeZ3Error =>
+        throw new Exception(s"Concolic testing failed for some reason")
     }
   }
 

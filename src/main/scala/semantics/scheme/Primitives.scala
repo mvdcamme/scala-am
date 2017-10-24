@@ -192,7 +192,6 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
 
   object Plus extends NoStoreOperation("+") {
     override def call(args: List[Abs]) = applyGenericPlusOperation(args, plus)
-
     override def symbolicCall(fexp: SchemeExp,
                               concreteArgs: List[Abs],
                               symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
@@ -200,20 +199,6 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Plus
-  }
-
-  object PlusFloat extends NoStoreOperation("+f") {
-    override def call(args: List[Abs]) = applyGenericPlusOperation(args, plusF)
-    def convert[Addr: Address, Abs: IsConvertableLattice](
-        prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
-      prims.PlusFloat
-  }
-
-  object PlusInteger extends NoStoreOperation("+i") {
-    override def call(args: List[Abs]) = applyGenericPlusOperation(args, plusI)
-    def convert[Addr: Address, Abs: IsConvertableLattice](
-        prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
-      prims.PlusInteger
   }
 
   private def applyGenericMinusOperations(
@@ -228,25 +213,13 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
   object Minus extends NoStoreOperation("-") {
     override def call(args: List[Abs]) =
       applyGenericMinusOperations(args, name, minus)
+    override def symbolicCall(fexp: SchemeExp,
+                              concreteArgs: List[Abs],
+                              symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
+      Some(ArithmeticalConcolicExpression(name, symbolicArgs))
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Minus
-  }
-
-  object MinusFloat extends NoStoreOperation("-f") {
-    override def call(args: List[Abs]) =
-      applyGenericMinusOperations(args, name, minusF)
-    def convert[Addr: Address, Abs: IsConvertableLattice](
-        prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
-      prims.MinusFloat
-  }
-
-  object MinusInteger extends NoStoreOperation("-i") {
-    override def call(args: List[Abs]) =
-      applyGenericMinusOperations(args, name, minusI)
-    def convert[Addr: Address, Abs: IsConvertableLattice](
-        prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
-      prims.MinusInteger
   }
 
   object Times extends NoStoreOperation("*") {
@@ -254,6 +227,10 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
       case Nil => MayFailSuccess(abs.inject(1))
       case x :: rest => call(rest).bind(y => times(x, y))
     }
+    override def symbolicCall(fexp: SchemeExp,
+                              concreteArgs: List[Abs],
+                              symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
+                              Some(ArithmeticalConcolicExpression(name, symbolicArgs))
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Times
@@ -263,6 +240,10 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
       case Nil => MayFailError(List(VariadicArityError(name, 1, 0)))
       case x :: rest => Times.call(rest).bind(y => div(x, y))
     }
+    override def symbolicCall(fexp: SchemeExp,
+                              concreteArgs: List[Abs],
+                              symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
+                              Some(ArithmeticalConcolicExpression(name, symbolicArgs))
     def convert[Addr: Address, Abs: IsConvertableLattice](
         prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Div
@@ -1322,11 +1303,7 @@ class SchemePrimitives[Addr: Address, Abs: IsSchemeLattice]
     List(StringToSymbol,
          SymbolToString,
          Plus,
-         PlusFloat,
-         PlusInteger,
          Minus,
-         MinusFloat,
-         MinusInteger,
          Times,
          Div,
          Quotient,
