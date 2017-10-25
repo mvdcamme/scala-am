@@ -88,7 +88,7 @@ class CountNonConstants[Exp : Expression,
       val analysisMetrics = values.foldLeft(MetricsToWrite.init)({
         case (metrics, (a, value)) => pointsTo(value) match {
           case Some(x) =>
-            if (x <= 0) Logger.log(s"Value $value of address $a points to $x separate values", Logger.U)
+            if (x <= 0) Logger.log(s"Value $value of address $a points to $x separate values", Logger.I)
             metrics.addNonTop(x)
           case None =>
             metrics.addTop

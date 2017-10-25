@@ -77,7 +77,7 @@ object Z3 {
   def constraintSolver(ctx: Context, conslist: List[BranchConstraint]): Z3Result = {
     val exprMap: MMap[ConcolicInput, IntExpr] = scala.collection.mutable.HashMap[ConcolicInput, IntExpr]()
     val solver: Solver = ctx.mkSolver
-    Logger.log(s"Z3 solving constraints $conslist", Logger.U)
+    Logger.log(s"Z3 solving constraints $conslist", Logger.V)
     for (constraint <- conslist) {
         addConstraint(solver, ctx, exprMap, constraint.exp)
     }
@@ -104,7 +104,7 @@ object Z3 {
       val cfg: java.util.HashMap[String, String] = new java.util.HashMap[String, String]
       cfg.put("model", "true")
       val ctx: Context = new Context(cfg)
-      Logger.log(s"Z3, in solve, constraints are $constraints", Logger.U)
+      Logger.log(s"Z3, in solve, constraints are $constraints", Logger.V)
       if (constraints.nonEmpty) {
         constraintSolver(ctx, constraints)
       } else {

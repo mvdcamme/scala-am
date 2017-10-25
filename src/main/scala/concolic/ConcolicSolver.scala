@@ -2,7 +2,7 @@ import SymbolicTreeHelper.TreePath
 
 object ConcolicSolver {
 
-  type ErrorPath = List[SemanticsFilterAnnotation]
+  type Path = List[SemanticsFilterAnnotation]
 
   private var latestInputs: Map[String, Int] = Map()
 
@@ -11,17 +11,12 @@ object ConcolicSolver {
   }
   def getInputs: Map[String, Int] = latestInputs
 
-  private var initialErrorPaths: Option[List[ErrorPath]] = None
-  def getInitialErrorPaths: Option[List[ErrorPath]] = initialErrorPaths
+  private var initialErrorPaths: Option[List[Path]] = None
+  def getInitialErrorPaths: Option[List[Path]] = initialErrorPaths
 
   private def doOneSolveIteration(constraints: List[BranchConstraint]): Boolean = {
     resetInputs()
-    val solutions = Z3.solve(constraints.flatMap({
-      case b: BranchConstraint =>
-        List(b)
-      case _ =>
-        Nil
-    }))
+    val solutions = Z3.solve(constraints)
     solutions match {
       case Satisfiable(solution) =>
         latestInputs = solution.toMap[String, Int]
@@ -67,7 +62,7 @@ object ConcolicSolver {
     * @param node
     * @param errorPaths
     */
-  private def negateNodesNotFollowingErrorPath(node: BranchSymbolicNode, errorPaths: List[ErrorPath]): Unit = {
+  private def negateNodesNotFollowingErrorPath(node: BranchSymbolicNode, errorPaths: List[Path]): Unit = {
     val nonEmptyPaths = errorPaths.filter(_.nonEmpty)
     val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
     val startsWithElse = nonEmptyPaths.filter(_.head == ElseBranchTaken)
@@ -130,16 +125,14 @@ object ConcolicSolver {
     }
   }
 
-  def handleAnalysisResult[Abs: IsSchemeLattice]
+  private def handleAnalysisResult[Abs: IsSchemeLattice]
     (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode], isInitial: Boolean): List[ErrorPath] = {
+    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode]): List[Path] = {
     if (ConcolicRunTimeFlags.checkAnalysis) {
       result match {
         case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
           val errorPaths = errorPathDetector.detectErrors(outputGraph.output.graph)
           Logger.log(s"### Concolic got error paths $errorPaths", Logger.U)
-          if (isInitial) initialErrorPaths = Some(errorPaths)
-
           startNode match {
             case Some(node) =>
               negateNodesNotFollowingErrorPath(node, errorPaths)
@@ -147,13 +140,33 @@ object ConcolicSolver {
             // Do nothing
           }
           errorPaths
-        case result =>
+        case _ =>
           Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
           Nil
       }
     } else {
       Nil
     }
+  }
+
+  def handleInitialAnalysisResult[Abs: IsSchemeLattice]
+    (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
+    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode]): List[Path] = {
+    val errorPaths = handleAnalysisResult[Abs](errorPathDetector)(result, startNode)
+    initialErrorPaths = Some(errorPaths)
+    errorPaths
+  }
+
+
+  def handleRunTimeAnalysisResult[Abs: IsSchemeLattice]
+  (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
+    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode], prefixErrorPath: Path): List[Path] = {
+    val errorPaths = handleAnalysisResult[Abs](errorPathDetector)(result, startNode)
+    val initialErrorPathsNotStartingWithPrefix = initialErrorPaths.get.filterNot(_.startsWith(prefixErrorPath))
+    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ errorPaths.map(prefixErrorPath ++ _)
+    initialErrorPaths = Some(newInitialErrorPaths)
+    Reporter.setCurrentErrorPaths(errorPaths)
+    errorPaths
   }
 
 }

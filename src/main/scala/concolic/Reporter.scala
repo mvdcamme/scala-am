@@ -3,7 +3,7 @@ import SymbolicTreeHelper.TreePath
 case object AbortConcolicRunException extends Exception
 
 object Reporter {
-  type ErrorPath = List[SemanticsFilterAnnotation]
+  type Path = List[SemanticsFilterAnnotation]
   type PathConstraint = List[BranchConstraint]
 
   type SymbolicMemoryScope = Map[String, ConcolicExpression]
@@ -12,17 +12,22 @@ object Reporter {
   private var doConcolic: Boolean = false
 
   private var symbolicMemory: SymbolicStore = List(Map())
+  private var currentPath: Path = Nil
   private var currentReport: PathConstraint = Nil
 
   private var optRoot: Option[BranchSymbolicNode] = None
   private var optCurrentNode: Option[BranchSymbolicNode] = None
 
-  private var optCurrentErrorPaths: Option[List[ErrorPath]] = None
+  private var optCurrentErrorPaths: Option[List[Path]] = None
 
   type Setter = (BranchSymbolicNode) => Unit
 
   def getRoot: Option[BranchSymbolicNode] = optRoot
   def getCurrentNode: Option[BranchSymbolicNode] = optCurrentNode
+
+  def setCurrentErrorPaths(newCurrentErrorPaths: List[Path]): Unit = {
+    optCurrentErrorPaths = Some(newCurrentErrorPaths)
+  }
 
   private def setRoot(symbolicNode: BranchSymbolicNode): Unit = {
     optRoot = Some(symbolicNode)
@@ -69,6 +74,7 @@ object Reporter {
   def clear(isFirstClear: Boolean): Unit = {
     InputVariableStore.reset()
     ConcolicIdGenerator.resetId()
+    currentPath = Nil
     currentReport = Nil
     optCurrentNode = optRoot
     optCurrentErrorPaths = ConcolicSolver.getInitialErrorPaths
@@ -128,9 +134,9 @@ object Reporter {
   private def branchConstraintToNode(constraint: BranchConstraint, thenBranchTaken: Boolean) =
     BranchSymbolicNode(constraint, thenBranchTaken, !thenBranchTaken, None, None)
 
-  private case class SplitErrorPaths(thenPaths: List[ErrorPath], elsePaths: List[ErrorPath])
+  private case class SplitErrorPaths(thenPaths: List[Path], elsePaths: List[Path])
 
-  private def splitErrorPaths(errorPaths: List[ErrorPath]): SplitErrorPaths = {
+  private def splitErrorPaths(errorPaths: List[Path]): SplitErrorPaths = {
     // If node does not follow a path along which an error is located, make the corresponding branch ineligable for testing
     val nonEmptyPaths = errorPaths.filter(_.nonEmpty)
     val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
@@ -144,6 +150,7 @@ object Reporter {
     // To add a new constraint: first call the current Setter (i.e., integrateNode),
     // then generate a new Setter depending on the type of the constraint argument
 
+    currentPath :+= (if (thenBranchTaken) ThenBranchTaken else ElseBranchTaken)
     currentReport :+= (if (thenBranchTaken) constraint else constraint.negate)
     integrateNode(symbolicNode)
     integrateNode = generateBranchNodeSetter(thenBranchTaken)
@@ -196,8 +203,8 @@ object Reporter {
     }
   }
 
-  def getReport: PathConstraint = {
-    currentReport
+  def getCurrentPath: Path = {
+    currentPath
   }
 
   def printReports(): Unit = {

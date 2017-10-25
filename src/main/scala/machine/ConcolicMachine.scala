@@ -1,3 +1,4 @@
+import ConcolicSolver.initialErrorPaths
 import ConcreteConcreteLattice.{ConcreteValue, lattice}
 
 class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvider](
@@ -16,8 +17,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
   val errorPathDetector = new ErrorPathDetector[SchemeExp, PAbs, HybridAddress.A, HybridTimestamp.T](pointsToAnalysisLauncher.aam)
 
   trait ConcolicMachineOutput extends Output[ConcreteConcreteLattice.L] {
-    def toDotFile(path: String) =
-      println("Not generating graph for ConcreteMachine")
+    def toDotFile(path: String) = println("Not generating graph for ConcreteMachine")
   }
 
   case object ConcolicMachineOutputUnnecessary
@@ -29,38 +29,11 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
     def time: Double = 0
   }
 
-  case class ConcolicMachineOutputError(time: Double,
-                                        numberOfStates: Int,
-                                        err: String)
-      extends ConcolicMachineOutput {
-    def finalValues = {
-      println(s"Execution failed: $err")
-      Set()
-    }
-    def containsFinalValue(v: ConcreteConcreteLattice.L) = false
-    def timedOut = false
-  }
   case class ConcolicMachineOutputTimeout(time: Double, numberOfStates: Int)
       extends ConcolicMachineOutput {
     def finalValues = Set()
     def containsFinalValue(v: ConcreteConcreteLattice.L) = false
     def timedOut = true
-  }
-  case class ConcolicMachineOutputValue(time: Double,
-                                        numberOfStates: Int,
-                                        v: ConcreteConcreteLattice.L,
-                                        graph: Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]])
-      extends ConcolicMachineOutput {
-    def finalValues = Set(v)
-    def containsFinalValue(v2: ConcreteConcreteLattice.L) = v == v2
-    def timedOut = false
-    override def toDotFile(path: String) = {
-      graph.toDotFile(path,
-        node => List(scala.xml.Text(node.toString.take(40))),
-        (s) => s.graphNodeColor,
-        _ => List(),
-        None)
-    }
   }
 
   private def convertValue[AbstL: IsConvertableLattice](abstPrims: SchemePrimitives[HybridAddress.A, AbstL])
@@ -319,30 +292,10 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
              graph: Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]): ConcolicMachineOutput = {
 
       Logger.log(s"stepCount: $stepCount", Logger.V)
-      val currentAddresses: Set[HybridAddress.A] = state.store.toSet.map(_._1)
-      analysisFlags.runTimeAnalysisInterval match {
-        case NoRunTimeAnalysis =>
-        case RunTimeAnalysisEvery(analysisInterval) =>
-          if (stepCount % analysisInterval == 0) {
-            startRunTimeAnalysis(programName, state)
-          }
-      }
-      analysisFlags.incrementalAnalysisInterval match {
-        case NoIncrementalAnalysis =>
-        case IncrementalAnalysisEvery(analysisInterval) =>
-          if (stepCount % analysisInterval == 0) {
-            val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
-            val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
-            pointsToAnalysisLauncher.incrementalAnalysis(state, stepCount, programName, convertedCurrentAddresses)
-          }
-      }
-
       stepCount += 1
 
       if (timeout.exists(System.nanoTime - start > _)) {
-        ConcolicMachineOutputTimeout(
-          (System.nanoTime - start) / Math.pow(10, 9),
-          count)
+        ConcolicMachineOutputTimeout((System.nanoTime - start) / Math.pow(10, 9), count)
       } else {
         val control = state.control
         val store = state.store
@@ -389,19 +342,13 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
                 case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
-                  Left(ConcolicMachineOutputError(
-                    (System.nanoTime - start) / Math.pow(10, 9),
-                    count,
-                    err.toString))
+                  Left(ConcolicMachineOutputUnnecessary)
               }
 
           case ConcolicControlKont(v, symbolicValue) =>
             /* pop a continuation */
             if (a == HaltKontAddress) {
-              Left(ConcolicMachineOutputValue(
-                (System.nanoTime - start) / Math.pow(10, 9),
-                count,
-                v, graph))
+              Left(ConcolicMachineOutputUnnecessary)
             } else {
               val frames = kstore.lookup(a)
               if (frames.size == 1) {
@@ -443,24 +390,15 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
                   case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
-                    Left(ConcolicMachineOutputError(
-                      (System.nanoTime - start) / Math.pow(10, 9),
-                      count,
-                      err.toString))
+                    Left(ConcolicMachineOutputUnnecessary)
                 }
               } else {
-                Left(ConcolicMachineOutputError(
-                  (System.nanoTime - start) / Math.pow(10, 9),
-                  count,
-                  s"execution was not concrete (got ${frames.size} frames instead of 1)"))
+                Left(ConcolicMachineOutputUnnecessary)
               }
             }
 
           case ConcolicControlError(err) =>
-            Left(ConcolicMachineOutputError(
-              (System.nanoTime - start) / Math.pow(10, 9),
-              count,
-              err.toString))
+            Left(ConcolicMachineOutputUnnecessary)
         }
 
         val stepped = step(control)
@@ -468,7 +406,6 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
 
         stepped match {
           case Left(output) =>
-            output.toDotFile("concrete.dot")
             pointsToAnalysisLauncher.end()
             output
           case Right(StepSucceeded(succState, filters, actions)) =>
@@ -498,7 +435,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
     }
 
     def loopConcolic(initialState: State, nrOfRuns: Int): Unit = {
-      Logger.log(s"\n\nSTART CONCOLIC ITERATION ${ConcolicSolver.getInputs}", Logger.U)
+      Logger.log(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${ConcolicSolver.getInputs}", Logger.U)
       Reporter.clear(nrOfRuns < 2)
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
       try {
@@ -506,7 +443,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
       } catch {
         case AbortConcolicRunException =>
       } finally {
-        Logger.log(s"END CONCOLIC ITERATION", Logger.U)
+        Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.U)
         Reporter.printTree()
         Reporter.printReports()
         val shouldContinue = ConcolicSolver.solve
@@ -524,7 +461,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
 
     // Use initial static analysis to detect paths to errors
     if (ConcolicRunTimeFlags.checkAnalysis) {
-      val errorPaths = ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult, Reporter.getRoot, true)
+      val errorPaths = ConcolicSolver.handleInitialAnalysisResult[PAbs](errorPathDetector)(analysisResult, Reporter.getRoot)
       if (errorPaths.isEmpty) {
         Logger.log("Initial static analysis detected no possible errors: aborting concolic testing", Logger.U)
       } else {
@@ -546,8 +483,10 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
     if (ConcolicRunTimeFlags.shouldStartRunTimeAnalysis && ConcolicRunTimeFlags.checkAnalysis && ConcolicRunTimeFlags.checkRunTimeAnalysis) {
       val optCurrentNode = Reporter.getCurrentNode
       val optBranchFollowedCurrentNode = optCurrentNode
+      Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.U)
       val analysisResult = startRunTimeAnalysis(programName, state)
-      ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult, optBranchFollowedCurrentNode, false)
+      val prefixErrorPath = Reporter.getCurrentPath
+      ConcolicSolver.handleRunTimeAnalysisResult[PAbs](errorPathDetector)(analysisResult, optBranchFollowedCurrentNode, prefixErrorPath)
     }
   }
 

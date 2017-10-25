@@ -206,22 +206,6 @@ object Config {
     opt[String]("analysis_output") action { (x, c) =>
       c.copy(analysisPath = Some(x))
     } text ("File to print analysis results to")
-    opt[String]("inc_analysis") action { (s, c) => {
-        val incrAnalysisInterval = s match {
-          case "N" | "n" | "None" | "none" => NoIncrementalAnalysis
-          case _ => IncrementalAnalysisEvery(Integer.parseInt(s))
-        }
-        c.copy(analysisFlags = c.analysisFlags.copy(incrementalAnalysisInterval = incrAnalysisInterval))
-      }
-    } text ("Launch an incremental analysis every x execution steps")
-    opt[String]("rt_analysis") action { (s, c) => {
-      val runTimeAnalysisInterval: RunTimeAnalysisInterval = s match {
-        case "N" | "n" | "None" | "none" => NoRunTimeAnalysis
-        case _ => RunTimeAnalysisEvery(Integer.parseInt(s))
-      }
-      c.copy(analysisFlags = c.analysisFlags.copy(runTimeAnalysisInterval = runTimeAnalysisInterval))
-    }
-    } text ("Launch an incremental analysis every x execution steps")
     opt[Unit]("disable_skip_iteration_optimisation") action { (_, c) =>
       c.copy(analysisFlags = c.analysisFlags.copy(skipIterationOptimisation = false))
     } text ("Turn optimisation of incremental analysis OFF")
@@ -416,12 +400,9 @@ object Main {
               new Free[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Hybrid =>
 
-            implicit val joinLattice: JoinLattice[ConcreteValue] =
-              ConcreteConcreteLattice.isSchemeLattice
-            implicit val sabsCCLattice: IsSchemeLattice[ConcreteValue] =
-              ConcreteConcreteLattice.isSchemeLattice
-            val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](
-              new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
+            implicit val joinLattice: JoinLattice[ConcreteValue] = ConcreteConcreteLattice.isSchemeLattice
+            implicit val sabsCCLattice: IsSchemeLattice[ConcreteValue] = ConcreteConcreteLattice.isSchemeLattice
+            val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
             val pointsLattice = new TypeSetLattice(false)
             implicit val pointsConvLattice = pointsLattice.isSchemeLattice
             implicit val pointsLatInfoProv = pointsLattice.latticeInfoProvider
