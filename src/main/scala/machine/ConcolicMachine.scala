@@ -20,6 +20,15 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
       println("Not generating graph for ConcreteMachine")
   }
 
+  case object ConcolicMachineOutputUnnecessary
+    extends ConcolicMachineOutput {
+    def finalValues = Set()
+    def containsFinalValue(v: ConcreteConcreteLattice.L) = false
+    def timedOut: Boolean = false
+    def numberOfStates: Int = 0
+    def time: Double = 0
+  }
+
   case class ConcolicMachineOutputError(time: Double,
                                         numberOfStates: Int,
                                         err: String)
@@ -513,20 +522,24 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
       }
     }
 
-    val initialState = inject(
-      exp,
-      Environment.initial[HybridAddress.A](sem.initialEnv),
-      Store.initial[HybridAddress.A, ConcreteValue](
-        sem.initialStore))
+    val initialState = inject(exp, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue]
+                             (sem.initialStore))
     Reporter.disableConcolic()
     val analysisResult = pointsToAnalysisLauncher.runInitialStaticAnalysis(initialState, programName)
     Reporter.enableConcolic()
 
     // Use initial static analysis to detect paths to errors
     if (ConcolicRunTimeFlags.checkAnalysis) {
-      ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult, Reporter.getRoot, true)
+      val errorPaths = ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult, Reporter.getRoot, true)
+      if (errorPaths.isEmpty) {
+        Logger.log("Initial static analysis detected no possible errors: aborting concolic testing", Logger.U)
+        ConcolicMachineOutputUnnecessary
+      } else {
+        loopConcolic(initialState, 1)
+      }
+    } else {
+      loopConcolic(initialState, 1)
     }
-    loopConcolic(initialState, 1)
   }
 
   /**

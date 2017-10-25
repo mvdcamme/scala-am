@@ -1,4 +1,4 @@
-import java.io.{FileWriter, BufferedWriter, File}
+import java.io.{BufferedWriter, File, FileWriter}
 
 import ConcreteConcreteLattice.ConcreteValue
 

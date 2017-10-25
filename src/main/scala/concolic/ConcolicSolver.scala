@@ -128,16 +128,6 @@ object ConcolicSolver {
     } else {
       init.addNegatedNode(lastNode)
     }
-//    val lastNode = path.last._1.asInstanceOf[BranchSymbolicNode] // last node of the path should always be a BranchSymbolicNode
-//    if (!lastNode.thenBranchTaken) {
-//      // Explore then-branch: don't have to do anything
-//      path
-//    } else {
-//      // Explore else-branch
-//      val negatedBranchConstraint = lastNode.branch.negate
-//      val negatedBranchNode = lastNode.copy(branch = negatedBranchConstraint)
-//      path.init :+ negatedBranchNode
-//    }
   }
 
   def handleAnalysisResult[Abs: IsSchemeLattice]

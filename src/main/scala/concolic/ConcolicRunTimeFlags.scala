@@ -2,7 +2,7 @@ object ConcolicRunTimeFlags {
 
   val MAX_CONCOLIC_ITERATIONS = 100
 
-  val checkAnalysis: Boolean = false
+  val checkAnalysis: Boolean = true
   val checkRunTimeAnalysis: Boolean = false
 
   private var ifEncountered: Boolean = false
