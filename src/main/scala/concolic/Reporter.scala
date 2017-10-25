@@ -1,7 +1,8 @@
 import SymbolicTreeHelper.TreePath
 
-object Reporter {
+case object AbortConcolicRunException extends Exception
 
+object Reporter {
   type ErrorPath = List[SemanticsFilterAnnotation]
   type PathConstraint = List[BranchConstraint]
 
@@ -144,6 +145,7 @@ object Reporter {
     }
     val symbolicNode = branchConstraintToNode(constraint, thenBranchTaken)
 
+    addConstraint(constraint, symbolicNode, thenBranchTaken)
     if (ConcolicRunTimeFlags.checkAnalysis) {
       optCurrentErrorPaths match {
         case Some(currentErrorPaths) =>
@@ -159,20 +161,32 @@ object Reporter {
           }
 
           if (thenBranchTaken) {
+            if (startsWithThen.isEmpty) {
+              Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
+              // The current path does not follow an existing errorpath, so abort this run
+              throw AbortConcolicRunException
+            }
             // Continue with paths that follow the then-branch.
             val tailStartsWithThen = startsWithThen.map(_.tail)
             optCurrentErrorPaths = Some(tailStartsWithThen)
           } else {
+            if (startsWithElse.isEmpty) {
+              Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
+              // The current path does not follow an existing errorpath, so abort this run
+              throw AbortConcolicRunException
+            }
             // Continue with paths that follow the else-branch.
             val tailStartsWithElse = startsWithElse.map(_.tail)
             optCurrentErrorPaths = Some(tailStartsWithElse)
           }
         case None =>
           Logger.log("Reporter not doing anything with error paths", Logger.U)
-        // Do nothing
+          // Assuming concolic testing is only really started if at least one errorpath is defined,
+          // and assuming we check for every branch that was encountered whether execution still
+          // follows _some_ errorpath (as is done in this function), this should never happen.
+          throw AbortConcolicRunException
       }
     }
-    addConstraint(constraint, symbolicNode, thenBranchTaken)
   }
 
   def getReport: PathConstraint = {
@@ -187,8 +201,7 @@ object Reporter {
     // TODO This code is mostly for debugging
     val optRoott = optRoot
     val optCurrentNodee = optCurrentNode
-    val unexplored = SymbolicTreeHelper.findFirstUnexploredNode(optRoot.get)
-    unexplored
+    optRoot.foreach(SymbolicTreeHelper.findFirstUnexploredNode)
   }
 
   def findUnexploredNode: Option[TreePath] = optRoot match {

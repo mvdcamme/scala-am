@@ -1,8 +1,10 @@
+trait SymbolicNode
+
 case class BranchSymbolicNode(branch: BranchConstraint,
                               var thenBranchTaken: Boolean,
                               var elseBranchTaken: Boolean,
                               var thenBranch: Option[BranchSymbolicNode],
-                              var elseBranch: Option[BranchSymbolicNode]) {
+                              var elseBranch: Option[BranchSymbolicNode]) extends SymbolicNode {
   /**
     * Combines two SymbolicNodes, giving preference to the object receiving this method call.
     * E.g., if two SymbolicNodes have similar properties, properties of the receiving object are copied

@@ -422,7 +422,7 @@ object Main {
               ConcreteConcreteLattice.isSchemeLattice
             val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](
               new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
-            val pointsLattice = new PointsToLattice(false)
+            val pointsLattice = new TypeSetLattice(false)
             implicit val pointsConvLattice = pointsLattice.isSchemeLattice
             implicit val pointsLatInfoProv = pointsLattice.latticeInfoProvider
 

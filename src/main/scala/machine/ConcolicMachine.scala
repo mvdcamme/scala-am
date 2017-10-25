@@ -492,33 +492,27 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
 
     }
 
-    def inject(exp: SchemeExp,
-               env: Environment[HybridAddress.A],
-               sto: Store[HybridAddress.A, ConcreteValue]): State = {
+    def inject(exp: SchemeExp, env: Environment[HybridAddress.A], sto: Store[HybridAddress.A, ConcreteValue]): State = {
       val instrumentedExp = ConcolicInstrumenter.instrument(exp)
-      State(ConcolicControlEval(instrumentedExp, env),
-            sto,
-            KontStore.empty[KontAddr],
-            HaltKontAddress,
-            time.initial(""))
+      State(ConcolicControlEval(instrumentedExp, env), sto, KontStore.empty[KontAddr], HaltKontAddress, time.initial(""))
     }
 
-    @scala.annotation.tailrec
-    def loopConcolic(initialState: State, nrOfRuns: Int): ConcolicMachineOutput = {
+    def loopConcolic(initialState: State, nrOfRuns: Int): Unit = {
+      Logger.log(s"\n\nSTART CONCOLIC ITERATION ${ConcolicSolver.getInputs}", Logger.U)
       Reporter.clear(nrOfRuns < 2)
-      Logger.log(s"\n\nCONCOLIC ITERATION ${ConcolicSolver.getInputs}", Logger.U)
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
-      val result = loop(initialState,
-                        System.nanoTime,
-                        0,
-                        new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
-      Reporter.printTree()
-      Reporter.printReports()
-      val shouldContinue = ConcolicSolver.solve
-      if (nrOfRuns < ConcolicRunTimeFlags.MAX_CONCOLIC_ITERATIONS && shouldContinue) {
-        loopConcolic(initialState, nrOfRuns + 1)
-      } else {
-        result
+      try {
+        loop(initialState, System.nanoTime, 0, new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
+      } catch {
+        case AbortConcolicRunException =>
+      } finally {
+        Logger.log(s"END CONCOLIC ITERATION", Logger.U)
+        Reporter.printTree()
+        Reporter.printReports()
+        val shouldContinue = ConcolicSolver.solve
+        if (nrOfRuns < ConcolicRunTimeFlags.MAX_CONCOLIC_ITERATIONS && shouldContinue) {
+          loopConcolic(initialState, nrOfRuns + 1)
+        }
       }
     }
 
@@ -533,13 +527,13 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
       val errorPaths = ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult, Reporter.getRoot, true)
       if (errorPaths.isEmpty) {
         Logger.log("Initial static analysis detected no possible errors: aborting concolic testing", Logger.U)
-        ConcolicMachineOutputUnnecessary
       } else {
         loopConcolic(initialState, 1)
       }
     } else {
       loopConcolic(initialState, 1)
     }
+    ConcolicMachineOutputUnnecessary
   }
 
   /**
