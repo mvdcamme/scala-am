@@ -3,17 +3,17 @@ object ConcolicRunTimeFlags {
   val MAX_CONCOLIC_ITERATIONS = 100
 
   val checkAnalysis: Boolean = true
-  val checkRunTimeAnalysis: Boolean = false
+  val checkRunTimeAnalysis: Boolean = true
 
-  private var ifEncountered: Boolean = false
+  private var startRunTimeAnalysis: Boolean = false
 
-  def setIfEncountered(): Unit = {
-    ifEncountered = true
+  def setStartRunTimeAnalysis(): Unit = {
+    startRunTimeAnalysis = true
   }
 
-  def wasIfEncountered: Boolean = {
-    val temp = ifEncountered
-    ifEncountered = false
+  def shouldStartRunTimeAnalysis: Boolean = {
+    val temp = startRunTimeAnalysis
+    startRunTimeAnalysis = false
     temp
   }
 

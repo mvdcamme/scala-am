@@ -311,6 +311,11 @@ class ConcolicBaseSchemeSemantics[Addr: Address, Time: Timestamp](
     case SchemeFuncall(f, args, _) =>
       addPushActionR(ActionPush[SchemeExp, ConcreteValue, Addr](FrameFuncallOperator[ConcreteValue, Addr, Time](f, args, env), f, env, store))
     case e @ SchemeIf(cond, cons, alt, _) =>
+      if (Reporter.doErrorPathsDiverge) {
+        // The subtree with the root at this if-expression has at least one potential error in both branches:
+        // a run-time analysis should be started to try to eliminate any of these alarms.
+        ConcolicRunTimeFlags.setStartRunTimeAnalysis()
+      }
       addPushActionR(ActionPush(FrameIf[ConcreteValue, Addr, Time](cons, alt, env, e), cond, env, store))
     case SchemeLet(Nil, body, _) =>
       evalBody(body, env, store)

@@ -128,6 +128,16 @@ object Reporter {
   private def branchConstraintToNode(constraint: BranchConstraint, thenBranchTaken: Boolean) =
     BranchSymbolicNode(constraint, thenBranchTaken, !thenBranchTaken, None, None)
 
+  private case class SplitErrorPaths(thenPaths: List[ErrorPath], elsePaths: List[ErrorPath])
+
+  private def splitErrorPaths(errorPaths: List[ErrorPath]): SplitErrorPaths = {
+    // If node does not follow a path along which an error is located, make the corresponding branch ineligable for testing
+    val nonEmptyPaths = errorPaths.filter(_.nonEmpty)
+    val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
+    val startsWithElse = nonEmptyPaths.filter(_.head == ElseBranchTaken)
+    SplitErrorPaths(startsWithThen, startsWithElse)
+  }
+
   private def addConstraint(constraint: BranchConstraint,
                             symbolicNode: BranchSymbolicNode,
                             thenBranchTaken: Boolean): Unit = {
@@ -149,10 +159,7 @@ object Reporter {
     if (ConcolicRunTimeFlags.checkAnalysis) {
       optCurrentErrorPaths match {
         case Some(currentErrorPaths) =>
-          // If node does not follow a path along which an error is located, make the corresponding branch ineligable for testing
-          val nonEmptyPaths = currentErrorPaths.filter(_.nonEmpty)
-          val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
-          val startsWithElse = nonEmptyPaths.filter(_.head == ElseBranchTaken)
+          val SplitErrorPaths(startsWithThen, startsWithElse) = splitErrorPaths(currentErrorPaths)
           if (startsWithElse.isEmpty) {
             symbolicNode.elseBranchTaken = true
           }
@@ -205,10 +212,16 @@ object Reporter {
   }
 
   def findUnexploredNode: Option[TreePath] = optRoot match {
-    case Some(root) =>
-      SymbolicTreeHelper.findFirstUnexploredNode(root)
-    case None =>
-      None
+    case Some(root) => SymbolicTreeHelper.findFirstUnexploredNode(root)
+    case None => None
   }
 
+  def doErrorPathsDiverge: Boolean = optCurrentErrorPaths match {
+    case Some(errorPaths) =>
+      val SplitErrorPaths(startsWithThen, startsWithElse) = splitErrorPaths(errorPaths)
+      startsWithThen.nonEmpty && startsWithElse.nonEmpty
+    case None =>
+      assert(false, "Should not happen: some errorpaths should be defined")
+      false
+  }
 }

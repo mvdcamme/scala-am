@@ -363,7 +363,6 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
         def step(control: ConcolicControl): Either[ConcolicMachineOutput, StepSucceeded] = control match {
           case ConcolicControlEval(e, env) =>
             val edgeInfo = sem.stepConcolicEval(e, env, store, t)
-            startRunTimeAnalysisIfIfEncountered(programName, state)
             handleFunctionCalled(edgeInfo)
             edgeInfo match {
               case EdgeInformation(ActionReachedValue(v, optionConcolicValue, store2, _), actions, semanticsFilters) =>
@@ -411,7 +410,6 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
                 val oldA = state.a
                 val a = frames.head.next
                 val edgeInfo = sem.stepConcolicKont(v, symbolicValue, frame, store, t)
-                startRunTimeAnalysisIfIfEncountered(programName, state)
                 handleFunctionCalled(edgeInfo)
                 edgeInfo match {
                   case EdgeInformation(ActionReachedValue(v, optionConcolicValue, store2, _), actions, semanticsFilters) =>
@@ -466,6 +464,8 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
         }
 
         val stepped = step(control)
+        potentiallyStartRunTimeAnalysis(programName, state)
+
         stepped match {
           case Left(output) =>
             output.toDotFile("concrete.dot")
@@ -542,11 +542,10 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
     * @param programName
     * @param state
     */
-  private def startRunTimeAnalysisIfIfEncountered(programName: String, state: State): Unit = {
-    if (ConcolicRunTimeFlags.wasIfEncountered && ConcolicRunTimeFlags.checkAnalysis && ConcolicRunTimeFlags.checkRunTimeAnalysis) {
+  private def potentiallyStartRunTimeAnalysis(programName: String, state: State): Unit = {
+    if (ConcolicRunTimeFlags.shouldStartRunTimeAnalysis && ConcolicRunTimeFlags.checkAnalysis && ConcolicRunTimeFlags.checkRunTimeAnalysis) {
       val optCurrentNode = Reporter.getCurrentNode
       val optBranchFollowedCurrentNode = optCurrentNode
-      assert(state.control.isInstanceOf[ControlKont])
       val analysisResult = startRunTimeAnalysis(programName, state)
       ConcolicSolver.handleAnalysisResult[PAbs](errorPathDetector)(analysisResult, optBranchFollowedCurrentNode, false)
     }

@@ -5,6 +5,6 @@
       (b (random 10)))
   (if (< a (f 4))
       (if (< b 5)
-          'ok
-          (error "a"))      
-      'ok))
+          (error 'a)
+          'ok)      
+      (error 'a)))
