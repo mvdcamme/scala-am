@@ -365,8 +365,7 @@ object Main {
         }
         implicit val isAddress = address.isAddress
 
-        val sem = new SchemeSemantics[lattice.L, address.A, time.T](
-          new SchemePrimitives[address.A, lattice.L])
+        val sem = new SchemeSemantics[lattice.L, address.A, time.T](new SchemePrimitives[address.A, lattice.L])
 
         /*
          * Takes a non-tracing abstract machine as input and creates a function that, given a program string, runs

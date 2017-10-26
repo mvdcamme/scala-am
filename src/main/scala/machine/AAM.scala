@@ -237,12 +237,22 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     /**
       * Returns the list of final values that can be reached
       */
-    def finalValues =
+    def finalValues = {
+      val errorStates = halted.filter(_.control match {
+        case err: ControlError => true
+        case _ => false
+      })
+      if (errorStates.isEmpty) {
+        println("DID NOT FIND ANY ERROR STATES")
+      } else {
+        println(s"FOUND THE FOLLOWING ERROR STATES: $errorStates")
+      }
       halted.flatMap(st =>
         st.control match {
           case ControlKont(v) => Set[Abs](v)
           case _ => Set[Abs]()
-      })
+        })
+    }
 
     /**
       * Returns the set of stores of the final states
