@@ -8,9 +8,7 @@
         (else      (ack (- m 1) (ack m (- n 1))))))
 
 (define (main args)
-  (let ((n (if (null? args)
-               1
-               (string->number (car args)) ) ) )
-    (display "Ack(3,") (display n) (display "): ")(display (ack 1 n))))
+  (let ((n 6))
+    (display "Ack(3,") (display n) (display "): ")(display (ack 3 n))))
 
 (main (command-line-arguments))

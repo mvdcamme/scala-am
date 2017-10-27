@@ -3,9 +3,7 @@
 (define (command-line-arguments) '())
 
 (define (main args)
-  (let* ((n (if (null? args)
-            1
-            (string->number (car args))))
+  (let* ((n 1)
 	 (x (make-vector n 0))
 	 (y (make-vector n 0))
 	 (last (- n 1)))
