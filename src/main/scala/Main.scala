@@ -383,20 +383,15 @@ object Main {
 
         val startMachineFun: (String) => Unit = config.machine match {
           case Config.Machine.AAM =>
-            genNonTracingMachineStartFun(
-              new AAM[SchemeExp, lattice.L, address.A, time.T])
+            genNonTracingMachineStartFun(new AAM[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.AAMGlobalStore =>
-            genNonTracingMachineStartFun(
-              new AAMGlobalStore[SchemeExp, lattice.L, address.A, time.T])
+            genNonTracingMachineStartFun(new AAMGlobalStore[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.ConcreteMachine =>
-            genNonTracingMachineStartFun(
-              new ConcreteMachine[SchemeExp, lattice.L, address.A, time.T])
+            genNonTracingMachineStartFun(new ConcreteMachine[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.AAC =>
-            genNonTracingMachineStartFun(
-              new AAC[SchemeExp, lattice.L, address.A, time.T])
+            genNonTracingMachineStartFun(new AAC[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Free =>
-            genNonTracingMachineStartFun(
-              new Free[SchemeExp, lattice.L, address.A, time.T])
+            genNonTracingMachineStartFun(new Free[SchemeExp, lattice.L, address.A, time.T])
           case Config.Machine.Hybrid =>
             implicit val joinLattice: JoinLattice[ConcreteValue] = ConcreteConcreteLattice.isSchemeLattice
             implicit val sabsCCLattice: IsSchemeLattice[ConcreteValue] = ConcreteConcreteLattice.isSchemeLattice
