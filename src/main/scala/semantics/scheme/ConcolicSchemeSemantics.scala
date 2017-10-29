@@ -481,7 +481,6 @@ class ConcolicBaseSchemeSemantics[Abs: IsSchemeLattice, Addr: Address, Time: Tim
       case frame: FrameBegin[Abs, Addr, Time] => frame.rest match {
         case List(SchemePopSymEnv(_)) =>
           Reporter.popEnvironment()
-//          val noOpAction = ActionNoOp[SchemeExp, Abs, Addr]()
           val action = ActionReachedValue[SchemeExp, Abs, Addr](v, store)
           val actionR = ActionReachedValueT[SchemeExp, Abs, Addr](v)
           noEdgeInfosSet(action, actionR)

@@ -351,9 +351,6 @@ class HybridConcreteMachine[
               val onlyEdgeInfo = edgeInfos.head
               handleFunctionCalled(onlyEdgeInfo)
               onlyEdgeInfo match {
-                case EdgeInformation(ActionNoOp(), actions, _) =>
-                  // Should never happen
-                  ???
                 case EdgeInformation(ActionReachedValue(v, store2, _), actions, semanticsFilters) =>
                   val machineFilters = Set[MachineFilterAnnotation]()
                   Right(StepSucceeded(State(ControlKont(v), store2, kstore, a, time.tick(t)),
@@ -413,13 +410,6 @@ class HybridConcreteMachine[
                   val onlyEdgeInfo = edgeInfos.head
                   handleFunctionCalled(onlyEdgeInfo)
                   onlyEdgeInfo match {
-                    case EdgeInformation(ActionNoOp(), actions, _) =>
-                      val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
-                                                                        FrameFollowed[ConcreteValue](originFrameCast))
-                      // Reuse old value
-                      Right(StepSucceeded(State(ControlKont(v), store, kstore, a, time.tick(t)),
-                                          FilterAnnotations(machineFilters, Set()),
-                                          actions))
                     case EdgeInformation(ActionReachedValue(v, store2, _), actions, semanticsFilters) =>
                       val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                                                                         FrameFollowed[ConcreteValue](originFrameCast))

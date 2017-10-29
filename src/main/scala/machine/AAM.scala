@@ -83,10 +83,6 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         })
         val filters = FilterAnnotations[Exp, Abs, Addr](primCallFilter, edgeInformation.semanticsFilters)
         edgeInformation.action match {
-          case ActionNoOp() =>
-            EdgeComponents(State(ControlKont(oldValue.get), store, kstore, a, time.tick(t)),
-              filters,
-              actions)
           /* When a value is reached, we go to a continuation state */
           case ActionReachedValue(v, store, _) =>
             EdgeComponents(State(ControlKont(v), store, kstore, a, time.tick(t)),
@@ -905,6 +901,5 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       Set(),
       /* Graph is initially empty, and we wrap it into an Option */
       if (graph) { Some(Graph.empty) } else { None })
->>>>>>> 9de48f824fa56370876d922b957948f007216898
   }
 }
