@@ -4,7 +4,6 @@ import SchemeOps._
 import UnaryOperator._
 import BinaryOperator._
 
-<<<<<<< HEAD
 trait LatticeInfoProvider[L] {
 
   def simpleType(x: L): SimpleTypes.Value
@@ -22,8 +21,8 @@ trait LatticeInfoProvider[L] {
   }
 
   def reaches[Addr: Address](x: L,
-                             reachesEnv: Environment[Addr] => Set[Addr],
-                             reachesAddress: Addr => Set[Addr]): Set[Addr]
+    reachesEnv: Environment[Addr] => Set[Addr],
+    reachesAddress: Addr => Set[Addr]): Set[Addr]
 
 }
 
@@ -39,15 +38,6 @@ trait PointsToableLatticeInfoProvider[L] extends LatticeInfoProvider[L] {
 
 }
 
-class MakeSchemeLattice[S, B, I, F, C, Sym](supportsCounting: Boolean)(
-    implicit str: IsString[S],
-    bool: IsBoolean[B],
-    int: IsInteger[I],
-    float: IsFloat[F],
-    char: IsChar[C],
-    sym: IsSymbol[Sym]) {
-
-=======
 class MakeSchemeLattice[
   S : StringLattice,
   B : BoolLattice,
@@ -56,7 +46,6 @@ class MakeSchemeLattice[
   C : CharLattice,
   Sym : SymbolLattice
 ](supportsCounting: Boolean) extends SchemeLattice {
->>>>>>> 9de48f824fa56370876d922b957948f007216898
   sealed trait Value
   case object Bot extends Value {
     override def toString = "⊥"
@@ -95,17 +84,10 @@ class MakeSchemeLattice[
   case class Vec[Addr: Address](size: I, elements: Map[I, Addr], init: Addr)
       extends Value {
     override def toString = {
-<<<<<<< HEAD
-      val els = elements.toList
-        .map({ case (k, v) => s"${int.shows(k)}: $v" })
-        .mkString(", ")
-      s"Vec(${int.shows(size)}, {$els}, $init)"
-=======
       val els = elements.toList.map({
         case (k, v) => s"${IntLattice[I].shows(k)}: $v"
       }).mkString(", ")
       s"Vec(${IntLattice[I].shows(size)}, {$els}, $init)"
->>>>>>> 9de48f824fa56370876d922b957948f007216898
     }
   }
   case class VectorAddress[Addr: Address](a: Addr) extends Value
@@ -143,26 +125,12 @@ class MakeSchemeLattice[
         case _ => false
       }
     }
-<<<<<<< HEAD
-    val name =
-      s"Lattice(${str.name}, ${bool.name}, ${int.name}, ${float.name}, ${char.name}, ${sym.name})"
-    val counting = supportsCounting
-
-    def isPrimitiveValue(x: L): Boolean = x match {
-      case Bot | Str(_) | Bool(_) | Int(_) | Float(_) | Char(_) | Symbol(_) |
-          Nil =>
-        true
-      case Closure(_, _) | Prim(_) | Cons(_, _) | VectorAddress(_) |
-          Vec(_, _, _) =>
-        false
-=======
     val name = s"Lattice(${StringLattice[S].name}, ${BoolLattice[B].name}, ${IntLattice[I].name}, ${RealLattice[F].name}, ${CharLattice[C].name}, ${SymbolLattice[Sym].name})"
     val counting = supportsCounting
 
     def isPrimitiveValue(x: Value): Boolean = x match {
       case Bot | Str(_) | Bool(_) | Int(_) | Real(_) | Char(_) | Symbol(_) | Nil => true
       case Closure(_, _) | Prim(_) | Cons(_, _) | VectorAddress(_) | Vec(_, _, _) => false
->>>>>>> 9de48f824fa56370876d922b957948f007216898
     }
 
     def cardinality(x: Value): Cardinality = x match {
@@ -690,106 +658,32 @@ class MakeSchemeLattice[
       case _ => Set()
     }
 
-<<<<<<< HEAD
-    def car[Addr: Address](x: L): Set[Addr] = x match {
-=======
-    def car[Addr : Address](x: Value): Set[Addr] = x match {
->>>>>>> 9de48f824fa56370876d922b957948f007216898
+    def car[Addr: Address](x: Value): Set[Addr] = x match {
       case Cons(car: Addr @unchecked, cdr: Addr @unchecked) => Set(car)
       case _ => Set()
     }
 
-<<<<<<< HEAD
-    def cdr[Addr: Address](x: L): Set[Addr] = x match {
-=======
     def cdr[Addr : Address](x: Value): Set[Addr] = x match {
->>>>>>> 9de48f824fa56370876d922b957948f007216898
       case Cons(car: Addr @unchecked, cdr: Addr @unchecked) => Set(cdr)
       case _ => Set()
     }
 
-<<<<<<< HEAD
-    def vectorRef[Addr: Address](vector: L, index: L): MayFail[Set[Addr]] =
-      (vector, index) match {
-        case (
-            Vec(size, content: Map[I, Addr] @unchecked, init: Addr @unchecked),
-            Int(index)) => {
-          val comp = int.lt(index, size)
-          val t: Set[Addr] = if (bool.isTrue(comp)) {
-            content.get(index) match {
-              case Some(a: Addr @unchecked) =>
-                if (bool.isTrue(int.eql(index, index)) && !bool.isFalse(
-                      int.eql(index, index))) {
-                  /* we know index represents a concrete integer, we can return only one address */
-                  Set(a)
-                } else {
-                  /* otherwise, init should be returned as well for soundness */
-                  Set(a, init)
-                }
-              case None => Set(init)
-            }
-          } else { Set() }
-          /* Don't perform bound checks here because we would get too many spurious flows */
-          val f: Set[Addr] = Set()
-          MayFailSuccess(t ++ f)
-        }
-        case (_: Vec[Addr] @unchecked, _) =>
-          MayFailError(
-            List(
-              OperatorNotApplicable("vector-ref",
-                                    List(vector.toString, index.toString))))
-        case _ =>
-          MayFailError(
-            List(
-              OperatorNotApplicable("vector-ref",
-                                    List(vector.toString, index.toString))))
-=======
     def vectorRef[Addr : Address](vector: Value, index: Value): MayFail[Set[Addr]] = (vector, index) match {
-      case (Vec(size, content: Map[I, Addr] @unchecked, init: Addr @unchecked), Int(index)) => {
-        val comp = IntLattice[I].lt(index, size)
-        val t: Set[Addr] = if (BoolLattice[B].isTrue(comp)) {
-          val vals = content.filterKeys(index2 => BoolLattice[B].isTrue(IntLattice[I].eql(index, index2))).values
-          /* init doesn't have to be included if we know for sure that index is precise enough */
-          vals.foldLeft(Set(init))((acc, v) => acc + v)
-        } else { Set() }
-        /* Don't perform bound checks here because we would get too many spurious flows */
-        val f: Set[Addr] = Set()
-        MayFailSuccess(t ++ f)
->>>>>>> 9de48f824fa56370876d922b957948f007216898
-      }
+    case (Vec (size, content: Map[I, Addr]@unchecked, init: Addr@unchecked), Int (index) ) => {
+    val comp = IntLattice[I].lt (index, size)
+    val t: Set[Addr] = if (BoolLattice[B].isTrue (comp) ) {
+    val vals = content.filterKeys (index2 => BoolLattice[B].isTrue (IntLattice[I].eql (index, index2) ) ).values
+      /* init doesn't have to be included if we know for sure that index is precise enough */
+    vals.foldLeft (Set (init) ) ((acc, v) => acc + v)
+    } else {
+    Set ()
+    }
+      /* Don't perform bound checks here because we would get too many spurious flows */
+    val f: Set[Addr] = Set ()
+    MayFailSuccess (t ++ f)
+    }
+    }
 
-<<<<<<< HEAD
-    def vectorSet[Addr: Address](vector: L,
-                                 index: L,
-                                 addr: Addr): MayFail[(L, Set[Addr])] =
-      (vector, index) match {
-        case (
-            Vec(size, content: Map[I, Addr] @unchecked, init: Addr @unchecked),
-            Int(index)) => {
-          val comp = int.lt(index, size)
-          val t: (L, Set[Addr]) = if (bool.isTrue(comp)) {
-            content.get(index) match {
-              case Some(a: Addr @unchecked) => (vector, Set(a))
-              case None =>
-                (Vec(size, content + (index -> addr), init), Set(addr))
-            }
-          } else { (Bot, Set()) }
-          val f: (L, Set[Addr]) = (Bot, Set())
-          MayFailSuccess((join(t._1, f._1), t._2 ++ f._2))
-        }
-        case (_: Vec[Addr] @unchecked, _) =>
-          MayFailError(
-            List(
-              OperatorNotApplicable(
-                "vector-set!",
-                List(vector.toString, index.toString, addr.toString))))
-        case _ =>
-          MayFailError(
-            List(
-              OperatorNotApplicable(
-                "vector-set!",
-                List(vector.toString, index.toString, addr.toString))))
-=======
     def vectorSet[Addr : Address](vector: Value, index: Value, addr: Addr): MayFail[(Value, Set[Addr])] = (vector, index) match {
       case (Vec(size, content: Map[I, Addr] @unchecked, init: Addr @unchecked), Int(index)) => {
         val comp = IntLattice[I].lt(index, size)
@@ -801,35 +695,16 @@ class MakeSchemeLattice[
         } else { (Bot, Set()) }
         val f: (Value, Set[Addr]) = (Bot, Set())
         MayFailSuccess((join(t._1, f._1), t._2 ++ f._2))
->>>>>>> 9de48f824fa56370876d922b957948f007216898
       }
 
-<<<<<<< HEAD
-    def getVectors[Addr: Address](x: L) = x match {
-=======
     def getVectors[Addr : Address](x: Value) = x match {
->>>>>>> 9de48f824fa56370876d922b957948f007216898
       case VectorAddress(a: Addr @unchecked) => Set(a)
       case _ => Set()
     }
 
-<<<<<<< HEAD
-    def vector[Addr: Address](addr: Addr,
-                              size: L,
-                              init: Addr): MayFail[(L, L)] = size match {
-      case Int(size) =>
-        MayFailSuccess((VectorAddress(addr), Vec(size, Map[I, Addr](), init)))
-      case _ =>
-        MayFailError(
-          List(
-            OperatorNotApplicable(
-              "vector",
-              List(addr.toString, size.toString, init.toString))))
-=======
     def vector[Addr : Address](addr: Addr, size: Value, init: Addr): MayFail[(Value, Value)] = size match {
       case Int(size) => MayFailSuccess((VectorAddress(addr), Vec(size, Map[I, Addr](), init)))
       case _ => MayFailError(List(OperatorNotApplicable("vector", List(addr.toString, size.toString, init.toString))))
->>>>>>> 9de48f824fa56370876d922b957948f007216898
     }
   }
 
@@ -851,59 +726,6 @@ class MakeSchemeLattice[
   private def wrap(x: => Value): L = try { Element(x) } catch {
     case err: CannotJoin[Value] @unchecked => Elements(err.values)
   }
-<<<<<<< HEAD
-  implicit val lsetMonoid = new Monoid[LSet] {
-    def append(x: LSet, y: => LSet): LSet = x match {
-      case Element(Bot) => y
-      case Element(a) =>
-        y match {
-          case Element(Bot) => x
-          case Element(b) => wrap(isSchemeLattice.join(a, b))
-          case _: Elements => append(Elements(Set(a)), y)
-        }
-      case Elements(as) =>
-        y match {
-          case Element(Bot) => x
-          case Element(b) => append(x, Elements(Set(b)))
-          case Elements(bs) =>
-            /* every element in the other set has to be joined in this set */
-            Elements(as.foldLeft(bs)((acc, x2) =>
-              if (acc.exists(x1 => isSchemeLattice.subsumes(x1, x2))) {
-                /* the set already contains an element that subsumes x2, don't add it to the set */
-                acc
-              } else {
-                /* remove all elements subsumed by x2 and add x2 to the set */
-                val subsumed =
-                  acc.filter(x1 => isSchemeLattice.subsumes(x2, x1))
-                (acc -- subsumed) + x2
-            }))
-        }
-    }
-    def zero: LSet = Element(Bot)
-  }
-  implicit def mayFailMonoid[A](
-      implicit monoid: Monoid[A]): Monoid[MayFail[A]] =
-    new Monoid[MayFail[A]] {
-      def append(x: MayFail[A], y: => MayFail[A]): MayFail[A] = (x, y) match {
-        case (MayFailSuccess(x), MayFailSuccess(y)) =>
-          MayFailSuccess(monoid.append(x, y))
-        case (MayFailSuccess(x), MayFailError(errs)) =>
-          MayFailBoth(x, errs)
-        case (MayFailSuccess(x), MayFailBoth(y, errs)) =>
-          MayFailBoth(monoid.append(x, y), errs)
-        case (MayFailError(errs), MayFailSuccess(x)) =>
-          MayFailBoth(x, errs)
-        case (MayFailError(errs1), MayFailError(errs2)) =>
-          MayFailError(errs1 ++ errs2)
-        case (MayFailError(errs1), MayFailBoth(x, errs2)) =>
-          MayFailBoth(x, errs1 ++ errs2)
-        case (MayFailBoth(x, errs), MayFailSuccess(y)) =>
-          MayFailBoth(monoid.append(x, y), errs)
-        case (MayFailBoth(x, errs1), MayFailError(errs2)) =>
-          MayFailBoth(x, errs1 ++ errs2)
-        case (MayFailBoth(x, errs1), MayFailBoth(y, errs2)) =>
-          MayFailBoth(monoid.append(x, y), errs1 ++ errs2)
-=======
   implicit def mayFailMonoid[A](implicit monoid: Monoid[A]): Monoid[MayFail[A]] =
     new Monoid[MayFail[A]] {
       def append(x: MayFail[A], y: => MayFail[A]): MayFail[A] = (x, y) match {
@@ -916,7 +738,6 @@ class MakeSchemeLattice[
         case (MayFailBoth(x, errs), MayFailSuccess(y)) => MayFailBoth(monoid.append(x, y), errs)
         case (MayFailBoth(x, errs1), MayFailError(errs2)) => MayFailBoth(x, errs1 ++ errs2)
         case (MayFailBoth(x, errs1), MayFailBoth(y, errs2)) => MayFailBoth(monoid.append(x, y), errs1 ++ errs2)
->>>>>>> 9de48f824fa56370876d922b957948f007216898
       }
       def zero: MayFail[A] = MayFailSuccess(monoid.zero)
     }

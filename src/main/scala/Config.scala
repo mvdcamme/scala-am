@@ -15,7 +15,7 @@ object Config {
   implicit val latticeRead: scopt.Read[Lattice.Value] = scopt.Read.reads(Lattice withName _)
 
   object Language extends Enumeration {
-    val Scheme, AScheme, CScheme = Value
+    val Scheme, AScheme, CScheme, ConcolicScheme = Value
   }
   implicit val languageRead: scopt.Read[Language.Value] = scopt.Read.reads(Language withName _)
 

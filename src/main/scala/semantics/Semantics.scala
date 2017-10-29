@@ -1,31 +1,4 @@
 import scalaz._
-<<<<<<< HEAD
-
-/**
-  * This is where the interface of a language's semantics is defined. By defining
-  * the semantics of a language, you get an abstract abstract machine for free
-  * (but you might need to adapt existing lattices to support values from your
-  * language).
-  *
-  * Semantics should be defined as small-step operational semantics. To define a
-  * semantics, you have to implement the Semantics trait. You'll need to
-  * specialize it on the type of expression of your language (e.g., for ANF,
-  * ANFSemantics specializes on ANFExp). To do so, you need to define what
-  * actions should be taken when:
-  *   1. Evaluating an expression e (stepEval)
-  *   2. Continuing evaluation when a value v has been reached (stepKont)
-  *
-  * To have a simple overview of how semantics should be defined, look at the
-  * ANFSemantics.scala, as it defines semantics of ANF Scheme, a very lightweight
-  * language. A more complex definition resides in SchemeSemantics.scala.
-  */
-trait BasicSemantics[Exp, Abs, Addr, Time] {
-  implicit def abs: JoinLattice[Abs]
-  implicit def addr: Address[Addr]
-  implicit def exp: Expression[Exp]
-  implicit def time: Timestamp[Time]
-
-=======
 import scalaz.Scalaz._
 
 /**
@@ -48,24 +21,6 @@ import scalaz.Scalaz._
  */
 
 abstract class Semantics[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp] {
->>>>>>> 9de48f824fa56370876d922b957948f007216898
-  /**
-    * Binds arguments in the environment and store. Arguments are given as a list
-    * of triple, where each triple is made of:
-    *   - the name of the argument
-    *   - the expression evaluated to get the argument's value
-    *   - the value of the argument
-    */
-  def bindArgs(l: List[(String, (Exp, Abs))],
-               ρ: Environment[Addr],
-               σ: Store[Addr, Abs],
-               t: Time): (Environment[Addr], Store[Addr, Abs], List[(Addr, Abs)]) =
-    l.foldLeft[(Environment[Addr], Store[Addr, Abs], List[(Addr, Abs)])]((ρ, σ, Nil))({
-      case ((env, store, boundAddresses), (name, (exp, value))) => {
-        val a = addr.variable(name, value, t)
-        (env.extend(name, a), store.extend(a, value), (a, value) :: boundAddresses)
-      }
-    })
 
   /**
     * Defines how to parse a program
@@ -206,14 +161,6 @@ trait SemanticsTraced[Exp, Abs, Addr, Time]
 
   /** Defines the elements in the initial environment/store */
   def initialBindings: Iterable[(String, Addr, Abs)] = List()
-<<<<<<< HEAD
-  def initialEnv: Iterable[(String, Addr)] =
-    initialBindings.map({ case (name, a, _) => (name, a) })
-  def initialStore: Iterable[(Addr, Abs)] =
-    initialBindings.map({ case (_, a, v) => (a, v) })
-
-  def getClosureBody(frame: Frame): Option[List[Exp]]
-=======
   def initialEnv: Iterable[(String, Addr)] = initialBindings.map({ case (name, a, _) => (name, a) })
   def initialStore: Iterable[(Addr, Abs)] = initialBindings.map({ case (_, a, v) => (a, v) })
 
@@ -245,6 +192,17 @@ trait SemanticsTraced[Exp, Abs, Addr, Time]
       val a = Address[Addr].variable(id, value, t)
       (env.extend(id.name, a), store.extend(a, value))
     }})
+
+  /**
+    * Similar to bindArgs(List[(Identifier, Abs)], Environment[Addr], Store[Addr, Abs], Time),
+    * but also returns the list of addresses that was allocated while binding the arguments.
+    */
+  protected def bindArgs(l: List[(Identifier, Exp, Abs)], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): (Environment[Addr], Store[Addr, Abs], List[(Addr, Abs)]) =
+    l.foldLeft((ρ, σ, Nil: List[(Addr, Abs)]))({ case ((env, store, boundAddresses), (id, exp, value)) => {
+        val a = Address[Addr].variable(id, value, t)
+        (env.extend(id, a), store.extend(a, value), (a, value) :: boundAddresses)
+      }
+    })
 }
 
 class SemanticsWithAnalysis[L, Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp](sem: Semantics[Exp, Abs, Addr, Time], analysis: Analysis[L, Exp, Abs, Addr, Time])
@@ -260,7 +218,6 @@ class SemanticsWithAnalysis[L, Exp : Expression, Abs : JoinLattice, Addr : Addre
   }
   def parse(program: String) = sem.parse(program)
   def analysisResult: L = st
->>>>>>> 9de48f824fa56370876d922b957948f007216898
 }
 
 /**
@@ -284,9 +241,6 @@ abstract class Effect[Addr: Address] {
   val target: Addr
 }
 
-<<<<<<< HEAD
-case class EffectReadVariable[Addr: Address](target: Addr)
-=======
 object Effect {
   def none[Addr : Address]: Set[Effect[Addr]] = Set.empty
   def readVariable[Addr : Address](target: Addr): Effect[Addr] = EffectReadVariable(target)
@@ -294,7 +248,6 @@ object Effect {
 }
 
 case class EffectReadVariable[Addr : Address](target: Addr)
->>>>>>> 9de48f824fa56370876d922b957948f007216898
     extends Effect[Addr] {
   val kind = ReadEffect
   override def toString = s"R$target"
@@ -343,28 +296,6 @@ case class EffectRelease[Addr: Address](target: Addr) extends Effect[Addr] {
 }
 
 /**
-<<<<<<< HEAD
-  * The different kinds of actions that can be taken by the abstract machine
-  */
-abstract class Action[Exp: Expression, Abs: JoinLattice, Addr: Address]
-
-/**
-  * An action that does not do anything at all.
-  */
-case class ActionNoOp[Exp: Expression, Abs: JoinLattice, Addr: Address]()
-  extends Action[Exp, Abs, Addr] with ActionReplay[Exp, Abs, Addr]
-
-/**
-  * A value is reached by the interpreter. As a result, a continuation will be
-  * popped with the given reached value.
-  */
-case class ActionReachedValue[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    v: Abs,
-    store: Store[Addr, Abs],
-    effects: Set[Effect[Addr]] = Set[Effect[Addr]]())
-    extends Action[Exp, Abs, Addr]
-
-=======
  * The different kinds of actions that can be taken by the abstract machine
  */
 abstract class Action[Exp : Expression, Abs : JoinLattice, Addr : Address] {
@@ -401,7 +332,6 @@ case class ActionReachedValue[Exp : Expression, Abs : JoinLattice, Addr : Addres
     extends Action[Exp, Abs, Addr] {
   def addEffects(effs: Set[Effect[Addr]]) = this.copy(effects = effects ++ effs)
 }
->>>>>>> 9de48f824fa56370876d922b957948f007216898
 /**
   * A frame needs to be pushed on the stack, and the interpretation continues by
   * evaluating expression e in environment env
@@ -412,14 +342,9 @@ case class ActionPush[Exp: Expression, Abs: JoinLattice, Addr: Address](
     env: Environment[Addr],
     store: Store[Addr, Abs],
     effects: Set[Effect[Addr]] = Set[Effect[Addr]]())
-<<<<<<< HEAD
-    extends Action[Exp, Abs, Addr]
-
-=======
     extends Action[Exp, Abs, Addr] {
   def addEffects(effs: Set[Effect[Addr]]) = this.copy(effects = effects ++ effs)
 }
->>>>>>> 9de48f824fa56370876d922b957948f007216898
 /**
   * Evaluation continues with expression e in environment env
   */
@@ -428,14 +353,9 @@ case class ActionEval[Exp: Expression, Abs: JoinLattice, Addr: Address](
     env: Environment[Addr],
     store: Store[Addr, Abs],
     effects: Set[Effect[Addr]] = Set[Effect[Addr]]())
-<<<<<<< HEAD
-    extends Action[Exp, Abs, Addr]
-
-=======
     extends Action[Exp, Abs, Addr] {
   def addEffects(effs: Set[Effect[Addr]]) = this.copy(effects = effects ++ effs)
 }
->>>>>>> 9de48f824fa56370876d922b957948f007216898
 /**
   * Similar to ActionEval, but only used when stepping inside a function's body
   * (clo is therefore the function stepped into). The expressions and values of
@@ -450,31 +370,6 @@ case class ActionStepIn[Exp: Expression, Abs: JoinLattice, Addr: Address](
     store: Store[Addr, Abs],
     argsv: List[(Exp, Abs)],
     effects: Set[Effect[Addr]] = Set[Effect[Addr]]())
-<<<<<<< HEAD
-    extends Action[Exp, Abs, Addr]
-
-/**
-  * An error has been reached
-  */
-case class ActionError[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    error: SemanticError)
-    extends Action[Exp, Abs, Addr]
-trait SemanticError
-case class OperatorNotApplicable(name: String, arguments: List[String])
-    extends SemanticError
-case class ArityError(name: String, expected: Int, got: Int)
-    extends SemanticError
-case class VariadicArityError(name: String, min: Int, got: Int)
-    extends SemanticError
-case class TypeError(name: String,
-                     operand: String,
-                     expected: String,
-                     got: String)
-    extends SemanticError
-case class UserError(reason: String, pos: scala.util.parsing.input.Position)
-    extends SemanticError
-case class UnboundVariable(name: String) extends SemanticError
-=======
     extends Action[Exp, Abs, Addr] {
   def addEffects(effs: Set[Effect[Addr]]) = this.copy(effects = effects ++ effs)
 }
@@ -493,48 +388,11 @@ case class VariadicArityError(name: String, min: Int, got: Int) extends Semantic
 case class TypeError(name: String, operand: String, expected: String, got: String) extends SemanticError
 case class UserError(reason: String, pos: Position) extends SemanticError
 case class UnboundVariable(name: Identifier) extends SemanticError
->>>>>>> 9de48f824fa56370876d922b957948f007216898
 case class UnboundAddress(addr: String) extends SemanticError
 case class MessageNotSupported(actor: String, message: String, supported: List[String]) extends SemanticError
 case class NotSupported(reason: String) extends SemanticError
 
 /**
-<<<<<<< HEAD
-  * Spawns a new thread that evaluates expression e in environment ρ. The current
-  * thread continues its execution by performing action act.
-  */
-case class ActionSpawn[TID: ThreadIdentifier,
-                       Exp: Expression,
-                       Abs: JoinLattice,
-                       Addr: Address](t: TID,
-                                      e: Exp,
-                                      env: Environment[Addr],
-                                      act: Action[Exp, Abs, Addr],
-                                      effects: Set[Effect[Addr]] =
-                                        Set[Effect[Addr]]())
-    extends Action[Exp, Abs, Addr]
-
-/**
-  * Waits for the execution of a thread, with tid as its identifier.
-  */
-case class ActionJoin[Exp: Expression, Abs: JoinLattice, Addr: Address](
-    tid: Abs,
-    store: Store[Addr, Abs],
-    effects: Set[Effect[Addr]] = Set[Effect[Addr]]())
-    extends Action[Exp, Abs, Addr]
-
-/**
-  * Base class for semantics that define some helper methods
-  */
-abstract class BaseSemantics[
-    Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
-    extends Semantics[Exp, Abs, Addr, Time] {
-  /* wtf scala */
-  def abs = implicitly[JoinLattice[Abs]]
-  def addr = implicitly[Address[Addr]]
-  def exp = implicitly[Expression[Exp]]
-  def time = implicitly[Timestamp[Time]]
-=======
  * Spawns a new thread that evaluates expression e in environment ρ. The current
  * thread continues its execution by performing action act.
  */
@@ -592,15 +450,4 @@ case class ActorActionTerminate[Exp : Expression, Abs : JoinLattice, Addr : Addr
   (effects: Set[Effect[Addr]] = Set[Effect[Addr]]())
     extends Action[Exp, Abs, Addr] {
   def addEffects(effs: Set[Effect[Addr]]) = this.copy(effects = effects ++ effs)
->>>>>>> 9de48f824fa56370876d922b957948f007216898
-}
-
-abstract class BaseSemanticsTraced[Exp: Expression, Abs: JoinLattice,
-Addr: Address, Time: Timestamp](val primitives: Primitives[Addr, Abs])
-    extends SemanticsTraced[Exp, Abs, Addr, Time] {
-  /* wtf scala */
-  def abs = implicitly[JoinLattice[Abs]]
-  def addr = implicitly[Address[Addr]]
-  def exp = implicitly[Expression[Exp]]
-  def time = implicitly[Timestamp[Time]]
 }

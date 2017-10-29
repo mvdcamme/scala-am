@@ -46,14 +46,11 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     extends StateTrait[Exp, Abs, Addr, Time] {
     override def toString = control.toString
 
-<<<<<<< HEAD
     def isErrorState: Boolean = control match {
       case _: ControlError => true
       case _ => false
     }
 
-=======
->>>>>>> 9de48f824fa56370876d922b957948f007216898
     /**
       * Checks whether a states subsumes another, i.e., if it is "bigger". This
       * is used to perform subsumption checking when exploring the state space,
@@ -68,7 +65,6 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
                               actions: List[ActionReplay[Exp, Abs, Addr]])
 
     /**
-<<<<<<< HEAD
       * Integrates a set of actions (returned by the semantics, see
       * Semantics.scala), in order to generate a set of states that succeeds this
       * one.
@@ -121,27 +117,6 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
                            filters,
                            actions)
         }
-=======
-     * Integrates a set of actions (returned by the semantics, see
-     * Semantics.scala), in order to generate a set of states that succeeds this
-     * one.
-     */
-    private def integrate(a: KontAddr, actions: Set[Action[Exp, Abs, Addr]]): Set[State] =
-      actions.flatMap({
-        /* When a value is reached, we go to a continuation state */
-        case ActionReachedValue(v, store, _) => Set(State(ControlKont(v), store, kstore, a, Timestamp[Time].tick(t)))
-        /* When a continuation needs to be pushed, push it in the continuation store */
-        case ActionPush(frame, e, env, store, _) => {
-          val next = NormalKontAddress(e, t)
-          Set(State(ControlEval(e, env), store, kstore.extend(next, Kont(frame, a)), next, Timestamp[Time].tick(t)))
-        }
-        /* When a value needs to be evaluated, we go to an eval state */
-        case ActionEval(e, env, store, _) => Set(State(ControlEval(e, env), store, kstore, a, Timestamp[Time].tick(t)))
-        /* When a function is stepped in, we also go to an eval state */
-        case ActionStepIn(fexp, _, e, env, store, _, _) => Set(State(ControlEval(e, env), store, kstore, a, Timestamp[Time].tick(t, fexp)))
-        /* When an error is reached, we go to an error state */
-        case ActionError(err) => Set(State(ControlError(err), store, kstore, a, Timestamp[Time].tick(t)))
->>>>>>> 9de48f824fa56370876d922b957948f007216898
       })
 
     def addActionPopKontT(actions: List[ActionReplay[Exp, Abs, Addr]]): List[ActionReplay[Exp, Abs, Addr]] =
@@ -242,11 +217,24 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
                env: Iterable[(String, Addr)],
                store: Iterable[(Addr, Abs)]) =
       State(ControlEval(exp, Environment.initial[Addr](env)),
-<<<<<<< HEAD
-            Store.initial[Addr, Abs](store),
-            KontStore.empty[KontAddr],
-            HaltKontAddress,
-            time.initial(""))
+        Store.initial[Addr, Abs](store), KontStore.empty[KontAddr], HaltKontAddress, Timestamp[Time].initial(""))
+    import scala.language.implicitConversions
+
+    implicit val graphNode = new GraphNode[State, Unit] {
+      override def label(s: State) = s.toString
+      override def color(s: State) = if (s.halted) { Colors.Yellow } else { s.control match {
+        case _: ControlEval => Colors.Green
+        case _: ControlKont => Colors.Pink
+        case _: ControlError => Colors.Red
+      }}
+
+      import org.json4s._
+      import org.json4s.JsonDSL._
+      import org.json4s.jackson.JsonMethods._
+      import JSON._
+      override def content(s: State) =
+        ("control" -> s.control) ~ ("store" -> s.store) ~ ("kstore" -> s.kstore) ~ ("kont" -> s.a.toString) ~ ("time" -> s.t.toString)
+    }
   }
 
   class StateDescriptor extends Descriptor[State] {
@@ -787,15 +775,6 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       storeDiff1.keys.isEmpty && storeDiff2.keys.isEmpty
     }
 
-//    (e1, e2) match {
-//      case x: (NormalKontAddress[Exp, HybridTimestamp.T], NormalKontAddress[Exp, HybridTimestamp.T]) => x match {
-//        case ()
-//      }
-//        if (x._1.)
-//      case _ =>
-//        false
-//    }
-
     /**
       * Expects that ka1 is the address using the concrete timestamps
       * @param ka1
@@ -848,25 +827,6 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       }
     }
 
-=======
-        Store.initial[Addr, Abs](store), KontStore.empty[KontAddr], HaltKontAddress, Timestamp[Time].initial(""))
-    import scala.language.implicitConversions
-
-    implicit val graphNode = new GraphNode[State, Unit] {
-      override def label(s: State) = s.toString
-      override def color(s: State) = if (s.halted) { Colors.Yellow } else { s.control match {
-        case _: ControlEval => Colors.Green
-        case _: ControlKont => Colors.Pink
-        case _: ControlError => Colors.Red
-      }}
-
-      import org.json4s._
-      import org.json4s.JsonDSL._
-      import org.json4s.jackson.JsonMethods._
-      import JSON._
-      override def content(s: State) =
-        ("control" -> s.control) ~ ("store" -> s.store) ~ ("kstore" -> s.kstore) ~ ("kont" -> s.a.toString) ~ ("time" -> s.t.toString)
-    }
   }
 
   type G = Option[Graph[State, Unit, Unit]]

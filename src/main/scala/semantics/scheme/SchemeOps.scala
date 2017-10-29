@@ -1,52 +1,6 @@
 object SchemeOps {
 
   /** These are the unary operations that should be supported by Scheme lattices */
-<<<<<<< HEAD
-  trait UnaryOperator
-  /* Checks the type of a value */
-  case object IsNull extends UnaryOperator
-  case object IsCons extends UnaryOperator
-  case object IsChar extends UnaryOperator
-  case object IsSymbol extends UnaryOperator
-  case object IsString extends UnaryOperator
-  case object IsInteger extends UnaryOperator
-  case object IsFloat extends UnaryOperator
-  case object IsBoolean extends UnaryOperator
-  case object IsVector extends UnaryOperator
-  /* Negate a value */
-  case object Not extends UnaryOperator
-  /* Unary arithmetic operations */
-  case object Ceiling extends UnaryOperator
-  case object Log extends UnaryOperator
-  case object Random extends UnaryOperator
-  /* Length operations */
-  case object VectorLength extends UnaryOperator
-  case object StringLength extends UnaryOperator
-  /* Conversions */
-  case object NumberToString extends UnaryOperator
-  case object StringToSymbol extends UnaryOperator
-  case object SymbolToString extends UnaryOperator
-
-  /** Binary operations thatt should be supported by lattices */
-  trait BinaryOperator
-  /* Arithmetic operations */
-  case object Plus extends BinaryOperator
-  case object PlusFloat extends BinaryOperator /* Plus specialized for floating-point values */
-  case object PlusInteger extends BinaryOperator /* Plus specialized for integer values */
-  case object Minus extends BinaryOperator
-  case object MinusFloat extends BinaryOperator /* Minus specialized for floating-point values */
-  case object MinusInteger extends BinaryOperator /* Minus specialized for integer values */
-  case object Times extends BinaryOperator
-  case object Div extends BinaryOperator
-  case object Modulo extends BinaryOperator
-  /* Arithmetic comparison */
-  case object Lt extends BinaryOperator
-  /* Equality checking */
-  case object NumEq extends BinaryOperator /* number equality */
-  case object Eq extends BinaryOperator /* physical equality */
-  /* String operations */
-  case object StringAppend extends BinaryOperator
-=======
   object UnaryOperator extends Enumeration {
     val
       /* Check the type of a value */
@@ -80,7 +34,6 @@ object SchemeOps {
     = Value
   }
   type BinaryOperator = BinaryOperator.Value
->>>>>>> 9de48f824fa56370876d922b957948f007216898
 
   /** Modulo in Scheme and Scala are different. This implements the same behavior as Scheme's modulo */
   def modulo(n1: Int, n2: Int): Int =

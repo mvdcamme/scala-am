@@ -25,6 +25,8 @@ object Util {
   object Done extends Exception
   /** Either run cb on the content of the given file, or run a REPL, each line being sent to cb */
   def replOrFile[A](file: Option[String], cb: String => A): Unit = {
+    file.foreach(GlobalFlags.CURRENT_PROGRAM = _)
+
     lazy val reader = new jline.console.ConsoleReader()
     @scala.annotation.tailrec
     def loop(): Unit = Option(reader.readLine(">>> ")) match {
