@@ -1,14 +1,10 @@
-import ConcreteConcreteLattice.ConcreteValue
+import ConcreteConcreteLattice.{ L => ConcreteValue }
 
-class IncrementalPointsToAnalysis[Exp : Expression,
-                                  Abs : IsSchemeLattice,
-                                  Addr : Address,
-                                  Time : Timestamp,
-                                  State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
-                                 (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr]]])
+class IncrementalPointsToAnalysis[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp, State <: StateTrait[Exp, Abs, Addr, Time]]
+                                 (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr], Unit]])
                                  (implicit actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State],
                                            stateInfoProvider: StateInfoProvider[Exp, Abs, Addr, Time, State],
-                                           analysisFlags: AnalysisFlags) {
+                                           analysisFlags: AnalysisFlags, g: GraphNode[State, Unit]) {
 
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
@@ -55,7 +51,7 @@ class IncrementalPointsToAnalysis[Exp : Expression,
     lastPropagatedGraph
   }
 
-  def applyEdgeActions(convertedState: State, stepCount: Int): Option[AbstractGraph] = {
+  def applyEdgeActions(convertedState: State, stepCount: Int)(implicit g: GraphNode[State, Unit]): Option[AbstractGraph] = {
     assertInitialized()
     Logger.log(s"Propagating run-time info for step $stepCount with current nodes $currentNodes", Logger.U)
     lastPropagatedGraph = Some(propagateRunTimeInfo.applyEdgeActions(convertedState, stepCount, currentNodes,
@@ -89,8 +85,6 @@ class IncrementalPointsToAnalysis[Exp : Expression,
         val errorsDiff1 = joinedState1.errors.diff(joinedState2.errors)
         val errorsDiff2 = joinedState2.errors.diff(joinedState1.errors)
 //        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: $diff1\nkstore2 - kstore1: $diff2", Logger.U)
-//        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: ${kdiff1.descriptor.describe(kdiff1)}\n\n\n\n##########" +
-//                   s"\n\n\n\n\n\nkstore2 - kstore1: ${kdiff2.descriptor.describe(kdiff2)}", Logger.U)
 //        Logger.log(s"Graphs are not the same:\n$joinedState1\n$joinedState2", Logger.U)
         Logger.log(s"Diff of store:\nstore1 - store2: $diff1\nstore2 - store1: $diff2", Logger.U)
         Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: $kdiff1\nkstore2 - kstore1: $kdiff2", Logger.U)

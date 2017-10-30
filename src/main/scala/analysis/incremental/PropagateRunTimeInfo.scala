@@ -4,8 +4,8 @@ class PropagateRunTimeInfo[Exp: Expression,
                            Abs: IsSchemeLattice,
                            Addr: Address,
                            Time: Timestamp,
-                           State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
-                          (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr]]])
+                           State <: StateTrait[Exp, Abs, Addr, Time]]
+                          (graphPrinter: GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr], Unit]])
                           (implicit actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State],
                                     stateInfoProvider: StateInfoProvider[Exp, Abs, Addr, Time, State],
                                     analysisFlags: AnalysisFlags) {
@@ -435,18 +435,9 @@ class PropagateRunTimeInfo[Exp: Expression,
     }
   }
 
-  def convertGraph[Node: Descriptor, EdgeAnnotation, NewEdgeAnnotation](g: Graph[Node, EdgeAnnotation],
-                                                                        f: EdgeAnnotation => NewEdgeAnnotation): Graph[Node, NewEdgeAnnotation] = {
-    val newValues: Map[Node, Set[(NewEdgeAnnotation, Node)]] = g.edges.mapValues((value: Set[(EdgeAnnotation, Node)]) =>
-      value.map((value: (EdgeAnnotation, Node)) => (f(value._1), value._2)))
-    new HyperlinkedGraph[Node, NewEdgeAnnotation](g.ids, g.next, g.nodes, newValues)
-  }
-
-  def applyEdgeActions(convertedState: State,
-                       stepCount: Int,
-                       rootNodes: Set[State],
-                       initialGraph: AbstractGraph,
-                       prunedGraph: AbstractGraph): AbstractGraph = {
+  def applyEdgeActions(convertedState: State, stepCount: Int, rootNodes: Set[State],
+                       initialGraph: AbstractGraph, prunedGraph: AbstractGraph)
+                      (implicit g: GraphNode[State, Unit], a: GraphAnnotation[EdgeAnnotation2, Unit]): AbstractGraph = {
     rootNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.U))
     if (analysisFlags.skipIterationOptimisation && rootNodes.size == 1 && rootNodes.head == convertedState) {
       Logger.log(s"Skipping propagation phase because convertedState equals single root state", Logger.U)
@@ -457,12 +448,7 @@ class PropagateRunTimeInfo[Exp: Expression,
        * this set ought to correspond with this concrete state.
        */
       val rootStateCombos = rootNodes.map( (state) => StateCombo(state, convertedState) )
-      evalLoop(TodoPair.init(rootStateCombos),
-               Set(),
-               new HyperlinkedGraph[State, EdgeAnnotation2](convertedState),
-               stepCount,
-               initialGraph,
-               prunedGraph)
+      evalLoop(TodoPair.init(rootStateCombos), Set(), Graph.empty[State, EdgeAnnotation2, Unit].addNode(convertedState), stepCount, initialGraph, prunedGraph)
     }
   }
 

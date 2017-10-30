@@ -22,7 +22,7 @@ object ExplorationTypeParser extends scala.util.parsing.combinator.RegexParsers 
 }
 
 class ConcurrentAAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp, TID : ThreadIdentifier](exploration: ExplorationType)
-    extends AbstractMachine[Exp, Abs, Addr, Time] {
+  extends AbstractMachine[Exp, Abs, Addr, Time] {
   def abs = implicitly[JoinLattice[Abs]]
   def addr = implicitly[Address[Addr]]
   def exp = implicitly[Expression[Exp]]
@@ -46,7 +46,7 @@ class ConcurrentAAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : 
 
   case class Context(control: Control, kstore: KontStore[KontAddr], a: KontAddr, t: Time) {
     def integrate1(tid: TID, a: KontAddr, action: Action[Exp, Abs, Addr])(threads: ThreadMap, oldstore: Store[Addr, Abs], results: ThreadResults):
-        Set[(ThreadMap, ThreadResults, Store[Addr, Abs], Effects)] = action match {
+    Set[(ThreadMap, ThreadResults, Store[Addr, Abs], Effects)] = action match {
       case ActionReachedValue(v, store, effs) => Set((threads.update(tid, Context(ControlKont(v), kstore, a, time.tick(t))), results, store, effs))
       case ActionPush(frame, e, ρ, store, effs) => {
         val next = NormalKontAddress(e, t)
@@ -68,11 +68,11 @@ class ConcurrentAAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : 
     }
 
     def integrate(tid: TID, a: KontAddr, actions: Set[Action[Exp, Abs, Addr]], threads: ThreadMap, store: Store[Addr, Abs], results: ThreadResults):
-        (Set[(ThreadMap, ThreadResults, Store[Addr, Abs], Effects)]) =
+    (Set[(ThreadMap, ThreadResults, Store[Addr, Abs], Effects)]) =
       actions.flatMap(action => integrate1(tid, a, action)(threads, store, results))
 
     def step(sem: Semantics[Exp, Abs, Addr, Time], tid: TID, store: Store[Addr, Abs], threads: ThreadMap, results: ThreadResults):
-        (Set[(ThreadMap, ThreadResults, Store[Addr, Abs], Effects)]) = control match {
+    (Set[(ThreadMap, ThreadResults, Store[Addr, Abs], Effects)]) = control match {
       case ControlEval(e, ρ) => integrate(tid, a, sem.stepEval(e, ρ, store, t), threads, store, results)
       case ControlKont(v) if halted && tid != thread.initial =>
         /* TODO: we could avoid distinguishing the initial thread, and just get the
@@ -193,7 +193,7 @@ class ConcurrentAAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : 
   }
 
   case class ConcurrentAAMOutput(halted: Set[State], numberOfStates: Int, time: Double, graph: Option[G], timedOut: Boolean)
-      extends Output {
+    extends Output {
     def finalValues = halted.flatMap(st => st.threads.get(thread.initial).flatMap(ctx => ctx.control match {
       case ControlKont(v) => Set[Abs](v)
       case _ => Set[Abs]()
@@ -256,7 +256,7 @@ class ConcurrentAAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : 
   private def effectsOf(transitions: Set[(Effects, State)]): Effects =
     transitions.flatMap(_._1)
   private def dependent(eff1: Effect[Addr], eff2: Effect[Addr]): Boolean =
-      (eff1.target == eff2.target && (eff1.kind |+| eff2.kind) == WriteEffect)
+    (eff1.target == eff2.target && (eff1.kind |+| eff2.kind) == WriteEffect)
   private def dependent(effs1: Effects, effs2: Effects): Boolean =
     (effs1.foldLeft(false)((acc, eff1) => effs2.foldLeft(acc)((acc, eff2) => acc || dependent(eff1, eff2))))
 
@@ -308,7 +308,7 @@ class ConcurrentAAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : 
               dom(stack).sortWith(_ > _).find(i => isDependentAndCoEnabled(next, stack, i) && !happensBefore(clocks, stack, i, p)) match {
                 case Some(i: Int) => /* found an exesting i */
                   val preSi: State = pre(stack, i) /* computes pre(S,i) in 'preSi' */
-                  val enabledTr: Set[TID] = enabled(preSi) /* computes enabled(pre(S,i)) in 'enabledTr' */
+                val enabledTr: Set[TID] = enabled(preSi) /* computes enabled(pre(S,i)) in 'enabledTr' */
                   /* DPOR: if (p \in enabled(pre(S,i))) { */
                   if (enabledTr.contains(p)) {
                     /* DPOR: then add p to backtrack(pre(S,i)); */
@@ -330,7 +330,7 @@ class ConcurrentAAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : 
           case Some((p: TID @unchecked, results)) => /* at least one transition enabled */
             if (results.size > 1) {
               throw CannotHandle /* more than one successor */
-          } else {
+            } else {
               results.headOption match {
                 case Some(_) => {
                   /* DPOR: backtrack(s) := {p}; */

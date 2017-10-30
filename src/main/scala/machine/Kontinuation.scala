@@ -7,9 +7,7 @@ trait Frame {
   }
 }
 
-trait KontAddress[A] {
-  def descriptor: Descriptor[KontAddress[A]] = new BasicDescriptor[KontAddress[A]]
-}
+trait KontAddress[A]
 
 case class Kont[KontAddr: KontAddress](frame: Frame, next: KontAddr) {
   def subsumes(that: Kont[KontAddr]) = that match {
@@ -53,8 +51,6 @@ abstract class KontStore[KontAddr : KontAddress] {
     * @return A new KontStore in which all Konts value that map to a have been removed.
     */
   def remove(a: KontAddr): KontStore[KontAddr]
-
-  def descriptor: Descriptor[KontStore[KontAddr]] = new BasicDescriptor[KontStore[KontAddr]]
 }
 
 case class BasicKontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kont[KontAddr]]]) extends KontStore[KontAddr] {
@@ -114,35 +110,6 @@ case class BasicKontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kon
   def remove(a: KontAddr): KontStore[KontAddr] = {
     this.copy(content = content - a)
   }
-
-  override def descriptor = new BasicKontStoreDescriptor[KontAddr]
-}
-
-class BasicKontStoreDescriptor[KontAddr : KontAddress] extends Descriptor[BasicKontStore[KontAddr]] {
-
-  val kontAddrDescriptor = implicitly[KontAddress[KontAddr]].descriptor
-
-  private def describeKonts(konts: Set[Kont[KontAddr]]): String = {
-    describeCollapsableList(konts, "Konts", (kont: Kont[KontAddr]) => {
-      putIntoCollapsableList(List(kont.frame.toString, kontAddrDescriptor.describe(kont.next)), kont.toString)
-    })
-  }
-
-  private def describeAddressKontTuple(tuple: (KontAddr, Set[Kont[KontAddr]])): String = tuple match {
-    case (ka, konts) =>
-      val kaDescription = kontAddrDescriptor.describe(ka)
-      val kontsDescription = describeKonts(konts)
-      val descriptions = List(kaDescription, kontsDescription)
-      putIntoCollapsableList(descriptions, ka.toString)
-  }
-
-  override def describe[U >: BasicKontStore[KontAddr]](kstore: U): String = kstore match {
-    case kstore: BasicKontStore[KontAddr] =>
-      describeCollapsableList(kstore.content, "KontStore", describeAddressKontTuple, divClass = Some("kstore"))
-    case _ =>
-      kstore.toString
-  }
-
 }
 
 case class TimestampedKontStore[KontAddr : KontAddress](content: Map[KontAddr, Set[Kont[KontAddr]]], timestamp: Int) extends KontStore[KontAddr] {

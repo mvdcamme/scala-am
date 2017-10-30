@@ -4,14 +4,21 @@ import SchemeOps._
 import UnaryOperator._
 import BinaryOperator._
 
-class MakeSchemeLattice[
-S : StringLattice,
-B : BoolLattice,
-I : IntLattice,
-F : RealLattice,
-C : CharLattice,
-Sym : SymbolLattice
-](supportsCounting: Boolean) extends SchemeConvertableLattice {
+class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
+  type S = Concrete.S
+  type B = Concrete.B
+  type I = Concrete.I
+  type F = Concrete.F
+  type C = Concrete.C
+  type Sym = Concrete.Sym
+
+  implicit val isStringLattice: StringLattice[S] = Concrete.L.stringConcrete
+  implicit val isBoolLattice: BoolLattice[B] = Concrete.L.boolConcrete
+  implicit val isIntLattice: IntLattice[I] = Concrete.L.intConcrete
+  implicit val isRealLattice: RealLattice[F] = Concrete.L.floatConcrete
+  implicit val isCharLattice: CharLattice[C] = Concrete.L.charConcrete
+  implicit val isSymbolLattice: SymbolLattice[Sym] = Concrete.L.symConcrete
+
   sealed trait Value
   case object Bot extends Value {
     override def toString = "⊥"
@@ -64,7 +71,62 @@ Sym : SymbolLattice
     override def toString = "CannotJoin(" + values.mkString(", ") + ")"
   }
 
-  val isSchemeLatticeValue: IsSchemeLattice[Value] = new IsSchemeLattice[Value] {
+  class IsSchemeLatticeValueImpl extends IsSchemeLattice[Value] with PointsToLatticeInfoProvider[L] {
+
+    def simpleType(x: L): SimpleTypes.Value = x match {
+      case Element(Bool(_)) => SimpleTypes.Boolean
+      case Element(Bot) => SimpleTypes.Bottom
+      case Element(Char(_)) => SimpleTypes.Char
+      case Element(Closure(_, _)) => SimpleTypes.Closure
+      case Element(Cons(_, _)) => SimpleTypes.Cons
+      case Element(Real(_)) => SimpleTypes.Float
+      case Element(Int(_)) => SimpleTypes.Integer
+      case Element(Nil) => SimpleTypes.Nil
+      case Element(Prim(_)) => SimpleTypes.Primitive
+      case Element(Str(_)) => SimpleTypes.String
+      case Element(Symbol(_)) => SimpleTypes.Symbol
+      case Element(Vec(_, _, _)) => SimpleTypes.Vector
+      case Element(VectorAddress(_)) => SimpleTypes.VectorAddress
+      case _ => SimpleTypes.Top
+    }
+
+    def pointsTo(x: L): Option[scala.Int] = {
+      def pointsTo(value: Value): Boolean = value match {
+        case Symbol(_) | Prim(_) | Closure(_, _) | Cons(_, _) | Vec(_, _, _) | VectorAddress(_) => true
+        case _ => false
+      }
+
+      x match {
+        case Element(value) => if (pointsTo(value)) Some(1) else Some(0)
+        case Elements(values) => values.foldLeft[Option[scala.Int]](Some(0))((
+        acc,
+        value
+        ) => acc.flatMap((res) => Some(if (pointsTo(value)) 1 else 0)))
+      }
+    }
+
+    def reaches[Addr: Address](
+      x: L,
+      reachesEnv: Environment[Addr] => Set[Addr],
+      reachesAddress: Addr => Set[Addr]
+    ): Set[Addr] = {
+      def reachesValue(v: Value): Set[Addr] = v match {
+        case Closure(_, env) => reachesEnv(env.asInstanceOf[Environment[Addr]])
+        case Cons(car, cdr) => reachesAddress(car.asInstanceOf[Addr]) ++ reachesAddress(cdr.asInstanceOf[Addr])
+        case v: Vec[Addr] => reachesAddress(v.init) ++ v.elements.foldLeft[Set[Addr]](Set())((
+        acc,
+        pair
+        ) => acc ++ reachesAddress(pair._2))
+        case v: VectorAddress[Addr] => reachesAddress(v.a)
+        case _ => Set[Addr]()
+      }
+
+      x match {
+        case Element(v) => reachesValue(v)
+        case Elements(vs) => vs.foldLeft(Set[Addr]())((acc, v) => acc ++ reachesValue(v))
+      }
+    }
+
     def bottom = Bot
 
     def join(x: Value, y: Value): Value = if (x == y) {
@@ -97,7 +159,7 @@ Sym : SymbolLattice
     }
 
     val name = s"Lattice(${StringLattice[S].name}, ${BoolLattice[B].name}, ${IntLattice[I].name}, ${RealLattice[F].name}, ${CharLattice[C].name}, ${SymbolLattice[Sym].name})"
-    val counting = supportsCounting
+    val counting: Boolean = true
 
     def isPrimitiveValue(x: Value): Boolean = x match {
       case Bot | Str(_) | Bool(_) | Int(_) | Real(_) | Char(_) | Symbol(_) | Nil => true
@@ -546,7 +608,7 @@ Sym : SymbolLattice
 
   val isConvertableSchemeLattice: IsConvertableLattice[L] = new IsConvertableLattice[L] {
     val name = s"SetLattice(${StringLattice[S].name}, ${BoolLattice[B].name}, ${IntLattice[I].name}, ${RealLattice[F].name}, ${CharLattice[C].name}, ${SymbolLattice[Sym].name})"
-    val counting = supportsCounting
+    val counting: Boolean = true
 
     def isTrue(x: L): Boolean = foldMapL(x, isSchemeLatticeValue.isTrue(_))(boolOrMonoid)
     def isFalse(x: L): Boolean = foldMapL(x, isSchemeLatticeValue.isFalse(_))(boolOrMonoid)
@@ -598,63 +660,66 @@ Sym : SymbolLattice
   val isSchemeLattice: IsConvertableLattice[L] = isConvertableSchemeLattice
   val isJoinLattice: JoinLattice[L] = isConvertableSchemeLattice
 
-  val latticeInfoProvider: PointsToLatticeInfoProvider[L] = new PointsToLatticeInfoProvider[L] {
-    def simpleType(x: L): SimpleTypes.Value = x match {
-      case Element(Bool(_)) => SimpleTypes.Boolean
-      case Element(Bot) => SimpleTypes.Bottom
-      case Element(Char(_)) => SimpleTypes.Char
-      case Element(Closure(_, _)) => SimpleTypes.Closure
-      case Element(Cons(_, _)) => SimpleTypes.Cons
-      case Element(Real(_)) => SimpleTypes.Float
-      case Element(Int(_)) => SimpleTypes.Integer
-      case Element(Nil) => SimpleTypes.Nil
-      case Element(Prim(_)) => SimpleTypes.Primitive
-      case Element(Str(_)) => SimpleTypes.String
-      case Element(Symbol(_)) => SimpleTypes.Symbol
-      case Element(Vec(_, _, _)) => SimpleTypes.Vector
-      case Element(VectorAddress(_)) => SimpleTypes.VectorAddress
-      case _ => SimpleTypes.Top
-    }
-    def pointsTo(x: L): Option[scala.Int] = {
-      def pointsTo(value: Value): Boolean = value match {
-        case Symbol(_) | Prim(_) | Closure(_, _) | Cons(_, _) | Vec(_, _, _) | VectorAddress(_) => true
-        case _ => false
-      }
-      x match {
-        case Element(value) => if (pointsTo(value)) Some(1) else Some(0)
-        case Elements(values) => values.foldLeft[Option[scala.Int]](Some(0))((acc, value) => acc.flatMap( (res) => Some(if (pointsTo(value)) 1 else 0) ))
-      }
-    }
-    def reaches[Addr: Address](x: L,  reachesEnv: Environment[Addr] => Set[Addr], reachesAddress: Addr => Set[Addr]): Set[Addr] = {
-      def reachesValue(v: Value): Set[Addr] = v match {
-        case Closure(_, env) => reachesEnv(env.asInstanceOf[Environment[Addr]])
-        case Cons(car, cdr) => reachesAddress(car.asInstanceOf[Addr]) ++ reachesAddress(cdr.asInstanceOf[Addr])
-        case v: Vec[Addr] => reachesAddress(v.init) ++ v.elements.foldLeft[Set[Addr]](Set())((acc, pair) => acc ++ reachesAddress(pair._2))
-        case v: VectorAddress[Addr] => reachesAddress(v.a)
-        case _ => Set[Addr]()
-      }
-      x match {
-        case Element(v) => reachesValue(v)
-        case Elements(vs) => vs.foldLeft(Set[Addr]())((acc, v) => acc ++ reachesValue(v))
-      }
-    }
-  }
-
   object L {
     implicit val lattice: IsSchemeLattice[L] = isSchemeLattice
     implicit val monoid: Monoid[L] = lsetMonoid
   }
-}
+  val isSchemeLatticeValue: IsSchemeLatticeValueImpl = new IsSchemeLatticeValueImpl
+  val latticeInfoProvider: PointsToLatticeInfoProvider[L] = isSchemeLatticeValue
 
-object SchemeLattices {
-  case class WithCounting(counting: Boolean) {
-    /* Note: we use concrete booleans for the other lattices as well, as it doesn't cost much */
-    object ConcreteLattice extends MakeSchemeLattice[Concrete.S, Concrete.B, Concrete.I, Concrete.F, Concrete.C, Concrete.Sym](counting)
-    object TypeLattice extends MakeSchemeLattice[Type.S, Concrete.B, Type.I, Type.F, Type.C, Type.Sym](counting)
-    object ConstantPropagationLattice extends MakeSchemeLattice[ConstantPropagation.S, Concrete.B, ConstantPropagation.I, ConstantPropagation.F, ConstantPropagation.C, ConstantPropagation.Sym](counting)
-    case class WithBound(bound: Int) {
-      val bounded = new BoundedInteger(bound)
-      object BoundedIntLattice extends MakeSchemeLattice[Type.S, Concrete.B, bounded.I, Type.F, Type.C, Type.Sym](counting)
+  def simplify(x: L): Option[SExpValueType] = x match {
+    case Element(Str(s)) => Some(ValueString(s.returnSingle))
+    case Element(Bool(b)) => Some(ValueBoolean(b.returnSingle))
+    case Element(Int(i)) => Some(ValueInteger(i.returnSingle))
+    case Element(Real(r)) => Some(ValueReal(r.returnSingle))
+    case Element(Char(c)) => Some(ValueCharacter(c.returnSingle))
+    case Element(Symbol(sym)) => Some(ValueSymbol(sym.returnSingle))
+    case _ => None
+  }
+
+  def convert[Exp: Expression, Abs: IsConvertableLattice, Addr: Address](
+    x: L, addressConverter: AddressConverter[Addr], convertEnv: Environment[Addr] => Environment[Addr], abstPrims: SchemePrimitives[Addr, Abs]): Abs = {
+    val convLat = implicitly[IsConvertableLattice[Abs]]
+
+    def convertValue(value: Value): Abs = value match {
+      case Bot => convLat.bottom
+      case Str(s) => convLat.inject(s.asInstanceOf[ISet[String]].toList.head)
+      case Bool(b) =>
+        val mapped = b.asInstanceOf[ISet[Boolean]].toList.map(convLat.inject)
+        mapped.reduce((a, b) => convLat.join(a, b)) // TODO MV
+      case Int(i) => convLat.inject(i.returnSingle)
+      case Real(r) => convLat.inject(r.returnSingle)
+      case Char(c) => convLat.inject(c.returnSingle)
+      case Symbol(s) => convLat.injectSymbol(s.returnSingle)
+      case p: Prim[Addr, L] => convLat.inject(p.prim.convert(abstPrims))
+      case Closure(lambda, env) =>
+        val convertedEnv = convertEnv(env.asInstanceOf[Environment[Addr]])
+        convLat.inject(
+          (lambda, convertedEnv).asInstanceOf[(Exp, Environment[Addr])])
+      case c: Cons[Addr] =>
+        convLat.cons[Addr](addressConverter.convertAddress(c.car),
+          addressConverter.convertAddress(c.cdr))
+      case Nil => convLat.nil
+      case v: Vec[Addr] =>
+        val actualSize: scala.Int = v.size.returnSingle
+        var abstractElements = collection.immutable.Map[scala.Int, Addr]()
+        v.elements.foreach({
+          case (i, address: Addr) => {
+            val index: scala.Int = i.returnSingle
+            abstractElements = abstractElements + (index -> address)
+          }
+        })
+        val abstractInit = addressConverter.convertAddress(v.init)
+        convLat.injectVector[Addr](actualSize, abstractElements, abstractInit)
+      case va: VectorAddress[Addr] =>
+        convLat.injectVectorAddress[Addr](
+          addressConverter.convertAddress(va.a))
+    }
+
+    x match {
+      case Element(e) => convertValue(e)
+      case Elements(_) => throw new Exception("ConcreteConcreteLattice shouldn't have an Elements value")
     }
   }
 }
+object ConcreteConcreteLattice extends MakeConcreteSchemeLattice

@@ -11,6 +11,8 @@ trait Primitive[Addr, Abs] {
    * @return either an error, or the value returned by the primitive along with the updated store
    */
   def call[Exp : Expression, Time : Timestamp](fexp : Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]
+  def symbolicCall(fexp: SchemeExp,  concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = None
+  def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs]
 }
 
 abstract class Primitives[Addr : Address, Abs : JoinLattice] {
@@ -32,6 +34,8 @@ abstract class Primitives[Addr : Address, Abs : JoinLattice] {
       }
       res
     }
+    def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.traced(prim.convert(prims))
   }
 
   lazy val bindings = ("bottom", Address[Addr].botAddress, JoinLattice[Abs].bottom) :: all.map({ prim => (prim.name, Address[Addr].primitive(prim.name), toVal(prim)) })

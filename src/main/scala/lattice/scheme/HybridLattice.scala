@@ -6,12 +6,6 @@ object SimpleTypes extends Enumeration {
 }
 
 trait IsConvertableLattice[L] extends IsSchemeLattice[L] {
-
-  def injectVector[Addr: Address](size: Int,
-                                  elements: Map[Int, Addr],
-                                  init: Addr): L
+  def injectVector[Addr: Address](size: Int, elements: Map[Int, Addr], init: Addr): L
   def injectVectorAddress[Addr: Address](a: Addr): L
-
-  val latticeInfoProvider: LatticeInfoProvider[L]
-
 }

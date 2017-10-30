@@ -47,9 +47,6 @@ abstract class Store[Addr : Address, Abs : JoinLattice] {
   /** Removes all addresses that are not in the given set of reachable addresses from the store  */
   def gc(reachables: Set[Addr]): Store[Addr, Abs]
 
-  /** Generates a descriptor for this store. */
-  def descriptor: Descriptor[Store[Addr, Abs]] = new BasicDescriptor[Store[Addr, Abs]]
-
   /** Returns the cardinality of each lattice element of this store */
   def cardinalities(withPrimitives: Boolean = false): Map[Addr, Cardinality] =
     keys
@@ -92,16 +89,6 @@ case class BasicStore[Addr : Address, Abs : JoinLattice](content: Map[Addr, Abs]
 
   def gc(reachables: Set[Addr]): Store[Addr, Abs] =
     this.copy(content = content.filterKeys(reachables.contains))
-
-  override def descriptor = new BasicStoreDescriptor[Addr, Abs]
-}
-
-class BasicStoreDescriptor[Addr, Abs] extends Descriptor[BasicStore[Addr, Abs]] {
-  def describe[U >: BasicStore[Addr, Abs]](store: U): String = store match {
-    case store: BasicStore[Addr, Abs] =>
-      describeCollapsableList(store.content.filterKeys((a) => !store.addr.isPrimitive(a)), "Store", divClass = Some("store"))
-    case _ => store.toString
-  }
 }
 
 /** Store that combines a default read-only store with a writable store */

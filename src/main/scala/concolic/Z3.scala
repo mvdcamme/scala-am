@@ -28,13 +28,11 @@ object Z3 {
 
   private def expToExpr(exp: ConcolicExpression, ctx: Context, exprMap: MMap[ConcolicInput, IntExpr]): ArithExpr = exp match {
     case ConcolicInt(i) => ctx.mkInt(i)
-    case i: ConcolicInput => exprMap.get(i) match {
-        case Some(expr) => expr
-        case None =>
-          val newExpr = ctx.mkIntConst(i.toString)
-          exprMap.put(i, newExpr)
-          newExpr
-      }
+    case i: ConcolicInput => exprMap.getOrElse(i, {
+      val newExpr = ctx.mkIntConst(i.toString)
+      exprMap.put(i, newExpr)
+      newExpr
+    })
     case ArithmeticalConcolicExpression(op, exps) =>
       val exprs = exps.map(expToExpr(_, ctx, exprMap))
       val expr = op match {

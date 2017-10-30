@@ -51,36 +51,32 @@ object SymbolicTreeHelper {
 
   def findFirstUnexploredNode(symbolicNode: BranchSymbolicNode): Option[TreePath] = {
     def loop(queue: Queue[TreePath]): Option[TreePath] = {
-      queue.headOption match {
-        case Some(path) =>
-          val tailQueue = queue.tail
-          val latestNode = path.last
-          latestNode._1 match {
-            case b: BranchSymbolicNode =>
-              if (!b.thenBranchTaken || !b.elseBranchTaken) {
-                assert(b.thenBranchTaken != b.elseBranchTaken, "Should not happen: one of both branches should be True")
-                Some(path)
-              } else {
-                // Both branches have already been explored, so continue looking through both branches to find an unexplored node
-                // Although both branches have been explored, it could be that they don't actually have any successors, e.g., because the branch ends
-                val newQueue: Queue[TreePath] = (b.thenBranch, b.elseBranch) match {
-                  // Negate branches
-                  case (Some(thenBranch), Some(elseBranch)) =>
-                    tailQueue :+ path.addThenBranch(thenBranch) :+ path.addElseBranch(elseBranch)
-                  case (Some(thenBranch), None) =>
-                    tailQueue :+ path.addThenBranch(thenBranch)
-                  case (None, Some(elseBranch)) =>
-                    tailQueue :+ path.addElseBranch(elseBranch)
-                  case (None, None) =>
-                    tailQueue
-                }
-                loop(newQueue)
+      queue.headOption.flatMap( (path: TreePath) => {
+        val tailQueue = queue.tail
+        val latestNode = path.last
+        latestNode._1 match {
+          case b: BranchSymbolicNode =>
+            if (!b.thenBranchTaken || !b.elseBranchTaken) {
+              assert(b.thenBranchTaken != b.elseBranchTaken, "Should not happen: one of both branches should be True")
+              Some(path)
+            } else {
+              // Both branches have already been explored, so continue looking through both branches to find an unexplored node
+              // Although both branches have been explored, it could be that they don't actually have any successors, e.g., because the branch ends
+              val newQueue: Queue[TreePath] = (b.thenBranch, b.elseBranch) match {
+                // Negate branches
+                case (Some(thenBranch), Some(elseBranch)) =>
+                  tailQueue :+ path.addThenBranch(thenBranch) :+ path.addElseBranch(elseBranch)
+                case (Some(thenBranch), None) =>
+                  tailQueue :+ path.addThenBranch(thenBranch)
+                case (None, Some(elseBranch)) =>
+                  tailQueue :+ path.addElseBranch(elseBranch)
+                case (None, None) =>
+                  tailQueue
               }
-          }
-        case None =>
-          // Queue is empty: no unexplored nodes found
-          None
-      }
+              loop(newQueue)
+            }
+        }
+      })
     }
 
     val initialTreePath = TreePath.init(symbolicNode)

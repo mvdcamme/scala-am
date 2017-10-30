@@ -2,7 +2,7 @@ class FilterPropagationEdges[Exp: Expression,
                              Abs: IsSchemeLattice,
                              Addr: Address,
                              Time: Timestamp,
-                             State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
+                             State <: StateTrait[Exp, Abs, Addr, Time]]
                             (implicit actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State],
                                       stateInfoProvider: StateInfoProvider[Exp, Abs, Addr, Time, State]) {
 

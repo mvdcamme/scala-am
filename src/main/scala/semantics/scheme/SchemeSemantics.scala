@@ -87,7 +87,7 @@ class BaseSchemeSemantics[V : IsSchemeLattice, Addr : Address, Time : Timestamp]
     }
   }
 
-  protected def evalValue(v: Value): Option[V] = v match {
+  protected def evalValue(v: SExpValueType): Option[V] = v match {
     case ValueString(s) => Some(IsSchemeLattice[V].inject(s))
     case ValueInteger(n) => Some(IsSchemeLattice[V].inject(n))
     case ValueReal(n) => Some(IsSchemeLattice[V].inject(n))

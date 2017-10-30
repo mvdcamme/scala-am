@@ -42,7 +42,7 @@ case class ANFVar(v: Identifier) extends ANFAtomicExp {
   val pos = v.pos
   override def toString = s"$v"
 }
-case class ANFValue(value: Value, pos: Position) extends ANFAtomicExp {
+case class ANFValue(value: SExpValueType, pos: Position) extends ANFAtomicExp {
   override def toString = value.toString
 }
 

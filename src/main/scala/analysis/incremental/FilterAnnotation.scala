@@ -36,7 +36,7 @@ case class PrimCallMark[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: 
 /*
  * Control-flow split due to spurious return: check continuation frame used.
  */
-case class FrameFollowed[Abs : JoinLattice](frame: SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T])
+case class FrameFollowed[Abs : JoinLattice](frame: ConvertableSchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T])
   extends MachineFilterAnnotation {
   override def toString = s"Followed $frame"
 }

@@ -65,8 +65,7 @@ abstract class AbstractMachine[Exp : Expression, Abs : JoinLattice, Addr : Addre
   * can either be evaluating something, or have reached a value and will pop a
   * continuation.
   */
-abstract class EvalKontMachine[
-    Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
+abstract class EvalKontMachine[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     extends AbstractMachine[Exp, Abs, Addr, Time] {
 
   /**
@@ -74,9 +73,6 @@ abstract class EvalKontMachine[
     */
   trait Control {
     def subsumes(that: Control): Boolean
-
-    /** Generates a descriptor for this control. */
-    def descriptor: Descriptor[Control] = new ControlDescriptor
   }
   object Control {
     import org.json4s._
@@ -106,15 +102,6 @@ abstract class EvalKontMachine[
     }
   }
 
-  class ControlDescriptor extends BasicDescriptor[Control] {
-    override def describe[U >: Control](control: U): String = control match {
-      case ControlEval(exp, env) =>
-        putIntoCollapsableList(List(exp.toString, env.descriptor.describe(env)), control.toString, Some("eval"))
-      case _ =>
-        control.toString
-    }
-  }
-
   /**
     * Or it can be a continuation component, where a value has been reached and a
     * continuation should be popped from the stack to continue the evaluation
@@ -141,9 +128,8 @@ trait GraphPrinter[Graph] {
   def printGraph(graph: Graph, path: String): Unit
 }
 
-trait HasGraph[Exp, Abs, Addr, Node <: StateTrait[Exp, Abs, Addr, _]] {
-  def graph: Graph[Node, EdgeAnnotation[Exp, Abs, Addr]]
-  def toDotFile(path: String): Unit
+trait HasGraph[Exp, Abs, Addr, MachineState <: StateTrait[Exp, Abs, Addr, _]] {
+  def graph: Graph[MachineState, EdgeAnnotation[Exp, Abs, Addr], Unit]
 }
 
 trait HasFinalStores[Addr, Abs] {
@@ -155,19 +141,14 @@ trait HasFinalStores[Addr, Abs] {
 
 trait StateTrait[Exp, Abs, Addr, Time]
 
-trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
-  type MachineState
-  type GraphNode
-  type MachineOutput <: Output[Abs] with HasFinalStores[Addr, Abs]
+trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] extends AbstractMachine[Exp, Abs, Addr, Time] {
+  type MachineState <: StateTrait[Exp, Abs, Addr, _]
+  type MachineOutput <: Output with HasFinalStores[Addr, Abs]
 
-  def kickstartEval(initialState: MachineState,
-                    sem: Semantics[Exp, Abs, Addr, Time],
-                    stopEval: Option[MachineState => Boolean],
-                    timeout: Option[Long],
-                    stepSwitched: Option[Int]): MachineOutput
+  def kickstartEval(initialState: MachineState, sem: ConvertableSemantics[Exp, Abs, Addr, Time], stopEval: Option[MachineState => Boolean],
+    timeout: Timeout, stepSwitched: Option[Int]): MachineOutput
 }
 
 trait ProducesStateGraph[Exp, Abs, Addr, Time] extends KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
-  override type GraphNode <: StateTrait[Exp, Abs, Addr, Time]
-  override type MachineOutput <: Output[Abs] with HasGraph[Exp, Abs, Addr, GraphNode] with HasFinalStores[Addr, Abs]
+  override type MachineOutput <: Output with HasGraph[Exp, Abs, Addr, MachineState] with HasFinalStores[Addr, Abs]
 }

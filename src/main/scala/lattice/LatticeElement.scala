@@ -98,6 +98,7 @@ trait StringLattice[S] extends LatticeElement[S] {
   def length[I : IntLattice](s: S): I
   def append(s1: S, s2: S): S
   def lt[B : BoolLattice](s1: S, s2: S): B
+  def toNumber[I: IntLattice](s: S): I
   def toSymbol[Sym : SymbolLattice](s: S): Sym
 
   trait StringLatticeLaw {
@@ -185,6 +186,7 @@ trait IntLattice[I] extends LatticeElement[I] { self =>
   def modulo(n1: I, n2: I): I
   def remainder(n1: I, n2: I): I
   def lt[B : BoolLattice](n1: I, n2: I): B
+  def toChar[C: CharLattice](n: I): C
   def toString[S : StringLattice](n: I): S
 
    trait IntLatticeLaw {

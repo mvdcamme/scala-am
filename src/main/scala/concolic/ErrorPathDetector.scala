@@ -1,7 +1,7 @@
 class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
-  (val aam: AAM[Exp, Abs, Addr, Time]) {
+  (val aam: KickstartAAM[Exp, Abs, Addr, Time]) {
 
-  type RelevantGraph =  Graph[aam.State, EdgeAnnotation[Exp, Abs, Addr]]
+  type RelevantGraph =  Graph[aam.State, EdgeAnnotation[Exp, Abs, Addr], Unit]
   type Path = List[Binding]
 
   case class Binding(edge: EdgeAnnotation[Exp, Abs, Addr], state: aam.State) {

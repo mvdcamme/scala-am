@@ -1,13 +1,9 @@
-import ConcreteConcreteLattice.ConcreteValue
+import ConcreteConcreteLattice.{ L => ConcreteValue }
 
 import scala.annotation.tailrec
 
-class PruneUnreachableNodes[Exp : Expression,
-                            Abs : IsSchemeLattice,
-                            Addr : Address,
-                            Time : Timestamp,
-                            State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
-                           (implicit val actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State]) {
+class PruneUnreachableNodes[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp, State <: StateTrait[Exp, Abs, Addr, Time]]
+                           (implicit val actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State], g: GraphNode[State, Unit]) {
 
   val usesGraph = new UsesGraph[Exp, Abs, Addr, State]
   import usesGraph._
@@ -31,16 +27,14 @@ class PruneUnreachableNodes[Exp : Expression,
     } else {
       val edges = prunedGraph.nodeEdges(node)
       edges.headOption match {
-        case None =>
-          Set()
+        case None => Set()
         case Some(edge) if edge._1.filters.isSubsumptionAnnotation =>
           val filterSubsumptionEdges = filterEdgeFilterAnnotations.findMinimallySubsumingEdges(edges)
           addEdgesVisited(node, filterSubsumptionEdges)
           filterSubsumptionEdges.flatMap( (edge) => {
             followStateSubsumedEdges(edge._2, prunedGraph)
           })
-        case Some(edge) =>
-          Set(node)
+        case Some(_) => Set(node)
       }
     }
 
@@ -96,16 +90,14 @@ class PruneUnreachableNodes[Exp : Expression,
     newCurrentNodes
   }
 
-  private def saveTraversedGraph(initialGraph: AbstractGraph,
-                                 nodesVisited: Set[State],
-                                 edgesVisited: Set[(State, EdgeAnnotation2, State)]): Unit = {
-    initialGraph.toDotFile(s"${GlobalFlags.ANALYSIS_PATH}Traversed graph/traversed_graph.dot",
-                           node => List(scala.xml.Text(node.toString.take(40))),
-                           (s) => if (nodesVisited.contains(s)) Colors.Red else Colors.White,
-                           node => List(scala.xml.Text((node.filters.machineFilters.mkString(", ") ++
-                                                        node.filters.semanticsFilters.mkString(", ") ++
-                                                        node.actions.mkString(", ")).take(300))),
-                           Some( (edge) => if (edgesVisited.contains(edge)) Colors.Red else Colors.Black ))
+  private def saveTraversedGraph(initialGraph: AbstractGraph, nodesVisited: Set[State], edgesVisited: Set[(State, EdgeAnnotation2, State)]): Unit = {
+    GraphDOTOutput.toFile(initialGraph, ())(s"${GlobalFlags.ANALYSIS_PATH}Traversed graph/traversed_graph.dot")
+//                           node => List(scala.xml.Text(node.toString.take(40))),
+//                           (s) => if (nodesVisited.contains(s)) Colors.Red else Colors.White,
+//                           node => List(scala.xml.Text((node.filters.machineFilters.mkString(", ") ++
+//                                                        node.filters.semanticsFilters.mkString(", ") ++
+//                                                        node.actions.mkString(", ")).take(300))),
+//                           Some( (edge) => if (edgesVisited.contains(edge)) Colors.Red else Colors.Black ))
   }
 
   def end(initialGraph: AbstractGraph): Unit = {
@@ -181,7 +173,7 @@ class PruneUnreachableNodes[Exp : Expression,
   def filterReachable(stepCount: Int,
                       currentNodes: Set[State],
                       prunedGraph: AbstractGraph): AbstractGraph = {
-    val reachables = ReachablesIntermediateResult(new HyperlinkedGraph(), Set(), currentNodes.toList)
+    val reachables = ReachablesIntermediateResult(Graph.empty[State, EdgeAnnotation2, Unit], Set(), currentNodes.toList)
     val filteredGraph = breadthFirst(reachables, prunedGraph).graph
     val newEdgesSize = prunedGraph.edges.size
     graphSize = graphSize :+ (stepCount, newEdgesSize)

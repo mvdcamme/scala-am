@@ -40,7 +40,9 @@ object Config {
     timeout: Option[Duration] = None,
     workers: Int = 1,
     mbox: Mbox.Value = Mbox.BoundedList,
-    mboxBound: Int = 1
+    mboxBound: Int = 1,
+    resultsPath: String = "benchmark_times.txt",
+    analysisFlags: AnalysisFlags = AnalysisFlags()
   )
 
   private val separator = ", "

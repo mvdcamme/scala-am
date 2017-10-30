@@ -4,7 +4,7 @@ class CountNonConstants[Exp : Expression,
                         Abs : IsSchemeLattice,
                         Addr : Address,
                         Time: Timestamp,
-                        State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
+                        State <: StateTrait[Exp, Abs, Addr, Time]]
                        (pointsTo: Abs => Option[Int])
                        (implicit stateInfoProvider: StateInfoProvider[Exp, Abs, Addr, Time, State],
                                  actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State])

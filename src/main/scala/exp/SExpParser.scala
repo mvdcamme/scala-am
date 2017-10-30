@@ -176,23 +176,23 @@ object SExpParser extends TokenParsers {
   override val lexical = new SExpLexer
   import lexical._
 
-  def bool: Parser[Value] = elem("boolean", _.isInstanceOf[TBoolean]) ^^ {
+  def bool: Parser[SExpValueType] = elem("boolean", _.isInstanceOf[TBoolean]) ^^ {
     case TBoolean(b) => ValueBoolean(b)
   }
-  def integer: Parser[Value] = elem("integer", _.isInstanceOf[TInteger]) ^^ {
+  def integer: Parser[SExpValueType] = elem("integer", _.isInstanceOf[TInteger]) ^^ {
     case TInteger(n) => ValueInteger(n)
   }
-  def real: Parser[Value] = elem("real", _.isInstanceOf[TReal]) ^^ {
+  def real: Parser[SExpValueType] = elem("real", _.isInstanceOf[TReal]) ^^ {
     case TReal(n) => ValueReal(n)
   }
-  def character: Parser[Value] =
+  def character: Parser[SExpValueType] =
     elem("character", _.isInstanceOf[TCharacter]) ^^ {
       case TCharacter(c) => ValueCharacter(c)
     }
-  def string: Parser[Value] = elem("string", _.isInstanceOf[TString]) ^^ {
+  def string: Parser[SExpValueType] = elem("string", _.isInstanceOf[TString]) ^^ {
     case TString(s) => ValueString(s)
   }
-  def nil: Parser[Value] = leftParen ~ rightParen ^^^ ValueNil
+  def nil: Parser[SExpValueType] = leftParen ~ rightParen ^^^ ValueNil
 
   def value: Parser[SExp] = Parser { in =>
     (bool | real | integer | character | string | nil)(in) match {
@@ -227,7 +227,7 @@ object SExpParser extends TokenParsers {
   }
   def dotted: Parser[SExp] = Parser { in =>
     (dot ~> exp)(in) match {
-      case Success(e, in1) => Success(SExpIdentifier(".", in.pos), in1)
+      case Success(e, in1) => Success(SExpId(Identifier(".", Position(in.pos))), in1)
       case ns: NoSuccess => ns
     }
 

@@ -8,14 +8,14 @@
 ;      x
 ;      (loop (- n 1) (+ x 1))))
 
-(let* ((a (random 2000000))
-       (b (random 2000000)))
+(let* ((a (random 2))
+       (b (random 2)))
       ; (c (random 99))
       ; (d (+ a b))
       ; (h f))
   ;(loop 5 (random 99))
-  (display a)
-  (display b)
+  (display a) (newline)
+  (display b) (newline)
   (if (> a 5)
       (if (> b 5)
           (error "error1")

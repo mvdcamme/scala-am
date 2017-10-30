@@ -20,6 +20,12 @@ object Concrete {
       case Values(content) if content.length == 0 => LatticeElement[B].bottom
       case _ => body
     }
+    def returnSingle: A = this match {
+      case Top => throw new Exception("Should not happen")
+      case Values(content) =>
+        assert(content.size == 1)
+        content.elemAt(0).get
+    }
   }
   case object Top extends L[Nothing]
   case class Values[A](content: ISet[A]) extends L[A]
@@ -85,6 +91,7 @@ object Concrete {
         case (Top, _) | (_, Top) => BoolLattice[B].top
         case (Values(content1), Values(content2)) => content1.foldMap(s1 => content2.foldMap(s2 => BoolLattice[B].inject(s1 < s2)))
       }
+      def toNumber[I : IntLattice](s: S): I = s.foldMap(s => IntLattice[I].inject(s.toInt))
       def toSymbol[Sym : SymbolLattice](s: S): Sym = s.foldMap(s => SymbolLattice[Sym].inject(s))
     }
     val boolShow: Show[Boolean] = new Show[Boolean] {
@@ -118,6 +125,7 @@ object Concrete {
       def modulo(n1: I, n2: I): I = n2.guardBot { n1.foldMap(n1 => n2.map(n2 => SchemeOps.modulo(n1, n2))) }
       def remainder(n1: I, n2: I): I = n2.guardBot { n1.foldMap(n1 => n2.map(n2 => SchemeOps.remainder(n1, n2))) }
       def lt[B : BoolLattice](n1: I, n2: I): B = n2.guardBot { n1.foldMap(n1 => n2.foldMap(n2 => BoolLattice[B].inject(n1 < n2))) }
+      def toChar[C : CharLattice](n: I): C = n.foldMap(n => CharLattice[C].inject(n.toChar))
       def toString[S : StringLattice](n: I): S = n.foldMap(n => StringLattice[S].inject(n.toString))
     }
 
@@ -288,6 +296,7 @@ class BoundedInteger(bound: Int) {
       def remainder(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(SchemeOps.remainder(n1, n2))))
       def lt[B : BoolLattice](n1: I, n2: I): B = fold(n1, n1 => fold(n2, n2 => BoolLattice[B].inject(n1 < n2)))
       def eql[B : BoolLattice](n1: I, n2: I): B = fold(n1, n1 => fold(n2, n2 => BoolLattice[B].inject(n1 == n2)))
+      def toChar[C : CharLattice](n: I): C = fold(n, n => CharLattice[C].inject(n.toChar))
       def toString[S : StringLattice](n: I): S = fold(n, n => StringLattice[S].inject(n.toString))
 
       def order(x: I, y: I): Ordering = (x, y) match {
@@ -375,6 +384,10 @@ object Type {
         case (Bottom, _) | (_, Bottom) => BoolLattice[B].bottom
         case (Top, _) | (Top, _) => BoolLattice[B].top
       }
+      def toNumber[I : IntLattice](s: S) = s match {
+        case Bottom => IntLattice[I].bottom
+        case Top => IntLattice[I].top
+      }
       def toSymbol[Sym : SymbolLattice](s: S) = s match {
         case Bottom => SymbolLattice[Sym].bottom
         case Top => SymbolLattice[Sym].top
@@ -414,6 +427,10 @@ object Type {
       def lt[B : BoolLattice](n1: T, n2: T): B = (n1, n2) match {
         case (Top, Top) => BoolLattice[B].top
         case _ => BoolLattice[B].bottom
+      }
+      def toChar[C : CharLattice](n: T): C = n match {
+        case Top => CharLattice[C].top
+        case Bottom => CharLattice[C].bottom
       }
       def toString[S : StringLattice](n: T): S = n match {
         case Top => StringLattice[S].top
@@ -560,6 +577,11 @@ object ConstantPropagation {
         case (Top, _) | (_, Top) => BoolLattice[B].top
         case (Constant(x), Constant(y)) => BoolLattice[B].inject(x < y)
       }
+      def toNumber[I : IntLattice](s: S): I = s match {
+        case Bottom => IntLattice[I].bottom
+        case Top => IntLattice[I].top
+        case Constant(s) => IntLattice[I].inject(s.toInt)
+      }
       def toSymbol[Sym : SymbolLattice](s: S) = s match {
         case Bottom => SymbolLattice[Sym].bottom
         case Top => SymbolLattice[Sym].top
@@ -601,6 +623,11 @@ object ConstantPropagation {
         case (Constant(_), Top) => BoolLattice[B].top
         case (Constant(x), Constant(y)) => BoolLattice[B].inject(x < y)
         case _ => BoolLattice[B].bottom
+      }
+      def toChar[C : CharLattice](n: I): C = n match {
+        case Top => CharLattice[C].top
+        case Constant(x) => CharLattice[C].inject(x.toChar)
+        case Bottom => CharLattice[C].bottom
       }
       def toString[S : StringLattice](n: I): S = n match {
         case Top => StringLattice[S].top

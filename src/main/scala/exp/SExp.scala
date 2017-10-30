@@ -1,26 +1,26 @@
 /**
   * S-expressions and related values
   */
-sealed abstract class Value
-case class ValueString(value: String) extends Value {
+sealed abstract class SExpValueType
+case class ValueString(value: String) extends SExpValueType {
   override def toString = "\"" + value + "\"" // https://issues.scala-lang.org/browse/SI-6476
 }
-case class ValueSymbol(sym: String) extends Value {
+case class ValueSymbol(sym: String) extends SExpValueType {
   override def toString = sym
 }
-case class ValueInteger(value: Int) extends Value {
+case class ValueInteger(value: Int) extends SExpValueType {
   override def toString = value.toString
 }
-case class ValueReal(value: Double) extends Value {
+case class ValueReal(value: Double) extends SExpValueType {
   override def toString = value.toString
 }
-case class ValueBoolean(value: Boolean) extends Value {
+case class ValueBoolean(value: Boolean) extends SExpValueType {
   override def toString = if (value) { "#t" } else { "#f" }
 }
-case class ValueCharacter(value: Char) extends Value {
+case class ValueCharacter(value: Char) extends SExpValueType {
   override def toString = s"#\\$value"
 }
-object ValueNil extends Value {
+object ValueNil extends SExpValueType {
   override def toString = "()"
 }
 
@@ -78,7 +78,7 @@ case class SExpId(id: Identifier) extends SExp {
 /**
   * A literal value, such as 1, "foo", 'foo, etc.
   */
-case class SExpValue(value: Value, pos: Position) extends SExp {
+case class SExpValue(value: SExpValueType, pos: Position) extends SExp {
   override def toString = value.toString
 }
 

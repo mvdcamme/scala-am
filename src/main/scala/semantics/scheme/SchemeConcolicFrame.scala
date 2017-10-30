@@ -9,10 +9,7 @@ case class FrameConcolicFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Tim
   args: List[(SchemeExp, Abs, Option[ConcolicExpression])],
   toeval: List[SchemeExp],
   env: Environment[Addr])
-  extends SchemeFrame[Abs, Addr, Time] {
-
-  override def savesEnv: Option[Environment[Address]] = Some(env)
-  override def savedValues[Abs] = args.map(_._2.asInstanceOf[Abs]) :+ f.asInstanceOf[Abs]
+  extends ConvertableSchemeFrame[Abs, Addr, Time] {
 
   override def toString: String = s"FrameConcolicFuncallOperands($f, $args, $env)"
 
@@ -35,7 +32,7 @@ case class FrameConcolicFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Tim
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
     convertEnv: Environment[Addr] => Environment[Addr],
-    abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
+    abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameFuncallOperands(convertValue(f),
       fexp,
       cur,
@@ -54,20 +51,17 @@ case class FrameConcolicFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Tim
 
 
 case class FrameConcolicLet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
-  variable: String,
-  bindings: List[(String, Abs)],
-  toeval: List[(String, SchemeExp)],
+  variable: Identifier,
+  bindings: List[(Identifier, Abs)],
+  toeval: List[(Identifier, SchemeExp)],
   body: List[SchemeExp],
   env: Environment[Addr],
   optConcolicExpression: Option[ConcolicExpression])
-  extends SchemeFrame[Abs, Addr, Time] with FrameStoresConcolicExpression {
-
-  override def savesEnv: Option[Environment[Address]] = Some(env)
-  override def savedValues[Abs] = bindings.map(_._2.asInstanceOf[Abs])
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with FrameStoresConcolicExpression {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
     convertEnv: Environment[Addr] => Environment[Addr],
-    abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
+    abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameLet(variable,
       bindings.map((binding) => (binding._1, convertValue(binding._2))),
       toeval,
@@ -83,18 +77,16 @@ case class FrameConcolicLet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp
 }
 
 case class FrameConcolicLetStar[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
-  variable: String,
-  bindings: List[(String, SchemeExp)],
+  variable: Identifier,
+  bindings: List[(Identifier, SchemeExp)],
   body: List[SchemeExp],
   env: Environment[Addr],
   optConcolicExpression: Option[ConcolicExpression])
-  extends SchemeFrame[Abs, Addr, Time] with FrameStoresConcolicExpression {
-
-  override def savesEnv: Option[Environment[Address]] = Some(env)
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with FrameStoresConcolicExpression {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
     convertEnv: Environment[Addr] => Environment[Addr],
-    abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
+    abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameLetStar(variable, bindings, body, convertEnv(env))
 
   def reaches(valueReaches: Abs => Set[Addr],
@@ -103,21 +95,14 @@ case class FrameConcolicLetStar[Abs: IsSchemeLattice, Addr: Address, Time: Times
 }
 
 case class FrameConcolicSet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
-  variable: String,
+  variable: Identifier,
   env: Environment[Addr],
   optConcolicExpression: Option[ConcolicExpression])
-  extends SchemeFrame[Abs, Addr, Time] with FrameStoresConcolicExpression {
-
-  override def writeEffectsFor(): Set[Address] = env.lookup(variable) match {
-    case Some(a) => Set(a)
-    case None => Set()
-  }
-
-  override def savesEnv: Option[Environment[Address]] = Some(env)
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with FrameStoresConcolicExpression {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
     convertEnv: Environment[Addr] => Environment[Addr],
-    abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time]) =
+    abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameSet(variable, convertEnv(env))
 
   def reaches(valueReaches: Abs => Set[Addr],

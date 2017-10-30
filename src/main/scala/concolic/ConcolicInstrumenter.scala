@@ -36,7 +36,7 @@ object ConcolicInstrumenter {
       SchemeOr(exps.map(instrument), pos)
     case SchemeDefineVariable(varName, exp, pos) =>
       SchemeDefineVariable(varName, instrument(exp), pos)
-    case SchemeIdentifier(_, _) =>
+    case SchemeVar(_) =>
       exp
     case SchemeQuoted(_, _) =>
       exp

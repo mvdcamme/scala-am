@@ -1,43 +1,37 @@
 import java.io.{BufferedWriter, File, FileWriter}
 import ConcolicSolver.initialErrorPaths
-import ConcreteConcreteLattice.{ConcreteValue, lattice}
+import ConcreteConcreteLattice.{ L => ConcreteValue }
 
-class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvider](analysisLauncher: AnalysisLauncher[PAbs],
-                                                                                   analysisFlags: AnalysisFlags)
-                                                                                  (implicit unused1: IsSchemeLattice[ConcreteConcreteLattice.L])
-    extends EvalKontMachine[SchemeExp,
-                            ConcreteConcreteLattice.L,
-                            HybridAddress.A,
-                            HybridTimestamp.T] {
+class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
+  analysisLauncher: AnalysisLauncher[PAbs], analysisFlags: AnalysisFlags)(
+  implicit unused1: IsSchemeLattice[ConcreteValue]) extends EvalKontMachine[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] {
 
   def name = "ConcolicMachine"
 
-  var stepCount: Integer = 0
+  var stepCount: Int = 0
 
   val errorPathDetector = new ErrorPathDetector[SchemeExp, PAbs, HybridAddress.A, HybridTimestamp.T](analysisLauncher.aam)
 
-  trait ConcolicMachineOutput extends Output[ConcreteConcreteLattice.L] {
-    def toDotFile(path: String) = println("Not generating graph for ConcreteMachine")
+  trait ConcolicMachineOutput extends Output {
+    def toFile(path: String)(output: GraphOutput): Unit = println("Not generating graph for ConcreteMachine")
   }
 
-  case object ConcolicMachineOutputUnnecessary
-    extends ConcolicMachineOutput {
+  case object ConcolicMachineOutputUnnecessary extends ConcolicMachineOutput {
     def finalValues = Set()
-    def containsFinalValue(v: ConcreteConcreteLattice.L) = false
+    override def containsFinalValue(v: ConcreteValue) = false
     def timedOut: Boolean = false
     def numberOfStates: Int = 0
     def time: Double = 0
   }
 
-  case class ConcolicMachineOutputTimeout(time: Double, numberOfStates: Int)
-      extends ConcolicMachineOutput {
+  case class ConcolicMachineOutputTimeout(time: Double, numberOfStates: Int) extends ConcolicMachineOutput {
     def finalValues = Set()
-    def containsFinalValue(v: ConcreteConcreteLattice.L) = false
+    override def containsFinalValue(v: ConcreteValue) = false
     def timedOut = true
   }
 
   private def convertValue[AbstL: IsConvertableLattice](abstPrims: SchemePrimitives[HybridAddress.A, AbstL])
-                                                       (value: ConcreteConcreteLattice.L): AbstL =
+                                                       (value: ConcreteValue): AbstL =
     ConcreteConcreteLattice.convert[SchemeExp, AbstL, HybridAddress.A](
       value,
       new DefaultHybridAddressConverter[SchemeExp],
@@ -65,12 +59,12 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
   case class ConcolicControlError(error: SemanticError) extends ConcolicControl
 
   case class State(control: ConcolicControl,
-                   store: Store[HybridAddress.A, ConcreteConcreteLattice.L],
+                   store: Store[HybridAddress.A, ConcreteValue],
                    kstore: KontStore[KontAddr],
                    a: KontAddr,
                    t: HybridTimestamp.T)
       extends ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
-      with StateTrait[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T] {
+      with StateTrait[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] {
 
     def halted = control match {
       case ConcolicControlError(_) => true
@@ -108,16 +102,12 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
                                           ConcreteValue,
                                           HybridAddress.A,
                                           HybridTimestamp.T],
-        abstSem: BaseSchemeSemantics[AbstL,
-                                     HybridAddress.A,
-                                     HybridTimestamp.T]): KontStore[KAddr] = {
+        abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T]): KontStore[KAddr] = {
       kontStore.map[KAddr](
         (ka) => convertKontAddr(ka, None, mapKontAddress),
         (frame: Frame) =>
           concBaseSem.convertAbsInFrame[AbstL](
-            frame.asInstanceOf[SchemeFrame[ConcreteValue,
-                                           HybridAddress.A,
-                                           HybridTimestamp.T]],
+            frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]],
             convertValue,
             convertEnv,
             abstSem))
@@ -125,14 +115,12 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
 
     var reached = Set[HybridAddress.A]()
 
-    private def reachesValue(concBaseSem: BaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+    private def reachesValue(concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                              sto: Store[HybridAddress.A, ConcreteValue])
                             (value: ConcreteValue): Set[HybridAddress.A] =
-      ConcreteConcreteLattice.latticeInfoProvider.reaches[HybridAddress.A](value,
-                                                                           reachesEnvironment(concBaseSem, sto),
-                                                                           reachesAddress(concBaseSem, sto))
+      ConcreteConcreteLattice.latticeInfoProvider.reaches[HybridAddress.A](value, reachesEnvironment(concBaseSem, sto), reachesAddress(concBaseSem, sto))
 
-    private def reachesAddress(concBaseSem: BaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+    private def reachesAddress(concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                sto: Store[HybridAddress.A, ConcreteValue])(
                                address: HybridAddress.A): Set[HybridAddress.A] = {
       if (! reached.contains(address)) {
@@ -144,12 +132,9 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
       }
     }
 
-    private def reachesEnvironment(
-                                    concBaseSem: BaseSchemeSemantics[ConcreteValue,
-                                      HybridAddress.A,
-                                      HybridTimestamp.T],
-                                    sto: Store[HybridAddress.A, ConcreteValue])(
-                                    env: Environment[HybridAddress.A]): Set[HybridAddress.A] = {
+    private def reachesEnvironment(concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                                   sto: Store[HybridAddress.A, ConcreteValue])
+                                  (env: Environment[HybridAddress.A]): Set[HybridAddress.A] = {
       var reached: Set[HybridAddress.A] = Set()
       env.forall((tuple) => {
         reached = (reached + tuple._2) ++ reachesAddress(concBaseSem, sto)(
@@ -159,27 +144,21 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
       reached
     }
 
-    private def reachesKontAddr[KAddr <: KontAddr](
-                                                    concBaseSem: BaseSchemeSemantics[ConcreteValue,
-                                                      HybridAddress.A,
-                                                      HybridTimestamp.T],
-                                                    sto: Store[HybridAddress.A, ConcreteValue],
-                                                    kstore: KontStore[KAddr])(
-                                                    ka: KAddr): Set[HybridAddress.A] = {
+    private def reachesKontAddr[KAddr <: KontAddr](concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                                                   sto: Store[HybridAddress.A, ConcreteValue], kstore: KontStore[KAddr])
+                                                  (ka: KAddr): Set[HybridAddress.A] = {
       kstore
         .lookup(ka)
         .foldLeft[Set[HybridAddress.A]](Set())(
         (acc, kont) =>
           acc ++ concBaseSem.frameReaches(
-            kont.frame.asInstanceOf[SchemeFrame[ConcreteValue,
-              HybridAddress.A,
-              HybridTimestamp.T]],
+            kont.frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]],
             reachesValue(concBaseSem, sto),
             reachesEnvironment(concBaseSem, sto),
             reachesAddress(concBaseSem, sto)) ++ reachesKontAddr(concBaseSem, sto, kstore)(kont.next))
     }
 
-    private def reachesControl[KAddr <: KontAddr](concBaseSem: BaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+    private def reachesControl[KAddr <: KontAddr](concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                                   sto: Store[HybridAddress.A, ConcreteValue],
                                                   kstore: KontStore[KAddr])(
                                                   control: ConcolicControl)
@@ -192,9 +171,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
         case ConcolicControlError(_) => Set()
       }
 
-    private def reachesStoreAddresses[KAddr <: KontAddr](concBaseSem: BaseSchemeSemantics[ConcreteValue,
-                                                            HybridAddress.A,
-                                                            HybridTimestamp.T],
+    private def reachesStoreAddresses[KAddr <: KontAddr](concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                                          sto: Store[HybridAddress.A, ConcreteValue])(
                                                          control: ConcolicControl,
                                                          kstore: KontStore[KAddr],
@@ -203,7 +180,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
     }
 
     private def garbageCollectStore[KAddr <: KontAddr]
-                                   (concBaseSem: BaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                                   (concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                     store: Store[HybridAddress.A, ConcreteValue],
                                     control: ConcolicControl,
                                     kstore: KontStore[KAddr],
@@ -213,21 +190,14 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
       store.gc(storeAddressReachable)
     }
 
-    private def convertKontAddr[KAddr <: KontAddr](ka: KontAddr,
-                                                   env: Option[Environment[HybridAddress.A]],
-                                                   mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr): KAddr = {
+    private def convertKontAddr[KAddr <: KontAddr](ka: KontAddr, env: Option[Environment[HybridAddress.A]], mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr): KAddr = {
       val kontAddrConverter = new DefaultKontAddrConverter[SchemeExp]
       mapKontAddress(kontAddrConverter.convertKontAddr(ka), env)
     }
 
     def convertState[AbstL: IsConvertableLattice](
-        concSem: ConvertableSemantics[SchemeExp,
-                                      ConcreteValue,
-                                      HybridAddress.A,
-                                      HybridTimestamp.T],
-        abstSem: BaseSchemeSemantics[AbstL,
-                                     HybridAddress.A,
-                                     HybridTimestamp.T],
+        concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+        abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
         initialKontAddress: KontAddr,
         mapKontAddress: (KontAddr,
                          Option[Environment[HybridAddress.A]]) => KontAddr)
@@ -237,12 +207,9 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
          KontAddr,
          HybridTimestamp.T) = {
 
-      val concBaseSem =
-        new BaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T](
-          new SchemePrimitives[HybridAddress.A, ConcreteValue])
+      val concBaseSem = new ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteValue])
 
-      val convertValueFun =
-        convertValue[AbstL](abstSem.primitives) _
+      val convertValueFun = convertValue[AbstL](abstSem.primitives) _
 
       val convertedControl: ConvertedControl[SchemeExp, AbstL, HybridAddress.A] =
         control match {
@@ -257,11 +224,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
 
       val GCedStore = garbageCollectStore(concBaseSem, store, control, kstore, a)
       val convertedStore = convertStore(GCedStore, convertValueFun)
-      val convertedKStore = convertKStore[AbstL, KontAddr](mapKontAddress,
-                                                        kstore,
-                                                        convertValueFun,
-                                                        concBaseSem,
-                                                        abstSem)
+      val convertedKStore = convertKStore[AbstL, KontAddr](mapKontAddress, kstore, convertValueFun, concBaseSem, abstSem)
 
       val convertedA = convertKontAddr(a, None, mapKontAddress)
       val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
@@ -269,32 +232,21 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
     }
   }
 
-  override def eval(
-    programName: String,
-    exp: SchemeExp,
-    sem: Semantics[SchemeExp, lattice.LSet, HybridAddress.A, HybridTimestamp.T],
-    graph: Boolean,
-    timeout: Option[Long]
-  ): Output[lattice.LSet] = ???
+  def eval(exp: SchemeExp, sem: Semantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+           graph: Boolean, timeout:Timeout): Output = ???
 
   /**
     * Performs the evaluation of an expression, possibly writing the output graph
     * in a file, and returns the set of final states reached
     */
-  def eval(programName: String,
-           exp: SchemeExp,
-           sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T],
-           graph: Boolean,
-           timeout: Option[Long]): Output[ConcreteConcreteLattice.L] = {
-    def loop(state: State,
-             start: Long,
-             count: Int,
-             graph: Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]): ConcolicMachineOutput = {
+  def concolicEval(programName: String, exp: SchemeExp, sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T],
+           graph: Boolean, timeout: Timeout): Output = {
+    def loop(state: State, start: Long, count: Int): ConcolicMachineOutput = {
 
       Logger.log(s"stepCount: $stepCount", Logger.V)
       stepCount += 1
 
-      if (timeout.exists(System.nanoTime - start > _)) {
+      if (timeout.reached) {
         ConcolicMachineOutputTimeout((System.nanoTime - start) / Math.pow(10, 9), count)
       } else {
         val control = state.control
@@ -318,27 +270,27 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
             val edgeInfo = sem.stepConcolicEval(e, env, store, t)
             handleFunctionCalled(edgeInfo)
             edgeInfo match {
-              case EdgeInformation(ActionReachedValue(v, optionConcolicValue, store2, _), actions, semanticsFilters) =>
+              case EdgeInformation(ActionConcolicReachedValue(v, optionConcolicValue, store2, _), actions, semanticsFilters) =>
                 val machineFilters = Set[MachineFilterAnnotation]()
-                Right(StepSucceeded(State(ConcolicControlKont(v, optionConcolicValue), store2, kstore, a, time.tick(t)),
+                Right(StepSucceeded(State(ConcolicControlKont(v, optionConcolicValue), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
                   FilterAnnotations(machineFilters, semanticsFilters),
                   actions))
                 case EdgeInformation(ActionPush(frame, e, env, store2, _), actions, semanticsFilters) =>
                   val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                   val kont = Kont(frame, a)
                   val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
-                  Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore.extend(next, kont), next, time.tick(t)),
+                  Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore.extend(next, kont), next, Timestamp[HybridTimestamp.T].tick(t)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
                 case EdgeInformation(ActionEval(e, env, store2, _), actions, semanticsFilters) =>
                   val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
-                  Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, time.tick(t)),
+                  Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
                 case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
                   Reporter.pushEnvironment()
                   val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
-                  Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
+                  Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t, fexp)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
                 case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
@@ -353,16 +305,16 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
               val frames = kstore.lookup(a)
               if (frames.size == 1) {
                 val frame = frames.head.frame
-                val originFrameCast = frame.asInstanceOf[SchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
+                val originFrameCast = frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
                 val oldA = state.a
                 val a = frames.head.next
                 val edgeInfo = sem.stepConcolicKont(v, symbolicValue, frame, store, t)
                 handleFunctionCalled(edgeInfo)
                 edgeInfo match {
-                  case EdgeInformation(ActionReachedValue(v, optionConcolicValue, store2, _), actions, semanticsFilters) =>
+                  case EdgeInformation(ActionConcolicReachedValue(v, optionConcolicValue, store2, _), actions, semanticsFilters) =>
                     val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                       FrameFollowed[ConcreteValue](originFrameCast))
-                    Right(StepSucceeded(State(ConcolicControlKont(v, optionConcolicValue), store2, kstore, a, time.tick(t)),
+                    Right(StepSucceeded(State(ConcolicControlKont(v, optionConcolicValue), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
                   case EdgeInformation(ActionPush(frame, e, env, store2, _), actions, semanticsFilters) =>
@@ -371,14 +323,14 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
                       KontAddrPopped(oldA, a),
                       EvaluatingExpression(e),
                       FrameFollowed(originFrameCast))
-                    Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, time.tick(t)),
+                    Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, Timestamp[HybridTimestamp.T].tick(t)),
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
                   case EdgeInformation(ActionEval(e, env, store2, _), actions, semanticsFilters) =>
                     val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                       EvaluatingExpression(e),
                       FrameFollowed[ConcreteValue](originFrameCast))
-                    Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, time.tick(t)),
+                    Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
                   case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
@@ -386,7 +338,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
                     val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                       EvaluatingExpression(e),
                       FrameFollowed[ConcreteValue](originFrameCast))
-                    Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, time.tick(t, fexp)),
+                    Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t, fexp)),
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
                   case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
@@ -410,11 +362,11 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
             output
           case Right(StepSucceeded(succState, filters, actions)) =>
             def convertFrameFun(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                                abstSem: BaseSchemeSemantics[PAbs, HybridAddress.A, HybridTimestamp.T],
+                                abstSem: ConvertableBaseSchemeSemantics[PAbs, HybridAddress.A, HybridTimestamp.T],
                                 convertValueFun: ConcreteValue => PAbs):
-            SchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T] =>
-            SchemeFrame[PAbs, HybridAddress.A, HybridTimestamp.T] = {
-              (frame: SchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]) =>
+            ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T] =>
+              ConvertableSchemeFrame[PAbs, HybridAddress.A, HybridTimestamp.T] = {
+              (frame: ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]) =>
                 concBaseSem.convertAbsInFrame[PAbs](
                   frame,
                   convertValueFun,
@@ -423,7 +375,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
             }
 
             analysisLauncher.doConcreteStep(convertValue[PAbs], convertFrameFun, filters, stepCount)
-            loop(succState, start, count + 1, graph.addEdge(state, filters, succState))
+            loop(succState, start, count + 1)
         }
       }
 
@@ -431,7 +383,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
 
     def inject(exp: SchemeExp, env: Environment[HybridAddress.A], sto: Store[HybridAddress.A, ConcreteValue]): State = {
       val instrumentedExp = ConcolicInstrumenter.instrument(exp)
-      State(ConcolicControlEval(instrumentedExp, env), sto, KontStore.empty[KontAddr], HaltKontAddress, time.initial(""))
+      State(ConcolicControlEval(instrumentedExp, env), sto, KontStore.empty[KontAddr], HaltKontAddress, Timestamp[HybridTimestamp.T].initial(""))
     }
 
     def loopConcolic(initialState: State, nrOfRuns: Int): Unit = {
@@ -439,7 +391,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
       Reporter.clear(nrOfRuns < 2)
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
       try {
-        loop(initialState, System.nanoTime, 0, new Graph[State, FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A]]())
+        loop(initialState, System.nanoTime, 0)
       } catch {
         case AbortConcolicRunException =>
       } finally {

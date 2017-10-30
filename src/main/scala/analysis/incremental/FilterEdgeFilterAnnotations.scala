@@ -1,10 +1,11 @@
+import ConcreteConcreteLattice.{ L => ConcreteValue }
 import ConcreteConcreteLattice._
 
 class FilterEdgeFilterAnnotations[Exp : Expression,
                                   Abs : IsSchemeLattice,
                                   Addr : Address,
                                   Time : Timestamp,
-                                  State <: StateTrait[Exp, Abs, Addr, Time] : Descriptor]
+                                  State <: StateTrait[Exp, Abs, Addr, Time]]
                                  (implicit val actionRApplier: ActionReplayApplier[Exp, Abs, Addr, Time, State]) {
 
   /*
@@ -26,7 +27,7 @@ class FilterEdgeFilterAnnotations[Exp : Expression,
       }
     }
 
-    def tryCompare(x: T, y: T): Option[Int] = {
+    def tryCompare(x: T, y: T): Option[scala.Int] = {
       (subsumes(x, y), subsumes(y, x)) match {
         case _ if x == y => Some(0)
         case (true, true) => Some(0)

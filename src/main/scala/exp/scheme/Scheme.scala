@@ -179,8 +179,8 @@ case class SchemeDefineFunction(name: Identifier, args: List[Identifier], body: 
 }
 
 /**
- * Do notation: (do ((<variable1> <init1> <step1>) ...) (<test> <expression> ...) <command> ...)
- */
+  * Do notation: (do ((<variable1> <init1> <step1>) ...) (<test> <expression> ...) <command> ...)
+  */
 case class SchemeDo(vars: List[(Identifier, SchemeExp, Option[SchemeExp])], test: SchemeExp, finals: List[SchemeExp], commands: List[SchemeExp], pos: Position) extends SchemeExp {
   override def toString = {
     val varsstr = vars.map({ case (v, i, s) => s"($v $i $s)" }).mkString(" ")
@@ -209,7 +209,7 @@ case class SchemeQuoted(quoted: SExp, pos: Position) extends SchemeExp {
 /**
   * A literal value (number, symbol, string, ...)
   */
-case class SchemeValue(value: Value, pos: Position) extends SchemeExp {
+case class SchemeValue(value: SExpValueType, pos: Position) extends SchemeExp {
   override def toString = value.toString
 }
 
@@ -354,6 +354,7 @@ trait SchemeCompiler {
     case SExpPair(SExpId(Identifier("let", _)),
       SExpPair(bindings, SExpPair(first, rest, _), _), _) =>
       SchemeLet(compileBindings(bindings), compile(first) :: compileBody(rest), exp.pos)
+    case SExpPair(SExpId(Identifier("let", _)), _, _) =>
       throw new Exception(s"Invalid Scheme let: $exp")
     case SExpPair(SExpId(Identifier("let*", _)),
       SExpPair(bindings, SExpPair(first, rest, _), _), _) =>
@@ -389,7 +390,7 @@ trait SchemeCompiler {
         SExpPair(first, rest, _), _), _) =>
       SchemeDefineFunction(name, compileArgs(args), compile(first) :: compileBody(rest), exp.pos)
     case SExpPair(SExpId(Identifier("do", _)),
-      SExpPair(bindings, SExpPair(SExpPair(test, finals, _), commands, _), _), _) =>
+    SExpPair(bindings, SExpPair(SExpPair(test, finals, _), commands, _), _), _) =>
       SchemeDo(compileDoBindings(bindings), compile(test), compileBody(finals), compileBody(commands), exp.pos)
     case SExpPair(SExpId(Identifier("c/cas", _)),
       SExpPair(SExpId(variable),
@@ -540,39 +541,6 @@ trait SchemeCompiler {
 object SchemeCompiler extends SchemeCompiler
 
 /**
-  * Object that provides a method to compile an s-expression into an Amb Scheme expression.
-  * Amb Scheme is identical to regular Scheme, except that it contains amb expressions.
-  */
-object AmbSchemeCompiler extends SchemeCompiler {
-
-  /*
-   * Add the amb keyword to the list of reserved identifiers.
-   */
-  override val reserved: List[String] = List("amb",
-                                             "lambda",
-                                             "if",
-                                             "let",
-                                             "let*",
-                                             "letrec",
-                                             "cond",
-                                             "case",
-                                             "set!",
-                                             "begin",
-                                             "define",
-                                             "while",
-                                             "cas",
-                                             "acquire",
-                                             "release")
-
-  override def compile(exp: SExp): SchemeExp = exp match {
-    case SExpPair(SExpIdentifier("amb", _), exps, _) =>
-      SchemeAmb(compileBody(exps), exp.pos)
-    case other =>
-      super.compile(other)
-  }
-}
-
-/**
   * Object that provides a method to rename variables in a Scheme program in
   * order to have only unique names. For example, (let ((x 1)) (let ((x 2)) x))
   * will be converted to (let ((_x0 1)) (let ((_x1 2)) _x1)). This is useful to
@@ -594,21 +562,6 @@ object SchemeRenamer {
   def rename(exp: SchemeExp,
              names: NameMap,
              count: CountMap): (SchemeExp, CountMap) = exp match {
-
-    case SchemeDo(bindings, test, commands, pos) =>
-      countl(bindings.map(_._1), names, count) match {
-        case (variables, names1, count1) =>
-          val (newBindingsInits, count2) = renameList(bindings.map(_._2), names1, count1)
-          val (newBindingsSteps, count3) = renameList(bindings.map(_._3), names1, count2)
-          val newBindings = (variables, newBindingsInits, newBindingsSteps).zipped.toList
-          val (testCondExp, count4) = rename(test._1, names1, count3)
-          val (testExps, count5) = renameList(test._2, names1, count4)
-          val newTest = (testCondExp, testExps)
-          val (commandsExps, count6) = renameList(commands, names1, count5)
-          val newDoExp = SchemeDo(newBindings, newTest, commandsExps, pos)
-          (newDoExp, count6)
-      }
-
     case SchemeLambda(args, body, pos) =>
       countl(args, names, count) match {
         case (args1, names1, count1) =>
@@ -829,7 +782,7 @@ object SchemeDesugarer {
     desugarExp(undefineExp)
   }
 
-  def undefine(exps: List[SchemeExp]): SchemeExp = {
+  private def undefine(exps: List[SchemeExp]): SchemeExp = {
     undefine(exps, List())
   }
 
@@ -924,10 +877,7 @@ object SchemeDesugarer {
           case Nil => SchemeValue(ValueBoolean(true), pos)
           case andExp :: Nil => desugarExp(andExp)
           case andExp :: rest =>
-            SchemeIf(desugarExp(andExp),
-                     desugarExp(SchemeAnd(rest, exp.pos)),
-                     SchemeValue(ValueBoolean(false), pos),
-                     pos)
+            SchemeIf(desugarExp(andExp), desugarExp(SchemeAnd(rest, exp.pos)), SchemeValue(ValueBoolean(false), pos), pos)
         }
       case SchemeOr(exps, pos) =>
         exps match {
@@ -939,11 +889,11 @@ object SchemeDesugarer {
              * by users with a unique id.
              */
             val tempVarName = newVarName()
-            val body: SchemeExp = SchemeIf(SchemeIdentifier(tempVarName, pos),
-                                           SchemeIdentifier(tempVarName, pos),
+            val body: SchemeExp = SchemeIf(SchemeVar(Identifier(tempVarName, pos)),
+                                           SchemeVar(Identifier(tempVarName, pos)),
                                            desugarExp(SchemeOr(rest, exp.pos)),
                                            pos)
-            SchemeLet(List((tempVarName, desugarExp(orExp))), List(body), pos)
+            SchemeLet(List((Identifier(tempVarName, pos), desugarExp(orExp))), List(body), pos)
         }
 
       case SchemeCond(clauses, pos) =>
@@ -957,7 +907,7 @@ object SchemeDesugarer {
                 SchemeBegin(body.map(desugarExp), head.pos)
             }
             desugarExp(cond) match {
-              case SchemeIdentifier("else", pos) =>
+              case SchemeVar(Identifier("else", pos)) =>
                 SchemeIf(SchemeValue(ValueBoolean(true), pos),
                          desugaredBody,
                          desugaredRest,
@@ -967,28 +917,6 @@ object SchemeDesugarer {
             }
         }
 
-      case SchemeDo(bindings, test, commands, pos) =>
-        val uniqueName = newVarName()
-        val vars = bindings.map(_._1)
-        val inits = bindings.map(_._2).map(desugarExp)
-        val steps = bindings.map(_._3).map(desugarExp)
-        val endExpressions =
-          if (test._2.size == 1) desugarExp(test._2.head) else SchemeBegin(test._2.map(desugarExp), pos)
-        val recursiveCall =
-          SchemeFuncall(SchemeIdentifier(uniqueName, pos), steps, pos)
-        val lambda = SchemeLambda(
-          vars,
-          List(
-            SchemeIf(test._1,
-                     endExpressions,
-                     SchemeBegin(commands.map(desugarExp) :+ recursiveCall, pos),
-                     pos)),
-          pos)
-        SchemeLetrec(
-          List((uniqueName, lambda)),
-          List(SchemeFuncall(SchemeIdentifier(uniqueName, pos), inits, pos)),
-          pos)
-      case SchemeAmb(exps, pos) => SchemeAmb(exps.map(desugarExp), pos)
       case SchemeLambda(args, body, pos) =>
         SchemeLambda(args, body.map(desugarExp), pos)
       case SchemeFuncall(f, args, pos) =>
@@ -1020,7 +948,7 @@ object SchemeDesugarer {
         }), default.map(desugarExp), pos)
       case SchemeAnd(args, pos) => SchemeAnd(args.map(undefine1), pos)
       case SchemeOr(args, pos) => SchemeOr(args.map(undefine1), pos)
-      case SchemeIdentifier(name, pos) => SchemeIdentifier(name, pos)
+      case SchemeVar(Identifier(name, pos)) => SchemeVar(Identifier(name, pos))
       case SchemeQuoted(quoted, pos) => SchemeQuoted(quoted, pos)
       case SchemeValue(value, pos) => SchemeValue(value, pos)
       case SchemeCas(variable, eold, enew, pos) =>
@@ -1059,12 +987,7 @@ trait Scheme {
   /**
     * Parse a string representing a Scheme program
     */
-  def parse(s: String): SchemeExp = desugar(SExpParser.parse(s).map(compile _))
+  def parse(s: String): SchemeExp = desugar(SExpParser.parse(s).map(compile))
 }
 
 object Scheme extends Scheme
-
-object AmbScheme extends Scheme {
-
-  override def compile(exp: SExp): SchemeExp = AmbSchemeCompiler.compile(exp)
-}

@@ -2,7 +2,7 @@ import scala.io.StdIn
 import Util._
 import scala.util.{Try, Success, Failure}
 
-import ConcreteConcreteLattice.ConcreteValue
+import ConcreteConcreteLattice.{ L => ConcreteValue }
 
 /**
  * Before looking at this, we recommend seeing how to use this framework. A
@@ -83,105 +83,98 @@ object Main {
                 new MakeSchemeLattice[Type.S, Concrete.B, bounded.I, Type.F, Type.C, Type.Sym](config.counting)
           case Config.Lattice.ConstantPropagation => new MakeSchemeLattice[ConstantPropagation.S, Concrete.B, ConstantPropagation.I, ConstantPropagation.F, ConstantPropagation.C, ConstantPropagation.Sym](config.counting)
         }
-        implicit val isSchemeLattice: IsSchemeLattice[lattice.L] = lattice.isSchemeLattice
-        config.language match {
-          case Config.Language.Scheme =>
-            val time: TimestampWrapper = if (config.concrete) ConcreteTimestamp else ZeroCFA
-            implicit val isTimestamp = time.isTimestamp
+      implicit val isSchemeLattice: IsSchemeLattice[lattice.L] = lattice.isSchemeLattice
+      config.language match {
+        case Config.Language.Scheme =>
+          val time: TimestampWrapper = if (config.concrete) ConcreteTimestamp else ZeroCFA
+          implicit val isTimestamp = time.isTimestamp
 
-            val address: AddressWrapper = config.address match {
-              case Config.Address.Classical => ClassicalAddress
-              case Config.Address.ValueSensitive => ValueSensitiveAddress
-            }
-            implicit val isAddress = address.isAddress
+          val address: AddressWrapper = config.address match {
+            case Config.Address.Classical => ClassicalAddress
+            case Config.Address.ValueSensitive => ValueSensitiveAddress
+          }
+          implicit val isAddress = address.isAddress
 
-            val machine = config.machine match {
-              case Config.Machine.AAM => new AAM[SchemeExp, lattice.L, address.A, time.T]
-              case Config.Machine.AAMGlobalStore => new AAMAACP4F[SchemeExp, lattice.L, address.A, time.T](AAMKAlloc)
-              case Config.Machine.ConcreteMachine => new ConcreteMachine[SchemeExp, lattice.L, address.A, time.T]
-              case Config.Machine.AAC => new AAMAACP4F[SchemeExp, lattice.L, address.A, time.T](AACKAlloc)
-              case Config.Machine.Free => new AAMAACP4F[SchemeExp, lattice.L, address.A, time.T](P4FKAlloc)
-            }
+          val machine = config.machine match {
+            case Config.Machine.AAM => new AAM[SchemeExp, lattice.L, address.A, time.T]
+            case Config.Machine.AAMGlobalStore => new AAMAACP4F[SchemeExp, lattice.L, address.A, time.T](AAMKAlloc)
+            case Config.Machine.ConcreteMachine => new ConcreteMachine[SchemeExp, lattice.L, address.A, time.T]
+            case Config.Machine.AAC => new AAMAACP4F[SchemeExp, lattice.L, address.A, time.T](AACKAlloc)
+            case Config.Machine.Free => new AAMAACP4F[SchemeExp, lattice.L, address.A, time.T](P4FKAlloc)
+          }
 
-            val sem = new SchemeSemantics[lattice.L, address.A, time.T](new SchemePrimitives[address.A, lattice.L])
+          val sem = new SchemeSemantics[lattice.L, address.A, time.T](new SchemePrimitives[address.A, lattice.L])
 
-            replOrFile(config.file, program => run(machine, sem)(program, config.dotfile, config.jsonfile, config.timeout.map(_.toNanos), config.inspect))
-          case Config.Language.CScheme =>
-            val clattice: CSchemeLattice = new MakeCSchemeLattice[lattice.L]
-            implicit val isCSchemeLattice = clattice.isCSchemeLattice
+          replOrFile(config.file, program => run(machine, sem)(program, config.dotfile, config.jsonfile, config.timeout.map(_.toNanos), config.inspect))
+        case Config.Language.CScheme =>
+          val clattice: CSchemeLattice = new MakeCSchemeLattice[lattice.L]
+          implicit val isCSchemeLattice = clattice.isCSchemeLattice
 
-            val time: TimestampWrapper = if (config.concrete) ConcreteTimestamp else ZeroCFA
-            implicit val isTimestamp = time.isTimestamp
+          val time: TimestampWrapper = if (config.concrete) ConcreteTimestamp else ZeroCFA
+          implicit val isTimestamp = time.isTimestamp
 
-            val address: AddressWrapper = config.address match {
-              case Config.Address.Classical => ClassicalAddress
-              case Config.Address.ValueSensitive => ValueSensitiveAddress
-            }
-            implicit val isAddress = address.isAddress
+          val address: AddressWrapper = config.address match {
+            case Config.Address.Classical => ClassicalAddress
+            case Config.Address.ValueSensitive => ValueSensitiveAddress
+          }
+          implicit val isAddress = address.isAddress
 
-            val machine = config.machine match {
-              case Config.Machine.AAM => new ConcurrentAAM[SchemeExp, clattice.L, address.A, time.T, ContextSensitiveTID](AllInterleavings)
-              case _ => throw new Exception(s"unsupported machine for CScheme: ${config.machine}")
-            }
+          val machine = config.machine match {
+            case Config.Machine.AAM => new ConcurrentAAM[SchemeExp, clattice.L, address.A, time.T, ContextSensitiveTID](AllInterleavings)
+            case _ => throw new Exception(s"unsupported machine for CScheme: ${config.machine}")
+          }
 
-            val sem = new CSchemeSemantics[clattice.L, address.A, time.T, ContextSensitiveTID](new CSchemePrimitives[address.A, clattice.L])
-            replOrFile(config.file, program => run(machine, sem)(program, config.dotfile, config.jsonfile, config.timeout.map(_.toNanos), config.inspect))
-          case Config.Language.AScheme =>
-            val alattice: ASchemeLattice = new MakeASchemeLattice[lattice.L]
-            implicit val isASchemeLattice = alattice.isASchemeLattice
+          val sem = new CSchemeSemantics[clattice.L, address.A, time.T, ContextSensitiveTID](new CSchemePrimitives[address.A, clattice.L])
+          replOrFile(config.file, program => run(machine, sem)(program, config.dotfile, config.jsonfile, config.timeout.map(_.toNanos), config.inspect))
+        case Config.Language.AScheme =>
+          val alattice: ASchemeLattice = new MakeASchemeLattice[lattice.L]
+          implicit val isASchemeLattice = alattice.isASchemeLattice
 
-            import ActorTimestamp.fromTime
-            val time: ActorTimestampWrapper = if (config.concrete) ConcreteTimestamp else KMessageTagSensitivity(1)
-            implicit val isTimestamp = time.isActorTimestamp
+          import ActorTimestamp.fromTime
+          val time: ActorTimestampWrapper = if (config.concrete) ConcreteTimestamp else KMessageTagSensitivity(1)
+          implicit val isTimestamp = time.isActorTimestamp
 
-            val address: AddressWrapper = config.address match {
-              case Config.Address.Classical => ClassicalAddress
-              case Config.Address.ValueSensitive => ValueSensitiveAddress
-            }
-            implicit val isAddress = address.isAddress
+          val address: AddressWrapper = config.address match {
+            case Config.Address.Classical => ClassicalAddress
+            case Config.Address.ValueSensitive => ValueSensitiveAddress
+          }
+          implicit val isAddress = address.isAddress
 
-            val mbox = config.mbox match {
-              case Config.Mbox.Powerset => new PowersetMboxImpl[ContextSensitiveTID, alattice.L]
-              case Config.Mbox.BoundedList => new BoundedListMboxImpl[ContextSensitiveTID, alattice.L](config.mboxBound)
-              case Config.Mbox.BoundedMultiset => new BoundedMultisetMboxImpl[ContextSensitiveTID, alattice.L](config.mboxBound)
-              case Config.Mbox.Graph => new GraphMboxImpl[ContextSensitiveTID, alattice.L]
-            }
+          val mbox = config.mbox match {
+            case Config.Mbox.Powerset => new PowersetMboxImpl[ContextSensitiveTID, alattice.L]
+            case Config.Mbox.BoundedList => new BoundedListMboxImpl[ContextSensitiveTID, alattice.L](config.mboxBound)
+            case Config.Mbox.BoundedMultiset => new BoundedMultisetMboxImpl[ContextSensitiveTID, alattice.L](config.mboxBound)
+            case Config.Mbox.Graph => new GraphMboxImpl[ContextSensitiveTID, alattice.L]
+          }
 
-            val machine = config.machine match {
-              case Config.Machine.AAM => new ActorsAAM[SchemeExp, alattice.L, address.A, time.T, ContextSensitiveTID](mbox)
-              case Config.Machine.AAMGlobalStore => new ActorsAAMGlobalStore[SchemeExp, alattice.L, address.A, time.T, ContextSensitiveTID](mbox)
-              case _ => throw new Exception(s"unsupported machine for AScheme: ${config.machine}")
-            }
+          val machine = config.machine match {
+            case Config.Machine.AAM => new ActorsAAM[SchemeExp, alattice.L, address.A, time.T, ContextSensitiveTID](mbox)
+            case Config.Machine.AAMGlobalStore => new ActorsAAMGlobalStore[SchemeExp, alattice.L, address.A, time.T, ContextSensitiveTID](mbox)
+            case _ => throw new Exception(s"unsupported machine for AScheme: ${config.machine}")
+          }
 
-            val visitor = new RecordActorVisitor[SchemeExp, alattice.L, address.A]
-            val sem = new ASchemeSemanticsWithVisitorAndOptimization[alattice.L, address.A, time.T, ContextSensitiveTID](new SchemePrimitives[address.A, alattice.L], visitor)
-            val N = 1
-            val warmup = if (N > 1) 2 else 0 // 2 runs that are ignored to warm up
-            val (states, times) = (1 to N+warmup).map(i =>
-              runOnFile(config.file.get, program => run(machine, sem)(program, config.dotfile, config.jsonfile, config.timeout.map(_.toNanos), config.inspect))).unzip
-            println("States: " + states.mkString(", "))
-            println("Time: " + times.drop(warmup).mkString(","))
-            if (N == 1) visitor.print
-          case Config.Language.ConcolicScheme =>
-                      implicit val sabsCCLattice = ConcreteConcreteLattice.isSchemeLattice
+          val visitor = new RecordActorVisitor[SchemeExp, alattice.L, address.A]
+          val sem = new ASchemeSemanticsWithVisitorAndOptimization[alattice.L, address.A, time.T, ContextSensitiveTID](new SchemePrimitives[address.A, alattice.L], visitor)
+          val N = 1
+          val warmup = if (N > 1) 2 else 0 // 2 runs that are ignored to warm up
+        val (states, times) = (1 to N+warmup).map(i =>
+          runOnFile(config.file.get, program => run(machine, sem)(program, config.dotfile, config.jsonfile, config.timeout.map(_.toNanos), config.inspect))).unzip
+          println("States: " + states.mkString(", "))
+          println("Time: " + times.drop(warmup).mkString(","))
+          if (N == 1) visitor.print
+        case Config.Language.ConcolicScheme =>
+          implicit val sabsCCLattice = ConcreteConcreteLattice.isSchemeLattice
+          val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
 
-                      val sem = new BaseSchemeSemantics[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T](
-                        new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
+          val typeLattice = SchemeLattices.WithCounting(false).TypeLattice
+          implicit val typeConvLattice: IsConvertableLattice[typeLattice.L] = typeLattice.isConvertableSchemeLattice
+          implicit val typeLatInfoProv = typeLattice.latticeInfoProvider
+          implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
+          val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[typeLattice.L](sem)(typeConvLattice, typeLatInfoProv, config.analysisFlags)
 
-                      val pointsLattice = new PointsToLattice(false)
-                      implicit val pointsConvLattice = pointsLattice.isSchemeLattice
-                      implicit val pointsLatInfoProv = pointsLattice.latticeInfoProvider
-
-                      implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
-
-                      val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsLattice.L](sem)(
-                        pointsConvLattice,
-                        pointsLatInfoProv,
-                        config.analysisFlags)
-
-                      val machine = new HybridConcreteMachine[pointsLattice.L](pointsToAnalysisLauncher, config.analysisFlags)
-                      machine.eval(sem.parse(program), sem, config.dotfile.isDefined, config.timeout)
-        }
+          val machine = new ConcolicMachine[typeLattice.L](pointsToAnalysisLauncher, config.analysisFlags)
+          runOnFile(config.file.get, program => machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined, Timeout.none))
+          }
       })
     Profiler.print
   }
@@ -212,6 +205,7 @@ object ScalaAM {
    */
   object FastConcrete {
     def eval(program: String, timeout: Option[Long] = None): Option[concreteLattice.L] = {
+      implicit val isSchemeLattice: IsSchemeLattice[concreteLattice.L] = concreteLattice.isSchemeLattice
       val output = run[SchemeExp, concreteLattice.L, ClassicalAddress.A, ConcreteTimestamp.T](
         new ConcreteMachine[SchemeExp, concreteLattice.L, ClassicalAddress.A, ConcreteTimestamp.T],
         new SchemeSemantics[concreteLattice.L, ClassicalAddress.A, ConcreteTimestamp.T](new SchemePrimitives[ClassicalAddress.A, concreteLattice.L]))(program, false, timeout)
@@ -222,6 +216,7 @@ object ScalaAM {
 
   object ConstantPropagationAAM {
     def eval(program: String, timeout: Option[Long] = None): Set[cpLattice.L] = {
+      implicit val isSchemeLattice: IsSchemeLattice[cpLattice.L] = cpLattice.isSchemeLattice
       val output = run[SchemeExp, cpLattice.L, ClassicalAddress.A, ZeroCFA.T](
         new AAM[SchemeExp, cpLattice.L, ClassicalAddress.A, ZeroCFA.T],
         new SchemeSemantics[cpLattice.L, ClassicalAddress.A, ZeroCFA.T](new SchemePrimitives[ClassicalAddress.A, cpLattice.L]))(program, false, timeout)
@@ -231,6 +226,7 @@ object ScalaAM {
 
   object TypeAAM {
     def eval(program: String, timeout: Option[Long] = None): Set[typeLattice.L] = {
+      implicit val isSchemeLattice: IsSchemeLattice[typeLattice.L] = typeLattice.isSchemeLattice
       val output = run[SchemeExp, typeLattice.L, ClassicalAddress.A, ZeroCFA.T](
         new AAM[SchemeExp, typeLattice.L, ClassicalAddress.A, ZeroCFA.T],
         new SchemeSemantics[typeLattice.L, ClassicalAddress.A, ZeroCFA.T](new SchemePrimitives[ClassicalAddress.A, typeLattice.L]))(program, false, timeout)

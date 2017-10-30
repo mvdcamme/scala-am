@@ -1,26 +1,20 @@
 import java.io.{BufferedWriter, File, FileWriter}
 
-import ConcreteConcreteLattice.ConcreteValue
+import ConcreteConcreteLattice.{ L => ConcreteValue }
+import EdgeAnnotation.graphAnnotation
 
 class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Timestamp] {
 
-  private def joinStores[
-      Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](
-      machine: Machine)(stores: Set[Store[Addr, L]]): Set[(Addr, L)] = {
+  private def joinStores[Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](machine: Machine)(stores: Set[Store[Addr, L]]): Set[(Addr, L)] = {
     val joinedStore = stores.foldLeft(Store.initial(Set()): Store[Addr, L]) {
       case (joinedStore, store) => joinedStore.join(store)
     }
     joinedStore.toSet
   }
 
-  case class MetricsToWrite(max: Int,
-                            median: Double,
-                            average: Double,
-                            sum: Int,
-                            nrOfTops: Int)
+  case class MetricsToWrite(max: Int, median: Double, average: Double, sum: Int, nrOfTops: Int)
 
-  private def calculateMetrics(
-      result: List[(Addr, Option[Int])]): MetricsToWrite = {
+  private def calculateMetrics(result: List[(Addr, Option[Int])]): MetricsToWrite = {
     val integerValues = result.map(_._2).filter(_.isDefined).map(_.get)
     val numberValues = integerValues.map(_.toDouble).sortWith(_ < _)
     val length = numberValues.length
@@ -84,36 +78,33 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
   def analyze[Machine <: ProducesStateGraph[Exp, L, Addr, Time]](
       toDot: Option[String],
       machine: Machine,
-      sem: Semantics[Exp, L, Addr, Time],
+      sem: ConvertableSemantics[Exp, L, Addr, Time],
       pointsTo: L => Option[Int],
       relevantAddress: Addr => Boolean)(
       startState: machine.MachineState,
       isInitial: Boolean,
       stepSwitched: Option[Int]): StaticAnalysisResult = {
     Logger.log(s"Starting static points-to analysis", Logger.I)
-    val result = machine.kickstartEval(startState, sem, None, None, stepSwitched)
-    toDot.foreach(result.toDotFile)
+    val result = machine.kickstartEval(startState, sem, None, Timeout.none, stepSwitched)
+    toDot.foreach(result.toFile)
     analyzeOutput(machine, pointsTo, relevantAddress)(result)
-    AnalysisOutputGraph[Exp, L, Addr, machine.GraphNode](result)
+    AnalysisOutputGraph[Exp, L, Addr, machine.MachineState](result)
   }
 }
 
-class PointsToAnalysisLauncher[
-    Abs: IsConvertableLattice: PointsToableLatticeInfoProvider](
-    concSem: ConvertableSemantics[SchemeExp,
-                                  ConcreteConcreteLattice.L,
-                                  HybridAddress.A,
-                                  HybridTimestamp.T])
+class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoProvider](
+    concSem: ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T])
     (implicit analysisFlags: AnalysisFlags)
     extends AnalysisLauncher[Abs] {
 
   val usesGraph = new UsesGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
   import usesGraph._
+  implicit def g: GraphNode[aam.MachineState, Unit] = aam.State.graphNode
 
-  val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.GraphNode](aam.AAMGraphPrinter)
+  val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.MachineState](aam.AAMGraphPrinter)
 
   val abs = implicitly[IsConvertableLattice[Abs]]
-  val lip = implicitly[PointsToableLatticeInfoProvider[Abs]]
+  val lip = implicitly[PointsToLatticeInfoProvider[Abs]]
 
   val pointsToAnalysis = new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
   val countFunCallsMetricsComputer = new CountFunCalls[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.State]
@@ -129,12 +120,8 @@ class PointsToAnalysisLauncher[
   val runTimePointsToOutputPath =s"${GlobalFlags.ANALYSIS_PATH}/Points_To/Run_time/"
   val prunedPointsToOutputPath =s"${GlobalFlags.ANALYSIS_PATH}/Points_To/Pruned/"
 
-  private def runMetrics(graph: AbstractGraph,
-                         stepCount: Integer,
-                         funCallsMetricPath: String,
-                         pointsToMetricPath: String,
-                         programName:String,
-                         addressesUsed: Set[HybridAddress.A] = Set()): Unit = {
+  private def runMetrics(graph: AbstractGraph, stepCount: Integer, funCallsMetricPath: String, pointsToMetricPath: String,
+                         programName:String, addressesUsed: Set[HybridAddress.A] = Set()): Unit = {
     Stopwatch.doPaused({
       countFunCallsMetricsComputer.computeAndWriteMetrics(graph, stepCount, funCallsMetricPath, programName)
       countNonConstantsMetricsComputer.computeAndWriteMetrics(graph, stepCount, pointsToMetricPath, programName, addressesUsed)
@@ -148,15 +135,7 @@ class PointsToAnalysisLauncher[
     wrapRunAnalysis(
       () => {
         val startState = convertStateAAM(aam, concSem, abstSem, currentProgramState)
-        val result = pointsToAnalysis.analyze(toDotFile,
-                                               aam,
-                                   abstSem,
-                                   lip.pointsTo,
-                                   (addr) =>
-                                     ! HybridAddress.isAddress.isPrimitive(addr))(
-                                   startState,
-                                   false,
-                                   stepSwitched)
+        val result = pointsToAnalysis.analyze(toDotFile, aam, abstSem, lip.pointsTo, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startState, false, stepSwitched)
         Logger.log(s"Static points-to analysis result is $result", Logger.U)
         result
       })
@@ -170,8 +149,8 @@ class PointsToAnalysisLauncher[
     val result = runStaticAnalysisGeneric(currentProgramState, stepSwitched, None)
     result match {
       case o: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] =>
-        o.output.toDotFile(s"${GlobalFlags.ANALYSIS_PATH}Run_time/run_time_${stepSwitched.getOrElse(-1)}.dot")
-        runMetrics(o.output.graph, stepSwitched.getOrElse[Int](-1), runTimeAnalysisMetricsOutputPath,
+        GraphDOTOutput.toFile(o.hasGraph.graph, ())(s"${GlobalFlags.ANALYSIS_PATH}Run_time/run_time_${stepSwitched.getOrElse(-1)}.dot")
+        runMetrics(o.hasGraph.graph, stepSwitched.getOrElse[Int](-1), runTimeAnalysisMetricsOutputPath,
           runTimePointsToOutputPath, programName, addressesUsed)
     }
     result
@@ -187,20 +166,19 @@ class PointsToAnalysisLauncher[
 
   def runInitialStaticAnalysis(currentProgramState: PS, programName: String): StaticAnalysisResult =
     runStaticAnalysisGeneric(currentProgramState, None, Some("initial_graph.dot")) match {
-      case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.GraphNode] =>
-        result.output.toDotFile("initial_graph.dot")
-        incrementalAnalysis.initializeGraph(result.output.graph)
-        initializeAnalyses(result.output.graph, programName)
+      case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.MachineState] =>
+        GraphDOTOutput.toFile(result.hasGraph.graph, ())("initial_graph.dot")
+        incrementalAnalysis.initializeGraph(result.hasGraph.graph)
+        initializeAnalyses(result.hasGraph.graph, programName)
         result
-      case other =>
-        throw new Exception(s"Expected initial analysis to produce a graph, got $other instead")
+      case other => throw new Exception(s"Expected initial analysis to produce a graph, got $other instead")
     }
 
   def doConcreteStep(convertValue: SchemePrimitives[HybridAddress.A, Abs] => ConcreteConcreteLattice.L => Abs,
                      convertFrame: (ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-                                    BaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
-                                    ConcreteConcreteLattice.L => Abs) => SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
-                       => SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T],
+                                    ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
+                                    ConcreteConcreteLattice.L => Abs) => ConvertableSchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
+                       => ConvertableSchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T],
                      filters: FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A],
                      stepNumber: Int) = {
     val convertValueFun = convertValue(abstSem.primitives)
@@ -217,7 +195,7 @@ class PointsToAnalysisLauncher[
     })
   }
 
-  protected def applyEdgeActions(concreteState: PS, stepCount: Int, programName: String, addressesUsed: Set[HybridAddress.A]): Unit = {
+  protected def applyEdgeActions(concreteState: PS, stepCount: Int, programName: String, addressesUsed: Set[HybridAddress.A])(implicit g: GraphNode[aam.State, Unit]): Unit = {
     val applyEdgeActions = () => {
       val convertedState = convertStateAAM(aam, concSem, abstSem, concreteState)
       val optionIncrementalGraph: Option[AbstractGraph] = incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
@@ -227,9 +205,11 @@ class PointsToAnalysisLauncher[
 //        assert(incrementalGraph.nodes.size <= incrementalAnalysis.prunedGraph.get.nodes.size)
 //        assert(incrementalGraph.edges.size <= incrementalAnalysis.prunedGraph.get.edges.size)
         val completelyNewGraph: AbstractGraph = runStaticAnalysis(concreteState, Some(stepCount), programName, addressesUsed) match {
-          case AnalysisOutputGraph(output) =>
-            output.toDotFile(s"${GlobalFlags.ANALYSIS_PATH}Run_time/run_time_$stepCount.dot")
-            output.graph.asInstanceOf[AbstractGraph]
+          case a: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] =>
+//            implicit val g: GraphNode[StateTrait[Any, Any, Any, _], Unit] = aam.State.graphNode
+//            implicit val a: GraphAnnotation[EdgeAnnotation[Any, Any, Any], Unit] = ??? //aam.State.graphNode
+            GraphDOTOutput.toFile(a.hasGraph.graph, ())(s"${GlobalFlags.ANALYSIS_PATH}Run_time/run_time_$stepCount.dot")
+            a.hasGraph.graph.asInstanceOf[AbstractGraph]
         }
         runMetrics(completelyNewGraph, stepCount, runTimeAnalysisMetricsOutputPath, runTimePointsToOutputPath, programName, addressesUsed)
         val areEqual = incrementalAnalysis.subsumedGraphsEqual(completelyNewGraph, incrementalGraph)
@@ -240,7 +220,7 @@ class PointsToAnalysisLauncher[
     wrapAbstractEvaluation(applyEdgeActions)
   }
 
-  def incrementalAnalysis(concreteState: PS, stepCount: Int, programName: String, addressesUsed: Set[HybridAddress.A]): Unit = {
+  def incrementalAnalysis(concreteState: PS, stepCount: Int, programName: String, addressesUsed: Set[HybridAddress.A])(implicit g: GraphNode[aam.State, Unit]): Unit = {
     if (! analysisFlags.doPropagationPhase) {
       filterReachable(stepCount, programName, addressesUsed)
     }

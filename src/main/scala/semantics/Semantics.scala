@@ -1,5 +1,6 @@
 import scalaz._
-import scalaz.Scalaz._
+
+import ConcreteConcreteLattice.{ L => ConcreteValue }
 
 case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address](
   action: Action[Exp, Abs, Addr],
@@ -7,39 +8,77 @@ case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address](
   semanticsFilters: Set[SemanticsFilterAnnotation])
 
 trait GeneratesEdgeInfo[Exp, Abs, Addr, Time] {
-  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionRs: List[ActionReplay[Exp, Abs, Addr]]): EdgeInformation[Exp, Abs, Addr] =
+  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionRs: List[ActionReplay[Exp, Abs, Addr]])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
     EdgeInformation(action, actionRs, Set())
 
-  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionR: ActionReplay[Exp, Abs, Addr]): EdgeInformation[Exp, Abs, Addr] =
+  def noEdgeInfos(action: Action[Exp, Abs, Addr], actionR: ActionReplay[Exp, Abs, Addr])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
     noEdgeInfos(action, List(actionR))
 
-  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionRs: List[ActionReplay[Exp, Abs, Addr]]): Set[EdgeInformation[Exp, Abs, Addr]] =
+  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionRs: List[ActionReplay[Exp, Abs, Addr]])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
     Set(noEdgeInfos(action, actionRs))
 
-  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionR: ActionReplay[Exp, Abs, Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
+  def noEdgeInfosSet(action: Action[Exp, Abs, Addr], actionR: ActionReplay[Exp, Abs, Addr])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
     noEdgeInfosSet(action, List(actionR))
 
-  def simpleAction(action: Action[Exp, Abs, Addr]): EdgeInformation[Exp, Abs, Addr] =
+  def simpleAction(action: Action[Exp, Abs, Addr])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
     EdgeInformation(action, Nil, Set())
 
-  def simpleActionSet(action: Action[Exp, Abs, Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
+  def simpleActionSet(action: Action[Exp, Abs, Addr])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
     simpleActionSet(Set(action))
 
-  def simpleActionSet(actions: Set[Action[Exp, Abs, Addr]]): Set[EdgeInformation[Exp, Abs, Addr]] =
+  def simpleActionSet(actions: Set[Action[Exp, Abs, Addr]])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
     actions.map(EdgeInformation(_, Nil, Set()))
+
+  def addEvalActionT(action: ActionEval[Exp, Abs, Addr])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
+    noEdgeInfos(action, ActionEvalR[Exp, Abs, Addr](action.e, action.env))
+
+  def addEvalActionTSet(action: ActionEval[Exp, Abs, Addr])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    Set(addEvalActionT(action))
+
+  def addPushActionR(action: ActionPush[Exp, Abs, Addr])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
+    noEdgeInfos(action, ActionEvalPushR[Exp, Abs, Addr](action.e, action.env, action.frame))
+
+  protected def addPushActionRSet(action: ActionPush[Exp, Abs, Addr])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    Set(addPushActionR(action))
 }
 
-trait ConvertableSemantics[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs, Addr, Time] {
+abstract class ConvertableSemantics[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
+  extends BasicSemantics[Exp, Abs, Addr, Time] with GeneratesEdgeInfo[Exp, Abs, Addr, Time] {
+
+  type EdgeInfo = EdgeInformation[Exp, Abs, Addr]
+  type EdgeInfos = Set[EdgeInformation[Exp, Abs, Addr]]
+
+  /**
+    * Defines what actions should be taken when an expression e needs to be
+    * evaluated, in environment env with store store
+    */
+  def stepEval(e: Exp, env: Environment[Addr], store: Store[Addr, Abs], t: Time): EdgeInfos
+  /**
+    * Defines what actions should be taken when a value v has been reached, and
+    * the topmost frame is frame
+    */
+  def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time): EdgeInfos
 
   def primitives: Primitives[Addr, Abs]
 
   def convertToAbsSemanticsFrame(frame: Frame, ρ: Environment[Addr], vStack: List[Storable[Abs, Addr]],
-    absSem: BaseSchemeSemantics[Abs, Addr, Time]): (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr])
+    absSem: ConvertableBaseSchemeSemantics[Abs, Addr, Time]): (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr])
 
-  def convertAbsInFrame[OtherAbs: IsConvertableLattice](frame: SchemeFrame[Abs, Addr, Time], convertValue: (Abs) => OtherAbs,
-    convertEnv: (Environment[Addr]) => Environment[Addr],
-    abstSem: BaseSchemeSemantics[OtherAbs, Addr, Time])
-  : SchemeFrame[OtherAbs, Addr, Time]
+  def convertAbsInFrame[OtherAbs: IsConvertableLattice](frame: ConvertableSchemeFrame[Abs, Addr, Time], convertValue: (Abs) => OtherAbs,
+    convertEnv: (Environment[Addr]) => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]): ConvertableSchemeFrame[OtherAbs, Addr, Time]
+
+
 }
 
 /**
@@ -61,23 +100,7 @@ trait ConvertableSemantics[Exp, Abs, Addr, Time] extends BasicSemantics[Exp, Abs
  * language. A more complex definition resides in SchemeSemantics.scala.
  */
 
-abstract class Semantics[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp] {
-  /**
-    * Defines what actions should be taken when an expression e needs to be
-    * evaluated, in environment env with store store
-    */
-  def stepEval(e: Exp, env: Environment[Addr], store: Store[Addr, Abs], t: Time): Set[Action[Exp, Abs, Addr]]
-  /**
-    * Defines what actions should be taken when a value v has been reached, and
-    * the topmost frame is frame
-    */
-  def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time): Set[Action[Exp, Abs, Addr]]
-
-  /** WIP */
-  def stepReceive(self: Any /* TODO */, mname: String, margsv: List[Abs], d: Exp,
-    env: Environment[Addr], store: Store[Addr, Abs], t: Time): Set[Action[Exp, Abs, Addr]] =
-    throw new Exception("Semantics do not support message-based concurrency")
-
+abstract class BasicSemantics [Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp] {
   /**
     * Defines how to parse a program
     */
@@ -121,12 +144,29 @@ abstract class Semantics[Exp : Expression, Abs : JoinLattice, Addr : Address, Ti
     * Similar to bindArgs(List[(Identifier, Abs)], Environment[Addr], Store[Addr, Abs], Time),
     * but also returns the list of addresses that was allocated while binding the arguments.
     */
-  protected def bindArgs(l: List[(Identifier, Exp, Abs)], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): (Environment[Addr], Store[Addr, Abs], List[(Addr, Abs)]) =
+  protected def bindArgsAndReturnAddresses(l: List[(Identifier, Exp, Abs)], ρ: Environment[Addr], σ: Store[Addr, Abs], t: Time): (Environment[Addr], Store[Addr, Abs], List[(Addr, Abs)]) =
     l.foldLeft((ρ, σ, Nil: List[(Addr, Abs)]))({ case ((env, store, boundAddresses), (id, exp, value)) => {
       val a = Address[Addr].variable(id, value, t)
-      (env.extend(id, a), store.extend(a, value), (a, value) :: boundAddresses)
-    }
-    })
+      (env.extend(id.name, a), store.extend(a, value), (a, value) :: boundAddresses)
+    }})
+}
+
+abstract class Semantics[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp] extends BasicSemantics[Exp, Abs, Addr, Time] {
+  /**
+    * Defines what actions should be taken when an expression e needs to be
+    * evaluated, in environment env with store store
+    */
+  def stepEval(e: Exp, env: Environment[Addr], store: Store[Addr, Abs], t: Time): Set[Action[Exp, Abs, Addr]]
+  /**
+    * Defines what actions should be taken when a value v has been reached, and
+    * the topmost frame is frame
+    */
+  def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time): Set[Action[Exp, Abs, Addr]]
+
+  /** WIP */
+  def stepReceive(self: Any /* TODO */, mname: String, margsv: List[Abs], d: Exp,
+    env: Environment[Addr], store: Store[Addr, Abs], t: Time): Set[Action[Exp, Abs, Addr]] =
+    throw new Exception("Semantics do not support message-based concurrency")
 }
 
 class SemanticsWithAnalysis[L, Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp](sem: Semantics[Exp, Abs, Addr, Time], analysis: Analysis[L, Exp, Abs, Addr, Time])

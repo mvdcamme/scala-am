@@ -1,14 +1,13 @@
-class UsesGraph[Exp : Expression,
-                Abs : IsSchemeLattice,
-                Addr : Address,
-                State <: StateTrait[Exp, Abs, Addr, _]] {
+import ConcreteConcreteLattice.{ L => ConcreteValue }
+
+class UsesGraph[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, State <: StateTrait[Exp, Abs, Addr, _]] {
 
   type EdgeAnnotation2 = EdgeAnnotation[Exp, Abs, Addr]
   type Edge = (EdgeAnnotation2, State)
-  type AbstractGraph = Graph[State, EdgeAnnotation2]
+  type AbstractGraph = Graph[State, EdgeAnnotation2, Unit]
 
-  type AbstractFrame = SchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]
-  type ConcreteFrame = SchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
+  type AbstractFrame = ConvertableSchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]
+  type ConcreteFrame = ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]
 
 }
 
@@ -116,13 +115,22 @@ case class EdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address
     actions: List[ActionReplay[Exp, Abs, Addr]])
 
 object EdgeAnnotation {
-
   def dummyEdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address] =
     EdgeAnnotation[Exp, Abs, Addr](FilterAnnotations[Exp, Abs, Addr](Set(), Set()), Nil)
-
   def subsumptionEdge[Exp : Expression, Abs : IsSchemeLattice, Addr : Address]: EdgeAnnotation[Exp, Abs, Addr] = {
     assert(GlobalFlags.AAM_CHECK_SUBSUMES, "Should not be called if flag is turned off")
     EdgeAnnotation(FilterAnnotations(Set(StateSubsumed), Set()), Nil)
   }
-
+  implicit def graphAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address]: GraphAnnotation[EdgeAnnotation[Exp, Abs, Addr], Unit] =
+    new GraphAnnotation[EdgeAnnotation[Exp, Abs, Addr], Unit] {
+      override def label(annot: EdgeAnnotation[Exp, Abs, Addr]) = {
+        val filterEdgeString = annot.filters.machineFilters.mkString(", ") + annot.filters.semanticsFilters.mkString(", ")
+        val fullString = s"[$filterEdgeString], [${annot.actions.mkString(", ")}]"
+        if (GlobalFlags.PRINT_EDGE_ANNOTATIONS_FULL) {
+          fullString
+        } else {
+          fullString.take(40)
+        }
+      }
+    }
 }

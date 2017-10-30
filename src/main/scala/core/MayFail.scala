@@ -14,6 +14,11 @@ sealed trait MayFail[L] {
     case MayFailBoth(l, _) => Some(l)
     case MayFailError(_) => None
   }
+  def collect[A](success: L => Set[A], error: SemanticError => Set[A]): Set[A] = this match {
+    case MayFailSuccess(l) => success(l)
+    case MayFailBoth(l, errs) => success(l) ++ errs.toSet.foldMap(error)
+    case MayFailError(errs) => errs.toSet.foldMap(error)
+  }
 }
 case class MayFailSuccess[L](l: L) extends MayFail[L]
 case class MayFailError[L](errs: List[SemanticError]) extends MayFail[L]
