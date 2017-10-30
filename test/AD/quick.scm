@@ -1,8 +1,6 @@
-
 (define (quick-sort a-list)
   (define (rearrange pivot some-list)
     (define (rearrange-iter rest result)
-      (display pivot)(display " :: ")(display rest)(display (car result))(display (cdr result))(newline)
       (if(null? rest)
 	 result
 	 (if( <= (car rest) pivot)
@@ -19,7 +17,8 @@
       a-list
       (let* ((pivot (car a-list))
 	     (sub-lists (rearrange pivot (cdr a-list))))
-	(display (car sub-lists))(display pivot)(display (cdr sub-lists))(newline)
 	(append (quick-sort (car sub-lists))
 		(list pivot)
 		(quick-sort (cdr sub-lists))))))
+
+(equal? (quick-sort '(9 8 7 6 5 4 3 2 1 0 9)) '(0 1 2 3 4 5 6 7 8 9 9))

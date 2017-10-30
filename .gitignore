@@ -1,23 +1,9 @@
 /.d8_history
 /.ensime
 /TODO.org
+/project/
+/target/
 .ensime_cache
 *.dot
-target
-.classpath
-.project
-*.ps
-.idea
-results
-benchmark results
 *.log
-benchmark_times.txt
-.Rproj.user
-/Analysis
-initial_graph.pdf
-concrete.pdf
-index.html
-initial_graph.html
-misc
-SCP1.zip
-SCP1 no images.zip
+.idea

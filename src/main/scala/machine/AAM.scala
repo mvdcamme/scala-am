@@ -28,6 +28,11 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
 
   def name = "AAM"
 
+  implicit val stateWithKey = new WithKey[State] {
+    type K = KontAddr
+    def key(st: State) = st.a
+  }
+
   /**
     * A machine state is made of a control component, a value store, a
     * continuation store, and an address representing where the current
@@ -78,7 +83,8 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
         })
         val filters = FilterAnnotations[Exp, Abs, Addr](primCallFilter, edgeInformation.semanticsFilters)
         edgeInformation.action match {
-          case ActionReachedValue(v, _, store, _) =>
+          /* When a value is reached, we go to a continuation state */
+          case ActionReachedValue(v, store, _) =>
             EdgeComponents(State(ControlKont(v), store, kstore, a, time.tick(t)),
                            filters,
                            actions)
@@ -207,10 +213,24 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
                env: Iterable[(String, Addr)],
                store: Iterable[(Addr, Abs)]) =
       State(ControlEval(exp, Environment.initial[Addr](env)),
-            Store.initial[Addr, Abs](store),
-            KontStore.empty[KontAddr],
-            HaltKontAddress,
-            time.initial(""))
+        Store.initial[Addr, Abs](store), KontStore.empty[KontAddr], HaltKontAddress, Timestamp[Time].initial(""))
+    import scala.language.implicitConversions
+
+    implicit val graphNode = new GraphNode[State, Unit] {
+      override def label(s: State) = s.toString
+      override def color(s: State) = if (s.halted) { Colors.Yellow } else { s.control match {
+        case _: ControlEval => Colors.Green
+        case _: ControlKont => Colors.Pink
+        case _: ControlError => Colors.Red
+      }}
+
+      import org.json4s._
+      import org.json4s.JsonDSL._
+      import org.json4s.jackson.JsonMethods._
+      import JSON._
+      override def content(s: State) =
+        ("control" -> s.control) ~ ("store" -> s.store) ~ ("kstore" -> s.kstore) ~ ("kont" -> s.a.toString) ~ ("time" -> s.t.toString)
+    }
   }
 
   class StateDescriptor extends Descriptor[State] {
@@ -758,15 +778,6 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       storeDiff1.keys.isEmpty && storeDiff2.keys.isEmpty
     }
 
-//    (e1, e2) match {
-//      case x: (NormalKontAddress[Exp, HybridTimestamp.T], NormalKontAddress[Exp, HybridTimestamp.T]) => x match {
-//        case ()
-//      }
-//        if (x._1.)
-//      case _ =>
-//        false
-//    }
-
     /**
       * Expects that ka1 is the address using the concrete timestamps
       * @param ka1
@@ -819,5 +830,83 @@ class AAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
       }
     }
 
+  }
+
+  type G = Option[Graph[State, Unit, Unit]]
+  case class AAMOutput(halted: Set[State], numberOfStates: Int, time: Double, graph: G, timedOut: Boolean)
+      extends Output {
+    def finalValues = halted.flatMap(st => st.control match {
+      case ControlKont(v) => Set[Abs](v)
+      case _ => Set[Abs]()
+    })
+
+    def toFile(path: String)(output: GraphOutput) = graph match {
+      case Some(g) => output.toFile(g, ())(path)
+      case None => println("Not generating graph because no graph was computed")
+    }
+  }
+
+  /**
+   * Performs the evaluation of an expression @param exp (more generally, a
+   * program) under the given semantics @param sem. If @param graph is true, it
+   * will compute and generate the graph corresponding to the execution of the
+   * program (otherwise it will just visit every reachable state). A @param
+   * timeout can also be given.
+   */
+  def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Timeout): Output = {
+    import scala.language.higherKinds
+    /* The fixpoint computation loop. @param todo is the set of states that need to
+     * be visited (the worklist). @param visited is the set of states that have
+     * already been visited. @param halted is the set of "final" states, where
+     * the program has finished its execution (it is only needed so that it can
+     * be included in the output, to return the final values computed by the
+     * program). @param graph is the current graph that has been computed (if we
+     * need to compute it). If we don't need to compute the graph, @param graph
+     * is None (see type definition for G above in this file).  Note that the
+     * worklist and visited set are "parameterized" and not tied to concrete
+     * implementations; but they are basically similar as Set[State].
+     */
+    @scala.annotation.tailrec
+    def loop[WL[_] : WorkList, VS[_] : VisitedSet](todo: WL[State], visited: VS[State], halted: Set[State], graph: G): AAMOutput = {
+      if (timeout.reached) {
+        /* If we exceeded the maximal time allowed, we stop the evaluation and return what we computed up to now */
+        AAMOutput(halted, VisitedSet[VS].size(visited), timeout.time, graph, true)
+      } else {
+        /* Pick an element from the worklist */
+        WorkList[WL].pick(todo) match {
+          /* We have an element, hence pick returned a pair consisting of the state to visit, and the new worklist */
+          case Some((s, newTodo)) =>
+            if (VisitedSet[VS].contains(visited, s) || VisitedSet[VS].exists(visited, s, (s2: State) => s2.subsumes(s))) {
+              /* If we already visited the state, or if it is subsumed by another already
+               * visited state (i.e., we already visited a state that contains
+               * more information than this one), we ignore it. The subsumption
+               * part reduces the number of visited states. */
+              loop(newTodo, visited, halted, graph)
+            } else if (s.halted) {
+              /* If the state is a final state, add it to the list of final states and
+               * continue exploring the graph */
+              loop(newTodo, VisitedSet[VS].add(visited, s), halted + s, graph)
+            } else {
+              /* Otherwise, compute the successors of this state, update the graph, and push
+               * the new successors on the todo list */
+              val succs = s.step(sem) /* s.step returns the set of successor states for s */
+              val newGraph = graph.map(_.addEdges(succs.map(s2 => (s, (), s2)))) /* add the new edges to the graph: from s to every successor */
+              /* then, add new successors to the worklist, add s to the visited set, and loop with the new graph */
+              loop(WorkList[WL].append(newTodo, succs), VisitedSet[VS].add(visited, s), halted, newGraph)
+            }
+          /* No element returned by pick, this means the worklist is empty and we have visited every reachable state */
+          case None => AAMOutput(halted, VisitedSet[VS].size(visited), timeout.time, graph, false)
+        }
+      }
+    }
+    loop(
+      /* Start with the initial state resulting from injecting the program */
+      Vector(State.inject(exp, sem.initialEnv, sem.initialStore)).toSeq,
+      /* Initially we didn't visit any state */
+      VisitedSet.MapVisitedSet.empty,
+      /* Initially no halted state has been visited */
+      Set(),
+      /* Graph is initially empty, and we wrap it into an Option */
+      if (graph) { Some(Graph.empty) } else { None })
   }
 }

@@ -42,4 +42,4 @@
 
 (define test3 (vector 8 3 6 6 1 5 4 2 9 6))
 (quick-sort test3)
-test3
+(equal? test3 (vector 1 2 3 4 5 6 6 6 8 9))

@@ -1,3 +1,4 @@
+import java.io.{BufferedWriter, File, FileWriter}
 import ConcolicSolver.initialErrorPaths
 import ConcreteConcreteLattice.{ConcreteValue, lattice}
 
@@ -497,5 +498,12 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToableLatticeInfoProvide
     val result = analysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, convertedCurrentAddresses)
     Reporter.enableConcolic()
     result
+  }
+
+  def printExecutionTimes[Abs: JoinLattice](benchmarks_results_file: String): Unit = {
+    val file = new File(benchmarks_results_file)
+    val bw = new BufferedWriter(new FileWriter(file, true))
+    bw.write(s"${GlobalFlags.CURRENT_PROGRAM}: ${Stopwatch.time}\n")
+    bw.close()
   }
 }

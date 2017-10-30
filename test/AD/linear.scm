@@ -1,3 +1,7 @@
+(define result '())
+(define (display x)(set! result (cons x result)))
+(define (newline) (set! result (cons 'newline result)))
+
 (define (create-hash-table size hash-fct . equal-fct)
   (let ((content (make-vector size))
         (same? (if (null? equal-fct) = (car equal-fct))))
@@ -45,8 +49,8 @@
       (let ((temp (find-item key)))
         (cond
           (temp
-            (set-status! temp 'deleted)
-            #t)
+           (set-status! temp 'deleted)
+           #t)
           (else #f))))
     (define (display-table)
       (let ((stop (vector-length content)))
@@ -67,7 +71,7 @@
         ((eq? msg 'display) (display-table))
         (else (error "unknown request -- create-hash-table" msg))))
     (do
-      ((index (- (vector-length content) 1) (- index 1)))
+        ((index (- (vector-length content) 1) (- index 1)))
       ((negative? index) 'done)
       (vector-set! content index (make-item 'empty '() '())))
     dispatch))
@@ -81,3 +85,56 @@
 (table 'insert 11 50)
 (table 'display)
 
+(equal? result
+        '(newline
+         (empty () ())
+         "  "
+         12
+         newline
+         (data 11 50)
+         "  "
+         11
+         newline
+         (empty () ())
+         "  "
+         10
+         newline
+         (empty () ())
+         "  "
+         9
+         newline
+         (empty () ())
+         "  "
+         8
+         newline
+         (data 7 72)
+         "  "
+         7
+         newline
+         (empty () ())
+         "  "
+         6
+         newline
+         (empty () ())
+         "  "
+         5
+         newline
+         (data 4 69)
+         "  "
+         4
+         newline
+         (data 27 14)
+         "  "
+         3
+         newline
+         (data 14 98)
+         "  "
+         2
+         newline
+         (data 1 79)
+         "  "
+         1
+         newline
+         (empty () ())
+         "  "
+         0))

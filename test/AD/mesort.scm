@@ -47,6 +47,6 @@
 	 (merge-sort-iter (* 2 len)))))
   (merge-sort-iter 1))
 
-(let ((aVector #(8 3 6 6 0 5 4 2 9 6)))
+(let ((aVector (vector 8 3 6 6 0 5 4 2 9 6)))
   (bottom-up-merge-sort aVector)
-  aVector)
+  (equal? aVector (vector 0 2 3 4 5 6 6 6 8 9)))

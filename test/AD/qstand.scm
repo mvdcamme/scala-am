@@ -34,12 +34,13 @@
 
 (define test1 (vector 7 2 4 6 0 8 5 3 1))
 (quick-sort test1)
-test1
 
 (define test2 (vector 8 1 4 9 6 3 5 2 7 0))
 (quick-sort test2)
-test2
 
 (define test3 (vector 8 3 6 6 1 5 4 2 9 6))
 (quick-sort test3)
-test3
+
+(and (equal? test1 (vector 0 1 2 3 4 5 6 7 8))
+     (equal? test2 (vector 0 1 2 3 4 5 6 7 8 9))
+     (equal? test3 (vector 1 2 3 4 5 6 6 6 8 9)))

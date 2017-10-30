@@ -73,4 +73,4 @@
 (define v (vector 'lol 5 8 1 3 9 10 2 0))
 
 (make-heap v 8)
-v
+(equal? v (vector 'lol 0 3 1 5 9 10 2 8))

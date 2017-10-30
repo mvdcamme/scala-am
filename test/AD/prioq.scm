@@ -1,8 +1,8 @@
-(define (make-item priority element)
-  (cons priority element))
-
 (define true #t)
 (define false #f)
+
+(define (make-item priority element)
+  (cons priority element))
 
 (define (get-priority item) (car item))
 
@@ -50,7 +50,10 @@
                  -- create-priority-queue" m))))
     dispatch))
 
-(define c (create-priority-queue))
-((c 'enqueue) 3 "g")
-((c 'enqueue) 1 "f")
-((c 'enqueue) 5 "x")
+(define pq (create-priority-queue))
+((pq 'enqueue) 66 'Patrick)
+((pq 'enqueue) -106 'Octo)
+((pq 'enqueue) 0 'Sandy)
+((pq 'enqueue) 89 'Spongebob)
+((pq 'dequeue))
+((pq 'dequeue))
