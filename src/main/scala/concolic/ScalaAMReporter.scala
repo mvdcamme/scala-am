@@ -1,10 +1,9 @@
-import SymbolicTreeHelper.TreePath
+import backend._
+import backend.path._
 
 case object AbortConcolicRunException extends Exception
 
-object Reporter {
-  type Path = List[SemanticsFilterAnnotation]
-  type PathConstraint = List[BranchConstraint]
+object ScalaAMReporter {
 
   type SymbolicMemoryScope = Map[String, ConcolicExpression]
   type SymbolicStore = List[SymbolicMemoryScope]
@@ -12,56 +11,13 @@ object Reporter {
   private var doConcolic: Boolean = false
 
   private var symbolicMemory: SymbolicStore = List(Map())
-  private var currentPath: Path = Nil
+  private var currentPath: ThenElsePath = Nil
   private var currentReport: PathConstraint = Nil
 
-  private var optRoot: Option[BranchSymbolicNode] = None
-  private var optCurrentNode: Option[BranchSymbolicNode] = None
+  private var optCurrentErrorPaths: Option[List[ThenElsePath]] = None
 
-  private var optCurrentErrorPaths: Option[List[Path]] = None
-
-  type Setter = (BranchSymbolicNode) => Unit
-
-  def getRoot: Option[BranchSymbolicNode] = optRoot
-  def getCurrentNode: Option[BranchSymbolicNode] = optCurrentNode
-
-  def setCurrentErrorPaths(newCurrentErrorPaths: List[Path]): Unit = {
+  def setCurrentErrorPaths(newCurrentErrorPaths: List[ThenElsePath]): Unit = {
     optCurrentErrorPaths = Some(newCurrentErrorPaths)
-  }
-
-  private def setRoot(symbolicNode: BranchSymbolicNode): Unit = {
-    optRoot = Some(symbolicNode)
-    optCurrentNode = optRoot
-  }
-  private var integrateNode: Setter = setRoot
-
-  private def generateBranchNodeSetter(thenBranchTaken: Boolean): Setter = optCurrentNode match {
-    case Some(currentNode) => currentNode match {
-      case b: BranchSymbolicNode =>
-        (symNode: BranchSymbolicNode) => {
-          if (thenBranchTaken) {
-            b.thenBranchTaken = true
-            b.thenBranch match {
-              case Some(thenBranch) =>
-                val combinedNode = thenBranch.combine(symNode)
-                b.thenBranch = Some(combinedNode)
-              case None =>
-                b.thenBranch = Some(symNode)
-            }
-            optCurrentNode = b.thenBranch
-          } else {
-            b.elseBranchTaken = true
-            b.elseBranch match {
-              case Some(elseBranch) =>
-                val combinedNode = elseBranch.combine(symNode)
-                b.elseBranch = Some(combinedNode)
-              case None =>
-                b.elseBranch = Some(symNode)
-            }
-            optCurrentNode = b.elseBranch
-          }
-        }
-    }
   }
 
   def enableConcolic(): Unit = {
@@ -72,18 +28,11 @@ object Reporter {
   }
   def isConcolicEnabled: Boolean = doConcolic
   def clear(isFirstClear: Boolean): Unit = {
+    Reporter.clear(isFirstClear)
     InputVariableStore.reset()
-    ConcolicIdGenerator.resetId()
     currentPath = Nil
     currentReport = Nil
-    optCurrentNode = optRoot
-    optCurrentErrorPaths = ConcolicSolver.getInitialErrorPaths
-    if (!isFirstClear) {
-      integrateNode = (node) => {
-        optRoot = Some(optRoot.get.combine(node))
-        optCurrentNode = optRoot
-      }
-    }
+    optCurrentErrorPaths = ScalaAMConcolicSolver.getInitialErrorPaths
     symbolicMemory = List(Map())
   }
   def pushEnvironment(): Unit = {
@@ -131,12 +80,9 @@ object Reporter {
     symbolicMemory = newSymbolicMemory
   }
 
-  private def branchConstraintToNode(constraint: BranchConstraint, thenBranchTaken: Boolean) =
-    BranchSymbolicNode(constraint, thenBranchTaken, !thenBranchTaken, None, None)
+  private case class SplitErrorPaths(thenPaths: List[ThenElsePath], elsePaths: List[ThenElsePath])
 
-  private case class SplitErrorPaths(thenPaths: List[Path], elsePaths: List[Path])
-
-  private def splitErrorPaths(errorPaths: List[Path]): SplitErrorPaths = {
+  private def splitErrorPaths(errorPaths: List[ThenElsePath]): SplitErrorPaths = {
     // If node does not follow a path along which an error is located, make the corresponding branch ineligable for testing
     val nonEmptyPaths = errorPaths.filter(_.nonEmpty)
     val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
@@ -144,34 +90,26 @@ object Reporter {
     SplitErrorPaths(startsWithThen, startsWithElse)
   }
 
-  private def addConstraint(constraint: BranchConstraint,
-                            symbolicNode: BranchSymbolicNode,
-                            thenBranchTaken: Boolean): Unit = {
-    // To add a new constraint: first call the current Setter (i.e., integrateNode),
-    // then generate a new Setter depending on the type of the constraint argument
-
-    currentPath :+= (if (thenBranchTaken) ThenBranchTaken else ElseBranchTaken)
-    currentReport :+= (if (thenBranchTaken) constraint else constraint.negate)
-    integrateNode(symbolicNode)
-    integrateNode = generateBranchNodeSetter(thenBranchTaken)
+  private def addConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean): Unit = {
+    currentPath :+= (if (thenBranchTaken) backend.path.ThenBranchTaken else backend.path.ElseBranchTaken)
+    currentReport :+= (constraint, thenBranchTaken)
   }
 
   def addBranchConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean): Unit = {
     if (!doConcolic) {
       return
     }
-    val symbolicNode = branchConstraintToNode(constraint, thenBranchTaken)
 
-    addConstraint(constraint, symbolicNode, thenBranchTaken)
+    addConstraint(constraint, thenBranchTaken)
     if (ConcolicRunTimeFlags.checkAnalysis) {
       optCurrentErrorPaths match {
         case Some(currentErrorPaths) =>
           val SplitErrorPaths(startsWithThen, startsWithElse) = splitErrorPaths(currentErrorPaths)
           if (startsWithElse.isEmpty) {
-            symbolicNode.elseBranchTaken = true
+            // TODO MV else-branch of node corresponding to constraint should become inaccessible
           }
           if (startsWithThen.isEmpty) {
-            symbolicNode.thenBranchTaken = true
+            // TODO MV else-branch of node corresponding to constraint should become inaccessible
           }
 
           if (thenBranchTaken) {
@@ -203,24 +141,11 @@ object Reporter {
     }
   }
 
-  def getCurrentPath: Path = {
-    currentPath
-  }
+  def getCurrentPath: ThenElsePath = currentPath
+  def getCurrentReport: PathConstraint = currentReport
 
   def printReports(): Unit = {
     Logger.log(s"Reporter recorded path: ${currentReport.mkString("; ")}", Logger.U)
-  }
-
-  def printTree(): Unit = {
-    // TODO This code is mostly for debugging
-    val optRoott = optRoot
-    val optCurrentNodee = optCurrentNode
-    optRoot.foreach(SymbolicTreeHelper.findFirstUnexploredNode)
-  }
-
-  def findUnexploredNode: Option[TreePath] = optRoot match {
-    case Some(root) => SymbolicTreeHelper.findFirstUnexploredNode(root)
-    case None => None
   }
 
   def doErrorPathsDiverge: Boolean = optCurrentErrorPaths match {

@@ -1,6 +1,8 @@
 import scalaz._
 import scalaz.Scalaz._
 
+import backend._
+
 /** This is where we define Scheme primitives */
 class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives[Addr, Abs] {
   import SchemeOps._
@@ -103,7 +105,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       case x :: rest => call(rest) >>= (plus(x, _))
     }
     override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
-      Some(ArithmeticalConcolicExpression(name, symbolicArgs))
+      Some(ArithmeticalConcolicExpression(IntPlus, symbolicArgs))
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Plus
   }
@@ -115,7 +117,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       case x :: rest => Plus.call(rest) >>= (minus(x, _))
     }
     override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
-      Some(ArithmeticalConcolicExpression(name, symbolicArgs))
+      Some(ArithmeticalConcolicExpression(IntMinus, symbolicArgs))
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Minus
   }
@@ -126,7 +128,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       case x :: rest => call(rest) >>= (times(x, _))
     }
     override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
-      Some(ArithmeticalConcolicExpression(name, symbolicArgs))
+      Some(ArithmeticalConcolicExpression(IntTimes, symbolicArgs))
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Times
   }
@@ -150,7 +152,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       }
     }
     override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
-      Some(ArithmeticalConcolicExpression(name, symbolicArgs))
+      Some(ArithmeticalConcolicExpression(IntDiv, symbolicArgs))
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Div
   }
@@ -186,7 +188,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   class LessThan extends NoStoreOperation("<", Some(2)) {
     override def call(x: Abs, y: Abs) = lt(x, y) /* TODO: < should accept any number of arguments (same for <= etc.) */
     override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
-      Some(RelationalConcolicExpression(symbolicArgs.head, name, symbolicArgs(1)))
+      Some(RelationalConcolicExpression(symbolicArgs.head, IntLessThan, symbolicArgs(1)))
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.LessThan
   }
@@ -197,7 +199,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       eqres <- numEq(x, y)
     } yield abs.or(ltres, eqres)
     override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
-      Some(RelationalConcolicExpression(symbolicArgs.head, name, symbolicArgs(1)))
+      Some(RelationalConcolicExpression(symbolicArgs.head, IntLessThanEqual, symbolicArgs(1)))
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.LessOrEqual
   }
@@ -217,7 +219,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       case x :: rest => eq(x, rest)
     }
     override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
-      Some(RelationalConcolicExpression(symbolicArgs.head, name, symbolicArgs(1)))
+      Some(RelationalConcolicExpression(symbolicArgs.head, IntEqual, symbolicArgs(1)))
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.NumEq
   }
@@ -225,7 +227,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   class GreaterThan extends NoStoreOperation(">", Some(2)) {
     override def call(x: Abs, y: Abs) = LessOrEqual.call(x, y) >>= not
     override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
-      Some(RelationalConcolicExpression(symbolicArgs.head, name, symbolicArgs(1)))
+      Some(RelationalConcolicExpression(symbolicArgs.head, IntGreaterThan, symbolicArgs(1)))
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.GreaterThan
   }
@@ -233,7 +235,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   class GreaterOrEqual extends NoStoreOperation(">=", Some(2)) {
     override def call(x: Abs, y: Abs) = LessThan.call(x, y) >>= not
     override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] =
-      Some(RelationalConcolicExpression(symbolicArgs.head, name, symbolicArgs(1)))
+      Some(RelationalConcolicExpression(symbolicArgs.head, IntGreaterThanEqual, symbolicArgs(1)))
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.GreaterOrEqual
   }
@@ -252,11 +254,11 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   object Remainder extends Remainder
   class Random extends NoStoreOperation("random", Some(1)) {
     override def call[Exp: Expression, Time: Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = {
-      val value: MayFail[Abs] = if (Reporter.isConcolicEnabled) {
+      val value: MayFail[Abs] = if (ScalaAMReporter.isConcolicEnabled) {
         val optInput = InputVariableStore.lookupInput(fexp.asInstanceOf[SchemeExp])
         optInput match {
           case Some(input) =>
-            val inputValue = ConcolicSolver.getInput(input.toString)
+            val inputValue = ScalaAMConcolicSolver.getInput(input.toString)
             inputValue match {
               case Some(int) => MayFailSuccess(abs.inject(int))
               case None =>
@@ -273,8 +275,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
     }
     override def call(x: Abs) = random(x)
     override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = {
-      val newInputVariable = ConcolicIdGenerator.newConcolicInput(fexp)
-      InputVariableStore.addInput(newInputVariable)
+      val newInputVariable = ConcolicIdGenerator.newConcolicInput
+      InputVariableStore.addInput(newInputVariable, fexp)
       Some(newInputVariable)
     }
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =

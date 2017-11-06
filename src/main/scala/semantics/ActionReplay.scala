@@ -1,3 +1,5 @@
+import backend._
+
 trait ActionReplay[Exp, Abs, Addr] {
   def marksFunctionCall: Boolean = false
   def popsKont: Boolean = false

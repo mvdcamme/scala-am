@@ -2,6 +2,8 @@ import SchemeOps._
 import scalaz.Scalaz._
 import scalaz._
 
+import backend._
+
 /**
   * Basic Scheme semantics, without any optimization
   */

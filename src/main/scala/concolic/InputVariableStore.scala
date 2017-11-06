@@ -1,3 +1,5 @@
+import backend._
+
 object InputVariableStore {
 
   type Key = (SchemeExp, Int)
@@ -14,8 +16,8 @@ object InputVariableStore {
     keyStore = Map()
   }
 
-  def addInput(input: ConcolicInput): Unit = {
-    val newKey = makeNewKey(input.fexp)
+  def addInput(input: ConcolicInput, fexp: SchemeExp): Unit = {
+    val newKey = makeNewKey(fexp)
     store = store + (newKey -> input)
   }
 

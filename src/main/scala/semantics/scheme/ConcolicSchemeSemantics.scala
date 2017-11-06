@@ -1,3 +1,5 @@
+import backend._
+
 import ConcreteConcreteLattice.{ L => ConcreteValue }
 
 /**
@@ -270,7 +272,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
   }
 
   private def maybeAddSymbolicVariable(varName: String, optConcolicValue: Option[ConcolicExpression]): Unit = {
-    optConcolicValue.foreach(Reporter.addVariable(varName, _))
+    optConcolicValue.foreach(ScalaAMReporter.addVariable(varName, _))
   }
 
   def stepConcolicEval(e: SchemeExp,
@@ -284,7 +286,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
     case SchemeFuncall(f, args, _) =>
       addPushActionR(ActionPush[SchemeExp, ConcreteValue, Addr](FrameFuncallOperator[ConcreteValue, Addr, Time](f, args, env), f, env, store))
     case e @ SchemeIf(cond, cons, alt, _) =>
-      if (ConcolicRunTimeFlags.useRunTimeAnalyses && Reporter.doErrorPathsDiverge) {
+      if (ConcolicRunTimeFlags.useRunTimeAnalyses && ScalaAMReporter.doErrorPathsDiverge) {
         // The subtree with the root at this if-expression has at least one potential error in both branches:
         // a run-time analysis should be started to try to eliminate any of these alarms.
         ConcolicRunTimeFlags.setStartRunTimeAnalysis()
@@ -350,7 +352,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
                              ActionDefineAddressesR[SchemeExp, ConcreteValue, Addr](List(a)))
       noEdgeInfos(action, actionEdges)
     case SchemeVar(variable) =>
-      val concolicValue = Reporter.lookupVariable(variable.name)
+      val concolicValue = ScalaAMReporter.lookupVariable(variable.name)
       env.lookup(variable.name) match {
         case Some(a) =>
           store.lookup(a) match {
@@ -453,7 +455,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
         }
       case frame: FrameSet[ConcreteValue, Addr, Time] =>
         val variable = frame.variable
-        concolicValue.foreach(Reporter.setVariable(variable.name, _))
+        concolicValue.foreach(ScalaAMReporter.setVariable(variable.name, _))
         frame.env.lookup(frame.variable.name) match {
           case Some(a) =>
             val valueFalse = sabs.inject(false)
@@ -465,7 +467,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
         }
       case frame: FrameBegin[ConcreteValue, Addr, Time] => frame.rest match {
         case List(SchemePopSymEnv(_)) =>
-          Reporter.popEnvironment()
+          ScalaAMReporter.popEnvironment()
           val action = ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](v, concolicValue, store)
           val actionR = ActionReachedValueT[SchemeExp, ConcreteValue, Addr](v)
           noEdgeInfos(action, actionR)

@@ -1,8 +1,7 @@
-import SymbolicTreeHelper.TreePath
+import backend._
+import backend.solvers.{NewInput, SymbolicTreeFullyExplored}
 
-object ConcolicSolver {
-
-  type Path = List[SemanticsFilterAnnotation]
+object ScalaAMConcolicSolver {
 
   private var latestInputs: Map[String, Int] = Map()
 
@@ -11,29 +10,14 @@ object ConcolicSolver {
   }
   def getInputs: Map[String, Int] = latestInputs
 
-  private var initialErrorPaths: Option[List[Path]] = None
-  def getInitialErrorPaths: Option[List[Path]] = initialErrorPaths
-
-  private def doOneSolveIteration(constraints: List[BranchConstraint]): Boolean = {
-    resetInputs()
-    val solutions = Z3.solve(constraints)
-    solutions match {
-      case Satisfiable(solution) =>
-        latestInputs = solution.toMap[String, Int]
-        Logger.log(s"latestInputs are $latestInputs", Logger.U)
-        true
-      case Unsatisfiable =>
-        false
-      case SomeZ3Error =>
-        throw new Exception(s"Concolic testing failed for some reason")
-    }
-  }
+  private var initialErrorPaths: Option[List[ThenElsePath]] = None
+  def getInitialErrorPaths: Option[List[ThenElsePath]] = initialErrorPaths
 
   /**
-   * To be called when someone negated the given node to create a new, unexplored path, but the resulting path
-   * was considered unsatisfiable.
-   * @param node
-   */
+    * To be called when someone negated the given node to create a new, unexplored path, but the resulting path
+    * was considered unsatisfiable.
+    * @param node
+    */
   private def nodeWasTried(node: BranchSymbolicNode): Unit = {
     assert(node.thenBranchTaken != node.elseBranchTaken, "Should not happen: one of both branches should be True")
     if (node.thenBranchTaken) {
@@ -46,14 +30,14 @@ object ConcolicSolver {
   }
 
   private def negateAllSuccessors(node: BranchSymbolicNode): Unit = {
-      node.elseBranchTaken = true
-      node.thenBranchTaken = true
-      if (node.elseBranch.isDefined) {
-        negateAllSuccessors(node.elseBranch.get)
-      }
-      if (node.thenBranch.isDefined) {
-        negateAllSuccessors(node.thenBranch.get)
-      }
+    node.elseBranchTaken = true
+    node.thenBranchTaken = true
+    if (node.elseBranch.isDefined) {
+      negateAllSuccessors(node.elseBranch.get)
+    }
+    if (node.thenBranch.isDefined) {
+      negateAllSuccessors(node.thenBranch.get)
+    }
   }
 
   /**
@@ -62,7 +46,7 @@ object ConcolicSolver {
     * @param node
     * @param errorPaths
     */
-  private def negateNodesNotFollowingErrorPath(node: BranchSymbolicNode, errorPaths: List[Path]): Unit = {
+  private def negateNodesNotFollowingErrorPath(node: BranchSymbolicNode, errorPaths: List[ThenElsePath]): Unit = {
     val nonEmptyPaths = errorPaths.filter(_.nonEmpty)
     val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
     val startsWithElse = nonEmptyPaths.filter(_.head == ElseBranchTaken)
@@ -90,40 +74,13 @@ object ConcolicSolver {
     }
   }
 
-  def solve: Boolean = {
-    // optIncompletelyExploredPath refers to a path (if there is one) that ends in a BranchNode with at least one branch
-    // that has not yet been explored.
-    val optIncompletelyExploredPath: Option[TreePath] = Reporter.findUnexploredNode
-    optIncompletelyExploredPath.exists(incompletelyExploredPath => {
-      val unexploredPath: TreePath = negatePath(incompletelyExploredPath)
-      Logger.log(s"Unexplored path would be ${unexploredPath.seen}", Logger.U)
-      val wasSuccessful = doOneSolveIteration(unexploredPath.seen)
-      if (wasSuccessful) {
-        true
-      } else {
-        nodeWasTried(incompletelyExploredPath.last._1.asInstanceOf[BranchSymbolicNode])
-        solve
-      }
-    })
-  }
-
   def getInput(inputName: String): Option[Int] = {
     latestInputs.get(inputName)
   }
 
-  def negatePath(path: TreePath): TreePath = {
-    val init = path.init
-    val lastNode = path.last._1
-    if (! lastNode.thenBranchTaken) {
-      init :+ lastNode
-    } else {
-      init.addNegatedNode(lastNode)
-    }
-  }
-
   private def handleAnalysisResult[Abs: IsSchemeLattice]
-    (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode]): List[Path] = {
+  (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
+    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode]): List[ThenElsePath] = {
     if (ConcolicRunTimeFlags.checkAnalysis) {
       result match {
         case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
@@ -145,9 +102,20 @@ object ConcolicSolver {
     }
   }
 
+  def solve(): Boolean = {
+    Reporter.addExploredPath(ScalaAMReporter.getCurrentReport)
+    val result = ConcolicSolver.solve
+    result match {
+      case NewInput(input) =>
+        latestInputs = input
+        true
+      case SymbolicTreeFullyExplored => false
+    }
+  }
+
   def handleInitialAnalysisResult[Abs: IsSchemeLattice]
-    (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode]): List[Path] = {
+  (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
+    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode]): List[ThenElsePath] = {
     val errorPaths = handleAnalysisResult[Abs](errorPathDetector)(result, startNode)
     initialErrorPaths = Some(errorPaths)
     errorPaths
@@ -156,12 +124,12 @@ object ConcolicSolver {
 
   def handleRunTimeAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode], prefixErrorPath: Path): List[Path] = {
+    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode], prefixErrorPath: ThenElsePath): List[ThenElsePath] = {
     val errorPaths = handleAnalysisResult[Abs](errorPathDetector)(result, startNode)
     val initialErrorPathsNotStartingWithPrefix = initialErrorPaths.get.filterNot(_.startsWith(prefixErrorPath))
     val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ errorPaths.map(prefixErrorPath ++ _)
     initialErrorPaths = Some(newInitialErrorPaths)
-    Reporter.setCurrentErrorPaths(errorPaths)
+    ScalaAMReporter.setCurrentErrorPaths(errorPaths)
     errorPaths
   }
 

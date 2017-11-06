@@ -3,6 +3,8 @@
 
 (let ((a (random 10))
       (b (random 10)))
+  (display a) (newline)
+  (display b) (newline)
   (if (< a (f 4))
       (if (< b 5)
           (error 'a)

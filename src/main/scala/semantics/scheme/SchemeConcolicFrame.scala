@@ -1,3 +1,5 @@
+import backend._
+
 trait FrameStoresConcolicExpression {
   def optConcolicExpression: Option[ConcolicExpression]
 }

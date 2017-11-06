@@ -1,5 +1,8 @@
 import java.io.{BufferedWriter, File, FileWriter}
-import ConcolicSolver.initialErrorPaths
+
+import backend._
+
+import ScalaAMConcolicSolver.initialErrorPaths
 import ConcreteConcreteLattice.{ L => ConcreteValue }
 
 class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
@@ -288,7 +291,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
                 case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
-                  Reporter.pushEnvironment()
+                  ScalaAMReporter.pushEnvironment()
                   val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
                   Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t, fexp)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
@@ -334,7 +337,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
                   case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
-                    Reporter.pushEnvironment()
+                    ScalaAMReporter.pushEnvironment()
                     val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                       EvaluatingExpression(e),
                       FrameFollowed[ConcreteValue](originFrameCast))
@@ -387,8 +390,8 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
     }
 
     def loopConcolic(initialState: State, nrOfRuns: Int): Unit = {
-      Logger.log(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${ConcolicSolver.getInputs}", Logger.U)
-      Reporter.clear(nrOfRuns < 2)
+      Logger.log(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${ScalaAMConcolicSolver.getInputs}", Logger.U)
+      ScalaAMReporter.clear(nrOfRuns < 2)
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
       try {
         loop(initialState, System.nanoTime, 0)
@@ -397,8 +400,8 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
       } finally {
         Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.U)
         Reporter.printTree()
-        Reporter.printReports()
-        val shouldContinue = ConcolicSolver.solve
+        ScalaAMReporter.printReports()
+        val shouldContinue = ScalaAMConcolicSolver.solve
         if (nrOfRuns < ConcolicRunTimeFlags.MAX_CONCOLIC_ITERATIONS && shouldContinue) {
           loopConcolic(initialState, nrOfRuns + 1)
         }
@@ -407,13 +410,13 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
 
     val initialState = inject(exp, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue]
                              (sem.initialStore))
-    Reporter.disableConcolic()
+    ScalaAMReporter.disableConcolic()
     val analysisResult = analysisLauncher.runInitialStaticAnalysis(initialState, programName)
-    Reporter.enableConcolic()
+    ScalaAMReporter.enableConcolic()
 
     // Use initial static analysis to detect paths to errors
     if (ConcolicRunTimeFlags.checkAnalysis) {
-      val errorPaths = ConcolicSolver.handleInitialAnalysisResult[PAbs](errorPathDetector)(analysisResult, Reporter.getRoot)
+      val errorPaths = ScalaAMConcolicSolver.handleInitialAnalysisResult[PAbs](errorPathDetector)(analysisResult, Reporter.getRoot)
       if (errorPaths.isEmpty) {
         Logger.log("Initial static analysis detected no possible errors: aborting concolic testing", Logger.U)
       } else {
@@ -433,22 +436,24 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
     */
   private def potentiallyStartRunTimeAnalysis(programName: String, state: State): Unit = {
     if (ConcolicRunTimeFlags.shouldStartRunTimeAnalysis && ConcolicRunTimeFlags.checkAnalysis && ConcolicRunTimeFlags.checkRunTimeAnalysis) {
-      val optCurrentNode = Reporter.getCurrentNode
-      val optBranchFollowedCurrentNode = optCurrentNode
-      Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.U)
-      val analysisResult = startRunTimeAnalysis(programName, state)
-      val prefixErrorPath = Reporter.getCurrentPath
-      ConcolicSolver.handleRunTimeAnalysisResult[PAbs](errorPathDetector)(analysisResult, optBranchFollowedCurrentNode, prefixErrorPath)
+      ???
+      // TODO MV
+//      val optCurrentNode = Reporter.getCurrentNode
+//      val optBranchFollowedCurrentNode = optCurrentNode
+//      Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.U)
+//      val analysisResult = startRunTimeAnalysis(programName, state)
+//      val prefixErrorPath = ScalaAMReporter.getCurrentPath
+//      ConcolicSolver.handleRunTimeAnalysisResult[PAbs](errorPathDetector)(analysisResult, optBranchFollowedCurrentNode, prefixErrorPath)
     }
   }
 
   private def startRunTimeAnalysis(programName: String, state: State): StaticAnalysisResult = {
-    Reporter.disableConcolic()
+    ScalaAMReporter.disableConcolic()
     val currentAddresses: Set[HybridAddress.A] = state.store.toSet.map(_._1)
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
     val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
     val result = analysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, convertedCurrentAddresses)
-    Reporter.enableConcolic()
+    ScalaAMReporter.enableConcolic()
     result
   }
 
