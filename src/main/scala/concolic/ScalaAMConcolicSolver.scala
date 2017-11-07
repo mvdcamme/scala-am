@@ -1,4 +1,5 @@
 import backend._
+import backend.tree._
 import backend.solvers._
 
 object ScalaAMConcolicSolver {
@@ -10,8 +11,8 @@ object ScalaAMConcolicSolver {
   }
   def getInputs: Map[String, Int] = latestInputs
 
-  private var initialErrorPaths: Option[List[ThenElsePath]] = None
-  def getInitialErrorPaths: Option[List[ThenElsePath]] = initialErrorPaths
+  private var initialErrorPaths: Option[List[Path]] = None
+  def getInitialErrorPaths: Option[List[Path]] = initialErrorPaths
 
   /**
     * To be called when someone negated the given node to create a new, unexplored path, but the resulting path
@@ -46,7 +47,7 @@ object ScalaAMConcolicSolver {
     * @param node
     * @param errorPaths
     */
-  private def negateNodesNotFollowingErrorPath(node: BranchSymbolicNode, errorPaths: List[ThenElsePath]): Unit = {
+  private def negateNodesNotFollowingErrorPath(node: BranchSymbolicNode, errorPaths: List[Path]): Unit = {
     val nonEmptyPaths = errorPaths.filter(_.nonEmpty)
     val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
     val startsWithElse = nonEmptyPaths.filter(_.head == ElseBranchTaken)
@@ -80,7 +81,7 @@ object ScalaAMConcolicSolver {
 
   private def handleAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode]): List[ThenElsePath] = {
+    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode]): List[Path] = {
     if (ConcolicRunTimeFlags.checkAnalysis) {
       result match {
         case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
@@ -103,6 +104,7 @@ object ScalaAMConcolicSolver {
   }
 
   def solve(): Boolean = {
+    resetInputs()
     Reporter.addExploredPath(ScalaAMReporter.getCurrentReport)
     val result = ConcolicSolver.solve
     result match {
@@ -115,7 +117,7 @@ object ScalaAMConcolicSolver {
 
   def handleInitialAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode]): List[ThenElsePath] = {
+    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode]): List[Path] = {
     val errorPaths = handleAnalysisResult[Abs](errorPathDetector)(result, startNode)
     initialErrorPaths = Some(errorPaths)
     errorPaths
@@ -124,7 +126,7 @@ object ScalaAMConcolicSolver {
 
   def handleRunTimeAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode], prefixErrorPath: ThenElsePath): List[ThenElsePath] = {
+    (result: StaticAnalysisResult, startNode: Option[BranchSymbolicNode], prefixErrorPath: Path): List[Path] = {
     val errorPaths = handleAnalysisResult[Abs](errorPathDetector)(result, startNode)
     val initialErrorPathsNotStartingWithPrefix = initialErrorPaths.get.filterNot(_.startsWith(prefixErrorPath))
     val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ errorPaths.map(prefixErrorPath ++ _)

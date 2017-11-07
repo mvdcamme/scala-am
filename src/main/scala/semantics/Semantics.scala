@@ -1,8 +1,6 @@
 import scalaz._
 
-import backend._
-
-import ConcreteConcreteLattice.{ L => ConcreteValue }
+import backend.expression._
 
 case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address](
   action: Action[Exp, Abs, Addr],

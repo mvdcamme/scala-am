@@ -1,4 +1,4 @@
-import backend._
+import backend.expression._
 
 /**
  * Each primitive has to implement this trait.

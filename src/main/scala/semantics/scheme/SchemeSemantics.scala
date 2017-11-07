@@ -2,7 +2,7 @@ import SchemeOps._
 import scalaz.Scalaz._
 import scalaz._
 
-import backend._
+import backend.expression._
 
 /**
   * Basic Scheme semantics, without any optimization

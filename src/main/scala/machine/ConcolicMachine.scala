@@ -1,6 +1,7 @@
 import java.io.{BufferedWriter, File, FileWriter}
 
 import backend._
+import backend.expression._
 
 import ScalaAMConcolicSolver.initialErrorPaths
 import ConcreteConcreteLattice.{ L => ConcreteValue }

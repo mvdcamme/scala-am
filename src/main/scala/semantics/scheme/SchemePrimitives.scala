@@ -1,7 +1,7 @@
 import scalaz._
 import scalaz.Scalaz._
 
-import backend._
+import backend.expression._
 
 /** This is where we define Scheme primitives */
 class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives[Addr, Abs] {

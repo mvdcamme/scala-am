@@ -1,4 +1,4 @@
-import backend._
+import backend.expression._
 
 trait ActionReplay[Exp, Abs, Addr] {
   def marksFunctionCall: Boolean = false

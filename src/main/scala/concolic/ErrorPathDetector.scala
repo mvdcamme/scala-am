@@ -1,19 +1,20 @@
-import backend.path._
+import backend._
+import backend.tree.path._
 
 class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
   (val aam: KickstartAAM[Exp, Abs, Addr, Time]) {
 
   type RelevantGraph =  Graph[aam.State, EdgeAnnotation[Exp, Abs, Addr], Unit]
-  type Path = List[Binding]
+  type Bindings = List[Binding]
 
   case class Binding(edge: EdgeAnnotation[Exp, Abs, Addr], state: aam.State) {
     override def toString: String = state.toString
   }
 
-  def detectErrors(graph: RelevantGraph): List[List[ExecutionTreeEdge]] = {
+  def detectErrors(graph: RelevantGraph): List[List[SymbolicTreeEdge]] = {
 
     @scala.annotation.tailrec
-    def loop(visited: Set[aam.State], worklist: List[Path], acc: List[Path]): List[Path] = worklist.headOption match {
+    def loop(visited: Set[aam.State], worklist: List[Bindings], acc: List[Bindings]): List[Bindings] = worklist.headOption match {
       case None =>
         acc
       case Some(path) if visited.contains(path.last.state) =>
@@ -25,8 +26,8 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
       case Some(path) =>
         val lastState = path.last.state
         val outgoingEdges = graph.nodeEdges(lastState)
-        val newWork: List[Path] = outgoingEdges.toList.map( (tuple) => path :+ Binding(tuple._1, tuple._2) )
-        val newWorklist: List[Path] = worklist.tail ++ newWork
+        val newWork: List[Bindings] = outgoingEdges.toList.map( (tuple) => path :+ Binding(tuple._1, tuple._2) )
+        val newWorklist: List[Bindings] = worklist.tail ++ newWork
         loop(visited + lastState, newWorklist, acc)
     }
 
@@ -41,13 +42,13 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
     }
   }
 
-  private def filterBranchesTaken(path: Path): List[ExecutionTreeEdge] = {
+  private def filterBranchesTaken(path: Bindings): Path = {
     path.flatMap({
       case Binding(edge, _) =>
         if (edge.filters.semanticsFilters.contains(ThenBranchTaken)) {
-          List(backend.path.ThenBranchTaken)
+          List(backend.tree.path.ThenBranchTaken)
         } else if (edge.filters.semanticsFilters.contains(ElseBranchTaken)) {
-          List(backend.path.ElseBranchTaken)
+          List(backend.tree.path.ElseBranchTaken)
         } else {
           List()
         }

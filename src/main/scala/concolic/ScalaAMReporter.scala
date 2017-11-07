@@ -1,5 +1,6 @@
 import backend._
-import backend.path._
+import backend.expression._
+import backend.tree._
 
 case object AbortConcolicRunException extends Exception
 
@@ -11,12 +12,12 @@ object ScalaAMReporter {
   private var doConcolic: Boolean = false
 
   private var symbolicMemory: SymbolicStore = List(Map())
-  private var currentPath: ThenElsePath = Nil
+  private var currentPath: Path = Nil
   private var currentReport: PathConstraint = Nil
 
-  private var optCurrentErrorPaths: Option[List[ThenElsePath]] = None
+  private var optCurrentErrorPaths: Option[List[Path]] = None
 
-  def setCurrentErrorPaths(newCurrentErrorPaths: List[ThenElsePath]): Unit = {
+  def setCurrentErrorPaths(newCurrentErrorPaths: List[Path]): Unit = {
     optCurrentErrorPaths = Some(newCurrentErrorPaths)
   }
 
@@ -28,7 +29,7 @@ object ScalaAMReporter {
   }
   def isConcolicEnabled: Boolean = doConcolic
   def clear(isFirstClear: Boolean): Unit = {
-    Reporter.clear(isFirstClear)
+    Reporter.clear()
     InputVariableStore.reset()
     currentPath = Nil
     currentReport = Nil
@@ -80,9 +81,9 @@ object ScalaAMReporter {
     symbolicMemory = newSymbolicMemory
   }
 
-  private case class SplitErrorPaths(thenPaths: List[ThenElsePath], elsePaths: List[ThenElsePath])
+  private case class SplitErrorPaths(thenPaths: List[Path], elsePaths: List[Path])
 
-  private def splitErrorPaths(errorPaths: List[ThenElsePath]): SplitErrorPaths = {
+  private def splitErrorPaths(errorPaths: List[Path]): SplitErrorPaths = {
     // If node does not follow a path along which an error is located, make the corresponding branch ineligable for testing
     val nonEmptyPaths = errorPaths.filter(_.nonEmpty)
     val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
@@ -91,7 +92,7 @@ object ScalaAMReporter {
   }
 
   private def addConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean): Unit = {
-    currentPath :+= (if (thenBranchTaken) backend.path.ThenBranchTaken else backend.path.ElseBranchTaken)
+    currentPath :+= (if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken)
     currentReport :+= (constraint, thenBranchTaken)
   }
 
@@ -141,7 +142,7 @@ object ScalaAMReporter {
     }
   }
 
-  def getCurrentPath: ThenElsePath = currentPath
+  def getCurrentPath: Path = currentPath
   def getCurrentReport: PathConstraint = currentReport
 
   def printReports(): Unit = {

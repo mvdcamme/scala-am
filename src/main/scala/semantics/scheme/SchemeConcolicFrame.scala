@@ -1,4 +1,4 @@
-import backend._
+import backend.expression._
 
 trait FrameStoresConcolicExpression {
   def optConcolicExpression: Option[ConcolicExpression]

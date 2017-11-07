@@ -1,4 +1,4 @@
-import backend._
+import backend.expression._
 
 import ConcreteConcreteLattice.{ L => ConcreteValue }
 

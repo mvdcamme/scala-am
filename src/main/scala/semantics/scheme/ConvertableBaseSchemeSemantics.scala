@@ -1,4 +1,4 @@
-import backend._
+import backend.expression._
 
 /**
   * Basic Scheme semantics, without any optimization
