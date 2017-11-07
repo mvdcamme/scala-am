@@ -37,8 +37,8 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
       case EdgeInformation(action, actionTs, semanticsFilters) =>
         EdgeInformation(action, actionTs, semanticsFilters + filter)
     })
-    (if (IsSchemeLattice[V].isTrue(v)) addFilter(t, ThenBranchTaken) else Set[EdgeInfo]()) ++
-    (if (IsSchemeLattice[V].isFalse(v)) addFilter(f, ElseBranchTaken) else Set[EdgeInfo]())
+    (if (IsSchemeLattice[V].isTrue(v)) addFilter(t, ThenBranchFilter) else Set[EdgeInfo]()) ++
+    (if (IsSchemeLattice[V].isFalse(v)) addFilter(f, ElseBranchFilter) else Set[EdgeInfo]())
   }
 
   protected def addPushDataActionT(currentValue: V,

@@ -3,8 +3,8 @@ trait FilterAnnotation
 trait MachineFilterAnnotation extends FilterAnnotation
 trait SemanticsFilterAnnotation extends FilterAnnotation
 
-case object ElseBranchTaken extends SemanticsFilterAnnotation
-case object ThenBranchTaken extends SemanticsFilterAnnotation
+case object ElseBranchFilter extends SemanticsFilterAnnotation
+case object ThenBranchFilter extends SemanticsFilterAnnotation
 
 
 /**

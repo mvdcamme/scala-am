@@ -3,7 +3,6 @@ import java.io.{BufferedWriter, File, FileWriter}
 import backend._
 import backend.expression._
 
-import ScalaAMConcolicSolver.initialErrorPaths
 import ConcreteConcreteLattice.{ L => ConcreteValue }
 
 class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
@@ -417,7 +416,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
 
     // Use initial static analysis to detect paths to errors
     if (ConcolicRunTimeFlags.checkAnalysis) {
-      val errorPaths = ScalaAMConcolicSolver.handleInitialAnalysisResult[PAbs](errorPathDetector)(analysisResult, Reporter.getRoot)
+      val errorPaths = ScalaAMConcolicSolver.handleInitialAnalysisResult[PAbs](errorPathDetector)(analysisResult)
       if (errorPaths.isEmpty) {
         Logger.log("Initial static analysis detected no possible errors: aborting concolic testing", Logger.U)
       } else {
@@ -437,14 +436,10 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
     */
   private def potentiallyStartRunTimeAnalysis(programName: String, state: State): Unit = {
     if (ConcolicRunTimeFlags.shouldStartRunTimeAnalysis && ConcolicRunTimeFlags.checkAnalysis && ConcolicRunTimeFlags.checkRunTimeAnalysis) {
-      ???
-      // TODO MV
-//      val optCurrentNode = Reporter.getCurrentNode
-//      val optBranchFollowedCurrentNode = optCurrentNode
-//      Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.U)
-//      val analysisResult = startRunTimeAnalysis(programName, state)
-//      val prefixErrorPath = ScalaAMReporter.getCurrentPath
-//      ConcolicSolver.handleRunTimeAnalysisResult[PAbs](errorPathDetector)(analysisResult, optBranchFollowedCurrentNode, prefixErrorPath)
+      Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.U)
+      val analysisResult = startRunTimeAnalysis(programName, state)
+      val prefixErrorPath = ScalaAMReporter.getCurrentPath
+      ScalaAMConcolicSolver.handleRunTimeAnalysisResult[PAbs](errorPathDetector)(analysisResult, prefixErrorPath)
     }
   }
 

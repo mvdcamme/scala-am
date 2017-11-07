@@ -17,9 +17,9 @@ class FilterPropagationEdges[Exp: Expression,
      * If there is a ThenBranchTaken-annotation and current state did NOT evaluate to true, take all edges not
      * containing a ThenBranchTaken-annotation.
      */
-    val filteredTrue: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasSemanticsFilter(_, ThenBranchTaken)) &&
+    val filteredTrue: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasSemanticsFilter(_, ThenBranchFilter)) &&
       (!actionRApplier.evaluatedTrue(newState))) {
-      edges.filter(!hasSemanticsFilter(_, ThenBranchTaken))
+      edges.filter(!hasSemanticsFilter(_, ThenBranchFilter))
     } else {
       edges
     }
@@ -27,9 +27,9 @@ class FilterPropagationEdges[Exp: Expression,
      * If there is an ElseBranchTaken-annotation and current state did NOT evaluate to false, take all edges not
      * containing an ElseBranchTaken-annotation.
      */
-    val filteredFalse: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasSemanticsFilter(_, ElseBranchTaken)) &&
+    val filteredFalse: Set[(EdgeAnnotation2, State)] = if (edges.exists(hasSemanticsFilter(_, ElseBranchFilter)) &&
       (!actionRApplier.evaluatedFalse(newState))) {
-      edges.filter(!hasSemanticsFilter(_, ElseBranchTaken))
+      edges.filter(!hasSemanticsFilter(_, ElseBranchFilter))
     } else {
       edges
     }

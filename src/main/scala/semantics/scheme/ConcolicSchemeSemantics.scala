@@ -59,7 +59,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
         EdgeInformation(action, actionTs, semanticsFilters + filter)
     }
 
-    if (sabs.isTrue(v)) addFilter(t, ThenBranchTaken) else addFilter(f, ElseBranchTaken)
+    if (sabs.isTrue(v)) addFilter(t, ThenBranchFilter) else addFilter(f, ElseBranchFilter)
   }
 
   protected def addPushDataActionT(currentValue: ConcreteValue,

@@ -33,7 +33,7 @@ object ScalaAMReporter {
     InputVariableStore.reset()
     currentPath = Nil
     currentReport = Nil
-    optCurrentErrorPaths = ScalaAMConcolicSolver.getInitialErrorPaths
+    optCurrentErrorPaths = InitialErrorPaths.get
     symbolicMemory = List(Map())
   }
   def pushEnvironment(): Unit = {
@@ -86,8 +86,8 @@ object ScalaAMReporter {
   private def splitErrorPaths(errorPaths: List[Path]): SplitErrorPaths = {
     // If node does not follow a path along which an error is located, make the corresponding branch ineligable for testing
     val nonEmptyPaths = errorPaths.filter(_.nonEmpty)
-    val startsWithThen = nonEmptyPaths.filter(_.head == ThenBranchTaken)
-    val startsWithElse = nonEmptyPaths.filter(_.head == ElseBranchTaken)
+    val startsWithThen = nonEmptyPaths.filter(_.head == backend.tree.path.ThenBranchTaken)
+    val startsWithElse = nonEmptyPaths.filter(_.head == backend.tree.path.ElseBranchTaken)
     SplitErrorPaths(startsWithThen, startsWithElse)
   }
 
@@ -105,14 +105,8 @@ object ScalaAMReporter {
     if (ConcolicRunTimeFlags.checkAnalysis) {
       optCurrentErrorPaths match {
         case Some(currentErrorPaths) =>
+          println(s"In ScalaAMReporter, currentErrorPaths are ${currentErrorPaths}")
           val SplitErrorPaths(startsWithThen, startsWithElse) = splitErrorPaths(currentErrorPaths)
-          if (startsWithElse.isEmpty) {
-            // TODO MV else-branch of node corresponding to constraint should become inaccessible
-          }
-          if (startsWithThen.isEmpty) {
-            // TODO MV else-branch of node corresponding to constraint should become inaccessible
-          }
-
           if (thenBranchTaken) {
             if (startsWithThen.isEmpty) {
               Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)

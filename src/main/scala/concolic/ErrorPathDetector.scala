@@ -45,9 +45,9 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
   private def filterBranchesTaken(path: Bindings): Path = {
     path.flatMap({
       case Binding(edge, _) =>
-        if (edge.filters.semanticsFilters.contains(ThenBranchTaken)) {
+        if (edge.filters.semanticsFilters.contains(ThenBranchFilter)) {
           List(backend.tree.path.ThenBranchTaken)
-        } else if (edge.filters.semanticsFilters.contains(ElseBranchTaken)) {
+        } else if (edge.filters.semanticsFilters.contains(ElseBranchFilter)) {
           List(backend.tree.path.ElseBranchTaken)
         } else {
           List()
