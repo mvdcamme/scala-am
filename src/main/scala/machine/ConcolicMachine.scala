@@ -361,7 +361,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
 
         stepped match {
           case Left(output) =>
-            analysisLauncher.end
+//            analysisLauncher.end
             output
           case Right(StepSucceeded(succState, filters, actions)) =>
             def convertFrameFun(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
@@ -377,7 +377,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
                   abstSem)
             }
 
-            analysisLauncher.doConcreteStep(convertValue[PAbs], convertFrameFun, filters, stepCount)
+//            analysisLauncher.doConcreteStep(convertValue[PAbs], convertFrameFun, filters, stepCount)
             loop(succState, start, count + 1)
         }
       }
@@ -390,6 +390,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
     }
 
     def loopConcolic(initialState: State, nrOfRuns: Int): Unit = {
+      ScalaAMReporter.enableConcolic()
       Logger.log(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${ScalaAMConcolicSolver.getInputs}", Logger.U)
       ScalaAMReporter.clear(nrOfRuns < 2)
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
@@ -410,12 +411,11 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
 
     val initialState = inject(exp, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue]
                              (sem.initialStore))
-    ScalaAMReporter.disableConcolic()
-    val analysisResult = analysisLauncher.runInitialStaticAnalysis(initialState, programName)
-    ScalaAMReporter.enableConcolic()
 
     // Use initial static analysis to detect paths to errors
     if (ConcolicRunTimeFlags.checkAnalysis) {
+      ScalaAMReporter.disableConcolic()
+      val analysisResult = analysisLauncher.runInitialStaticAnalysis(initialState, programName)
       val errorPaths = ScalaAMConcolicSolver.handleInitialAnalysisResult[PAbs](errorPathDetector)(analysisResult)
       if (errorPaths.isEmpty) {
         Logger.log("Initial static analysis detected no possible errors: aborting concolic testing", Logger.U)
