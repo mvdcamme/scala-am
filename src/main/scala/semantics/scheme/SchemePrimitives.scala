@@ -549,6 +549,10 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   object Eq extends Eq
   class Not extends NoStoreOperation("not", Some(1)) {
     override def call(x: Abs) = not(x)
+    override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = symbolicArgs.head match {
+      case r: RelationalConcolicExpression => Some(r.negate)
+      case other => Some(other)
+    }
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Not
   }
