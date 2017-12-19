@@ -625,6 +625,16 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   def success(v: Abs): MayFail[(Abs, Set[Effect[Addr]])] = (v, Set[Effect[Addr]]()).point[MayFail]
   class Cons extends Primitive[Addr, Abs] {
     val name = "cons"
+    override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = {
+      assert(symbolicArgs.size == 2)
+      val symbolicCarValue = symbolicArgs.head
+      val symbolicCdrValue = symbolicArgs(1)
+      val fields = Map("car" -> symbolicCarValue, "cdr" -> symbolicCdrValue)
+      val symbolicObject = ConcolicObject(name, fields)
+      val symbolicAddress = ConcolicIdGenerator.newConcolicAddress
+      ScalaAMReporter.extendStore(symbolicAddress, symbolicObject)
+      Some(symbolicAddress)
+    }
     def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time) = args match {
       case (carexp, car) :: (cdrexp, cdr) :: Nil => {
         val cara = Address[Addr].cell(carexp, t)
@@ -669,7 +679,31 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
     val spec: List[Spec] = name.drop(1).take(name.length - 2).toList.reverseMap(c =>
       if (c == 'a') { Car }
       else if (c == 'd') { Cdr }
-      else { throw new Exception("Incorrect car/cdr operation: $name") })
+      else { throw new Exception(s"Incorrect car/cdr operation: $name") })
+    override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = {
+      assert(symbolicArgs.size == 1)
+      /* TODO Does not work when car and cdr are chained! (as in: cadr, caar, cddr etc.) */
+      assert(spec.size == 1)
+      val symbolicAddress: ConcolicAddress = symbolicArgs.head match {
+        case address: ConcolicAddress => address
+        case _ =>
+          assert(false, "Should not happen!")
+          ???
+      }
+      val result = ScalaAMReporter.lookupAddress(symbolicAddress)
+      println(s"Used address $symbolicAddress")
+      result match {
+        case None =>
+          assert(false, s"Address $symbolicAddress not found in symbolic store")
+          None
+        case Some(symbolicObject) =>
+          println(s"Got result $result")
+          spec.head match {
+            case Car => symbolicObject.fields.get("car")
+            case Cdr => symbolicObject.fields.get("cdr")
+          }
+      }
+    }
     override def call(v: Abs, store: Store[Addr, Abs]) =
       for { (v, effs) <- spec.foldLeft(success(v))((acc, op) => for {
         (v, effs) <- acc
@@ -743,6 +777,24 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   object Cddddr extends Cddddr
 
   class SetCar extends StoreOperation("set-car!", Some(2)) {
+    override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = {
+      assert(symbolicArgs.size == 2)
+      symbolicArgs.head match {
+        case symbolicAddress: ConcolicAddress => ScalaAMReporter.lookupAddress(symbolicAddress) match {
+          case Some(symbolicObject) =>
+            val updatedSymbolicObject = symbolicObject.copy(fields = symbolicObject.fields.updated("car", symbolicArgs(1)))
+            ScalaAMReporter.updateStore(symbolicAddress, updatedSymbolicObject)
+            /* Concrete evaluation returns false */
+            Some(ConcolicBool(false))
+          case None =>
+            assert(false, "Should not happen")
+            None
+        }
+        case _ =>
+          assert(false, "Should not happen!")
+          None
+      }
+    }
     override def call(cell: Abs, value: Abs, store: Store[Addr, Abs]) = {
       val addrs = abs.car(cell)
       if (addrs.isEmpty) {
@@ -758,6 +810,24 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   }
   object SetCar extends SetCar
   class SetCdr extends StoreOperation("set-cdr!", Some(2)) {
+    override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = {
+      assert(symbolicArgs.size == 2)
+      symbolicArgs.head match {
+        case symbolicAddress: ConcolicAddress => ScalaAMReporter.lookupAddress(symbolicAddress) match {
+          case Some(symbolicObject) =>
+            val updatedSymbolicObject = symbolicObject.copy(fields = symbolicObject.fields.updated("cdr", symbolicArgs(1)))
+            ScalaAMReporter.updateStore(symbolicAddress, updatedSymbolicObject)
+            /* Concrete evaluation returns false */
+            Some(ConcolicBool(false))
+          case None =>
+            assert(false, "Should not happen")
+            None
+        }
+        case _ =>
+          assert(false, "Should not happen!")
+          None
+      }
+    }
     override def call(cell: Abs, value: Abs, store: Store[Addr, Abs]) = {
       val addrs = abs.cdr(cell)
       if (addrs.isEmpty) {
