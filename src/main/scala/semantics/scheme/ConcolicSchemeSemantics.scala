@@ -272,7 +272,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
   }
 
   private def maybeAddSymbolicVariable(varName: String, optConcolicValue: Option[ConcolicExpression]): Unit = {
-    optConcolicValue.foreach(ScalaAMReporter.addVariable(varName, _))
+    optConcolicValue.foreach(GlobalSymbolicEnvironment.addVariable(varName, _))
   }
 
   def stepConcolicEval(e: SchemeExp,
@@ -352,7 +352,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
                              ActionDefineAddressesR[SchemeExp, ConcreteValue, Addr](List(a)))
       noEdgeInfos(action, actionEdges)
     case SchemeVar(variable) =>
-      val concolicValue = ScalaAMReporter.lookupVariable(variable.name)
+      val concolicValue = GlobalSymbolicEnvironment.lookupVariable(variable.name)
       env.lookup(variable.name) match {
         case Some(a) =>
           store.lookup(a) match {
@@ -455,7 +455,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
         }
       case frame: FrameSet[ConcreteValue, Addr, Time] =>
         val variable = frame.variable
-        concolicValue.foreach(ScalaAMReporter.setVariable(variable.name, _))
+        concolicValue.foreach(GlobalSymbolicEnvironment.setVariable(variable.name, _))
         frame.env.lookup(frame.variable.name) match {
           case Some(a) =>
             val valueFalse = sabs.inject(false)
@@ -467,7 +467,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
         }
       case frame: FrameBegin[ConcreteValue, Addr, Time] => frame.rest match {
         case List(SchemePopSymEnv(_)) =>
-          ScalaAMReporter.popEnvironment()
+          GlobalSymbolicEnvironment.popEnvironment()
           val action = ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](v, concolicValue, store)
           val actionR = ActionReachedValueT[SchemeExp, ConcreteValue, Addr](v)
           noEdgeInfos(action, actionR)

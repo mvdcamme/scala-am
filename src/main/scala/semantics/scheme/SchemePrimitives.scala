@@ -632,7 +632,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       val fields = Map("car" -> symbolicCarValue, "cdr" -> symbolicCdrValue)
       val symbolicObject = ConcolicObject(name, fields)
       val symbolicAddress = ConcolicIdGenerator.newConcolicAddress
-      ScalaAMReporter.extendStore(symbolicAddress, symbolicObject)
+      GlobalSymbolicStore.extendStore(symbolicAddress, symbolicObject)
       Some(symbolicAddress)
     }
     def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time) = args match {
@@ -690,7 +690,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
           assert(false, "Should not happen!")
           ???
       }
-      val result = ScalaAMReporter.lookupAddress(symbolicAddress)
+      val result = GlobalSymbolicStore.lookupAddress(symbolicAddress)
       println(s"Used address $symbolicAddress")
       result match {
         case None =>
@@ -780,10 +780,10 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
     override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = {
       assert(symbolicArgs.size == 2)
       symbolicArgs.head match {
-        case symbolicAddress: ConcolicAddress => ScalaAMReporter.lookupAddress(symbolicAddress) match {
+        case symbolicAddress: ConcolicAddress => GlobalSymbolicStore.lookupAddress(symbolicAddress) match {
           case Some(symbolicObject) =>
             val updatedSymbolicObject = symbolicObject.copy(fields = symbolicObject.fields.updated("car", symbolicArgs(1)))
-            ScalaAMReporter.updateStore(symbolicAddress, updatedSymbolicObject)
+            GlobalSymbolicStore.updateStore(symbolicAddress, updatedSymbolicObject)
             /* Concrete evaluation returns false */
             Some(ConcolicBool(false))
           case None =>
@@ -813,10 +813,10 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
     override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = {
       assert(symbolicArgs.size == 2)
       symbolicArgs.head match {
-        case symbolicAddress: ConcolicAddress => ScalaAMReporter.lookupAddress(symbolicAddress) match {
+        case symbolicAddress: ConcolicAddress => GlobalSymbolicStore.lookupAddress(symbolicAddress) match {
           case Some(symbolicObject) =>
             val updatedSymbolicObject = symbolicObject.copy(fields = symbolicObject.fields.updated("cdr", symbolicArgs(1)))
-            ScalaAMReporter.updateStore(symbolicAddress, updatedSymbolicObject)
+            GlobalSymbolicStore.updateStore(symbolicAddress, updatedSymbolicObject)
             /* Concrete evaluation returns false */
             Some(ConcolicBool(false))
           case None =>

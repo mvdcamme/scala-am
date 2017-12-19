@@ -381,7 +381,7 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
         }
       case frame: FrameBegin[V, Addr, Time] => frame.rest match {
         case List(SchemePopSymEnv(_)) =>
-          ScalaAMReporter.popEnvironment()
+          GlobalSymbolicEnvironment.popEnvironment()
           val action = ActionReachedValue[SchemeExp, V, Addr](v, store)
           val actionR = ActionReachedValueT[SchemeExp, V, Addr](v)
           noEdgeInfosSet(action, actionR)

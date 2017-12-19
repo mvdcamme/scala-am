@@ -291,7 +291,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
                 case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
-                  ScalaAMReporter.pushEnvironment()
+                  GlobalSymbolicEnvironment.pushEnvironment()
                   val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
                   Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t, fexp)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
@@ -337,7 +337,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
                   case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
-                    ScalaAMReporter.pushEnvironment()
+                    GlobalSymbolicEnvironment.pushEnvironment()
                     val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                       EvaluatingExpression(e),
                       FrameFollowed[ConcreteValue](originFrameCast))

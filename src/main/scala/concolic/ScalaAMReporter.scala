@@ -6,14 +6,8 @@ case object AbortConcolicRunException extends Exception
 
 object ScalaAMReporter {
 
-  type SymbolicMemoryScope = Map[String, ConcolicExpression]
-  type SymbolicMemory = List[SymbolicMemoryScope]
-  type SymbolicStore = Map[ConcolicAddress, ConcolicObject]
-
   private var doConcolic: Boolean = false
 
-  private var symbolicMemory: SymbolicMemory = List(Map())
-  private var symbolicStore: SymbolicStore = Map()
   private var currentPath: Path = Nil
   private var currentReport: PathConstraint = Nil
 
@@ -36,62 +30,9 @@ object ScalaAMReporter {
     currentPath = Nil
     currentReport = Nil
     optCurrentErrorPaths = InitialErrorPaths.get
-    symbolicMemory = List(Map())
-    symbolicStore = Map()
+    GlobalSymbolicEnvironment.reset()
+    GlobalSymbolicStore.reset()
   }
-  def pushEnvironment(): Unit = {
-    if (doConcolic) {
-      symbolicMemory ::= Map()
-    }
-  }
-  def popEnvironment(): Unit = {
-    if (doConcolic) {
-      symbolicMemory = symbolicMemory.tail
-    }
-  }
-
-  def addVariable(originalName: String, concolicExpression: ConcolicExpression): Unit = {
-    val updatedCurrentScope: SymbolicMemoryScope = symbolicMemory.head + (originalName -> concolicExpression)
-    symbolicMemory = updatedCurrentScope :: symbolicMemory.tail
-  }
-
-  def lookupVariable(name: String): Option[ConcolicExpression] = {
-    def loopEnv(env: SymbolicMemory): Option[ConcolicExpression] = env match {
-      case scope :: rest => scope.get(name) match {
-        case Some(concolicExp) =>
-          Some(concolicExp)
-        case None =>
-          loopEnv(rest)
-      }
-      case Nil =>
-        None
-    }
-    loopEnv(symbolicMemory)
-  }
-
-  def setVariable(name: String, newConcolicExp: ConcolicExpression): Unit = {
-    def loopEnv(env: SymbolicMemory): SymbolicMemory = env match {
-      case scope :: rest =>
-        if (scope.contains(name)) {
-          scope.updated(name, newConcolicExp) :: rest
-        } else {
-          scope :: loopEnv(rest)
-        }
-      case Nil =>
-        Nil
-    }
-    val newSymbolicMemory = loopEnv(symbolicMemory)
-    symbolicMemory = newSymbolicMemory
-  }
-
-  def extendStore(address: ConcolicAddress, concolicObject: ConcolicObject): Unit = {
-    symbolicStore += address -> concolicObject
-  }
-  def updateStore(address: ConcolicAddress, concolicObject: ConcolicObject): Unit = {
-    extendStore(address, concolicObject)
-  }
-
-  def lookupAddress(address: ConcolicAddress): Option[ConcolicObject] = symbolicStore.get(address)
 
   private case class SplitErrorPaths(thenPaths: List[Path], elsePaths: List[Path])
 
