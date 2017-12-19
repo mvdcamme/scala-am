@@ -935,9 +935,13 @@ object SchemeDesugarer {
         SchemeLetrec(bindings.map({ case (b, v) => (b, desugarExp(v)) }),
                      body.map(desugarExp),
                      pos)
+      case SchemeNamedLet(name, bindings, body, pos) =>
+        SchemeNamedLet(name, bindings.map(binding => (binding._1, desugarExp(binding._2))), body.map(desugarExp), pos)
       case SchemeSet(variable, value, pos) =>
         SchemeSet(variable, desugarExp(value), pos)
       case SchemeBegin(exps, pos) => SchemeBegin(exps.map(desugarExp), pos)
+      case SchemeDo(vars, test, finals, commands, pos) =>
+        SchemeDo(vars.map({ case (id, exp, optExp) => (id, desugarExp(exp), optExp.map(desugarExp)) }), desugarExp(test), finals.map(desugarExp), commands.map(desugarExp), pos)
       case SchemeCond(clauses, pos) =>
         SchemeCond(clauses.map({
           case (cond, body) => (undefine1(cond), undefineBody(body))
