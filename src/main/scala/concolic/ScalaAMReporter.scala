@@ -7,11 +7,13 @@ case object AbortConcolicRunException extends Exception
 object ScalaAMReporter {
 
   type SymbolicMemoryScope = Map[String, ConcolicExpression]
-  type SymbolicStore = List[SymbolicMemoryScope]
+  type SymbolicMemory = List[SymbolicMemoryScope]
+  type SymbolicStore = Map[ConcolicAddress, ConcolicObject]
 
   private var doConcolic: Boolean = false
 
-  private var symbolicMemory: SymbolicStore = List(Map())
+  private var symbolicMemory: SymbolicMemory = List(Map())
+  private var symbolicStore: SymbolicStore = Map()
   private var currentPath: Path = Nil
   private var currentReport: PathConstraint = Nil
 
@@ -35,6 +37,7 @@ object ScalaAMReporter {
     currentReport = Nil
     optCurrentErrorPaths = InitialErrorPaths.get
     symbolicMemory = List(Map())
+    symbolicStore = Map()
   }
   def pushEnvironment(): Unit = {
     if (doConcolic) {
@@ -53,7 +56,7 @@ object ScalaAMReporter {
   }
 
   def lookupVariable(name: String): Option[ConcolicExpression] = {
-    def loopEnv(env: SymbolicStore): Option[ConcolicExpression] = env match {
+    def loopEnv(env: SymbolicMemory): Option[ConcolicExpression] = env match {
       case scope :: rest => scope.get(name) match {
         case Some(concolicExp) =>
           Some(concolicExp)
@@ -67,7 +70,7 @@ object ScalaAMReporter {
   }
 
   def setVariable(name: String, newConcolicExp: ConcolicExpression): Unit = {
-    def loopEnv(env: SymbolicStore): SymbolicStore = env match {
+    def loopEnv(env: SymbolicMemory): SymbolicMemory = env match {
       case scope :: rest =>
         if (scope.contains(name)) {
           scope.updated(name, newConcolicExp) :: rest
@@ -80,6 +83,15 @@ object ScalaAMReporter {
     val newSymbolicMemory = loopEnv(symbolicMemory)
     symbolicMemory = newSymbolicMemory
   }
+
+  def extendStore(address: ConcolicAddress, concolicObject: ConcolicObject): Unit = {
+    symbolicStore += address -> concolicObject
+  }
+  def updateStore(address: ConcolicAddress, concolicObject: ConcolicObject): Unit = {
+    extendStore(address, concolicObject)
+  }
+
+  def lookupAddress(address: ConcolicAddress): Option[ConcolicObject] = symbolicStore.get(address)
 
   private case class SplitErrorPaths(thenPaths: List[Path], elsePaths: List[Path])
 
