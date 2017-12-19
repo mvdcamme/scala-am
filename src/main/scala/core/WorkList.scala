@@ -8,6 +8,6 @@ object WorkList {
   import scala.collection.immutable.Seq
   implicit object SeqWorkList extends WorkList[Seq] {
     def pick[A](w: Seq[A]) = w.headOption.map(x => (x, w.tail))
-    def append[A](w: Seq[A], s: Set[A]) = w ++ s
+    def append[A](w: Seq[A], s: Set[A]) = s.toSeq.to[scala.collection.immutable.Seq] ++ w
   }
 }
