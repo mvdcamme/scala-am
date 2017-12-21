@@ -20,12 +20,16 @@ object ConcolicInstrumenter {
       SchemeLet(bindings.map( (binding) => (binding._1, instrument(binding._2))), body.map(instrument), pos)
     case SchemeLetrec(bindings, body, pos) =>
       SchemeLetrec(bindings.map( (binding) => (binding._1, instrument(binding._2))), body.map(instrument), pos)
+    case SchemeNamedLet(name, bindings, body, pos) =>
+      SchemeNamedLet(name, bindings.map(binding => (binding._1, instrument(binding._2))), body.map(instrument), pos)
     case SchemeLetStar(bindings, body, pos) =>
       SchemeLetStar(bindings.map( (binding) => (binding._1, instrument(binding._2))), body.map(instrument), pos)
     case SchemeSet(varName, value, pos) =>
       SchemeSet(varName, instrument(value), pos)
     case SchemeBegin(exps, pos) =>
       SchemeBegin(exps.map(instrument), pos)
+    case SchemeDo(vars, test, finals, commands, pos) =>
+      SchemeDo(vars.map({ case (id, exp, optExp) => (id, instrument(exp), optExp.map(instrument)) }), instrument(test), finals.map(instrument), commands.map(instrument), pos)
     case SchemeCond(clauses, pos) =>
       SchemeCond(clauses.map( (clause) => (instrument(clause._1), clause._2.map(instrument)) ), pos)
     case SchemeCase(key, clauses, default, pos) =>
