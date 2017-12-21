@@ -330,10 +330,10 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
       addPushActionR(ActionPush(FrameCase(clauses, default, env), key, env, store))
     case SchemeAnd(Nil, _) =>
       val valueTrue = sabs.inject(true)
-      noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](valueTrue, None, store),
+      noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](valueTrue, Some(ConcolicBool(true)), store),
                      List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](valueTrue)))
     case SchemeAnd(exp :: exps, _) =>
-      addPushActionR(ActionPush(FrameAnd(exps, env), exp, env, store))
+      addPushActionR(ActionPush(FrameConcolicAnd(exps, Nil, env), exp, env, store))
     case SchemeOr(Nil, _) =>
       val valueFalse = sabs.inject(false)
       noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](valueFalse, None, store),
@@ -511,19 +511,19 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
         } else {
           evalBody(frame.default, frame.env, store)
         }
-      case frame: FrameAnd[ConcreteValue, Addr, Time] => frame.rest match {
+      case frame: FrameConcolicAnd[ConcreteValue, Addr, Time] => frame.rest match {
         case Nil =>
           val falseValue = sabs.inject(false)
           conditional(v,
-                      noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](v, concolicValue, store),
+                      noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](v, frame.generateConcolicExpression(true), store),
                                   List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](v))),
-                      noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](falseValue, None, store),
+                      noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](falseValue, frame.generateConcolicExpression(false), store),
                                   List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](falseValue))))
         case e :: rest =>
           val falseValue = sabs.inject(false)
           conditional(v,
-                      addPushActionR(ActionPush(FrameAnd(rest, frame.env), e, frame.env, store)),
-                      noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](falseValue, None, store),
+                      addPushActionR(ActionPush(FrameConcolicAnd(rest, frame.evaluatedSymbolicValues :+ concolicValue, frame.env), e, frame.env, store)),
+                      noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](falseValue, frame.generateConcolicExpression(false), store),
                                   List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](falseValue))))
       }
       case frame: FrameOr[ConcreteValue, Addr, Time] => frame.rest match {
