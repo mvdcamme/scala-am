@@ -475,6 +475,9 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
           evalBody(frame.rest, frame.env, store)
       }
       case frame: FrameCond[ConcreteValue, Addr, Time] =>
+
+        concolicValue.foreach(SemanticsConcolicHelper.handleIf(_, sabs.isTrue(v)))
+
         val falseValue = sabs.inject(false)
         conditional(v,
                     if (frame.cons.isEmpty) {
@@ -485,7 +488,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
                     },
                     frame.clauses match {
                       case Nil =>
-                        noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](falseValue, None, store),
+                        noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](falseValue, Some(ConcolicBool(false)), store),
                                     List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](falseValue)))
                       case (exp, cons2) :: rest =>
                         addPushActionR(ActionPush(FrameCond(cons2, rest, frame.env), exp, frame.env, store))
