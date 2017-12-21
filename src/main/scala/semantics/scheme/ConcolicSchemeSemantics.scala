@@ -1,6 +1,5 @@
-import backend.expression._
-
-import ConcreteConcreteLattice.{ L => ConcreteValue }
+import backend.expression.{BooleanConcolicExpression, _}
+import ConcreteConcreteLattice.{L => ConcreteValue}
 
 /**
   * Basic Scheme semantics, without any optimization
@@ -376,8 +375,8 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
       evalValue(v) match {
         case Some(v) =>
           val optionConcolicValue: Option[ConcolicExpression] = ConcreteConcreteLattice.simplify(v) match {
-            case Some(ValueInteger(i)) =>
-              Some(ConcolicInt(i))
+            case Some(ValueInteger(i)) => Some(ConcolicInt(i))
+            case Some(ValueBoolean(b)) => Some(ConcolicBool(b))
             case _ =>
               None
           }
