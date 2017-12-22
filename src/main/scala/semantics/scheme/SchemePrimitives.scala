@@ -647,6 +647,29 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       prims.Cons
   }
   object Cons extends Cons
+  class RandomCons extends Primitive[Addr, Abs] {
+    val name = "random-cons"
+    override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = {
+      assert(symbolicArgs.size == 0)
+      val symbolicAddress = ConcolicIdGenerator.newConcolicInputAddress
+      val fields = Map("car" -> ConcolicInt(98), "cdr" -> ConcolicInt(99))
+      val symbolicObject = ConcolicObject(name, fields)
+      GlobalSymbolicStore.extendStore(symbolicAddress, symbolicObject)
+      Some(symbolicAddress)
+    }
+    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time) = args match {
+      case Nil =>
+        /* Add condition signalling that input address now generated was null */
+        val condition = ConcolicAddressComparison
+        /* TODO Symbolic call moet op hetzelfde moment als concrete call gebeuren: moet nu een conditie genereren
+         * dat de ConcolicInputAddress gelijk was aan het NullObject */
+        MayFailSuccess((abs.nil, store, Set()))
+      case l => MayFailError(List(ArityError(name, 0, l.size)))
+    }
+    def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
+      prims.RandomCons
+  }
+  object RandomCons extends RandomCons
   private def car(v: Abs, store: Store[Addr, Abs]): MayFail[(Abs, Set[Effect[Addr]])] = {
     val addrs = abs.car(v)
     if (addrs.isEmpty) {
@@ -1499,7 +1522,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
     Caaadr, Caadar, Caaddr, Cadaar, Cadadr, Caddar, Cadddr, Cdaaar,
     Cdaadr, Cdadar, Cdaddr, Cddaar, Cddadr, Cdddar, Cddddr,
     /* Other primitives that are not R5RS */
-    Random, Error, BoolTop, IntTop)
+    Random, Error, BoolTop, IntTop, RandomCons)
 
   def toVal(prim: Primitive[Addr, Abs]): Abs = abs.inject(prim)
 }
