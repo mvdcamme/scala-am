@@ -6,6 +6,8 @@ object InputVariableStore {
   private var keyStore: Map[SchemeExp, Int] = Map()
   private var store: Map[Key, ConcolicInput] = Map()
 
+  private var randomConsStore: List[ConcolicInputAddress] = Nil
+
   private def makeNewKey(exp: SchemeExp): Key = {
     val id = keyStore.get(exp).map(_ + 1).getOrElse(0)
     keyStore = keyStore + (exp -> id)

@@ -631,7 +631,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       val symbolicCdrValue = symbolicArgs(1)
       val fields = Map("car" -> symbolicCarValue, "cdr" -> symbolicCdrValue)
       val symbolicObject = ConcolicObject(name, fields)
-      val symbolicAddress = ConcolicIdGenerator.newConcolicAddress
+      val symbolicAddress = ConcolicIdGenerator.newConcolicRegularAddress
       GlobalSymbolicStore.extendStore(symbolicAddress, symbolicObject)
       Some(symbolicAddress)
     }
@@ -707,24 +707,29 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       assert(symbolicArgs.size == 1)
       /* TODO Does not work when car and cdr are chained! (as in: cadr, caar, cddr etc.) */
       assert(spec.size == 1)
-      val symbolicAddress: ConcolicAddress = symbolicArgs.head match {
-        case address: ConcolicAddress => address
+      println(s"Used address ${symbolicArgs.head}")
+      symbolicArgs.head match {
+        case symbolicAddress: ConcolicRegularAddress =>
+          /* Car/cdr operation on a regular pair object */
+          val result = GlobalSymbolicStore.lookupAddress(symbolicAddress)
+          result match {
+            case None =>
+              assert(false, s"Address $symbolicAddress not found in symbolic store")
+              None
+            case Some(symbolicObject) =>
+              println(s"Got result $result")
+              spec.head match {
+                case Car => symbolicObject.fields.get("car")
+                case Cdr => symbolicObject.fields.get("cdr")
+              }
+          }
+        case symbolicAddress: ConcolicInputAddress =>
+          /* Car/cdr operation on an input pair object */
+          val carCdrAccess = ConcolicFieldAccess(symbolicAddress, if (spec.head == Car) "car" else "cdr")
+          Some(carCdrAccess)
         case _ =>
           assert(false, "Should not happen!")
           ???
-      }
-      val result = GlobalSymbolicStore.lookupAddress(symbolicAddress)
-      println(s"Used address $symbolicAddress")
-      result match {
-        case None =>
-          assert(false, s"Address $symbolicAddress not found in symbolic store")
-          None
-        case Some(symbolicObject) =>
-          println(s"Got result $result")
-          spec.head match {
-            case Car => symbolicObject.fields.get("car")
-            case Cdr => symbolicObject.fields.get("cdr")
-          }
       }
     }
     override def call(v: Abs, store: Store[Addr, Abs]) =

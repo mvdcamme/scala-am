@@ -16,10 +16,10 @@ case class FrameConcolicAnd[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp
     case (head : Option[BooleanConcolicExpression]) :: rest =>
       val optLeftOperand = rest.foldLeft[Option[BooleanConcolicExpression]](head)((optAcc, optConcolicValue) => optAcc.flatMap(acc => optConcolicValue.flatMap(concolicValue => (acc, concolicValue) match {
         case (acc: BooleanConcolicExpression, concolicValue : BooleanConcolicExpression) =>
-          Some(LogicalConcolicExpression(acc, LogicalAnd, concolicValue))
+          Some(LogicalBinaryConcolicExpression(acc, LogicalAnd, concolicValue))
         case _ => None
       })))
-      optLeftOperand.map(LogicalConcolicExpression(_, LogicalAnd, ConcolicBool(concreteValue)))
+      optLeftOperand.map(LogicalBinaryConcolicExpression(_, LogicalAnd, ConcolicBool(concreteValue)))
     case _ =>
       None
   }
