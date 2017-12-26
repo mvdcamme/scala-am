@@ -4,6 +4,15 @@ import backend.expression._
  * Each primitive has to implement this trait.
  */
 trait Primitive[Addr, Abs] {
+  type Arg = (Abs, Option[ConcolicExpression])
+
+  def mapSymbolicArgs(args: List[Arg]): Option[List[ConcolicExpression]] = {
+    args.foldLeft[Option[List[ConcolicExpression]]](Some(Nil))((optAcc, arg) => optAcc.flatMap(acc => arg._2.map(arg => acc :+ arg)))
+  }
+  def mapJustSymbolicArgs(args: List[Option[ConcolicExpression]]): Option[List[ConcolicExpression]] = {
+    args.foldLeft[Option[List[ConcolicExpression]]](Some(Nil))((optAcc, arg) => optAcc.flatMap(acc => arg.map(arg => acc :+ arg)))
+  }
+
   /** The name of the primitive */
   val name: String
   /** Calls the primitive.
@@ -12,8 +21,11 @@ trait Primitive[Addr, Abs] {
    * @param store: the store
    * @return either an error, or the value returned by the primitive along with the updated store
    */
-  def call[Exp : Expression, Time : Timestamp](fexp : Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time): MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]
-  def symbolicCall(fexp: SchemeExp,  concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = None
+  def call[Exp : Expression, Time : Timestamp](
+    fexp : Exp,
+    args: List[(Exp, Arg)],
+    store: Store[Addr, Abs],
+    t: Time): (MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])], Option[ConcolicExpression])
   def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs]
 }
 
@@ -25,14 +37,14 @@ abstract class Primitives[Addr : Address, Abs : JoinLattice] {
     * called. This is for debugging purposes. */
   def traced(prim: Primitive[Addr, Abs]): Primitive[Addr, Abs] = new Primitive[Addr, Abs] {
     val name = prim.name
-    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time) = {
-      val argsstr = args.map({ case (_, v) => v.toString }).mkString(" ")
+    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Arg)], store: Store[Addr, Abs], t: Time) = {
+      val argsstr = args.map({ case (_, (v, cv)) => v.toString }).mkString(" ")
       val res = prim.call(fexp, args, store, t)
       print("($name $argsstr) -> ")
       res match {
-        case MayFailError(errs) => "ERROR: " + errs.mkString(" | ERROR: ")
-        case MayFailSuccess((v, store, effs)) => v.toString
-        case MayFailBoth((v, store, effs), errs) => v.toString + " | ERROR: " + errs.mkString(" | ERROR: ")
+        case (MayFailError(errs), _) => "ERROR: " + errs.mkString(" | ERROR: ")
+        case (MayFailSuccess((v, store, effs)), _) => v.toString
+        case (MayFailBoth((v, store, effs), errs), _) => v.toString + " | ERROR: " + errs.mkString(" | ERROR: ")
       }
       res
     }
