@@ -114,32 +114,32 @@ case class TaintError(sources: Set[Position], sink: Position) extends SemanticEr
 class TSchemePrimitives[Addr : Address, Abs : IsTaintLattice] extends SchemePrimitives[Addr, Abs] {
   object Taint extends Primitive[Addr, Abs] {
     val name = "taint"
-    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time) = args match {
-      case (_, x) :: Nil => MayFailSuccess((IsTaintLattice[Abs].taint(x, Expression[Exp].pos(fexp)), store, Set()))
-      case l => MayFailError(List(ArityError(name, 1, l.size)))
+    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Arg)], store: Store[Addr, Abs], t: Time) = args match {
+      case (_, x) :: Nil => MayFailSuccess((IsTaintLattice[Abs].taint(x._1, Expression[Exp].pos(fexp)), store, Set[Effect[Addr]]()))
+      case l => MayFailError[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](List(ArityError(name, 1, l.size)))
     }
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.asInstanceOf[TSchemePrimitives[Addr, Abs]].Taint
   }
   object Sink extends Primitive[Addr, Abs] {
     val name = "sink"
-    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time) = args match {
-      case (_, x) :: Nil => IsTaintLattice[Abs].taintStatus(x) match {
-        case Untainted => MayFailSuccess((x, store, Set()))
-        case MaybeTainted(sources) => MayFailBoth((x, store, Set()), List(TaintError(sources, Expression[Exp].pos(fexp))))
-        case Tainted(sources) => MayFailError(List(TaintError(sources, Expression[Exp].pos(fexp))))
-        case BottomTaint => MayFailSuccess(x, store, Set())
+    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Arg)], store: Store[Addr, Abs], t: Time) = args match {
+      case (_, x) :: Nil => IsTaintLattice[Abs].taintStatus(x._1) match {
+        case Untainted => MayFailSuccess((x._1, store, Set[Effect[Addr]]()))
+        case MaybeTainted(sources) => MayFailBoth((x._1, store, Set[Effect[Addr]]()), List(TaintError(sources, Expression[Exp].pos(fexp))))
+        case Tainted(sources) => MayFailError[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](List(TaintError(sources, Expression[Exp].pos(fexp))))
+        case BottomTaint => MayFailSuccess(x._1, store, Set[Effect[Addr]]())
       }
-      case l => MayFailError(List(ArityError(name, 1, l.size)))
+      case l => MayFailError[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](List(ArityError(name, 1, l.size)))
     }
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.asInstanceOf[TSchemePrimitives[Addr, Abs]].Sink
   }
   object Sanitize extends Primitive[Addr, Abs] {
     val name = "sanitize"
-    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Abs)], store: Store[Addr, Abs], t: Time) = args match {
-      case (_, x) :: Nil => MayFailSuccess((IsTaintLattice[Abs].sanitize(x), store, Set()))
-      case l => MayFailError(List(ArityError(name, 1, l.size)))
+    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Arg)], store: Store[Addr, Abs], t: Time) = args match {
+      case (_, x) :: Nil => MayFailSuccess((IsTaintLattice[Abs].sanitize(x._1), store, Set[Effect[Addr]]()))
+      case l => MayFailError[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](List(ArityError(name, 1, l.size)))
     }
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.asInstanceOf[TSchemePrimitives[Addr, Abs]].Sanitize

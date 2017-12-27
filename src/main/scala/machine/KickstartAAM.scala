@@ -549,8 +549,8 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
           val primitives = sabs.getPrimitives[Addr, Abs](operator)
           val filterEdge = addKontFilterAnnotations(state.a, kont)
           primitives.flatMap( (primitive) => {
-            val qwe = primitive.call(a.fExp, a.argsExps.zip(operands), state.store, state.t)
-            qwe.collect({
+            val result = primitive.call(a.fExp, a.argsExps.zip(operands.map((_, None))), state.store, state.t)._1
+            result.collect({
               case (res, store2, effects) =>
                 val newState = state.copy(control = ControlKont(res), store = store2, a = kont.next)
                 Set[(State, Set[MachineFilterAnnotation])]((newState, filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive), state.t)))

@@ -67,7 +67,7 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
         })
         val fromPrim: Actions = IsSchemeLattice[Abs].getPrimitives(fv).flatMap(prim =>
           /* To call a primitive, apply the call method with the given arguments and the store */
-          for { (res, store2, effects3) <- prim.call(f, argsv, store, t) }
+          for { (res, store2, effects3) <- prim.call(f, argsv.map(x => (x._1, (x._2, None))), store, t)._1 }
           yield Action.value(res, store, effects ++ effects2 ++ effects3))
         if (fromClo.isEmpty && fromPrim.isEmpty) {
           Set(Action.error(TypeError(fv.toString, "operator", "function", "not a function")))

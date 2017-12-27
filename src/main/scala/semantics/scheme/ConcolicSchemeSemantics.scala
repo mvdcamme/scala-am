@@ -76,13 +76,14 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
                concolicArgsv: List[(SchemeExp, ConcreteValue, Option[ConcolicExpression])],
                store: Store[Addr, ConcreteValue],
                t: Time): EdgeInformation[SchemeExp, ConcreteValue, Addr] = {
-    val argsv = concolicArgsv.map( (tuple) => (tuple._1, tuple._2))
+    val argsv: List[(SchemeExp, ConcreteValue)] = concolicArgsv.map(tuple => (tuple._1, tuple._2))
+    val cargsv: List[(SchemeExp, (ConcreteValue, Option[ConcolicExpression]))] = concolicArgsv.map(tuple => (tuple._1, (tuple._2, tuple._3)))
     val fromClo: Set[EdgeInformation[SchemeExp, ConcreteValue, Addr]] = sabs
       .getClosures[SchemeExp, Addr](function)
       .map({
         case (lambda@(SchemeLambda(args, body, pos)), env1) =>
           val cloCall = ActionClosureCallR[SchemeExp, ConcreteValue, Addr](fexp, lambda, env1)
-          if (args.length == argsv.length) {
+          if (args.length == cargsv.length) {
             val argsZipped: List[(Identifier, (SchemeExp, ConcreteValue))] = args.zip(argsv)
             // Add all arguments that have a concolic expression to the symbolic environment
             args.zip(concolicArgsv).foreach({
@@ -109,7 +110,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
                 }
             }
           } else {
-            val error = ArityError(fexp.toString, args.length, argsv.length)
+            val error = ArityError(fexp.toString, args.length, cargsv.length)
             val actionError = ActionErrorT[SchemeExp, ConcreteValue, Addr](error)
             EdgeInformation(ActionError[SchemeExp, ConcreteValue, Addr](error), List(actionError, cloCall), Set())
           }
@@ -120,16 +121,11 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
           noEdgeInfos(ActionError[SchemeExp, ConcreteValue, Addr](error), List(actionError, cloCall))
       })
     val fromPrim: EdgeInfos = sabs.getPrimitives[Addr, ConcreteValue](function).flatMap( (prim) => {
-      val n = argsv.size + 1 // Number of values to pop: all arguments + the operator
-      val applyPrim = ActionPrimCallT[SchemeExp, ConcreteValue, Addr](n, fexp, argsv.map(_._1), sabs.inject(prim))
-      prim.call(fexp, argsv, store, t).collect[EdgeInformation[SchemeExp, ConcreteValue, Addr]]({
+      val n = cargsv.size + 1 // Number of values to pop: all arguments + the operator
+      val applyPrim = ActionPrimCallT[SchemeExp, ConcreteValue, Addr](n, fexp, cargsv.map(_._1), sabs.inject(prim))
+      val (result, symbolicValue) = prim.call(fexp, cargsv, store, t)
+      result.collect[EdgeInformation[SchemeExp, ConcreteValue, Addr]]({
         case (res, store2, effects) =>
-          val symbolicValue = if (concolicArgsv.map(_._3).forall(_.isDefined)) {
-            // symbolicCall only takes place if all concolic argument expressions are defined
-            prim.symbolicCall(fexp, concolicArgsv.map(_._2), concolicArgsv.map(_._3.get))
-          } else {
-            None
-          }
           val action = ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](res, symbolicValue, store2, effects)
           Set(EdgeInformation[SchemeExp, ConcreteValue, Addr](action, List(applyPrim), Set()))
       },

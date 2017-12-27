@@ -440,7 +440,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   object Evenp extends Evenp
   class Max extends NoStoreOperation("max") {
     /* TODO: In Scheme, max casts numbers to inexact as soon as one of them is inexact, but we don't support that */
-    private override def call(args: List[Abs], max: Abs): MayFail[Abs] = args match {
+    private def call(args: List[Abs], max: Abs): MayFail[Abs] = args match {
       case Nil => MayFailSuccess(max)
       case x :: rest => for {
         test <- lt(max, x)
@@ -458,7 +458,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   object Max extends Max
   class Min extends NoStoreOperation("min") {
     /* TODO: same remark as max */
-    private override def call(args: List[Abs], min: Abs): MayFail[Abs] = args match {
+    private def call(args: List[Abs], min: Abs): MayFail[Abs] = args match {
       case Nil => MayFailSuccess(min)
       case x :: rest => for {
         test <- lt(x, min)
@@ -728,12 +728,17 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       if (c == 'a') { Car }
       else if (c == 'd') { Cdr }
       else { throw new Exception(s"Incorrect car/cdr operation: $name") })
-    override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = {
-      assert(symbolicArgs.size == 1)
-      /* TODO Does not work when car and cdr are chained! (as in: cadr, caar, cddr etc.) */
-      assert(spec.size == 1)
-      println(s"Used address ${symbolicArgs.head}")
-      symbolicArgs.head match {
+    override def call(v: Arg, store: Store[Addr, Abs]) = {
+      val symbolicArg = v._2
+      println(s"Used address $symbolicArg")
+      val result = for { (v, effs) <- spec.foldLeft(success(v._1))((acc, op) => for {
+        (v, effs) <- acc
+        (vcxr, effs2) <- op match {
+          case Car => car(v, store)
+          case Cdr => cdr(v, store)
+        }
+      } yield (vcxr, effs ++ effs2)) } yield (v, store, effs)
+      val symbolic = symbolicArg.flatMap({
         case symbolicAddress: ConcolicRegularAddress =>
           /* Car/cdr operation on a regular pair object */
           val result = GlobalSymbolicStore.lookupAddress(symbolicAddress)
@@ -755,16 +760,9 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
         case _ =>
           assert(false, "Should not happen!")
           ???
-      }
+      })
+      (result, symbolic)
     }
-    override def call(v: Abs, store: Store[Addr, Abs]) =
-      for { (v, effs) <- spec.foldLeft(success(v))((acc, op) => for {
-        (v, effs) <- acc
-        (vcxr, effs2) <- op match {
-          case Car => car(v, store)
-          case Cdr => cdr(v, store)
-        }
-      } yield (vcxr, effs ++ effs2)) } yield (v, store, effs)
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       new prims.CarCdrOperation(name)
   }
@@ -830,12 +828,19 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   object Cddddr extends Cddddr
 
   class SetCar extends StoreOperation("set-car!", Some(2)) {
-    override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = {
-      assert(symbolicArgs.size == 2)
-      symbolicArgs.head match {
-        case symbolicAddress: ConcolicAddress => GlobalSymbolicStore.lookupAddress(symbolicAddress) match {
+    override def call(cell: Arg, value: Arg, store: Store[Addr, Abs]) = {
+      val addrs = abs.car(cell._1)
+      val result = if (addrs.isEmpty) {
+         MayFailError[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](List(CannotAccessCar(cell._1.toString)))
+      } else {
+        val (store2, effects) = addrs.foldLeft((store, Set[Effect[Addr]]()))((acc, a) =>
+          (acc._1.update(a, value._1), acc._2 + EffectWriteConsCar(a)))
+        MayFailSuccess((abs.inject(false) /* undefined */, store2, effects))
+      }
+      val symbolic = mapSymbolicArgs(List(cell, value)).flatMap({
+        case (symbolicAddress: ConcolicAddress) :: value :: Nil => GlobalSymbolicStore.lookupAddress(symbolicAddress) match {
           case Some(symbolicObject) =>
-            val updatedSymbolicObject = symbolicObject.copy(fields = symbolicObject.fields.updated("car", symbolicArgs(1)))
+            val updatedSymbolicObject = symbolicObject.copy(fields = symbolicObject.fields.updated("car", value))
             GlobalSymbolicStore.updateStore(symbolicAddress, updatedSymbolicObject)
             /* Concrete evaluation returns false */
             Some(ConcolicBool(false))
@@ -846,29 +851,27 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
         case _ =>
           assert(false, "Should not happen!")
           None
-      }
-    }
-    override def call(cell: Abs, value: Abs, store: Store[Addr, Abs]) = {
-      val addrs = abs.car(cell)
-      if (addrs.isEmpty) {
-         MayFailError(List(CannotAccessCar(cell.toString)))
-      } else {
-        val (store2, effects) = addrs.foldLeft((store, Set[Effect[Addr]]()))((acc, a) =>
-          (acc._1.update(a, value), acc._2 + EffectWriteConsCar(a)))
-        MayFailSuccess((abs.inject(false) /* undefined */, store2, effects))
-      }
+      })
+      (result, symbolic)
     }
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.SetCar
   }
   object SetCar extends SetCar
   class SetCdr extends StoreOperation("set-cdr!", Some(2)) {
-    override def symbolicCall(fexp: SchemeExp, concreteArgs: List[Abs], symbolicArgs: List[ConcolicExpression]): Option[ConcolicExpression] = {
-      assert(symbolicArgs.size == 2)
-      symbolicArgs.head match {
-        case symbolicAddress: ConcolicAddress => GlobalSymbolicStore.lookupAddress(symbolicAddress) match {
+    override def call(cell: Arg, value: Arg, store: Store[Addr, Abs]) = {
+      val addrs = abs.cdr(cell._1)
+      val result = if (addrs.isEmpty) {
+        MayFailError[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](List(CannotAccessCdr(cell._1.toString)))
+      } else {
+        val (store2, effects) = addrs.foldLeft((store, Set[Effect[Addr]]()))((acc, a) =>
+          (acc._1.update(a, value._1), acc._2 + EffectWriteConsCdr(a)))
+        MayFailSuccess((abs.inject(false) /* undefined */, store2, effects))
+      }
+      val symbolic = mapSymbolicArgs(List(cell, value)).flatMap({
+        case (symbolicAddress: ConcolicAddress) :: value :: Nil => GlobalSymbolicStore.lookupAddress(symbolicAddress) match {
           case Some(symbolicObject) =>
-            val updatedSymbolicObject = symbolicObject.copy(fields = symbolicObject.fields.updated("cdr", symbolicArgs(1)))
+            val updatedSymbolicObject = symbolicObject.copy(fields = symbolicObject.fields.updated("cdr", value))
             GlobalSymbolicStore.updateStore(symbolicAddress, updatedSymbolicObject)
             /* Concrete evaluation returns false */
             Some(ConcolicBool(false))
@@ -879,17 +882,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
         case _ =>
           assert(false, "Should not happen!")
           None
-      }
-    }
-    override def call(cell: Abs, value: Abs, store: Store[Addr, Abs]) = {
-      val addrs = abs.cdr(cell)
-      if (addrs.isEmpty) {
-        MayFailError(List(CannotAccessCdr(cell.toString)))
-      } else {
-        val (store2, effects) = addrs.foldLeft((store, Set[Effect[Addr]]()))((acc, a) =>
-          (acc._1.update(a, value), acc._2 + EffectWriteConsCdr(a)))
-        MayFailSuccess((abs.inject(false) /* undefined */, store2, effects))
-      }
+      })
+      (result, symbolic)
     }
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.SetCdr
@@ -1022,7 +1016,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       case (_, vector) :: (_, index) :: (exp, value) :: Nil => {
         val addrs = abs.getVectors(vector._1)
         if (addrs.isEmpty) {
-          MayFailError(List(CannotAccessVector(vector.toString)))
+          MayFailError[(Abs, Store[Addr, Abs], Set[Effect[Addr]])](List(CannotAccessVector(vector.toString)))
         } else {
           val init: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])] = MayFailSuccess((abs.bottom, store, Set[Effect[Addr]]()))
           addrs.foldLeft(init)((acc, va) => {
@@ -1269,7 +1263,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
          (if (equal? (car l) e)
            l
            (member e (cdr l))))) */
-  abstract class MemberLike(val n: String, eqFn: ((Abs, Option[ConcolicExpression]), (Abs, Option[ConcolicExpression]), Store[Addr, Abs]) => MayFail[(Abs, Set[Effect[Addr]])]) extends StoreOperation(n, Some(2)) {
+  abstract class MemberLike(val n: String, eqFn: (Abs, Abs, Store[Addr, Abs]) => MayFail[(Abs, Set[Effect[Addr]])]) extends StoreOperation(n, Some(2)) {
     def mem(e: Abs, l: Abs, visited: Set[Abs], store: Store[Addr, Abs]): MayFail[(Abs, Set[Effect[Addr]])] = {
       if (visited.contains(l)) {
         (abs.bottom, Set[Effect[Addr]]()).point[MayFail]
@@ -1299,25 +1293,25 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
         }}
       }
     }
-    override def call(e: Abs, l: Abs, store: Store[Addr, Abs]) =
-      mem(e, l, Set.empty, store).map({ case (v, effs) => (v, store, effs) })
+    override def call(e: Arg, l: Arg, store: Store[Addr, Abs]) =
+      mem(e._1, l._1, Set.empty, store).map({ case (v, effs) => (v, store, effs) })
   }
 
-  class Member extends MemberLike("member",
-    (x: (Abs, Option[ConcolicExpression]), y: (Abs, Option[ConcolicExpression]), store: Store[Addr, Abs]) => Equal.call(x, y, store).map({ case (res, _ /* unchanged store */, eff) => (res, eff) })) {
+  class Member extends MemberLike("member", (x: Abs, y: Abs,
+                                             store: Store[Addr, Abs]) => Equal.call((x, None), (y, None), store)._1.map({ case (res, _ /* unchanged store */, eff) => (res, eff) })) {
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Member
   }
   object Member extends Member
   class Memq extends MemberLike("memq",
-    (x: (Abs, Option[ConcolicExpression]), y: (Abs, Option[ConcolicExpression]), store: Store[Addr, Abs]) => Eq.call(x, y).map(res => (res, Set.empty))) {
+                                (x: Abs, y: Abs, store: Store[Addr, Abs]) => Eq.call((x, None), (y, None))._1.map(res => (res, Set.empty))) {
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Memq
   }
   object Memq extends Memq
 
-  abstract class AssocLike(val n: String, eqFn: ((Abs, Option[ConcolicExpression]), (Abs, Option[ConcolicExpression]), Store[Addr, Abs]) => MayFail[(Abs, Set[Effect[Addr]])]) extends StoreOperation(n, Some(2)) {
-    def assoc(e: Arg, l: Arg, visited: Set[Abs], store: Store[Addr, Abs]): MayFail[(Abs, Set[Effect[Addr]])] = {
+  abstract class AssocLike(val n: String, eqFn: (Abs, Abs, Store[Addr, Abs]) => MayFail[(Abs, Set[Effect[Addr]])]) extends StoreOperation(n, Some(2)) {
+    def assoc(e: Abs, l: Abs, visited: Set[Abs], store: Store[Addr, Abs]): MayFail[(Abs, Set[Effect[Addr]])] = {
       if (visited.contains(l)) {
         (abs.bottom, Set[Effect[Addr]]()).point[MayFail]
       } else {
@@ -1357,17 +1351,19 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       }
     }
     override def call(e: Arg, l: Arg, store: Store[Addr, Abs]) =
-      assoc(e, l, Set.empty, store).map({ case (v, effs) => (v, store, effs) })
+      assoc(e._1, l._1, Set.empty, store).map({ case (v, effs) => (v, store, effs) })
   }
 
   class Assoc extends AssocLike("assoc",
-    (x: (Abs, Option[ConcolicExpression]), y: (Abs, Option[ConcolicExpression]), store: Store[Addr, Abs]) => Equal.call(x, y, store).map({ case (res, _ /* unchanged store */, eff) => (res, eff) })) {
+                                (x: Abs, y: Abs,
+                                 store: Store[Addr, Abs]) => Equal.call((x, None), (y, None), store)._1.map({ case (res, _ /* unchanged store */, eff) => (res, eff) })) {
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Assoc
   }
   object Assoc extends Assoc
   class Assq extends AssocLike("assq",
-    (x: (Abs, Option[ConcolicExpression]), y: (Abs, Option[ConcolicExpression]), store: Store[Addr, Abs]) => Eq.call(x, y).map(res => (res, Set.empty))) {
+                               (x: Abs, y: Abs,
+                                store: Store[Addr, Abs]) => Eq.call((x, None), (y, None))._1.map(res => (res, Set.empty))) {
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Assq
   }

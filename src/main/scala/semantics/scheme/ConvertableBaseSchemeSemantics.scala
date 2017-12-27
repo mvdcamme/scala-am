@@ -91,7 +91,7 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
     val fromPrim: EdgeInfos = IsSchemeLattice[V].getPrimitives[Addr, V](function).flatMap( (prim) => {
       val n = argsv.size + 1 // Number of values to pop: all arguments + the operator
       val applyPrim = ActionPrimCallT[SchemeExp, V, Addr](n, fexp, argsv.map(_._1), IsSchemeLattice[V].inject(prim))
-      prim.call(fexp, argsv, store, t).collect[EdgeInformation[SchemeExp, V, Addr]]({
+      prim.call(fexp, argsv.map(x => (x._1, (x._2, None))), store, t)._1.collect[EdgeInformation[SchemeExp, V, Addr]]({
         case (res, store2, effects) =>
           val action = ActionReachedValue[SchemeExp, V, Addr](res, store2, effects)
           Set(EdgeInformation[SchemeExp, V, Addr](action, List(applyPrim), Set()))

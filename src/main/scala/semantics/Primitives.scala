@@ -6,6 +6,7 @@ import backend.expression._
 trait Primitive[Addr, Abs] {
   type Arg = (Abs, Option[ConcolicExpression])
 
+  import scala.language.implicitConversions
   implicit protected def mayFailToTuple(x: MayFail[Abs]): (MayFail[Abs], Option[ConcolicExpression]) = (x, None)
   implicit protected def mayFailEffectsToTuple(x: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]): (MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])], Option[ConcolicExpression]) = (x, None)
   implicit protected def errorToTuple(x: SemanticError): (MayFail[Abs], Option[ConcolicExpression]) = (x, None)

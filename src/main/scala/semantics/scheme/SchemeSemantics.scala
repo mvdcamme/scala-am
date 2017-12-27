@@ -81,7 +81,7 @@ class BaseSchemeSemantics[V : IsSchemeLattice, Addr : Address, Time : Timestamp]
       case (lambda, _) => Action.error(TypeError(lambda.toString, "operator", "closure", "not a closure"))
     })
     val fromPrim: Actions = IsSchemeLattice[V].getPrimitives(function).flatMap(prim =>
-      for { (res, store2, effects) <- prim.call(fexp, argsv, store, t) } yield Action.value(res, store2, effects) )
+      for { (res, store2, effects) <- prim.call(fexp, argsv.map(x => (x._1, (x._2, None))), store, t)._1 } yield Action.value(res, store2, effects) )
     if (fromClo.isEmpty && fromPrim.isEmpty) {
       Action.error(TypeError(function.toString, "operator", "function", "not a function"))
     } else {
