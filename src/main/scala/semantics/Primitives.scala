@@ -6,6 +6,11 @@ import backend.expression._
 trait Primitive[Addr, Abs] {
   type Arg = (Abs, Option[ConcolicExpression])
 
+  implicit protected def mayFailToTuple(x: MayFail[Abs]): (MayFail[Abs], Option[ConcolicExpression]) = (x, None)
+  implicit protected def mayFailEffectsToTuple(x: MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])]): (MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])], Option[ConcolicExpression]) = (x, None)
+  implicit protected def errorToTuple(x: SemanticError): (MayFail[Abs], Option[ConcolicExpression]) = (x, None)
+  implicit protected def absToTuple(x: Abs): (MayFail[Abs], Option[ConcolicExpression]) = (x, None)
+
   def mapSymbolicArgs(args: List[Arg]): Option[List[ConcolicExpression]] = {
     args.foldLeft[Option[List[ConcolicExpression]]](Some(Nil))((optAcc, arg) => optAcc.flatMap(acc => arg._2.map(arg => acc :+ arg)))
   }
