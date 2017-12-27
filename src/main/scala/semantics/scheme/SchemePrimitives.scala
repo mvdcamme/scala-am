@@ -218,7 +218,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   object Expt extends Expt
   trait RelationalPrimitive { this: Primitive[Addr, Abs] =>
     def makeRelationalConcolicExpression(op: IntegerRelationalOperator, x: Arg, y: Arg): Option[ConcolicExpression] = {
-      this.mapSymbolicArgs(List(x, y)).map(args => RelationalConcolicExpression(args.head, IntLessThan, args(1)))
+      this.mapSymbolicArgs(List(x, y)).map(args => RelationalConcolicExpression(args.head, op, args(1)))
     }
   }
   class LessThan extends NoStoreOperation("<", Some(2)) with RelationalPrimitive {
@@ -247,7 +247,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
     }
     override def call(args: List[Arg]) = args match {
       case Nil => (abs.inject(true), Some(ConcolicBool(true)))
-      case x :: rest => (eq(x._1, rest.map(_._1)),makeRelationalConcolicExpression(IntEqual, x, rest.head))
+      case x :: rest => (eq(x._1, rest.map(_._1)), makeRelationalConcolicExpression(IntEqual, x, rest.head))
     }
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.NumEq
