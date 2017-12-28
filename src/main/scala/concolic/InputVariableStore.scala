@@ -6,7 +6,7 @@ object InputVariableStore {
   private var keyStore: Map[SchemeExp, Int] = Map()
   private var store: Map[Key, ConcolicInput] = Map()
 
-  private var randomConsStore: List[ConcolicInputAddress] = Nil
+  private var randomConsStore: List[ConcolicAddress] = Nil
 
   private def makeNewKey(exp: SchemeExp): Key = {
     val id = keyStore.get(exp).map(_ + 1).getOrElse(0)
@@ -16,11 +16,24 @@ object InputVariableStore {
 
   def reset(): Unit = {
     keyStore = Map()
+    randomConsStore = Nil
   }
 
   def addInput(input: ConcolicInput, fexp: SchemeExp): Unit = {
     val newKey = makeNewKey(fexp)
     store = store + (newKey -> input)
+  }
+
+  def setRandomConses(newRandomConsStore: List[ConcolicAddress]): Unit = {
+    randomConsStore = newRandomConsStore
+  }
+
+  def getRandomCons(): Option[ConcolicAddress] = randomConsStore match {
+    case Nil =>
+      None
+    case head :: rest =>
+      randomConsStore = rest
+      Some(head)
   }
 
   def lookupInput(exp: SchemeExp): Option[ConcolicInput] = {
