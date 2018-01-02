@@ -166,7 +166,7 @@ object Main {
           implicit val sabsCCLattice = ConcreteConcreteLattice.isSchemeLattice
           val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
 
-          val typeLattice = SchemeLattices.WithCounting(false).TypeLattice
+          val typeLattice = new MakeSchemeLattice[Type.S, Concrete.B, Type.I, Type.F, Type.C, Concrete.Sym](false) // SchemeLattices.WithCounting(false).TypeLattice
           implicit val typeConvLattice: IsConvertableLattice[typeLattice.L] = typeLattice.isConvertableSchemeLattice
           implicit val typeLatInfoProv = typeLattice.latticeInfoProvider
           implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
