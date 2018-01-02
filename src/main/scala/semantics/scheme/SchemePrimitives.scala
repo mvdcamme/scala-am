@@ -278,7 +278,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   }
   object Remainder extends Remainder
   class Random extends NoStoreOperation("random", Some(1)) {
-    override def call[Exp: Expression, Time: Timestamp](fexp: Exp, args: List[(Exp, Arg)], store: Store[Addr, Abs], t: Time): (MayFail[(Abs, Store[Addr, Abs], Set[Effect[Addr]])], Option[ConcolicExpression]) = {
+    override def call[Exp: Expression](fexp: Exp, x: (Exp, Arg)): (MayFail[Abs], Option[ConcolicExpression]) = {
       val value: MayFail[Abs] = if (ScalaAMReporter.isConcolicEnabled) {
         val optInput = InputVariableStore.lookupInput(fexp.asInstanceOf[SchemeExp])
         optInput match {
@@ -289,14 +289,14 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
               case None =>
                 // Could be that this random-call produces an input value already encountered in a previous concolic iteration,
                 // but that was not assigned a value, e.g., because it was not used in the path constraint.
-                callRandom(args.head._2._1)
+                callRandom(x._2._1)
             }
-          case None => callRandom(args.head._2._1)
+          case None => callRandom(x._2._1)
         }
       } else {
-        callRandom(args.head._2._1)
+        callRandom(x._2._1)
       }
-      (value.map(v => (v, store, Set())), symbolicCall(fexp.asInstanceOf[SchemeExp]))
+      value
     }
     def callRandom(x: Abs) = random(x)
     def symbolicCall(fexp: SchemeExp): Option[ConcolicExpression] = {
