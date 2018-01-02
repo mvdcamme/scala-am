@@ -133,11 +133,16 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       case Nil => MayFailError[Abs](List(VariadicArityError(name, 1, 0)))
       case x :: Nil => (minus(abs.inject(0), x._1), None)
       case x :: rest =>
-        val (regResult: MayFail[Abs], plusSymbolic: Option[ConcolicExpression]) = Plus.call(rest)
-        val minusSymbolic = plusSymbolic.map({
-          case x: ArithmeticalConcolicExpression =>
-            x.copy(op = IntMinus)
-        })
+        val (regResult: MayFail[Abs], optPlusSymbolic: Option[ConcolicExpression]) = Plus.call(rest)
+        val minusSymbolic = for {
+          plusSymbolic <- optPlusSymbolic
+          symbolicArgsHead <- x._2
+        } yield {
+          plusSymbolic match {
+            case plusSymbolic: ArithmeticalConcolicExpression =>
+              ArithmeticalConcolicExpression(IntMinus, symbolicArgsHead :: plusSymbolic.exps)
+          }
+        }
         (regResult >>= (minus(x._1, _)), minusSymbolic)
     }
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
