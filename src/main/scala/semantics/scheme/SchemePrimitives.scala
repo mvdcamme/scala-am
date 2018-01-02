@@ -296,10 +296,10 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       } else {
         callRandom(x._2._1)
       }
-      value
+      (value, symbolicCall(fexp.asInstanceOf[SchemeExp]))
     }
     def callRandom(x: Abs) = random(x)
-    def symbolicCall(fexp: SchemeExp): Option[ConcolicExpression] = {
+    private def symbolicCall(fexp: SchemeExp): Option[ConcolicExpression] = {
       val newInputVariable = ConcolicIdGenerator.newConcolicInput
       InputVariableStore.addInput(newInputVariable, fexp)
       Some(newInputVariable)
