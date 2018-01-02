@@ -94,18 +94,6 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
       case ControlError(_) => Set()
     }
 
-    def stepAnalysis[L](analysis: Analysis[L, Exp, Abs, Addr, Time], current: L): L = control match {
-      case ControlEval(e, env) => analysis.stepEval(e, env, store, t, current)
-      case ControlKont(v) => {
-        val konts = kstore.lookup(a).map({
-          case Kont(frame, _) => analysis.stepKont(v, frame, store, t, current)
-        })
-        if (konts.isEmpty) { current }
-        else { konts.reduceLeft((x, y) => analysis.join(x, y)) }
-      }
-      case ControlError(err) => analysis.error(err, current)
-    }
-
     /**
       * Checks if the current state is a final state. It is the case if it
       * reached the end of the computation, or an error

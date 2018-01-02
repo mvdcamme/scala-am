@@ -23,6 +23,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
   val sabs: IsSchemeLattice[Abs] = implicitly[IsSchemeLattice[Abs]]
 
   type MachineState = State
+  override type InitialState = MachineState
   override type MachineOutput = AAMOutput
 
   def name = "AAM"
@@ -62,10 +63,8 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       * Semantics.scala), in order to generate a set of states that succeeds this
       * one.
       */
-    private def integrate(oldValue: Option[Abs],
-                          a: KontAddr,
-                          actionChanges: Set[EdgeInformation[Exp, Abs, Addr]]): Set[EdgeComponents] =
-      actionChanges.map( (edgeInformation) => {
+    private def integrate(oldValue: Option[Abs], a: KontAddr, edgeInfos: Set[EdgeInformation[Exp, Abs, Addr]]): Set[EdgeComponents] =
+      edgeInfos.map( (edgeInformation) => {
         val actions = edgeInformation.actions
         /* If step applied a primitive, generate a filter for it */
         val primCallFilter = actions.foldLeft[Set[MachineFilterAnnotation]](Set())( (set, actionR) => actionR match {
@@ -173,23 +172,6 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
         /* In an error state, the state is not able to make a step */
         case ControlError(_) => Set()
       }
-
-    def stepAnalysis[L](analysis: Analysis[L, Exp, Abs, Addr, Time],
-                        current: L): L = control match {
-      case ControlEval(e, env) => analysis.stepEval(e, env, store, t, current)
-      case ControlKont(v) => {
-        val konts = kstore
-          .lookup(a)
-          .map({
-            case Kont(frame, _) =>
-              analysis.stepKont(v, frame, store, t, current)
-          })
-        if (konts.isEmpty) { current } else {
-          konts.reduceLeft((x, y) => analysis.join(x, y))
-        }
-      }
-      case ControlError(err) => analysis.error(err, current)
-    }
 
     /**
       * Checks if the current state is a final state. It is the case if it

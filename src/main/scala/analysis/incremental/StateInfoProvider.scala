@@ -4,9 +4,9 @@ trait StateInfoProvider[Exp, Abs, Addr, Time, State <: StateTrait[Exp, Abs, Addr
   def valueReached(state: State): Option[Abs]
 
   def halted(state: State): Boolean
-  def store(state: State): Store[Addr, Abs]
+//  def store(state: State): Store[Addr, Abs]
 
-  def deltaStoreEmpty(state1: State, state2: State): Boolean
-  def deltaKStore(state1: State, state2: State): Option[Iterable[(KontAddr, KontAddr)]]
+//  def deltaStoreEmpty(state1: State, state2: State): Boolean
+//  def deltaKStore(state1: State, state2: State): Option[Iterable[(KontAddr, KontAddr)]]
 
 }

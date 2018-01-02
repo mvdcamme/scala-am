@@ -2,19 +2,19 @@ trait StateChangeEdge[+State <: StateTrait[_, _, _, _]]
 
 trait ActionReplayApplier[Exp, Abs, Addr, Time, State <: StateTrait[Exp, Abs, Addr, Time]] {
 
-  def applyActionReplay(state: State,
-                        action: ActionReplay[Exp, Abs, Addr]): Set[(State, Set[MachineFilterAnnotation])]
+    def applyActionReplay(state: State,
+      action: ActionReplay[Exp, Abs, Addr]): Set[(State, Set[MachineFilterAnnotation])]
 
-  def subsumes(s1: State, s2: State): Boolean
-  def statesEqual(s1: State, s2: State): Boolean
+    def subsumes(s1: State, s2: State): Boolean
+    def statesEqual(s1: State, s2: State): Boolean
 
-  def evaluatedFalse(state: State): Boolean
-  def evaluatedTrue(state: State): Boolean
+    def evaluatedFalse(state: State): Boolean
+    def evaluatedTrue(state: State): Boolean
 
-  def getTopKonts(state: State): Set[Kont[KontAddr]]
-  def getKonts(state: State, ka: KontAddr): Set[Kont[KontAddr]]
-  def addKonts(state: State, ka: KontAddr, konts: Set[Kont[KontAddr]]): State
-  def removeKonts(state: State, ka: KontAddr): State
+    def getTopKonts(state: State): Set[Kont[KontAddr]]
+    def getKonts(state: State, ka: KontAddr): Set[Kont[KontAddr]]
+    def addKonts(state: State, ka: KontAddr, konts: Set[Kont[KontAddr]]): State
+    def removeKonts(state: State, ka: KontAddr): State
 
   case class JoinedInfo(finalValue: Abs,
                         store: Store[Addr, Abs],

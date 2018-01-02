@@ -133,19 +133,18 @@ trait HasGraph[Exp, Abs, Addr, MachineState <: StateTrait[Exp, Abs, Addr, _]] {
 }
 
 trait HasFinalStores[Addr, Abs] {
-
   def finalStores: Set[Store[Addr, Abs]]
   def stepSwitched: Option[Int]
-
 }
 
 trait StateTrait[Exp, Abs, Addr, Time]
 
 trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] extends AbstractMachine[Exp, Abs, Addr, Time] {
+  type InitialState
   type MachineState <: StateTrait[Exp, Abs, Addr, _]
   type MachineOutput <: Output with HasFinalStores[Addr, Abs]
 
-  def kickstartEval(initialState: MachineState, sem: ConvertableSemantics[Exp, Abs, Addr, Time], stopEval: Option[MachineState => Boolean],
+  def kickstartEval(initialState: InitialState, sem: ConvertableSemantics[Exp, Abs, Addr, Time], stopEval: Option[MachineState => Boolean],
     timeout: Timeout, stepSwitched: Option[Int]): MachineOutput
 }
 

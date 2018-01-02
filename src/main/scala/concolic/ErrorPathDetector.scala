@@ -2,7 +2,7 @@ import backend._
 import backend.tree.path._
 
 class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
-  (val aam: KickstartAAM[Exp, Abs, Addr, Time]) {
+  (val aam: KickstartAAMGlobalStore[Exp, Abs, Addr, Time]) {
 
   type RelevantGraph =  Graph[aam.State, EdgeAnnotation[Exp, Abs, Addr], Unit]
   type Bindings = List[Binding]
