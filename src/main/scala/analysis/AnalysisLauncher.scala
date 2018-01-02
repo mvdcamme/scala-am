@@ -52,12 +52,13 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
                                 abstSem: ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
   programState: PS): aam.InitialState = {
     val (control, store, kstore, a, t) = programState.convertState[Abs](concSem, abstSem, HaltKontAddress, (x, _) => x)
+    val deltaStore = aam.GlobalStore(DeltaStore[HybridAddress.A, Abs](store.toSet.toMap, Map()), Map())
     val convertedControl = control match {
       case ConvertedControlError(reason) => aam.ControlError(reason)
       case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
       case ConvertedControlKont(v) => aam.ControlKont(v)
     }
-    (aam.State(convertedControl, a, t), store, kstore)
+    (aam.State(convertedControl, a, t), deltaStore, kstore)
   }
 
 //  def doConcreteStep(convertValue: SchemePrimitives[HybridAddress.A, Abs] => ConcreteConcreteLattice.L => Abs,

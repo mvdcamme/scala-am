@@ -153,7 +153,7 @@ case class DeltaStore[Addr: Address, Abs: JoinLattice](content: Map[Addr, Abs],
   def toSet = content.toSet
 
   def gc(reachables: Set[Addr]): Store[Addr, Abs] =
-    this.copy(content = content.filterKeys(reachables.contains(_)), d = d.filterKeys(reachables.contains(_)))
+    this.copy(content = content.filterKeys(reachables.contains), d = d.filterKeys(reachables.contains))
 }
 
 case class CountingStore[Addr : Address, Abs : JoinLattice](content: Map[Addr, (Count, Abs)]) extends Store[Addr, Abs] {

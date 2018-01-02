@@ -36,7 +36,7 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
     def key(st: State) = st.a
   }
 
-  case class GlobalStore(val store: DeltaStore[Addr, Abs], delta: Map[Addr, Abs]) {
+  case class GlobalStore(store: DeltaStore[Addr, Abs], delta: Map[Addr, Abs]) {
     def includeDelta(d: Option[Map[Addr, Abs]]): GlobalStore = d match {
       case Some(d) => this.copy(delta = delta |+| d)
       case None => throw new Exception("AAMGlobalStore should be used with a store that supports delta!")

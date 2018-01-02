@@ -748,7 +748,6 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       else { throw new Exception(s"Incorrect car/cdr operation: $name") })
     override def call(v: Arg, store: Store[Addr, Abs]) = {
       val symbolicArg = v._2
-      println(s"Used address $symbolicArg")
       val result = for { (v, effs) <- spec.foldLeft(success(v._1))((acc, op) => for {
         (v, effs) <- acc
         (vcxr, effs2) <- op match {
