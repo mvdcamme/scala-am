@@ -6,7 +6,7 @@ import EdgeAnnotation.graphAnnotation
 class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Timestamp] {
 
   private def joinStores[Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](machine: Machine)(stores: Set[Store[Addr, L]]): Set[(Addr, L)] = {
-    val joinedStore = stores.foldLeft(Store.initial(Set()): Store[Addr, L]) {
+    val joinedStore = stores.foldLeft(DeltaStore(Map(), Map()): Store[Addr, L]) {
       case (joinedStore, store) => joinedStore.join(store)
     }
     joinedStore.toSet
@@ -52,7 +52,7 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
       pointsTo: L => Option[Int],
       relevantAddress: Addr => Boolean)(
       output: Machine#MachineOutput): List[(Addr, Option[Int])] = {
-    val storeValues = joinStores(machine)(output.finalStores)
+    val storeValues = output.finalStores.head.toSet
     val initial: List[(Addr, Option[Int])] = Nil
     val result: List[(Addr, Option[Int])] = storeValues.foldLeft(initial)({
       case (result, (address, value)) =>

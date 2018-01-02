@@ -137,7 +137,9 @@ case class DeltaStore[Addr: Address, Abs: JoinLattice](content: Map[Addr, Abs],
   def update(a: Addr, v: Abs) = extend(a, v)
   def updateOrExtend(a: Addr, v: Abs) = extend(a, v)
   def join(that: Store[Addr, Abs]) =
-    if (that.isInstanceOf[DeltaStore[Addr, Abs]]) {
+    if (that == this) {
+      this
+    } else if (that.isInstanceOf[DeltaStore[Addr, Abs]]) {
       throw new Exception("DeltaStore does not support join")
     } else {
       throw new Exception(
