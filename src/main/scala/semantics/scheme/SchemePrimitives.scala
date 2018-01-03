@@ -285,17 +285,9 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   class Random extends NoStoreOperation("random", Some(1)) {
     override def call[Exp: Expression](fexp: Exp, x: (Exp, Arg)): (MayFail[Abs], Option[ConcolicExpression]) = {
       val value: MayFail[Abs] = if (ScalaAMReporter.isConcolicEnabled) {
-        val optInput = InputVariableStore.lookupInput(fexp.asInstanceOf[SchemeExp])
+        val optInput: Option[Int] = InputVariableStore.getInput
         optInput match {
-          case Some(input) =>
-            val inputValue = ScalaAMConcolicSolver.getInput(input.toString)
-            inputValue match {
-              case Some(int) => MayFailSuccess(abs.inject(int))
-              case None =>
-                // Could be that this random-call produces an input value already encountered in a previous concolic iteration,
-                // but that was not assigned a value, e.g., because it was not used in the path constraint.
-                callRandom(x._2._1)
-            }
+          case Some(int) => MayFailSuccess(abs.inject(int))
           case None => callRandom(x._2._1)
         }
       } else {
@@ -306,7 +298,6 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
     def callRandom(x: Abs) = random(x)
     private def symbolicCall(fexp: SchemeExp): Option[ConcolicExpression] = {
       val newInputVariable = ConcolicIdGenerator.newConcolicInput
-      InputVariableStore.addInput(newInputVariable, fexp)
       Some(newInputVariable)
     }
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =

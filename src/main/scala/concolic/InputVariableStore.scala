@@ -3,25 +3,17 @@ import backend.expression._
 object InputVariableStore {
 
   type Key = (SchemeExp, Int)
-  private var keyStore: Map[SchemeExp, Int] = Map()
-  private var store: Map[Key, ConcolicInput] = Map()
 
+  private var inputs: List[(ConcolicInput, Int)] = Nil
   private var randomConsStore: List[ConcolicAddress] = Nil
 
-  private def makeNewKey(exp: SchemeExp): Key = {
-    val id = keyStore.get(exp).map(_ + 1).getOrElse(0)
-    keyStore = keyStore + (exp -> id)
-    (exp, id)
-  }
-
   def reset(): Unit = {
-    keyStore = Map()
+    inputs = ScalaAMConcolicSolver.getInputs
     randomConsStore = Nil
   }
 
-  def addInput(input: ConcolicInput, fexp: SchemeExp): Unit = {
-    val newKey = makeNewKey(fexp)
-    store = store + (newKey -> input)
+  def setInputs(newInputs: List[(ConcolicInput, Int)]): Unit = {
+    inputs = newInputs
   }
 
   def setRandomConses(newRandomConsStore: List[ConcolicAddress]): Unit = {
@@ -36,14 +28,11 @@ object InputVariableStore {
       Some(head)
   }
 
-  def lookupInput(exp: SchemeExp): Option[ConcolicInput] = {
-    val id = keyStore.getOrElse(exp, 0)
-    val key = (exp, id)
-    store.get(key).flatMap( (result) => {
-      // If an input for the given key was found, increment the id
-      makeNewKey(exp)
-      Some(result)
-    } )
+  def getInput: Option[Int] = inputs match {
+    case Nil => None
+    case head :: rest =>
+      inputs = rest
+      Some(head._2)
   }
 
 }

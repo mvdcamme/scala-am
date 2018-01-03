@@ -1,5 +1,5 @@
 import backend._
-import backend.tree._
+import backend.expression.ConcolicInput
 import backend.solvers._
 
 object InitialErrorPaths {
@@ -13,16 +13,12 @@ object InitialErrorPaths {
 
 object ScalaAMConcolicSolver {
 
-  private var latestInputs: Map[String, Int] = Map()
+  private var latestInputs: List[(ConcolicInput, Int)] = Nil
 
   private def resetInputs(): Unit = {
-    latestInputs = Map()
+    latestInputs = Nil
   }
-  def getInputs: Map[String, Int] = latestInputs
-
-  def getInput(inputName: String): Option[Int] = {
-    latestInputs.get(inputName)
-  }
+  def getInputs: List[(ConcolicInput, Int)] = latestInputs
 
   private def handleAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
@@ -42,14 +38,18 @@ object ScalaAMConcolicSolver {
     }
   }
 
+  private def convertInputs(inputs: Map[ConcolicInput, Int]) = {
+    inputs.toList.sortBy(_._1.id)
+  }
+
   def solve(): Boolean = {
     resetInputs()
     val report = ScalaAMReporter.getCurrentReport
     Reporter.addExploredPath(report)
     val result = ConcolicSolver.solve
     result match {
-      case NewInput(input) =>
-        latestInputs = input
+      case NewInput(inputs) =>
+        latestInputs = convertInputs(inputs)
         true
       case SymbolicTreeFullyExplored => false
     }

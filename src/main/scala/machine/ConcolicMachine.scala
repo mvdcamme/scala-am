@@ -415,7 +415,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
         Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.U)
         Reporter.printTree()
         ScalaAMReporter.printReports()
-        val shouldContinue = ScalaAMConcolicSolver.solve
+        val shouldContinue = ScalaAMConcolicSolver.solve()
         if (nrOfRuns < ConcolicRunTimeFlags.MAX_CONCOLIC_ITERATIONS && shouldContinue) {
           loopConcolic(initialState, nrOfRuns + 1)
         }
