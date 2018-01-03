@@ -1,5 +1,4 @@
 import backend._
-import backend.tree.path._
 
 class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
   (val aam: KickstartAAMGlobalStore[Exp, Abs, Addr, Time]) {
@@ -11,17 +10,19 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
     override def toString: String = state.toString
   }
 
-  def detectErrors(graph: RelevantGraph): List[List[SymbolicTreeEdge]] = {
+  def detectErrors(graph: RelevantGraph): Set[Path] = {
 
     @scala.annotation.tailrec
-    def loop(visited: Set[aam.State], worklist: List[Bindings], acc: List[Bindings]): List[Bindings] = worklist.headOption match {
+    def loop(visited: Set[aam.State], worklist: List[Bindings], acc: Set[Bindings]): Set[Bindings] = worklist.headOption match {
       case None =>
         acc
       case Some(path) if visited.contains(path.last.state) =>
         loop(visited, worklist.tail, acc)
-      case Some(path) if path.last.state.isErrorState  =>
-        loop(visited + path.last.state, worklist.tail, acc :+ path)
+      case Some(path) if path.last.state.isErrorState && ! acc.exists(binding => binding.last.state == path.last.state) =>
+        /* Only consider this path if this exact error state does not already appear in any other error path that was collected */
+        loop(visited + path.last.state, worklist.tail, acc + path)
       case Some(path) if path.last.state.halted =>
+        /* Note that an error state is also a halted state */
         loop(visited + path.last.state, worklist.tail, acc)
       case Some(path) =>
         val lastState = path.last.state
@@ -34,10 +35,10 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
     graph.getNode(0) match {
       case None =>
         Logger.log("Graph is empty", Logger.U)
-        Nil
+        Set()
       case Some(root) =>
         val start = List(Binding(EdgeAnnotation.dummyEdgeAnnotation, root))
-        val errorPaths = loop(Set(), List(start), Nil)
+        val errorPaths = loop(Set(), List(start), Set())
         errorPaths.map(filterBranchesTaken)
     }
   }

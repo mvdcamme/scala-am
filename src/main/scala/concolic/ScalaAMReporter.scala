@@ -11,9 +11,9 @@ object ScalaAMReporter {
   private var currentPath: Path = Nil
   private var currentReport: PathConstraint = Nil
 
-  private var optCurrentErrorPaths: Option[List[Path]] = None
+  private var optCurrentErrorPaths: Option[Set[Path]] = None
 
-  def setCurrentErrorPaths(newCurrentErrorPaths: List[Path]): Unit = {
+  def setCurrentErrorPaths(newCurrentErrorPaths: Set[Path]): Unit = {
     optCurrentErrorPaths = Some(newCurrentErrorPaths)
   }
 
@@ -34,9 +34,9 @@ object ScalaAMReporter {
     GlobalSymbolicStore.reset()
   }
 
-  private case class SplitErrorPaths(thenPaths: List[Path], elsePaths: List[Path])
+  private case class SplitErrorPaths(thenPaths: Set[Path], elsePaths: Set[Path])
 
-  private def splitErrorPaths(errorPaths: List[Path]): SplitErrorPaths = {
+  private def splitErrorPaths(errorPaths: Set[Path]): SplitErrorPaths = {
     // If node does not follow a path along which an error is located, make the corresponding branch ineligable for testing
     val nonEmptyPaths = errorPaths.filter(_.nonEmpty)
     val startsWithThen = nonEmptyPaths.filter(_.head == backend.tree.path.ThenBranchTaken)

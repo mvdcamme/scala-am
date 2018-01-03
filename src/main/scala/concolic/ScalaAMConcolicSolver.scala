@@ -3,9 +3,9 @@ import backend.expression.ConcolicInput
 import backend.solvers._
 
 object InitialErrorPaths {
-  private var initialErrorPaths: Option[List[Path]] = None
-  def get: Option[List[Path]] = initialErrorPaths
-  def set(paths: List[Path]): Unit = {
+  private var initialErrorPaths: Option[Set[Path]] = None
+  def get: Option[Set[Path]] = initialErrorPaths
+  def set(paths: Set[Path]): Unit = {
     initialErrorPaths = Some(paths)
     Reporter.replaceWhitelistedPaths(paths)
   }
@@ -22,7 +22,7 @@ object ScalaAMConcolicSolver {
 
   private def handleAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult): List[Path] = {
+    (result: StaticAnalysisResult): Set[Path] = {
     if (ConcolicRunTimeFlags.checkAnalysis) {
       result match {
         case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
@@ -31,10 +31,10 @@ object ScalaAMConcolicSolver {
           errorPaths
         case _ =>
           Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
-          Nil
+          Set()
       }
     } else {
-      Nil
+      Set()
     }
   }
 
@@ -57,7 +57,7 @@ object ScalaAMConcolicSolver {
 
   def handleInitialAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult): List[Path] = {
+    (result: StaticAnalysisResult): Set[Path] = {
     val errorPaths = handleAnalysisResult[Abs](errorPathDetector)(result)
     InitialErrorPaths.set(errorPaths)
     errorPaths
@@ -66,7 +66,7 @@ object ScalaAMConcolicSolver {
 
   def handleRunTimeAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult, prefixErrorPath: Path): List[Path] = {
+    (result: StaticAnalysisResult, prefixErrorPath: Path): Set[Path] = {
     val errorPaths = handleAnalysisResult[Abs](errorPathDetector)(result)
     val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
     val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ errorPaths.map(prefixErrorPath ++ _)
