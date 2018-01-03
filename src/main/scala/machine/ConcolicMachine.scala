@@ -27,6 +27,14 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
     def time: Double = 0
   }
 
+  case class ConcolicMachineErrorEncountered(err: SemanticError) extends ConcolicMachineOutput {
+    def finalValues = Set()
+    override def containsFinalValue(v: ConcreteValue) = false
+    def timedOut: Boolean = false
+    def numberOfStates: Int = 0
+    def time: Double = 0
+  }
+
   case class ConcolicMachineOutputTimeout(time: Double, numberOfStates: Int) extends ConcolicMachineOutput {
     def finalValues = Set()
     override def containsFinalValue(v: ConcreteValue) = false
@@ -297,7 +305,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
                 case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
-                  Left(ConcolicMachineOutputUnnecessary)
+                  Left(ConcolicMachineErrorEncountered(err))
               }
 
           case ConcolicControlKont(v, symbolicValue) =>
@@ -345,7 +353,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
                   case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
-                    Left(ConcolicMachineOutputUnnecessary)
+                    Left(ConcolicMachineErrorEncountered(err))
                 }
               } else {
                 Left(ConcolicMachineOutputUnnecessary)
@@ -353,7 +361,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
             }
 
           case ConcolicControlError(err) =>
-            Left(ConcolicMachineOutputUnnecessary)
+            Left(ConcolicMachineErrorEncountered(err))
         }
 
         val stepped = step(control)
@@ -395,7 +403,12 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
       ScalaAMReporter.clear(nrOfRuns < 2)
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
       try {
-        loop(initialState, System.nanoTime, 0)
+        val concolicIterationResult = loop(initialState, System.nanoTime, 0)
+        concolicIterationResult match {
+          case ConcolicMachineErrorEncountered(err) =>
+            Logger.log(s"ERROR DETECTED DURING CONCOLIC TESTING: $err", Logger.E)
+          case _ =>
+        }
       } catch {
         case AbortConcolicRunException =>
       } finally {
