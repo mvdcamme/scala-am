@@ -82,4 +82,16 @@ object ConstraintOptimizer {
     })
   }
 
+  /* TODO finish this */
+  def isConstraintConstant(constraint: BranchConstraint): Boolean = optimizeConstraint(constraint).exp match {
+    case _: ConcolicBool => true
+    case RelationalConcolicExpression(left, _, right) => (left, right) match {
+      case (ConcolicInt(_), ConcolicInt(_)) => true
+      case _ => false
+    }
+    case _ => false
+
+
+  }
+
 }

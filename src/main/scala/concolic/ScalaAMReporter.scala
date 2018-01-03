@@ -46,7 +46,14 @@ object ScalaAMReporter {
 
   private def addConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean): Unit = {
     currentPath :+= (if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken)
-    currentReport :+= (constraint, thenBranchTaken)
+    if (! ConstraintOptimizer.isConstraintConstant(constraint)) {
+      /*
+       * If the constraint is constant, don't bother adding it to the currentReport as it will always be either true or false anyway.
+       * The currentPath should still be updated, because this path is compared with the path computed via static analyses,
+       * which don't (or can't) check whether some condition is constant or not.
+       */
+      currentReport :+= (constraint, thenBranchTaken)
+    }
   }
 
   def addBranchConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean): Unit = {
