@@ -655,7 +655,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
           symbolicCdrValue <- symbolicCdr
           fields = Map("car" -> symbolicCarValue, "cdr" -> symbolicCdrValue)
           symbolicObject = ConcolicObject(name, fields)
-          symbolicAddress = ConcolicIdGenerator.newConcolicRegularAddress
+          symbolicAddress = ConcolicIdGenerator.newConcolicAddress
         } yield {
           GlobalSymbolicStore.extendStore(symbolicAddress, symbolicObject)
           symbolicAddress
@@ -669,46 +669,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       prims.Cons
   }
   object Cons extends Cons
-  class RandomCons extends Primitive[Addr, Abs] {
-    val name = "random-cons"
-//    def symbolicCall(fexp: SchemeExp): Option[ConcolicExpression] = {
-//      val symbolicAddress = ConcolicIdGenerator.newConcolicInputAddress
-//      val fields = Map("car" -> ConcolicInt(98), "cdr" -> ConcolicInt(99))
-//      val symbolicObject = ConcolicObject(name, fields)
-//      GlobalSymbolicStore.extendStore(symbolicAddress, symbolicObject)
-//      Some(symbolicAddress)
-//    }
-    def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Arg)], store: Store[Addr, Abs], t: Time) = args match {
-      case Nil =>
-        /* Add condition signalling that input address now generated was null */
-        val symbolicAddress = ConcolicIdGenerator.newConcolicInputAddress
-        InputVariableStore.getRandomCons() match {
-          case None | Some(ConcolicNullAddress) =>
-            /* Nil being generated, so add a condition saying that the input address equals the null-address. */
-            val condition = ConcolicAddressComparison(symbolicAddress, AddressesEqual, ConcolicNullAddress)
-            SemanticsConcolicHelper.handleIf(condition, true)
-            (MayFailSuccess((abs.nil, store, Set())), Some(symbolicAddress))
-          case Some(ConcolicInputAddress(_)) =>
-            /* Regular pair being generated, so add a condition saying that the input address does not equal the null-address. */
-            val condition = ConcolicAddressComparison(symbolicAddress, AddressesEqual, ConcolicNullAddress)
-            SemanticsConcolicHelper.handleIf(condition, false)
 
-            val fields = Map("car" -> ConcolicInt(98), "cdr" -> ConcolicInt(99))
-            val symbolicObject = ConcolicObject(name, fields)
-            GlobalSymbolicStore.extendStore(symbolicAddress, symbolicObject)
-
-            val cara = Address[Addr].primitive(s"random-cons-car${ConcolicRunTimeFlags.newRandomConsId}")
-            val cdra = Address[Addr].primitive(s"random-cons-cdr${ConcolicRunTimeFlags.newRandomConsId}")
-
-            (MayFailSuccess((abs.cons(cara, cdra), store.extend(cara, abs.inject(98)).extend(cdra, abs.inject(99)), Set())), Some(symbolicAddress))
-        }
-
-      case l => (MayFailError(List(ArityError(name, 0, l.size))), None)
-    }
-    def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
-      prims.RandomCons
-  }
-  object RandomCons extends RandomCons
   private def car(v: Abs, store: Store[Addr, Abs]): MayFail[(Abs, Set[Effect[Addr]])] = {
     val addrs = abs.car(v)
     if (addrs.isEmpty) {
@@ -752,7 +713,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
         }
       } yield (vcxr, effs ++ effs2)) } yield (v, store, effs)
       val symbolic = symbolicArg.flatMap({
-        case symbolicAddress: ConcolicRegularAddress =>
+        case symbolicAddress: ConcolicAddress =>
           /* Car/cdr operation on a regular pair object */
           val result = GlobalSymbolicStore.lookupAddress(symbolicAddress)
           result match {
@@ -766,10 +727,6 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
                 case Cdr => symbolicObject.fields.get("cdr")
               }
           }
-        case symbolicAddress: ConcolicInputAddress =>
-          /* Car/cdr operation on an input pair object: treat as input-variable (e.g. as a call to the random-primitive)*/
-          val carCdrAccess = ConcolicFieldAccess(symbolicAddress, if (spec.head == Car) "car" else "cdr")
-          Some(carCdrAccess)
         case _ =>
           assert(false, "Should not happen!")
           ???
@@ -1561,7 +1518,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
     Caaadr, Caadar, Caaddr, Cadaar, Cadadr, Caddar, Cadddr, Cdaaar,
     Cdaadr, Cdadar, Cdaddr, Cddaar, Cddadr, Cdddar, Cddddr,
     /* Other primitives that are not R5RS */
-    Random, Error, BoolTop, IntTop, RandomCons)
+    Random, Error, BoolTop, IntTop)
 
   def toVal(prim: Primitive[Addr, Abs]): Abs = abs.inject(prim)
 }
