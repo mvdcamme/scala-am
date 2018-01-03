@@ -44,7 +44,8 @@ object ScalaAMConcolicSolver {
 
   def solve(): Boolean = {
     resetInputs()
-    Reporter.addExploredPath(ScalaAMReporter.getCurrentReport)
+    val report = ScalaAMReporter.getCurrentReport
+    Reporter.addExploredPath(report)
     val result = ConcolicSolver.solve
     result match {
       case NewInput(input) =>

@@ -54,7 +54,8 @@ object ScalaAMReporter {
       return
     }
 
-    addConstraint(constraint, thenBranchTaken)
+    val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
+    addConstraint(optimizedConstraint, thenBranchTaken)
     if (ConcolicRunTimeFlags.checkAnalysis) {
       optCurrentErrorPaths match {
         case Some(currentErrorPaths) =>
