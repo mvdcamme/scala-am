@@ -1,5 +1,7 @@
 import dk.brics.automaton._
 
+import scala.collection.mutable.{Set => MSet}
+
 /*
  * Computes the regular expressions that describe paths between specific nodes in a general, directed graph.
  * Technique is based on the transitive closure method.
@@ -29,21 +31,20 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
       automaton.setInitialState(initial)
 
       var startx = System.nanoTime()
-      val list = convert(Set((root, initial)), Set(), Set[StatePair]())
-      val lt = new java.util.ArrayList[StatePair]()
-      list.foreach { x => lt.add(x) }
+      val epsilons = new java.util.HashSet[StatePair]()
+      convert(Set((root, initial)), Set(), epsilons)
 
-      println("Took " + ((System.nanoTime - startx) / Math.pow(10, 9)) + "s TIMEEEEEEEEEEEEEEEEE")
+      println("Took " + ((System.nanoTime - startx) / Math.pow(10, 9)) + "s TIME")
       startx = System.nanoTime()
-      automaton.addEpsilons(lt)
+      automaton.addEpsilons(epsilons)
       val diff = (System.nanoTime - startx) / Math.pow(10, 9)
-      println(s"Took ${diff}s TIMEEEEEEEEEEEEEEEEE")
+      println(s"Took ${diff}s TIME")
 
       Automaton.setMinimization(1) // brzozowski
       automaton.minimize()
       val shortestp = BasicOperations.getShortestExample(automaton, true)
 
-      println("shortest ="+BasicOperations.getShortestExample(automaton, true))
+      println("shortest = " + BasicOperations.getShortestExample(automaton, true))
 
       var grap = Graph.empty[State, Char, Unit]
       scala.collection.JavaConverters.asScalaSet(automaton.getStates).foreach((st: State) => {
@@ -63,6 +64,7 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
 //      TODO Jonas used this; just return the automaton instead?
       val regex = new NFARegex2(grap, initialState, states, finals.toList)
       val regexes = regex.compute2()
+      println(s"regexes are ${regexes.mkString(";;;")}")
 //      val t = (shortestp, regexes)
 //      shortestpaths = shortestpaths :+ t
 
@@ -84,34 +86,34 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
     * state can epsilon-transition to the other state.
     */
   @scala.annotation.tailrec
-  final def convert(todo: Set[(N, State)], visited: Set[N], epsilons: Set[StatePair]): Set[StatePair] = todo.headOption match {
+  final def convert(todo: Set[(N, State)], visited: Set[(N, State)], epsilons: java.util.HashSet[StatePair]): java.util.HashSet[StatePair] = todo.headOption match {
     // S = state
-    case Some((s, ast)) if visited.contains(s) =>
+    case Some((s, ast)) if visited.exists(_._1 == s) =>
       convert(todo.tail, visited, epsilons)
     case Some((s, ast)) =>
-        var newEps = Set[StatePair]()
-        var newStates = Set[(N, State)]()
+      var newStates = Set[(N, State)]()
 
-        // Set[(Annotation, State)] ,node == state
-        graph.nodeEdges(s).foreach({
-          case (annot, node) =>
-            // new state for node
-            val newState = new State()
-            if (isErrorState(node)) {
-              newState.setAccept(true)
-            }
+      // Set[(Annotation, State)] ,node == state
+      graph.nodeEdges(s).foreach({
+        case (annot, node) =>
+          // new state for node
+          val newState = visited.find(_._1 == node).map(_._2).getOrElse(new State())
+          if (isErrorState(node)) {
+            newState.setAccept(true)
+          }
 
-            annotToChar(annot) match {
-              case None =>
+          annotToChar(annot) match {
+            case None =>
               // ast = bricbk state
-              newEps = newEps + new StatePair(ast, newState)
-              case Some(char) =>
-                ast.addTransition(new Transition(char, newState))
-            }
-            // node = our state
-            newStates = newStates + ((node, newState))
-          })
-        convert(todo.tail ++ newStates, visited + s, epsilons ++ newEps)
+              epsilons.add(new StatePair(ast, newState))
+            case Some(char) =>
+              ast.addTransition(new Transition(char, newState))
+          }
+          // node = our state
+          newStates = newStates + ((node, newState))
+      })
+//      val newT: (N, State) =
+      convert(todo.tail ++ newStates, visited + ((s, ast): (N, State)), epsilons)
     case None => epsilons
   }
 
