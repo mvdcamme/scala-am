@@ -17,9 +17,9 @@ class NFARegex2(graph : Graph[State, Char, Unit], initialState: State, states: A
     for (i <- 1 to size) {
       for (j <- 1 to size) {
         if (i == j) {
-          A(i)(j)(0) = EmptyWord()
+          A(i)(j)(0) = EmptyWord
         } else {
-          A(i)(j)(0) = EmptySet()
+          A(i)(j)(0) = EmptySet
         }
 
         for (a <- annotations) {

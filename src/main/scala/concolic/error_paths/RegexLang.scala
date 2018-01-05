@@ -27,28 +27,28 @@ object RegexLang {
 
   sealed trait Regex
 
-  case class EmptyWord() extends Regex {
-    override def toString(): String = "ε"
+  case object EmptyWord extends Regex {
+    override def toString: String = "ε"
   }
 
-  case class EmptySet() extends Regex {
-    override def toString(): String = "∅"
+  case object EmptySet extends Regex {
+    override def toString: String = "∅"
   }
 
   case class Event(v: String) extends Regex {
-    override def toString(): String = v.toString()
+    override def toString: String = v.toString
   }
 
   case class Star(v: Regex) extends Regex {
-    override def toString(): String = v.toString()+"*"
+    override def toString: String = s"$v*"
   }
 
   case class Concat(x: Regex, y:Regex) extends Regex {
-    override def toString(): String = "("+x.toString()+" . "+y.toString()+")"
+    override def toString: String = s"($x.$y)"
   }
 
   case class Or(x: Regex, y:Regex) extends Regex {
-    override def toString(): String = "("+x.toString()+" + "+y.toString()+")"
+    override def toString: String = s"($x+$y)"
   }
 
   case class Final(done:Regex) extends Regex {}
@@ -62,38 +62,18 @@ object RegexLang {
 
 
   @scala.annotation.tailrec
-  final def clean(r: Regex, stack: List[(Regex => Regex)] = List((a => Final(a)):(Regex => Regex))): Regex = r match
-  {
-    case Final(x) => x
-    //shoudln't occur ONLY when simplifying first
-    case Star(x:Event) => clean(stack.head(Star(x)), stack.tail)
-    case x:Star => clean(stack.head(Star(Event("<pruned>"))), stack.tail)
-    case x:Event => clean(stack.head(x), stack.tail)
-    case x:EmptySet => clean(stack.head(x), stack.tail)
-    case x:EmptyWord => clean(stack.head(x), stack.tail)
-
-    case Or(x, y) => clean(x, ((a => OrFrame(a, y)):(Regex => Regex)) :: stack )
-    case OrFrame(done, y) => clean(y, ((a => OrMergeFrame(done, a)):(Regex => Regex)) :: stack )
-    case OrMergeFrame(x, y) => clean(stack.head(Or(x, y)), stack.tail)
-
-    case Concat(x, y) => clean(x, ((a => { AndFrame(a, y)}):(Regex => Regex)) :: stack )
-    case AndFrame(done, y) => clean(y, ((a => { AndMergeFrame(done, a)}):(Regex => Regex)) :: stack )
-    case AndMergeFrame(x, y) => clean(stack.head(Concat(x, y)), stack.tail)
-  }
-
-  @scala.annotation.tailrec
   final def simplifyr(r : Regex, stack:List[(Regex => Regex)] = List((a => Final(a)): (Regex => Regex))):Regex = r match {
     case Final(x) => x
     case x if cache.contains(x) =>
       //println("cached...")
       simplifyr(stack.head(x), stack.tail)
     case x:Event => simplifyr(stack.head(x), stack.tail)
-    case x:EmptySet => simplifyr(stack.head(x), stack.tail)
-    case x:EmptyWord => simplifyr(stack.head(x), stack.tail)
+    case EmptySet => simplifyr(stack.head(EmptySet), stack.tail)
+    case EmptyWord => simplifyr(stack.head(EmptyWord), stack.tail)
 
     case Star(x) => simplifyr(x, ((a => StarFrame(a)):(Regex => Regex)) :: stack )
-    case StarFrame(x:EmptySet) => simplifyr(stack.head(EmptyWord()), stack.tail)
-    case StarFrame(x:EmptyWord) => simplifyr(stack.head(EmptyWord()), stack.tail)
+    case StarFrame(EmptySet) => simplifyr(stack.head(EmptyWord), stack.tail)
+    case StarFrame(EmptyWord) => simplifyr(stack.head(EmptyWord), stack.tail)
     case StarFrame(Event(x)) => simplifyr(stack.head(Event(x+"*")), stack.tail)
     // anything else of STAR
     case StarFrame(x) =>
@@ -102,11 +82,11 @@ object RegexLang {
 
     case Or(x, y) => simplifyr(x, ((a => OrFrame(a, y)):(Regex => Regex)) :: stack )
     case OrFrame(done, y) => simplifyr(y, ((a => OrMergeFrame(done, a)):(Regex => Regex)) :: stack )
-    case OrMergeFrame(x:EmptySet, y) => simplifyr(stack.head(y), stack.tail)
-    case OrMergeFrame(x, y:EmptySet) => simplifyr(stack.head(x), stack.tail)
+    case OrMergeFrame(EmptySet, y) => simplifyr(stack.head(y), stack.tail)
+    case OrMergeFrame(x, EmptySet) => simplifyr(stack.head(x), stack.tail)
     // TODO:NOT SURE?? but should be ok, because they mimic a transition to itself without consuming symbol
-    case OrMergeFrame(x:EmptyWord, y) => simplifyr(stack.head(y), stack.tail)
-    case OrMergeFrame(x, y:EmptyWord) => simplifyr(stack.head(x), stack.tail)
+    case OrMergeFrame(EmptyWord, y) => simplifyr(stack.head(y), stack.tail)
+    case OrMergeFrame(x, EmptyWord) => simplifyr(stack.head(x), stack.tail)
     case OrMergeFrame(Event(x), Event(y)) if (x == y) => simplifyr(stack.head(Event(x)), stack.tail)
     // anything else of OR, we could not simplify it, so we should cache it
     case OrMergeFrame(x, y) =>
@@ -116,10 +96,10 @@ object RegexLang {
     case Concat(x, y) => simplifyr(x, ((a => { AndFrame(a, y)}):(Regex => Regex)) :: stack )
     case AndFrame(done, y) => simplifyr(y, ((a => { AndMergeFrame(done, a)}):(Regex => Regex)) :: stack )
     case AndMergeFrame(x:Event, y:Event) => simplifyr(stack.head(Event(x + "," + y)), stack.tail)
-    case AndMergeFrame(x, y:EmptySet) => simplifyr(stack.head(EmptySet()), stack.tail)
-    case AndMergeFrame(x, y:EmptyWord) => simplifyr(stack.head(x), stack.tail)
-    case AndMergeFrame(x:EmptySet, y) => simplifyr(stack.head(EmptySet()), stack.tail)
-    case AndMergeFrame(x:EmptyWord, y) => simplifyr(stack.head(y), stack.tail)
+    case AndMergeFrame(x, EmptySet) => simplifyr(stack.head(EmptySet), stack.tail)
+    case AndMergeFrame(x, EmptyWord) => simplifyr(stack.head(x), stack.tail)
+    case AndMergeFrame(EmptySet, y) => simplifyr(stack.head(EmptySet), stack.tail)
+    case AndMergeFrame(EmptyWord, y) => simplifyr(stack.head(y), stack.tail)
     // a* . b => a*b
     case AndMergeFrame(Star(a:Event), Event(b)) => simplifyr(stack.head(Event(a + "*," + b)), stack.tail)
     case AndMergeFrame(Event(b), Star(a:Event)) => simplifyr(stack.head(Event(b + "," + a+"*")), stack.tail)
@@ -142,19 +122,18 @@ object RegexLang {
 
 
     // anything else of AND
-    case AndMergeFrame(x, y) => {
+    case AndMergeFrame(x, y) =>
       cache + (Concat(x, y) -> true)
       simplifyr(stack.head(Concat(x, y)), stack.tail)
-    }
 
   }
 
   //   //star(ε)=ε, e.ε=e, ∅+e=e, ∅.e=∅
   def simplify(r : Regex):Regex = r match {
-    case Or(x, y:EmptySet) => simplify(x)
-    case Or(x:EmptySet, y) => simplify(y)
-    case Or(x:EmptyWord, y) => simplify(y)
-    case Or(x, y:EmptyWord) => simplify(x)
+    case Or(x, EmptySet) => simplify(x)
+    case Or(EmptySet, y) => simplify(y)
+    case Or(EmptyWord, y) => simplify(y)
+    case Or(x, EmptyWord) => simplify(x)
     case Or(Event(x), Event(y)) => if(x == y) Event(x) else Or(Event(x), Event(y))
     // added to present "niet verder splitbare ORs" as an event
     //   case Or(Event(x), Event(y)) => if(x == y) Event(x) else Event("(" + x + " + " + y + ")")
@@ -163,17 +142,17 @@ object RegexLang {
     //   case Or(Or(x: Event, y: Event), Or(a: Event, b: Event)) => Event("(" + x + " + " + y + " + " + a + " + " + b + ")")
 
     //∅∗={ϵ}∅∗={ϵ}.
-    case Star(x:EmptySet) => EmptyWord()
+    case Star(EmptySet) => EmptyWord
     //ε* = ε
-    case Star(x:EmptyWord) => EmptyWord()
+    case Star(EmptyWord) => EmptyWord
     //added to fix (1), ie a:Star to string -> Event(..), this rule removes the extra event
     case Star(Event(a)) => Event(a + "*")
-    case Star(Or(x:EmptyWord, y)) => Star(y)
-    case Star(Or(y, x:EmptyWord)) => Star(y)
-    case Concat(x, y:EmptySet) => EmptySet()
-    case Concat(x, y:EmptyWord) => simplify(x)
-    case Concat(x:EmptySet, y) => EmptySet()
-    case Concat(x:EmptyWord, y) => simplify(y)
+    case Star(Or(EmptyWord, y)) => Star(y)
+    case Star(Or(y, EmptyWord)) => Star(y)
+    case Concat(x, EmptySet) => EmptySet
+    case Concat(x, EmptyWord) => simplify(x)
+    case Concat(EmptySet, y) => EmptySet
+    case Concat(EmptyWord, y) => simplify(y)
     // (1) a* . b => a*b
     case Concat(Star(a:Event), Event(b)) => Event(a + "*," + b)
     // c* . (a + b) = c*a + c*b
