@@ -89,7 +89,6 @@ object RegexLang {
 
     case Concat(x, y) => simplifyr(x, ((a => { AndFrame(a, y)}):(Regex => Regex)) :: stack )
     case AndFrame(done, y) => simplifyr(y, ((a => { AndMergeFrame(done, a)}):(Regex => Regex)) :: stack )
-    case AndMergeFrame(x:Event, y:Event) => simplifyr(stack.head(Event(x + "," + y)), stack.tail)
     case AndMergeFrame(x, EmptySet) => simplifyr(stack.head(EmptySet), stack.tail)
     case AndMergeFrame(x, EmptyWord) => simplifyr(stack.head(x), stack.tail)
     case AndMergeFrame(EmptySet, y) => simplifyr(stack.head(EmptySet), stack.tail)
