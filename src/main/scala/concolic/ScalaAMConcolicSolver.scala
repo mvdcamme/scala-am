@@ -1,11 +1,12 @@
 import backend._
 import backend.expression.ConcolicInput
 import backend.solvers._
+import backend.tree.path.SymbolicTreeEdge
 
 object InitialErrorPaths {
-  private var regexes: Option[Set[Regex]] = None
-  def get: Option[Set[Regex]] = regexes
-  def set(newRegexes: Set[Regex]): Unit = {
+  private var regexes: Option[Set[Regex[SymbolicTreeEdge]]] = None
+  def get: Option[Set[Regex[SymbolicTreeEdge]]] = regexes
+  def set(newRegexes: Set[Regex[SymbolicTreeEdge]]): Unit = {
     regexes = Some(newRegexes)
 //    regexes = Some(paths)
 //    Reporter.replaceWhitelistedPaths(paths) TODO Trying to use regexes-approach now...
@@ -23,7 +24,7 @@ object ScalaAMConcolicSolver {
 
   private def handleAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult): Option[Set[Regex]] = {
+    (result: StaticAnalysisResult): Option[Set[Regex[SymbolicTreeEdge]]] = {
     if (ConcolicRunTimeFlags.checkAnalysis) {
       result match {
         case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
@@ -58,7 +59,7 @@ object ScalaAMConcolicSolver {
 
   def handleInitialAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult): Option[Set[Regex]] = {
+    (result: StaticAnalysisResult): Option[Set[Regex[SymbolicTreeEdge]]] = {
     val regexes = handleAnalysisResult[Abs](errorPathDetector)(result)
     InitialErrorPaths.set(regexes.get)
     regexes
@@ -67,7 +68,7 @@ object ScalaAMConcolicSolver {
 
   def handleRunTimeAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult, prefixErrorPath: Path): Option[Set[Regex]] = {
+    (result: StaticAnalysisResult, prefixErrorPath: Path): Option[Set[Regex[SymbolicTreeEdge]]] = {
     val regexes = handleAnalysisResult[Abs](errorPathDetector)(result)
     // TODO MV Using automaton approach now...
 //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))

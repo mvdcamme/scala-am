@@ -14,7 +14,7 @@ class TransitiveClosure[N, A, C, T](graph: Graph[N, A, C], isErrorState: N => Bo
     */
   val numberOfStates: Int = graph.nodes.size
 
-  def shortestPaths: Option[Set[Regex]] = {
+  def shortestPaths: Option[Set[Regex[T]]] = {
       val annots = graph.getAnnotations
       val root = graph.getNode(0).get
 

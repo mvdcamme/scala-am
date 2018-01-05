@@ -9,17 +9,17 @@ class NFARegex2[T](graph : Graph[State, T, Unit], initialState: State, states: A
   }
 
   //Transitive closure method
-  def compute2(): Set[Regex] = {
+  def compute2(): Set[Regex[T]] = {
     val size = states.length
-    val A = Array.ofDim[Regex](size + 1, size + 1, size + 1)
+    val A = Array.ofDim[Regex[T]](size + 1, size + 1, size + 1)
     val annotations = graph.getAnnotations.toList
 
     for (i <- 1 to size) {
       for (j <- 1 to size) {
         if (i == j) {
-          A(i)(j)(0) = EmptyWord
+          A(i)(j)(0) = EmptyWord()
         } else {
-          A(i)(j)(0) = EmptySet
+          A(i)(j)(0) = EmptySet()
         }
 
         for (a <- annotations) {
@@ -53,7 +53,7 @@ class NFARegex2[T](graph : Graph[State, T, Unit], initialState: State, states: A
       }
     }
 
-    var regexes = Set[Regex]()
+    var regexes = Set[Regex[T]]()
 
     for(i <- 1 to size) {
       if(finalStates.contains(states(i-1))) {
@@ -70,15 +70,15 @@ class NFARegex2[T](graph : Graph[State, T, Unit], initialState: State, states: A
     regexes
   }
 
-  def listRegexes(regex: Regex):Set[Regex] = regex match {
+  def listRegexes(regex: Regex[T]):Set[Regex[T]] = regex match {
     case Or(x, y) => listRegexes(x) ++ listRegexes(y)
     //And(x, y)
     case x => Set(x)
   }
 
 
-  def sum(regex: Regex):  Set[Regex] = {
-    def sumAcc(trees : List[Regex], acc : Set[Regex]):  Set[Regex] = trees match {
+  def sum(regex: Regex[T]):  Set[Regex[T]] = {
+    def sumAcc(trees : List[Regex[T]], acc : Set[Regex[T]]):  Set[Regex[T]] = trees match {
       case Nil => acc
       case Or(x, y) :: rs => sumAcc(x :: y :: rs, acc)
       case x :: rs => sumAcc(rs, Set(x) ++ acc)
