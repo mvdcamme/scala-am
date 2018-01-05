@@ -61,7 +61,7 @@ class NFARegex2(graph : Graph[State, Char, Unit], initialState: State, states: A
         start = System.nanoTime()
         val r = sum(A(initial)(i)(size))
         println("Took "+((System.nanoTime - start) / Math.pow(10, 9))+"s")
-        println("size="+r.size)
+        println("size = "+r.size)
         regexes = regexes ++ r
         A(initial)(i) = null
       }

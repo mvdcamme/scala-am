@@ -1,21 +1,18 @@
-import scala.collection.mutable.Map
-
 object RegexLang {
 
   var cache:scala.collection.mutable.Map[Regex, Boolean] = scala.collection.mutable.Map[Regex, Boolean]()
 
-  def sum(regex : Regex) :  Int = {
-    def sumAcc(trees : Regex, acc : Int) : Int = trees match {
+  def sum(regex: Regex) :  Int = {
+    def sumAcc(trees: Regex, acc: Int) : Int = trees match {
       case Or(x, y) => Math.max(sumAcc(x, acc + 1), sumAcc(y, acc + 1))
-      //case Concat(x, y) => Math.max(sumAcc(x, acc + 1), sumAcc(y, acc + 1))
       case x => acc
 
     }
     sumAcc(regex, 0)
   }
 
-  def sum2(regex : Regex) :  Int = {
-    def sumAcc(trees : Regex, acc : Int) : Int = trees match {
+  def sum2(regex: Regex) :  Int = {
+    def sumAcc(trees: Regex, acc: Int) : Int = trees match {
       case Or(x, y) => sumAcc(x, acc + 1) + sumAcc(y, acc + 1)
       case Concat(x, y) => sumAcc(x, acc + 1) + sumAcc(y, acc + 1)
       case Star(x) => sumAcc(x, acc + 1)
@@ -43,31 +40,29 @@ object RegexLang {
     override def toString: String = s"$v*"
   }
 
-  case class Concat(x: Regex, y:Regex) extends Regex {
+  case class Concat(x: Regex, y: Regex) extends Regex {
     override def toString: String = s"($x.$y)"
   }
 
-  case class Or(x: Regex, y:Regex) extends Regex {
+  case class Or(x: Regex, y: Regex) extends Regex {
     override def toString: String = s"($x+$y)"
   }
 
-  case class Final(done:Regex) extends Regex {}
-  case class OrFrame(done:Regex, y:Regex) extends Regex {}
-  case class OrMergeFrame(x:Regex, y:Regex) extends Regex {}
-  case class AndFrame(done:Regex, y:Regex) extends Regex {}
-  case class AndMergeFrame(x:Regex, y:Regex) extends Regex {}
-  case class MulFrame(done:Regex) extends Regex {}
-
-  case class StarFrame(x:Regex) extends Regex {}
+  case class Final(done: Regex) extends Regex {}
+  case class OrFrame(done: Regex, y: Regex) extends Regex {}
+  case class OrMergeFrame(x: Regex, y: Regex) extends Regex {}
+  case class AndFrame(done: Regex, y: Regex) extends Regex {}
+  case class AndMergeFrame(x: Regex, y: Regex) extends Regex {}
+  case class MulFrame(done: Regex) extends Regex {}
+  case class StarFrame(x: Regex) extends Regex {}
 
 
   @scala.annotation.tailrec
   final def simplifyr(r : Regex, stack:List[(Regex => Regex)] = List((a => Final(a)): (Regex => Regex))):Regex = r match {
     case Final(x) => x
     case x if cache.contains(x) =>
-      //println("cached...")
       simplifyr(stack.head(x), stack.tail)
-    case x:Event => simplifyr(stack.head(x), stack.tail)
+    case x: Event => simplifyr(stack.head(x), stack.tail)
     case EmptySet => simplifyr(stack.head(EmptySet), stack.tail)
     case EmptyWord => simplifyr(stack.head(EmptyWord), stack.tail)
 
