@@ -69,7 +69,6 @@ object RegexLang {
     case Star(x) => simplifyr(x, ((a => StarFrame(a)):(Regex => Regex)) :: stack )
     case StarFrame(EmptySet) => simplifyr(stack.head(EmptyWord), stack.tail)
     case StarFrame(EmptyWord) => simplifyr(stack.head(EmptyWord), stack.tail)
-    case StarFrame(Event(x)) => simplifyr(stack.head(Event(x+"*")), stack.tail)
     // anything else of STAR
     case StarFrame(x) =>
       cache += (Star(x) -> true)
