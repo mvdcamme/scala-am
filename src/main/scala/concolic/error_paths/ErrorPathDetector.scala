@@ -1,4 +1,5 @@
 import backend._
+import backend.tree.path._
 import dk.brics.automaton.RunAutomaton
 
 class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
@@ -33,17 +34,23 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
         loop(visited + lastState, newWorklist, acc)
     }
 
+    val elseBranchChar = 'e'
+    val thenBranchChar = 'e'
     def annotToOptChar(annot: EdgeAnnotation[Exp, Abs, Addr]): Option[Char] = {
       val (elseBranch, thenBranch) = (annot.filters.semanticsFilters.contains(ElseBranchFilter), annot.filters.semanticsFilters.contains(ThenBranchFilter))
       /* Edge cannot indicate that both the else- and the then-branch have been taken. */
       assert(! (elseBranch && thenBranch), "Should not happen")
       if (elseBranch) {
-        Some('e')
+        Some(elseBranchChar)
       } else if (thenBranch) {
-        Some('t')
+        Some(thenBranchChar)
       } else {
         None
       }
+    }
+    def charToT(char: Char): SymbolicTreeEdge = char match {
+      case c if c == elseBranchChar => ElseBranchTaken
+      case c if c == thenBranchChar => ThenBranchTaken
     }
 
     graph.getNode(0) match {
@@ -55,7 +62,7 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
 //        val start = List(Binding(EdgeAnnotation.dummyEdgeAnnotation, root))
 //        val errorPaths = loop(Set(), List(start), Set())
 //        errorPaths.map(filterBranchesTaken)
-        val automaton = new TransitiveClosure(graph, (state: aam.State) => state.isErrorState, annotToOptChar).shortestPaths
+        val automaton = new TransitiveClosure(graph, (state: aam.State) => state.isErrorState, annotToOptChar, charToT).shortestPaths
         Some(new RunAutomaton(automaton))
     }
   }

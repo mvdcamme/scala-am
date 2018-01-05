@@ -1,10 +1,10 @@
 import dk.brics.automaton.State
 
-import RegexLang._
+class NFARegex2[T](graph : Graph[State, T, Unit], initialState: State, states: Array[State], finalStates : List[State]) {
 
-class NFARegex2(graph : Graph[State, Char, Unit], initialState: State, states: Array[State], finalStates : List[State]) {
+  val regexSimplifier = new RegexLang[T]
 
-  def hasEdge(node1: State, annot: Char, node2: State): Boolean = {
+  def hasEdge(node1: State, annot: T, node2: State): Boolean = {
     graph.nodeEdges(node1).contains((annot, node2))
   }
 
@@ -24,7 +24,7 @@ class NFARegex2(graph : Graph[State, Char, Unit], initialState: State, states: A
 
         for (a <- annotations) {
           if (hasEdge(states(i-1), a, states(j-1))) {
-            A(i)(j)(0) = simplifyr(Or(A(i)(j)(0), Event(a.toString)))
+            A(i)(j)(0) = regexSimplifier.simplifyr(Or(A(i)(j)(0), Atomic(a)))
           }
         }
       }
@@ -36,7 +36,7 @@ class NFARegex2(graph : Graph[State, Char, Unit], initialState: State, states: A
     for(k <- 1 to size) {
       for(i <- 1 to size) {
         for(j <- 1 to size) {
-          A(i)(j)(k) = simplifyr(Or(A(i)(j)(k-1), Concat(A(i)(k)(k-1), Concat(Star(A(k)(k)(k-1)), A(k)(j)(k-1)))))
+          A(i)(j)(k) = regexSimplifier.simplifyr(Or(A(i)(j)(k-1), Concat(A(i)(k)(k-1), Concat(Star(A(k)(k)(k-1)), A(k)(j)(k-1)))))
         }
       }
     }

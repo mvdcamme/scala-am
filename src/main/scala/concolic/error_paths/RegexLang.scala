@@ -1,5 +1,24 @@
-object RegexLang {
+sealed trait Regex
+case object EmptyWord extends Regex {
+  override def toString: String = "ε"
+}
+case object EmptySet extends Regex {
+  override def toString: String = "∅"
+}
+case class Atomic[T](v: T) extends Regex {
+  override def toString: String = v.toString
+}
+case class Star(v: Regex) extends Regex {
+  override def toString: String = s"$v*"
+}
+case class Concat(x: Regex, y: Regex) extends Regex {
+  override def toString: String = s"($x.$y)"
+}
+case class Or(x: Regex, y: Regex) extends Regex {
+  override def toString: String = s"($x+$y)"
+}
 
+class RegexLang[T] {
   var cache:scala.collection.mutable.Map[Regex, Boolean] = scala.collection.mutable.Map[Regex, Boolean]()
 
   def sum(regex: Regex) :  Int = {
@@ -22,32 +41,6 @@ object RegexLang {
     sumAcc(regex, 0)
   }
 
-  sealed trait Regex
-
-  case object EmptyWord extends Regex {
-    override def toString: String = "ε"
-  }
-
-  case object EmptySet extends Regex {
-    override def toString: String = "∅"
-  }
-
-  case class Event(v: String) extends Regex {
-    override def toString: String = v.toString
-  }
-
-  case class Star(v: Regex) extends Regex {
-    override def toString: String = s"$v*"
-  }
-
-  case class Concat(x: Regex, y: Regex) extends Regex {
-    override def toString: String = s"($x.$y)"
-  }
-
-  case class Or(x: Regex, y: Regex) extends Regex {
-    override def toString: String = s"($x+$y)"
-  }
-
   case class Final(done: Regex) extends Regex {}
   case class OrFrame(done: Regex, y: Regex) extends Regex {}
   case class OrMergeFrame(x: Regex, y: Regex) extends Regex {}
@@ -62,7 +55,7 @@ object RegexLang {
     case Final(x) => x
     case x if cache.contains(x) =>
       simplifyr(stack.head(x), stack.tail)
-    case x: Event => simplifyr(stack.head(x), stack.tail)
+    case x: Atomic[T] => simplifyr(stack.head(x), stack.tail)
     case EmptySet => simplifyr(stack.head(EmptySet), stack.tail)
     case EmptyWord => simplifyr(stack.head(EmptyWord), stack.tail)
 
@@ -81,7 +74,7 @@ object RegexLang {
     // TODO:NOT SURE?? but should be ok, because they mimic a transition to itself without consuming symbol
     case OrMergeFrame(EmptyWord, y) => simplifyr(stack.head(y), stack.tail)
     case OrMergeFrame(x, EmptyWord) => simplifyr(stack.head(x), stack.tail)
-    case OrMergeFrame(Event(x), Event(y)) if (x == y) => simplifyr(stack.head(Event(x)), stack.tail)
+    case OrMergeFrame(Atomic(x), Atomic(y)) if (x == y) => simplifyr(stack.head(Atomic(x)), stack.tail)
     // anything else of OR, we could not simplify it, so we should cache it
     case OrMergeFrame(x, y) =>
       cache += (Or(x, y) -> true)

@@ -1,15 +1,13 @@
 import dk.brics.automaton._
 
-import scala.collection.mutable.{Set => MSet}
-
 /*
  * Computes the regular expressions that describe paths between specific nodes in a general, directed graph.
  * Technique is based on the transitive closure method.
  */
-class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boolean, annotToChar: A => Option[Char]) {
+class TransitiveClosure[N, A, C, T](graph: Graph[N, A, C], isErrorState: N => Boolean, annotToChar: A => Option[Char], charToT: Char => T) {
 
   implicit val stateGraphNode: GraphNode[State, Unit] = new GraphNode[State, Unit] { }
-  implicit val stateGraphAnnotation: GraphAnnotation[Char, Unit] = new GraphAnnotation[Char, Unit] { }
+  implicit val stateGraphAnnotation: GraphAnnotation[T, Unit] = new GraphAnnotation[T, Unit] { }
 
   /**
     * Returns the number of visited states
@@ -46,13 +44,13 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
 
       println("shortest = " + BasicOperations.getShortestExample(automaton, true))
 
-      var grap = Graph.empty[State, Char, Unit]
-      scala.collection.JavaConverters.asScalaSet(automaton.getStates).foreach((st: State) => {
+      var grap = Graph.empty[State, T, Unit]
+      automaton.getStates.forEach((st: State) => {
         grap = grap.addNode(st)
         var lt = Set[Transition]()
         st.getTransitions.forEach(x => lt = lt + new Transition(x.getMin, x.getDest))
         assert(lt.size == st.getTransitions.size)
-        lt.foreach({ s => grap = grap.addEdge(st, s.getMin, s.getDest) })
+        lt.foreach({ s => grap = grap.addEdge(st, charToT(s.getMin), s.getDest) })
       })
 
       val states = grap.nodes.toArray
@@ -62,7 +60,7 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
       automaton.getAcceptStates.forEach((x: State) => finals = finals + x)
 
 //      TODO Jonas used this; just return the automaton instead?
-      val regex = new NFARegex2(grap, initialState, states, finals.toList)
+      val regex = new NFARegex2[T](grap, initialState, states, finals.toList)
       val regexes = regex.compute2()
       println(s"regexes are ${regexes.mkString(";;;")}")
 //      val t = (shortestp, regexes)
