@@ -41,13 +41,13 @@ class RegexLang[T] {
     sumAcc(regex, 0)
   }
 
-  case class Final(done: Regex[T]) extends Regex[T] {}
-  case class OrFrame(done: Regex[T], y: Regex[T]) extends Regex[T] {}
-  case class OrMergeFrame(x: Regex[T], y: Regex[T]) extends Regex[T] {}
-  case class AndFrame(done: Regex[T], y: Regex[T]) extends Regex[T] {}
-  case class AndMergeFrame(x: Regex[T], y: Regex[T]) extends Regex[T] {}
-  case class MulFrame(done: Regex[T]) extends Regex[T] {}
-  case class StarFrame(x: Regex[T]) extends Regex[T] {}
+  case class Final(done: Regex[T]) extends Regex[T]
+  case class OrFrame(done: Regex[T], y: Regex[T]) extends Regex[T]
+  case class OrMergeFrame(x: Regex[T], y: Regex[T]) extends Regex[T]
+  case class AndFrame(done: Regex[T], y: Regex[T]) extends Regex[T]
+  case class AndMergeFrame(x: Regex[T], y: Regex[T]) extends Regex[T]
+  case class MulFrame(done: Regex[T]) extends Regex[T]
+  case class StarFrame(x: Regex[T]) extends Regex[T]
 
 
   @scala.annotation.tailrec
