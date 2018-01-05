@@ -14,7 +14,7 @@ class TransitiveClosure[N, A, C, T](graph: Graph[N, A, C], isErrorState: N => Bo
     */
   val numberOfStates: Int = graph.nodes.size
 
-  def shortestPaths: Automaton = {
+  def shortestPaths: Option[Set[Regex]] = {
       val annots = graph.getAnnotations
       val root = graph.getNode(0).get
 
@@ -63,13 +63,9 @@ class TransitiveClosure[N, A, C, T](graph: Graph[N, A, C], isErrorState: N => Bo
       val regex = new NFARegex2[T](grap, initialState, states, finals.toList)
       val regexes = regex.compute2()
       println(s"regexes are ${regexes.mkString(";;;")}")
-//      val t = (shortestp, regexes)
-//      shortestpaths = shortestpaths :+ t
-
-      idx = idx +1
-      automaton
+      Some(regexes)
     } else {
-      null
+      None
     }
 
 //      TODO

@@ -1,6 +1,5 @@
 import backend._
 import backend.tree.path._
-import dk.brics.automaton.RunAutomaton
 
 class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
   (val aam: KickstartAAMGlobalStore[Exp, Abs, Addr, Time]) {
@@ -12,7 +11,7 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
     override def toString: String = state.toString
   }
 
-  def detectErrors(graph: RelevantGraph): Option[RunAutomaton] = {
+  def detectErrors(graph: RelevantGraph): Option[Set[Regex]] = {
 
     @scala.annotation.tailrec
     def loop(visited: Set[aam.State], worklist: List[Bindings], acc: Set[Bindings]): Set[Bindings] = worklist.headOption match {
@@ -35,7 +34,7 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
     }
 
     val elseBranchChar = 'e'
-    val thenBranchChar = 'e'
+    val thenBranchChar = 't'
     def annotToOptChar(annot: EdgeAnnotation[Exp, Abs, Addr]): Option[Char] = {
       val (elseBranch, thenBranch) = (annot.filters.semanticsFilters.contains(ElseBranchFilter), annot.filters.semanticsFilters.contains(ThenBranchFilter))
       /* Edge cannot indicate that both the else- and the then-branch have been taken. */
@@ -62,8 +61,8 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
 //        val start = List(Binding(EdgeAnnotation.dummyEdgeAnnotation, root))
 //        val errorPaths = loop(Set(), List(start), Set())
 //        errorPaths.map(filterBranchesTaken)
-        val automaton = new TransitiveClosure(graph, (state: aam.State) => state.isErrorState, annotToOptChar, charToT).shortestPaths
-        Some(new RunAutomaton(automaton))
+        val regexes = new TransitiveClosure(graph, (state: aam.State) => state.isErrorState, annotToOptChar, charToT).shortestPaths
+        regexes
     }
   }
 

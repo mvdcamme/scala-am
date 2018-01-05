@@ -1,19 +1,14 @@
 import backend._
 import backend.expression.ConcolicInput
 import backend.solvers._
-import dk.brics.automaton.{ Automaton, RunAutomaton }
 
 object InitialErrorPaths {
-  private var automaton: Option[RunAutomaton] = None
-  def get: Option[RunAutomaton] = automaton
-  def set(newAutomaton: RunAutomaton): Unit = {
-    automaton = Some(newAutomaton)
-//    automaton = Some(paths)
-//    Reporter.replaceWhitelistedPaths(paths) TODO Trying to use automaton-approach now...
-  }
-
-  def testString(s: String): Boolean = {
-    automaton.get.run(s)
+  private var regexes: Option[Set[Regex]] = None
+  def get: Option[Set[Regex]] = regexes
+  def set(newRegexes: Set[Regex]): Unit = {
+    regexes = Some(newRegexes)
+//    regexes = Some(paths)
+//    Reporter.replaceWhitelistedPaths(paths) TODO Trying to use regexes-approach now...
   }
 }
 
@@ -28,13 +23,13 @@ object ScalaAMConcolicSolver {
 
   private def handleAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult): Option[RunAutomaton] = {
+    (result: StaticAnalysisResult): Option[Set[Regex]] = {
     if (ConcolicRunTimeFlags.checkAnalysis) {
       result match {
         case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
-          val automaton = errorPathDetector.detectErrors(outputGraph.hasGraph.graph)
+          val optRegexes = errorPathDetector.detectErrors(outputGraph.hasGraph.graph)
 //          Logger.log(s"### Concolic got error paths $automaton", Logger.U)
-          automaton
+          optRegexes
         case _ =>
           Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
           None
@@ -63,23 +58,23 @@ object ScalaAMConcolicSolver {
 
   def handleInitialAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult): Option[RunAutomaton] = {
-    val automaton = handleAnalysisResult[Abs](errorPathDetector)(result)
-    InitialErrorPaths.set(automaton.get)
-    automaton
+    (result: StaticAnalysisResult): Option[Set[Regex]] = {
+    val regexes = handleAnalysisResult[Abs](errorPathDetector)(result)
+    InitialErrorPaths.set(regexes.get)
+    regexes
   }
 
 
   def handleRunTimeAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult, prefixErrorPath: Path): Option[RunAutomaton] = {
-    val automaton = handleAnalysisResult[Abs](errorPathDetector)(result)
+    (result: StaticAnalysisResult, prefixErrorPath: Path): Option[Set[Regex]] = {
+    val regexes = handleAnalysisResult[Abs](errorPathDetector)(result)
     // TODO MV Using automaton approach now...
 //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
 //    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
-    InitialErrorPaths.set(automaton.get)
+    InitialErrorPaths.set(regexes.get)
 //    ScalaAMReporter.setCurrentErrorPaths(automaton)
-    automaton
+    regexes
   }
 
 }

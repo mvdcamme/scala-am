@@ -9,7 +9,7 @@ class NFARegex2[T](graph : Graph[State, T, Unit], initialState: State, states: A
   }
 
   //Transitive closure method
-  def compute2(): Set[String] = {
+  def compute2(): Set[Regex] = {
     val size = states.length
     val A = Array.ofDim[Regex](size + 1, size + 1, size + 1)
     val annotations = graph.getAnnotations.toList
@@ -67,7 +67,7 @@ class NFARegex2[T](graph : Graph[State, T, Unit], initialState: State, states: A
       }
     }
 
-    regexes.map((x) => x.toString)
+    regexes
   }
 
   def listRegexes(regex: Regex):Set[Regex] = regex match {

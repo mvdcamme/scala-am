@@ -69,7 +69,7 @@ object ScalaAMReporter {
         case ThenBranchTaken => "t"
       }).mkString("")
       println(s"Current pathstring is $pathString")
-      val result = InitialErrorPaths.testString(pathString)
+      val result: Boolean = ??? // InitialErrorPaths.testString(pathString)
       if (! result) {
         Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
         throw AbortConcolicRunException
