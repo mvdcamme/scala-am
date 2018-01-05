@@ -100,32 +100,12 @@ object RegexLang {
     case AndMergeFrame(x, EmptyWord) => simplifyr(stack.head(x), stack.tail)
     case AndMergeFrame(EmptySet, y) => simplifyr(stack.head(EmptySet), stack.tail)
     case AndMergeFrame(EmptyWord, y) => simplifyr(stack.head(y), stack.tail)
-    // a* . b => a*b
-    case AndMergeFrame(Star(a:Event), Event(b)) => simplifyr(stack.head(Event(a + "*," + b)), stack.tail)
-    case AndMergeFrame(Event(b), Star(a:Event)) => simplifyr(stack.head(Event(b + "," + a+"*")), stack.tail)
-
-    // ((a+b) . (c+d)) = ( (ac + ad) + (bc + bd) )
-    case AndMergeFrame(Or(a, b), Or(c, d)) =>
-      simplifyr(Or(Or(Concat(a,c), Concat(a,d)), Or(Concat(b,c), Concat(b,d)) ),
-        ((a => MulFrame(a)):(Regex => Regex)) :: stack )
-
-
-    // c . (a + b) = ca + cb
-    case AndMergeFrame(c, Or(a, b)) => simplifyr(Or(Concat(c, a), Concat(c, b)), ((a => MulFrame(a)):(Regex => Regex)) :: stack )
-    // (a + b) . c = ac + bc
-    case AndMergeFrame(Or(a, b), c) => simplifyr(Or(Concat(a, c), Concat(b, c)), ((a => MulFrame(a)):(Regex => Regex)) :: stack )
-    case MulFrame(done) => simplifyr(stack.head(done), stack.tail)
-    //case AndMergeFrame(c, Or(a, b)) => simplifyr(Concat(c, a), ((a => MulFrame(a, Concat(c,b) )):(Regex => Regex)) :: stack )
-
-    //case AndMergeFrame(Or(a, b), c) => simplifyr(Concat(a, c), ((a => MulFrame(a, Concat(b, c) )):(Regex => Regex)) :: stack )
-    //case MulFrame(done, y) => simplifyr(y, ((a => AndFrame(done, a)):(Regex => Regex)) :: stack )
-
-
     // anything else of AND
     case AndMergeFrame(x, y) =>
       cache + (Concat(x, y) -> true)
       simplifyr(stack.head(Concat(x, y)), stack.tail)
 
+    case MulFrame(done) => simplifyr(stack.head(done), stack.tail)
   }
 
   //   //star(ε)=ε, e.ε=e, ∅+e=e, ∅.e=∅
