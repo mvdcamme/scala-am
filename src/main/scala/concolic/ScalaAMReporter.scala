@@ -1,6 +1,6 @@
 import backend._
-import backend.expression._
 import backend.tree._
+import backend.tree.path._
 
 case object AbortConcolicRunException extends Exception
 
@@ -29,7 +29,7 @@ object ScalaAMReporter {
     InputVariableStore.reset()
     currentPath = Nil
     currentReport = Nil
-    optCurrentErrorPaths = InitialErrorPaths.get
+    optCurrentErrorPaths = None // TODO MV Using automaton approach now ...   InitialErrorPaths.get
     GlobalSymbolicEnvironment.reset()
     GlobalSymbolicStore.reset()
   }
@@ -64,36 +64,47 @@ object ScalaAMReporter {
     val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
     addConstraint(optimizedConstraint, thenBranchTaken)
     if (ConcolicRunTimeFlags.checkAnalysis) {
-      optCurrentErrorPaths match {
-        case Some(currentErrorPaths) =>
-          println(s"In ScalaAMReporter, currentErrorPaths are ${currentErrorPaths}")
-          val SplitErrorPaths(startsWithThen, startsWithElse) = splitErrorPaths(currentErrorPaths)
-          if (thenBranchTaken) {
-            if (startsWithThen.isEmpty) {
-              Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
-              // The current path does not follow an existing errorpath, so abort this run
-              throw AbortConcolicRunException
-            }
-            // Continue with paths that follow the then-branch.
-            val tailStartsWithThen = startsWithThen.map(_.tail)
-            optCurrentErrorPaths = Some(tailStartsWithThen)
-          } else {
-            if (startsWithElse.isEmpty) {
-              Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
-              // The current path does not follow an existing errorpath, so abort this run
-              throw AbortConcolicRunException
-            }
-            // Continue with paths that follow the else-branch.
-            val tailStartsWithElse = startsWithElse.map(_.tail)
-            optCurrentErrorPaths = Some(tailStartsWithElse)
-          }
-        case None =>
-          Logger.log("Reporter not doing anything with error paths", Logger.U)
-          // Assuming concolic testing is only really started if at least one errorpath is defined,
-          // and assuming we check for every branch that was encountered whether execution still
-          // follows _some_ errorpath (as is done in this function), this should never happen.
-          throw AbortConcolicRunException
+      val pathString = currentPath.map({
+        case ElseBranchTaken => "e"
+        case ThenBranchTaken => "t"
+      }).mkString("")
+      println(s"Current pathstring is $pathString")
+      val result = InitialErrorPaths.testString(pathString)
+      if (! result) {
+        Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
+        throw AbortConcolicRunException
       }
+      // TODO Using automaton approach now
+//      optCurrentErrorPaths match {
+//        case Some(currentErrorPaths) =>
+//          println(s"In ScalaAMReporter, currentErrorPaths are ${currentErrorPaths}")
+//          val SplitErrorPaths(startsWithThen, startsWithElse) = splitErrorPaths(currentErrorPaths)
+//          if (thenBranchTaken) {
+//            if (startsWithThen.isEmpty) {
+//              Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
+//              // The current path does not follow an existing errorpath, so abort this run
+//              throw AbortConcolicRunException
+//            }
+//            // Continue with paths that follow the then-branch.
+//            val tailStartsWithThen = startsWithThen.map(_.tail)
+//            optCurrentErrorPaths = Some(tailStartsWithThen)
+//          } else {
+//            if (startsWithElse.isEmpty) {
+//              Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
+//              // The current path does not follow an existing errorpath, so abort this run
+//              throw AbortConcolicRunException
+//            }
+//            // Continue with paths that follow the else-branch.
+//            val tailStartsWithElse = startsWithElse.map(_.tail)
+//            optCurrentErrorPaths = Some(tailStartsWithElse)
+//          }
+//        case None =>
+//          Logger.log("Reporter not doing anything with error paths", Logger.U)
+//          // Assuming concolic testing is only really started if at least one errorpath is defined,
+//          // and assuming we check for every branch that was encountered whether execution still
+//          // follows _some_ errorpath (as is done in this function), this should never happen.
+//          throw AbortConcolicRunException
+//      }
     }
   }
 

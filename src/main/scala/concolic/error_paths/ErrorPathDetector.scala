@@ -1,4 +1,5 @@
 import backend._
+import dk.brics.automaton.RunAutomaton
 
 class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
   (val aam: KickstartAAMGlobalStore[Exp, Abs, Addr, Time]) {
@@ -10,7 +11,7 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
     override def toString: String = state.toString
   }
 
-  def detectErrors(graph: RelevantGraph): Set[Path] = {
+  def detectErrors(graph: RelevantGraph): Option[RunAutomaton] = {
 
     @scala.annotation.tailrec
     def loop(visited: Set[aam.State], worklist: List[Bindings], acc: Set[Bindings]): Set[Bindings] = worklist.headOption match {
@@ -32,14 +33,30 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
         loop(visited + lastState, newWorklist, acc)
     }
 
+    def annotToOptChar(annot: EdgeAnnotation[Exp, Abs, Addr]): Option[Char] = {
+      val (elseBranch, thenBranch) = (annot.filters.semanticsFilters.contains(ElseBranchFilter), annot.filters.semanticsFilters.contains(ThenBranchFilter))
+      /* Edge cannot indicate that both the else- and the then-branch have been taken. */
+      assert(! (elseBranch && thenBranch), "Should not happen")
+      if (elseBranch) {
+        Some('e')
+      } else if (thenBranch) {
+        Some('t')
+      } else {
+        None
+      }
+    }
+
     graph.getNode(0) match {
       case None =>
         Logger.log("Graph is empty", Logger.U)
-        Set()
+        None
       case Some(root) =>
-        val start = List(Binding(EdgeAnnotation.dummyEdgeAnnotation, root))
-        val errorPaths = loop(Set(), List(start), Set())
-        errorPaths.map(filterBranchesTaken)
+        // TODO Using automaton approach now...
+//        val start = List(Binding(EdgeAnnotation.dummyEdgeAnnotation, root))
+//        val errorPaths = loop(Set(), List(start), Set())
+//        errorPaths.map(filterBranchesTaken)
+        val automaton = new TransitiveClosure(graph, (state: aam.State) => state.isErrorState, annotToOptChar).shortestPaths
+        Some(new RunAutomaton(automaton))
     }
   }
 

@@ -81,6 +81,10 @@ class Graph[N, A, C]
       val existing: Set[(A, N)] = edges.getOrElse(node1, Set[(A, N)]())
       new Graph(ids, next, nodes, edges + (node1 -> (existing ++ Set((annot, node2)))))
     }
+  /** Get the set of all annotations used in the edges of the graph */
+  def getAnnotations: Set[A] = {
+    edges.values.toSet.flatMap((tuple: Set[(A, N)]) => tuple.map(_._1))
+  }
 }
 
 object Graph {

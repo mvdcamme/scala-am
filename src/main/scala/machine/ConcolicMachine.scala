@@ -2,8 +2,7 @@ import java.io.{BufferedWriter, File, FileWriter}
 
 import backend._
 import backend.expression._
-
-import ConcreteConcreteLattice.{ L => ConcreteValue }
+import ConcreteConcreteLattice.{L => ConcreteValue}
 
 class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
   analysisLauncher: AnalysisLauncher[PAbs], analysisFlags: AnalysisFlags)(
