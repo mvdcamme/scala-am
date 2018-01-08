@@ -6,17 +6,17 @@ import dk.brics.automaton._
  * Computes the regular expressions that describe paths between specific nodes in a general, directed graph.
  * Technique is based on the transitive closure method.
  */
-class TransitiveClosure[N, A, C, T](graph: Graph[N, A, C], isErrorState: N => Boolean, annotToChar: A => Option[Char], charToT: Char => T) {
+class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boolean, annotToChar: A => Option[Char]) {
 
   implicit val stateGraphNode: GraphNode[State, Unit] = new GraphNode[State, Unit] { }
-  implicit val stateGraphAnnotation: GraphAnnotation[T, Unit] = new GraphAnnotation[T, Unit] { }
+  implicit val stateGraphAnnotation: GraphAnnotation[Char, Unit] = new GraphAnnotation[Char, Unit] { }
 
   /**
     * Returns the number of visited states
     */
   val numberOfStates: Int = graph.nodes.size
 
-  def shortestPaths: Option[Set[Regex[T]]] = {
+  def shortestPaths: Option[Set[Regex]] = {
       val annots = graph.getAnnotations
       val root = graph.getNode(0).get
 
@@ -43,13 +43,13 @@ class TransitiveClosure[N, A, C, T](graph: Graph[N, A, C], isErrorState: N => Bo
       Automaton.setMinimization(1) // brzozowski
       automaton.minimize()
       println("shortest = " + BasicOperations.getShortestExample(automaton, true))
-      var grap = Graph.empty[State, T, Unit]
+      var grap = Graph.empty[State, Char, Unit]
       automaton.getStates.forEach((st: State) => {
         grap = grap.addNode(st)
         var lt = Set[Transition]()
         st.getTransitions.forEach(x => lt = lt + new Transition(x.getMin, x.getDest))
         assert(lt.size == st.getTransitions.size)
-        lt.foreach({ s => grap = grap.addEdge(st, charToT(s.getMin), s.getDest) })
+        lt.foreach({ s => grap = grap.addEdge(st, s.getMin, s.getDest) })
       })
 
       val states = grap.nodes.toArray
@@ -59,12 +59,12 @@ class TransitiveClosure[N, A, C, T](graph: Graph[N, A, C], isErrorState: N => Bo
       automaton.getAcceptStates.forEach((x: State) => finals = finals + x)
 
 //      TODO Jonas used this; just return the automaton instead?
-      val regex = new NFARegex2[T](grap, initialState, states, finals.toList)
+      val regex = new NFARegex2(grap, initialState, states, finals.toList)
       val regexes = regex.compute2()
       println(s"regexes are ${regexes.mkString(";;;")}")
 
 //      val regexesStrings = regexes.map(_.toString)
-      val patterns: Set[Pattern] = regexes.map((regex: Regex[T]) => Pattern.compile(regex.toString))
+      val patterns: Set[Pattern] = regexes.map((regex: Regex) => Pattern.compile(regex.toString))
       val matchers: Set[Matcher] = patterns.map(_.matcher("t"))
       val result = matchers.exists(_.matches())
       println(s"any complete result found: ${result}")

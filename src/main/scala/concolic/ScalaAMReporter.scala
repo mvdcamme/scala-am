@@ -11,9 +11,9 @@ object ScalaAMReporter {
   private var currentPath: Path = Nil
   private var currentReport: PathConstraint = Nil
 
-  private var optCurrentErrorPaths: Option[Set[RegexMatch[SymbolicTreeEdge]]] = None
+  private var optCurrentErrorPaths: Option[Set[RegexMatch]] = None
 
-  def setCurrentErrorPaths(newCurrentErrorPaths: Set[Regex[SymbolicTreeEdge]]): Unit = {
+  def setCurrentErrorPaths(newCurrentErrorPaths: Set[Regex]): Unit = {
     optCurrentErrorPaths = Some(newCurrentErrorPaths.map(RegexToRegexMatch.convert))
   }
 

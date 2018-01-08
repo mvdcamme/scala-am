@@ -1,17 +1,17 @@
 import dk.brics.automaton.State
 
-class NFARegex2[T](graph : Graph[State, T, Unit], initialState: State, states: Array[State], finalStates : List[State]) {
+class NFARegex2(graph : Graph[State, Char, Unit], initialState: State, states: Array[State], finalStates : List[State]) {
 
-  val regexSimplifier = new RegexLang[T]
+  val regexSimplifier = new RegexLang
 
-  def hasEdge(node1: State, annot: T, node2: State): Boolean = {
+  def hasEdge(node1: State, annot: Char, node2: State): Boolean = {
     graph.nodeEdges(node1).contains((annot, node2))
   }
 
   //Transitive closure method
-  def compute2(): Set[Regex[T]] = {
+  def compute2(): Set[Regex] = {
     val size = states.length
-    val A = Array.ofDim[Regex[T]](size + 1, size + 1, size + 1)
+    val A = Array.ofDim[Regex](size + 1, size + 1, size + 1)
     val annotations = graph.getAnnotations.toList
 
     for (i <- 1 to size) {
@@ -53,7 +53,7 @@ class NFARegex2[T](graph : Graph[State, T, Unit], initialState: State, states: A
       }
     }
 
-    var regexes = Set[Regex[T]]()
+    var regexes = Set[Regex]()
 
     for(i <- 1 to size) {
       if(finalStates.contains(states(i-1))) {
@@ -70,15 +70,15 @@ class NFARegex2[T](graph : Graph[State, T, Unit], initialState: State, states: A
     regexes
   }
 
-  def listRegexes(regex: Regex[T]):Set[Regex[T]] = regex match {
+  def listRegexes(regex: Regex):Set[Regex] = regex match {
     case Or(x, y) => listRegexes(x) ++ listRegexes(y)
     //And(x, y)
     case x => Set(x)
   }
 
 
-  def sum(regex: Regex[T]):  Set[Regex[T]] = {
-    def sumAcc(trees : List[Regex[T]], acc : Set[Regex[T]]):  Set[Regex[T]] = trees match {
+  def sum(regex: Regex):  Set[Regex] = {
+    def sumAcc(trees : List[Regex], acc : Set[Regex]):  Set[Regex] = trees match {
       case Nil => acc
       case Or(x, y) :: rs => sumAcc(x :: y :: rs, acc)
       case x :: rs => sumAcc(rs, Set(x) ++ acc)

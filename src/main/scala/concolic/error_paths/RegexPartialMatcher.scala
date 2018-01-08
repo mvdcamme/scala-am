@@ -1,8 +1,8 @@
 object RegexPartialMatcher {
 
-  type M[T] = Option[Set[Regex[T]]]
+  type M = Option[Set[Regex]]
 
-  def symbolMatchesRegex[T](symbol: T, regex: Regex[T]): M[T] = regex match {
+  def symbolMatchesRegex[T](symbol: T, regex: Regex): M = regex match {
     case Atomic(s) if s == symbol => Some(Set())
     case Atomic(_) => None
     case EmptySet() => None // throw new Exception("Should not happen")
@@ -15,15 +15,15 @@ object RegexPartialMatcher {
       combineOptSets(m1, m2)
   }
 
-  private def combineOptSets[T](optSet1: M[T], optSet2: M[T]): M[T] = (optSet1, optSet2) match {
+  private def combineOptSets[T](optSet1: M, optSet2: M): M = (optSet1, optSet2) match {
     case (None, None) => None
     case (None, Some(set)) => Some(set)
     case (Some(set), None) => Some(set)
     case (Some(set1), Some(set2)) => Some(set1 ++ set2)
   }
 
-  def symbolMatchesRegexes[T](symbol: T, regexes: Set[Regex[T]]): M[T] = {
-    regexes.foldLeft[M[T]](None)((acc, regex) => {
+  def symbolMatchesRegexes[T](symbol: T, regexes: Set[Regex]): M = {
+    regexes.foldLeft[M](None)((acc, regex) => {
       val singleResult = symbolMatchesRegex(symbol, regex)
       combineOptSets(acc, singleResult)
     })

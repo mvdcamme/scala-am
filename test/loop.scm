@@ -1,0 +1,6 @@
+(define (loop)
+  (if (= 0 0)
+      (loop)
+      'ok))
+(loop)
+(error 10)

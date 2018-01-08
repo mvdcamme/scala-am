@@ -1,37 +1,37 @@
-sealed trait Regex[T]
-sealed trait RegexMatch[T]
+sealed trait Regex
+sealed trait RegexMatch
 
-case class EmptyWord[T]() extends Regex[T] with RegexMatch[T] {
+case class EmptyWord() extends Regex with RegexMatch {
   override def toString: String = "ε"
 }
-case class EmptySet[T]() extends Regex[T] with RegexMatch[T] {
+case class EmptySet() extends Regex with RegexMatch {
   override def toString: String = "∅"
 }
-case class Atomic[T](v: T) extends Regex[T] with RegexMatch[T] {
-  override def toString: String = v.toString
+case class Atomic(v: Char) extends Regex with RegexMatch {
+  override def toString: String = s"$v"
 }
-case class Concat[T](x: Regex[T], y: Regex[T]) extends Regex[T] with RegexMatch[T] {
+case class Concat(x: Regex, y: Regex) extends Regex with RegexMatch {
   override def toString: String = s"($x.$y)"
 }
-case class Or[T](x: Regex[T], y: Regex[T]) extends Regex[T] with RegexMatch[T] {
+case class Or(x: Regex, y: Regex) extends Regex with RegexMatch {
   override def toString: String = s"($x+$y)"
 }
-case class Star[T](v: Regex[T]) extends Regex[T] {
+case class Star(v: Regex) extends Regex {
   override def toString: String = s"$v*"
 }
-case class ConcatMatch[T](x: RegexMatch[T], y: RegexMatch[T]) extends RegexMatch[T] {
+case class ConcatMatch(x: RegexMatch, y: RegexMatch) extends RegexMatch {
   override def toString: String = s"($x.$y)"
 }
-case class OrMatch[T](x: RegexMatch[T], y: RegexMatch[T]) extends RegexMatch[T] {
+case class OrMatch(x: RegexMatch, y: RegexMatch) extends RegexMatch {
   override def toString: String = s"($x+$y)"
 }
-case class StarMatch[T](current: RegexMatch[T], original: Star[T]) extends RegexMatch[T] {
+case class StarMatch(current: RegexMatch, original: Star) extends RegexMatch {
   override def toString: String = original.toString
 }
 
 object RegexToRegexMatch {
   import scala.language.implicitConversions
-  implicit def convert[T](regex: Regex[T]): RegexMatch[T] = regex match {
+  implicit def convert(regex: Regex): RegexMatch = regex match {
     case EmptyWord() => EmptyWord()
     case EmptySet() => EmptySet()
     case Atomic(v) => Atomic(v)
@@ -41,11 +41,11 @@ object RegexToRegexMatch {
   }
 }
 
-class RegexLang[T] {
-  var cache:scala.collection.mutable.Map[Regex[T], Boolean] = scala.collection.mutable.Map[Regex[T], Boolean]()
+class RegexLang {
+  var cache:scala.collection.mutable.Map[Regex, Boolean] = scala.collection.mutable.Map[Regex, Boolean]()
 
-  def sum(regex: Regex[T]) :  Int = {
-    def sumAcc(trees: Regex[T], acc: Int) : Int = trees match {
+  def sum(regex: Regex) :  Int = {
+    def sumAcc(trees: Regex, acc: Int) : Int = trees match {
       case Or(x, y) => Math.max(sumAcc(x, acc + 1), sumAcc(y, acc + 1))
       case x => acc
 
@@ -53,8 +53,8 @@ class RegexLang[T] {
     sumAcc(regex, 0)
   }
 
-  def sum2(regex: Regex[T]) :  Int = {
-    def sumAcc(trees: Regex[T], acc: Int) : Int = trees match {
+  def sum2(regex: Regex) :  Int = {
+    def sumAcc(trees: Regex, acc: Int) : Int = trees match {
       case Or(x, y) => sumAcc(x, acc + 1) + sumAcc(y, acc + 1)
       case Concat(x, y) => sumAcc(x, acc + 1) + sumAcc(y, acc + 1)
       case Star(x) => sumAcc(x, acc + 1)
@@ -64,25 +64,25 @@ class RegexLang[T] {
     sumAcc(regex, 0)
   }
 
-  case class Final(done: Regex[T]) extends Regex[T]
-  case class OrFrame(done: Regex[T], y: Regex[T]) extends Regex[T]
-  case class OrMergeFrame(x: Regex[T], y: Regex[T]) extends Regex[T]
-  case class AndFrame(done: Regex[T], y: Regex[T]) extends Regex[T]
-  case class AndMergeFrame(x: Regex[T], y: Regex[T]) extends Regex[T]
-  case class MulFrame(done: Regex[T]) extends Regex[T]
-  case class StarFrame(x: Regex[T]) extends Regex[T]
+  case class Final(done: Regex) extends Regex
+  case class OrFrame(done: Regex, y: Regex) extends Regex
+  case class OrMergeFrame(x: Regex, y: Regex) extends Regex
+  case class AndFrame(done: Regex, y: Regex) extends Regex
+  case class AndMergeFrame(x: Regex, y: Regex) extends Regex
+  case class MulFrame(done: Regex) extends Regex
+  case class StarFrame(x: Regex) extends Regex
 
 
   @scala.annotation.tailrec
-  final def simplifyr(r : Regex[T], stack:List[(Regex[T] => Regex[T])] = List((a => Final(a)): (Regex[T] => Regex[T]))):Regex[T] = r match {
+  final def simplifyr(r : Regex, stack:List[(Regex => Regex)] = List((a => Final(a)): (Regex => Regex))):Regex = r match {
     case Final(x) => x
     case x if cache.contains(x) =>
       simplifyr(stack.head(x), stack.tail)
-    case x: Atomic[T] => simplifyr(stack.head(x), stack.tail)
+    case x: Atomic => simplifyr(stack.head(x), stack.tail)
     case EmptySet() => simplifyr(stack.head(EmptySet()), stack.tail)
     case EmptyWord() => simplifyr(stack.head(EmptyWord()), stack.tail)
 
-    case Star(x) => simplifyr(x, ((a => StarFrame(a)):(Regex[T] => Regex[T])) :: stack )
+    case Star(x) => simplifyr(x, ((a => StarFrame(a)):(Regex => Regex)) :: stack )
     case StarFrame(EmptySet()) => simplifyr(stack.head(EmptyWord()), stack.tail)
     case StarFrame(EmptyWord()) => simplifyr(stack.head(EmptyWord()), stack.tail)
     // anything else of STAR
@@ -90,8 +90,8 @@ class RegexLang[T] {
       cache += (Star(x) -> true)
       simplifyr(stack.head(Star(x)), stack.tail)
 
-    case Or(x, y) => simplifyr(x, ((a => OrFrame(a, y)):(Regex[T] => Regex[T])) :: stack )
-    case OrFrame(done, y) => simplifyr(y, ((a => OrMergeFrame(done, a)):(Regex[T] => Regex[T])) :: stack )
+    case Or(x, y) => simplifyr(x, ((a => OrFrame(a, y)):(Regex => Regex)) :: stack )
+    case OrFrame(done, y) => simplifyr(y, ((a => OrMergeFrame(done, a)):(Regex => Regex)) :: stack )
     case OrMergeFrame(EmptySet(), y) => simplifyr(stack.head(y), stack.tail)
     case OrMergeFrame(x, EmptySet()) => simplifyr(stack.head(x), stack.tail)
     // TODO:NOT SURE?? but should be ok, because they mimic a transition to itself without consuming symbol
@@ -103,8 +103,8 @@ class RegexLang[T] {
       cache += (Or(x, y) -> true)
       simplifyr(stack.head(Or(x, y)), stack.tail)
 
-    case Concat(x, y) => simplifyr(x, ((a => { AndFrame(a, y)}):(Regex[T] => Regex[T])) :: stack )
-    case AndFrame(done, y) => simplifyr(y, ((a => { AndMergeFrame(done, a)}):(Regex[T] => Regex[T])) :: stack )
+    case Concat(x, y) => simplifyr(x, ((a => { AndFrame(a, y)}):(Regex => Regex)) :: stack )
+    case AndFrame(done, y) => simplifyr(y, ((a => { AndMergeFrame(done, a)}):(Regex => Regex)) :: stack )
     case AndMergeFrame(x, EmptySet()) => simplifyr(stack.head(EmptySet()), stack.tail)
     case AndMergeFrame(x, EmptyWord()) => simplifyr(stack.head(x), stack.tail)
     case AndMergeFrame(EmptySet(), y) => simplifyr(stack.head(EmptySet()), stack.tail)

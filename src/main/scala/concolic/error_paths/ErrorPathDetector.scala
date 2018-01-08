@@ -11,7 +11,7 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
     override def toString: String = state.toString
   }
 
-  def detectErrors(graph: RelevantGraph): Option[Set[Regex[SymbolicTreeEdge]]] = {
+  def detectErrors(graph: RelevantGraph): Option[Set[Regex]] = {
 
     @scala.annotation.tailrec
     def loop(visited: Set[aam.State], worklist: List[Bindings], acc: Set[Bindings]): Set[Bindings] = worklist.headOption match {
@@ -61,7 +61,7 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
 //        val start = List(Binding(EdgeAnnotation.dummyEdgeAnnotation, root))
 //        val errorPaths = loop(Set(), List(start), Set())
 //        errorPaths.map(filterBranchesTaken)
-        val regexes = new TransitiveClosure(graph, (state: aam.State) => state.isErrorState, annotToOptChar, charToT).shortestPaths
+        val regexes = new TransitiveClosure(graph, (state: aam.State) => state.isErrorState, annotToOptChar).shortestPaths
         regexes
     }
   }
