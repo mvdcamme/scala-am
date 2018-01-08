@@ -1,5 +1,3 @@
-import java.util.regex._
-
 import dk.brics.automaton._
 
 /*
@@ -16,7 +14,7 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
     */
   val numberOfStates: Int = graph.nodes.size
 
-  def shortestPaths: Option[Set[Regex]] = {
+  def computeRegexes: Option[Set[Regex]] = {
       val annots = graph.getAnnotations
       val root = graph.getNode(0).get
 
@@ -62,16 +60,6 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
       val regex = new NFARegex2(grap, initialState, states, finals.toList)
       val regexes = regex.compute2()
       println(s"regexes are ${regexes.mkString(";;;")}")
-
-//      val regexesStrings = regexes.map(_.toString)
-      val patterns: Set[Pattern] = regexes.map((regex: Regex) => Pattern.compile(regex.toString))
-      val matchers: Set[Matcher] = patterns.map(_.matcher("t"))
-      val result = matchers.exists(_.matches())
-      println(s"any complete result found: ${result}")
-      val hitEnd = matchers.exists(_.hitEnd())
-      println(s"any partial result found: $hitEnd")
-
-
       Some(regexes)
     } else {
       None

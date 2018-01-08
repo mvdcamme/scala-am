@@ -1,44 +1,22 @@
 sealed trait Regex
-sealed trait RegexMatch
 
-case class EmptyWord() extends Regex with RegexMatch {
+case class EmptyWord() extends Regex {
   override def toString: String = "ε"
 }
-case class EmptySet() extends Regex with RegexMatch {
+case class EmptySet() extends Regex {
   override def toString: String = "∅"
 }
-case class Atomic(v: Char) extends Regex with RegexMatch {
+case class Atomic(v: Char) extends Regex {
   override def toString: String = s"$v"
 }
-case class Concat(x: Regex, y: Regex) extends Regex with RegexMatch {
+case class Concat(x: Regex, y: Regex) extends Regex {
   override def toString: String = s"($x.$y)"
 }
-case class Or(x: Regex, y: Regex) extends Regex with RegexMatch {
+case class Or(x: Regex, y: Regex) extends Regex {
   override def toString: String = s"($x+$y)"
 }
 case class Star(v: Regex) extends Regex {
   override def toString: String = s"$v*"
-}
-case class ConcatMatch(x: RegexMatch, y: RegexMatch) extends RegexMatch {
-  override def toString: String = s"($x.$y)"
-}
-case class OrMatch(x: RegexMatch, y: RegexMatch) extends RegexMatch {
-  override def toString: String = s"($x+$y)"
-}
-case class StarMatch(current: RegexMatch, original: Star) extends RegexMatch {
-  override def toString: String = original.toString
-}
-
-object RegexToRegexMatch {
-  import scala.language.implicitConversions
-  implicit def convert(regex: Regex): RegexMatch = regex match {
-    case EmptyWord() => EmptyWord()
-    case EmptySet() => EmptySet()
-    case Atomic(v) => Atomic(v)
-    case Concat(x, y) => ConcatMatch(convert(x), convert(y))
-    case Or(x, y) => OrMatch(convert(x), convert(y))
-    case star@Star(v) => StarMatch(convert(v), star)
-  }
 }
 
 class RegexLang {

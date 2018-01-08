@@ -1,3 +1,5 @@
+import java.util.regex.{Matcher, Pattern}
+
 import backend._
 import backend.tree._
 import backend.tree.path._
@@ -11,10 +13,23 @@ object ScalaAMReporter {
   private var currentPath: Path = Nil
   private var currentReport: PathConstraint = Nil
 
-  private var optCurrentErrorPaths: Option[Set[RegexMatch]] = None
+  private var optCurrentErrorPaths: Option[Set[Pattern]] = None
 
   def setCurrentErrorPaths(newCurrentErrorPaths: Set[Regex]): Unit = {
-    optCurrentErrorPaths = Some(newCurrentErrorPaths.map(RegexToRegexMatch.convert))
+    optCurrentErrorPaths = Some(newCurrentErrorPaths.map((regex: Regex) => Pattern.compile(regex.toString)))
+  }
+
+  private def testCurrentPath: Boolean = {
+    val pathString = currentPath.map({
+      case ElseBranchTaken => "e"
+      case ThenBranchTaken => "t"
+    }).mkString("")
+    Logger.log(s"Current pathstring is $pathString", Logger.E)
+
+    val matchers: Set[Matcher] = optCurrentErrorPaths.get.map(_.matcher(pathString))
+    val result = matchers.exists(_.matches())
+    lazy val hitEnd = matchers.exists(_.hitEnd())
+    result || hitEnd
   }
 
   def enableConcolic(): Unit = {
@@ -65,47 +80,12 @@ object ScalaAMReporter {
     val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
     addConstraint(optimizedConstraint, thenBranchTaken)
     if (ConcolicRunTimeFlags.checkAnalysis) {
-      val pathString = currentPath.map({
-        case ElseBranchTaken => "e"
-        case ThenBranchTaken => "t"
-      }).mkString("")
-      println(s"Current pathstring is $pathString")
-      val result: Boolean = ??? // InitialErrorPaths.testString(pathString)
+      assert(optCurrentErrorPaths.isDefined)
+      val result: Boolean = testCurrentPath
       if (! result) {
         Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
         throw AbortConcolicRunException
       }
-      // TODO Using automaton approach now
-//      optCurrentErrorPaths match {
-//        case Some(currentErrorPaths) =>
-//          println(s"In ScalaAMReporter, currentErrorPaths are ${currentErrorPaths}")
-//          val SplitErrorPaths(startsWithThen, startsWithElse) = splitErrorPaths(currentErrorPaths)
-//          if (thenBranchTaken) {
-//            if (startsWithThen.isEmpty) {
-//              Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
-//              // The current path does not follow an existing errorpath, so abort this run
-//              throw AbortConcolicRunException
-//            }
-//            // Continue with paths that follow the then-branch.
-//            val tailStartsWithThen = startsWithThen.map(_.tail)
-//            optCurrentErrorPaths = Some(tailStartsWithThen)
-//          } else {
-//            if (startsWithElse.isEmpty) {
-//              Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
-//              // The current path does not follow an existing errorpath, so abort this run
-//              throw AbortConcolicRunException
-//            }
-//            // Continue with paths that follow the else-branch.
-//            val tailStartsWithElse = startsWithElse.map(_.tail)
-//            optCurrentErrorPaths = Some(tailStartsWithElse)
-//          }
-//        case None =>
-//          Logger.log("Reporter not doing anything with error paths", Logger.U)
-//          // Assuming concolic testing is only really started if at least one errorpath is defined,
-//          // and assuming we check for every branch that was encountered whether execution still
-//          // follows _some_ errorpath (as is done in this function), this should never happen.
-//          throw AbortConcolicRunException
-//      }
     }
   }
 
