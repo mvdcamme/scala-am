@@ -7,7 +7,7 @@ import dk.brics.automaton._
 class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boolean, annotToChar: A => Option[Char]) {
 
   implicit val stateGraphNode: GraphNode[State, Unit] = new GraphNode[State, Unit] { }
-  implicit val stateGraphAnnotation: GraphAnnotation[Char, Unit] = new GraphAnnotation[Char, Unit] { }
+  implicit val stateGraphAnnotation: GraphAnnotation[String, Unit] = new GraphAnnotation[String, Unit] { }
 
   /**
     * Returns the number of visited states
@@ -41,13 +41,13 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
       Automaton.setMinimization(1) // brzozowski
       automaton.minimize()
       println("shortest = " + BasicOperations.getShortestExample(automaton, true))
-      var grap = Graph.empty[State, Char, Unit]
+      var grap = Graph.empty[State, String, Unit]
       automaton.getStates.forEach((st: State) => {
         grap = grap.addNode(st)
         var lt = Set[Transition]()
         st.getTransitions.forEach(x => lt = lt + new Transition(x.getMin, x.getDest))
         assert(lt.size == st.getTransitions.size)
-        lt.foreach({ s => grap = grap.addEdge(st, s.getMin, s.getDest) })
+        lt.foreach({ s => grap = grap.addEdge(st, s.getMin.toString, s.getDest) })
       })
 
       val states = grap.nodes.toArray

@@ -1,10 +1,10 @@
 import dk.brics.automaton.State
 
-class NFARegex2(graph : Graph[State, Char, Unit], initialState: State, states: Array[State], finalStates : List[State]) {
+class NFARegex2(graph : Graph[State, String, Unit], initialState: State, states: Array[State], finalStates : List[State]) {
 
   val regexSimplifier = new RegexLang
 
-  def hasEdge(node1: State, annot: Char, node2: State): Boolean = {
+  def hasEdge(node1: State, annot: String, node2: State): Boolean = {
     graph.nodeEdges(node1).contains((annot, node2))
   }
 
@@ -17,9 +17,9 @@ class NFARegex2(graph : Graph[State, Char, Unit], initialState: State, states: A
     for (i <- 1 to size) {
       for (j <- 1 to size) {
         if (i == j) {
-          A(i)(j)(0) = EmptyWord()
+          A(i)(j)(0) = EmptyWord
         } else {
-          A(i)(j)(0) = EmptySet()
+          A(i)(j)(0) = EmptySet
         }
 
         for (a <- annotations) {
