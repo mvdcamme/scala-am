@@ -1,21 +1,44 @@
 sealed trait Regex[T]
-case class EmptyWord[T]() extends Regex[T] {
+sealed trait RegexMatch[T]
+
+case class EmptyWord[T]() extends Regex[T] with RegexMatch[T] {
   override def toString: String = "ε"
 }
-case class EmptySet[T]() extends Regex[T] {
+case class EmptySet[T]() extends Regex[T] with RegexMatch[T] {
   override def toString: String = "∅"
 }
-case class Atomic[T](v: T) extends Regex[T] {
+case class Atomic[T](v: T) extends Regex[T] with RegexMatch[T] {
   override def toString: String = v.toString
+}
+case class Concat[T](x: Regex[T], y: Regex[T]) extends Regex[T] with RegexMatch[T] {
+  override def toString: String = s"($x.$y)"
+}
+case class Or[T](x: Regex[T], y: Regex[T]) extends Regex[T] with RegexMatch[T] {
+  override def toString: String = s"($x+$y)"
 }
 case class Star[T](v: Regex[T]) extends Regex[T] {
   override def toString: String = s"$v*"
 }
-case class Concat[T](x: Regex[T], y: Regex[T]) extends Regex[T] {
+case class ConcatMatch[T](x: RegexMatch[T], y: RegexMatch[T]) extends RegexMatch[T] {
   override def toString: String = s"($x.$y)"
 }
-case class Or[T](x: Regex[T], y: Regex[T]) extends Regex[T] {
+case class OrMatch[T](x: RegexMatch[T], y: RegexMatch[T]) extends RegexMatch[T] {
   override def toString: String = s"($x+$y)"
+}
+case class StarMatch[T](current: RegexMatch[T], original: Star[T]) extends RegexMatch[T] {
+  override def toString: String = original.toString
+}
+
+object RegexToRegexMatch {
+  import scala.language.implicitConversions
+  implicit def convert[T](regex: Regex[T]): RegexMatch[T] = regex match {
+    case EmptyWord() => EmptyWord()
+    case EmptySet() => EmptySet()
+    case Atomic(v) => Atomic(v)
+    case Concat(x, y) => ConcatMatch(convert(x), convert(y))
+    case Or(x, y) => OrMatch(convert(x), convert(y))
+    case star@Star(v) => StarMatch(convert(v), star)
+  }
 }
 
 class RegexLang[T] {

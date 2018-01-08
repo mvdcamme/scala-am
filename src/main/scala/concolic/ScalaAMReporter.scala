@@ -11,10 +11,10 @@ object ScalaAMReporter {
   private var currentPath: Path = Nil
   private var currentReport: PathConstraint = Nil
 
-  private var optCurrentErrorPaths: Option[Set[Path]] = None
+  private var optCurrentErrorPaths: Option[Set[RegexMatch[SymbolicTreeEdge]]] = None
 
-  def setCurrentErrorPaths(newCurrentErrorPaths: Set[Path]): Unit = {
-    optCurrentErrorPaths = Some(newCurrentErrorPaths)
+  def setCurrentErrorPaths(newCurrentErrorPaths: Set[Regex[SymbolicTreeEdge]]): Unit = {
+    optCurrentErrorPaths = Some(newCurrentErrorPaths.map(RegexToRegexMatch.convert))
   }
 
   def enableConcolic(): Unit = {
@@ -29,7 +29,8 @@ object ScalaAMReporter {
     InputVariableStore.reset()
     currentPath = Nil
     currentReport = Nil
-    optCurrentErrorPaths = None // TODO MV Using automaton approach now ...   InitialErrorPaths.get
+    /* Reset initial error regexes */
+    InitialErrorPaths.get.foreach(setCurrentErrorPaths)
     GlobalSymbolicEnvironment.reset()
     GlobalSymbolicStore.reset()
   }
@@ -117,8 +118,10 @@ object ScalaAMReporter {
 
   def doErrorPathsDiverge: Boolean = optCurrentErrorPaths match {
     case Some(errorPaths) =>
-      val SplitErrorPaths(startsWithThen, startsWithElse) = splitErrorPaths(errorPaths)
-      startsWithThen.nonEmpty && startsWithElse.nonEmpty
+      //TODO
+//      val SplitErrorPaths(startsWithThen, startsWithElse) = splitErrorPaths(errorPaths)
+//      startsWithThen.nonEmpty && startsWithElse.nonEmpty
+      ???
     case None =>
       assert(false, "Should not happen: some errorpaths should be defined")
       false

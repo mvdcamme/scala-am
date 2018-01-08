@@ -1,3 +1,5 @@
+import java.util.regex._
+
 import dk.brics.automaton._
 
 /*
@@ -40,10 +42,7 @@ class TransitiveClosure[N, A, C, T](graph: Graph[N, A, C], isErrorState: N => Bo
 
       Automaton.setMinimization(1) // brzozowski
       automaton.minimize()
-      val shortestp = BasicOperations.getShortestExample(automaton, true)
-
       println("shortest = " + BasicOperations.getShortestExample(automaton, true))
-
       var grap = Graph.empty[State, T, Unit]
       automaton.getStates.forEach((st: State) => {
         grap = grap.addNode(st)
@@ -63,6 +62,16 @@ class TransitiveClosure[N, A, C, T](graph: Graph[N, A, C], isErrorState: N => Bo
       val regex = new NFARegex2[T](grap, initialState, states, finals.toList)
       val regexes = regex.compute2()
       println(s"regexes are ${regexes.mkString(";;;")}")
+
+//      val regexesStrings = regexes.map(_.toString)
+      val patterns: Set[Pattern] = regexes.map((regex: Regex[T]) => Pattern.compile(regex.toString))
+      val matchers: Set[Matcher] = patterns.map(_.matcher("t"))
+      val result = matchers.exists(_.matches())
+      println(s"any complete result found: ${result}")
+      val hitEnd = matchers.exists(_.hitEnd())
+      println(s"any partial result found: $hitEnd")
+
+
       Some(regexes)
     } else {
       None
