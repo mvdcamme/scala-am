@@ -30,8 +30,6 @@ class NFARegex2(graph : Graph[State, String, Unit], initialState: State, states:
       }
     }
 
-    println("starting transitive closure")
-
     var start = System.nanoTime()
     for(k <- 1 to size) {
       for(i <- 1 to size) {
@@ -57,11 +55,7 @@ class NFARegex2(graph : Graph[State, String, Unit], initialState: State, states:
 
     for(i <- 1 to size) {
       if(finalStates.contains(states(i-1))) {
-        println("writing final state "+(i-1))
-        start = System.nanoTime()
         val r = sum(A(initial)(i)(size))
-        println("Took "+((System.nanoTime - start) / Math.pow(10, 9))+"s")
-        println("size = "+r.size)
         regexes = regexes ++ r
         A(initial)(i) = null
       }

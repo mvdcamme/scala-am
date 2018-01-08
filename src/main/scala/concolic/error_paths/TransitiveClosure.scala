@@ -15,14 +15,9 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
   val numberOfStates: Int = graph.nodes.size
 
   def computeRegexes: Option[Set[Regex]] = {
-      val annots = graph.getAnnotations
-      val root = graph.getNode(0).get
+    val annots = graph.getAnnotations
+    val root = graph.getNode(0).get
 
-//      val distinctFinalStates = graph.nodes.filter(isErrorState)
-
-      var shortestpaths = List[(String, Set[String])]()
-
-    var idx = 0
     if (annots.nonEmpty)  {
       val automaton = new Automaton()
       val initial = new dk.brics.automaton.State()
@@ -40,7 +35,6 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
 
       Automaton.setMinimization(1) // brzozowski
       automaton.minimize()
-      println("shortest = " + BasicOperations.getShortestExample(automaton, true))
       var grap = Graph.empty[State, String, Unit]
       automaton.getStates.forEach((st: State) => {
         grap = grap.addNode(st)
@@ -56,7 +50,6 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
       var finals = Set[State]()
       automaton.getAcceptStates.forEach((x: State) => finals = finals + x)
 
-//      TODO Jonas used this; just return the automaton instead?
       val regex = new NFARegex2(grap, initialState, states, finals.toList)
       val regexes = regex.compute2()
       println(s"regexes are ${regexes.mkString(";;;")}")
@@ -64,10 +57,6 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
     } else {
       None
     }
-
-//      TODO
-//      shortestpaths
-
   }
 
   /**
@@ -77,15 +66,15 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
     * state can epsilon-transition to the other state.
     */
   @scala.annotation.tailrec
-  final def convert(todo: Set[(N, State)], visited: Set[(N, State)], epsilons: java.util.HashSet[StatePair]): java.util.HashSet[StatePair] = todo.headOption match {
+  private def convert(todo: Set[(N, State)], visited: Set[(N, State)], epsilons: java.util.HashSet[StatePair]): java.util.HashSet[StatePair] = todo.headOption match {
     // S = state
-    case Some((s, ast)) if visited.exists(_._1 == s) =>
+    case Some((state, ast)) if visited.exists(_._1 == state) =>
       convert(todo.tail, visited, epsilons)
-    case Some((s, ast)) =>
+    case Some((state, ast)) =>
       var newStates = Set[(N, State)]()
 
       // Set[(Annotation, State)] ,node == state
-      graph.nodeEdges(s).foreach({
+      graph.nodeEdges(state).foreach({
         case (annot, node) =>
           // new state for node
           val newState = visited.find(_._1 == node).map(_._2).getOrElse(new State())
@@ -103,21 +92,7 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
           // node = our state
           newStates = newStates + ((node, newState))
       })
-//      val newT: (N, State) =
-      convert(todo.tail ++ newStates, visited + ((s, ast): (N, State)), epsilons)
+      convert(todo.tail ++ newStates, visited + ((state, ast): (N, State)), epsilons)
     case None => epsilons
   }
-
-
-
-  type R = Array[Array[Array[Set[error_paths.RegExp]]]]
-  def getR(r: R, i: Int, j: Int, k: Int): Set[error_paths.RegExp] = {
-    r(i)(j)(k)
-  }
-  def setR(r: R, i: Int, j: Int, k: Int, newValue: Set[error_paths.RegExp]): Unit = {
-    r(i)(j).update(k, newValue)
-  }
-
-  def computeRegularExpressions(g: Graph[N, A, C]): Unit = ()
-
 }
