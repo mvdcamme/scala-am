@@ -61,7 +61,6 @@ object ScalaAMReporter {
   }
 
   private def addConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean): Unit = {
-    currentPath :+= (if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken)
     if (! ConstraintOptimizer.isConstraintConstant(constraint)) {
       /*
        * If the constraint is constant, don't bother adding it to the currentReport as it will always be either true or false anyway.
@@ -91,6 +90,10 @@ object ScalaAMReporter {
 
   def getCurrentPath: Path = currentPath
   def getCurrentReport: PathConstraint = currentReport
+
+  def addToCurrentPath(thenBranchTaken: Boolean): Unit = {
+    currentPath :+= (if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken)
+  }
 
   def printReports(): Unit = {
     Logger.log(s"Reporter recorded path: ${currentReport.mkString("; ")}", Logger.U)

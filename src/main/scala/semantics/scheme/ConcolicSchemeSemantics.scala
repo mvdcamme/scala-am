@@ -397,7 +397,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
         funcallArgs(frame.f, frame, frame.fexp, (frame.cur, v, concolicValue) :: frame.args,
                     frame.toeval, frame.env, store, t, v, concolicValue, frameGeneratorGenerator)
       case frame: FrameIf[ConcreteValue, Addr, Time] =>
-        concolicValue.foreach(SemanticsConcolicHelper.handleIf(_, sabs.isTrue(v)))
+        SemanticsConcolicHelper.handleIf(concolicValue, sabs.isTrue(v))
         conditional(v, addEvalActionT(ActionEval(frame.cons, frame.env, store)), addEvalActionT(ActionEval(frame.alt, frame.env, store)))
       case frame: FrameLet[ConcreteValue, Addr, Time] =>
         val variable = frame.variable
@@ -470,9 +470,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
           evalBody(frame.rest, frame.env, store)
       }
       case frame: FrameCond[ConcreteValue, Addr, Time] =>
-
-        concolicValue.foreach(SemanticsConcolicHelper.handleIf(_, sabs.isTrue(v)))
-
+        SemanticsConcolicHelper.handleIf(concolicValue, sabs.isTrue(v))
         val falseValue = sabs.inject(false)
         conditional(v,
                     if (frame.cons.isEmpty) {

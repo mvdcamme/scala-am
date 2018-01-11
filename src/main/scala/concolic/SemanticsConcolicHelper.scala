@@ -3,14 +3,17 @@ import backend.tree._
 
 object SemanticsConcolicHelper {
 
-  def handleIf(concolicExpression: ConcolicExpression, thenBranchTaken: Boolean): Unit = {
+  def handleIf(optConcolicExpression: Option[ConcolicExpression], thenBranchTaken: Boolean): Unit = {
+    ScalaAMReporter.addToCurrentPath(thenBranchTaken)
     if (ScalaAMReporter.isConcolicEnabled) {
-      concolicExpression match {
-        case b: BooleanConcolicExpression =>
+      optConcolicExpression match {
+        case Some(b: BooleanConcolicExpression) =>
           val baseConstraint = BranchConstraint(b)
           ScalaAMReporter.addBranchConstraint(baseConstraint, thenBranchTaken)
-        case _ =>
-          Logger.log(s"Using a non-BooleanConcolicExpression in a branch constraint: $concolicExpression", Logger.E)
+        case Some(_) =>
+          Logger.log(s"Using a non-BooleanConcolicExpression in a branch constraint: $optConcolicExpression", Logger.E)
+        case None =>
+          Logger.log("Branch constraint not added to symbolic tree", Logger.E)
       }
     }
   }
