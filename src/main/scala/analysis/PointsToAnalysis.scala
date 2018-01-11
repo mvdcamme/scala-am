@@ -1,6 +1,6 @@
 import java.io.{BufferedWriter, File, FileWriter}
 
-import ConcreteConcreteLattice.{ L => ConcreteValue }
+import ConcreteConcreteLattice.{L => ConcreteValue}
 import EdgeAnnotation.graphAnnotation
 
 class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Timestamp] {
@@ -168,6 +168,59 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoPro
     runStaticAnalysisGeneric(currentProgramState, None, Some("initial_graph.dot")) match {
       case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.MachineState] =>
         GraphDOTOutput.toFile(result.hasGraph.graph, ())("initial_graph.dot")
+
+        def hasThen(edge: EdgeAnnotation[SchemeExp, Abs, HybridAddress.A]): Boolean = {
+          edge.filters.semanticsFilters.contains(ThenBranchFilter)
+        }
+        def hasElse(edge: EdgeAnnotation[SchemeExp, Abs, HybridAddress.A]): Boolean = {
+          edge.filters.semanticsFilters.contains(ElseBranchFilter)
+        }
+
+        val graph: Graph[aam.MachineState, EdgeAnnotation[SchemeExp, Abs, HybridAddress.A], Unit] = result.hasGraph.graph
+        val root = graph.getNode(0).get
+
+        @scala.annotation.tailrec
+        def findSatPath(todo: Set[(aam.MachineState, Int)], visited: Set[(aam.MachineState, Int)], follow: EdgeAnnotation[SchemeExp, Abs, HybridAddress.A] => Boolean, dontFollow: EdgeAnnotation[SchemeExp, Abs, HybridAddress.A] => Boolean): aam.MachineState = todo.headOption match {
+          case None => null
+          case Some((state, n)) if visited.contains((state, n)) => findSatPath(todo.tail, visited, follow, dontFollow)
+          case Some(tuple@(state, n)) =>
+            val edges = graph.nodeEdges(state)
+            val newStuff: Set[(aam.MachineState, Int)] = edges.flatMap(edge => {
+              if (follow(edge._1)) {
+                Set[(aam.MachineState, Int)]((edge._2, n - 1))
+              } else if (dontFollow(edge._1)) {
+                Set[(aam.MachineState, Int)]()
+              } else {
+                Set[(aam.MachineState, Int)]((edge._2, n))
+              }
+            })
+            newStuff.find(_._2 == 0) match {
+              case Some(tuple) => tuple._1
+              case None =>
+                findSatPath(newStuff ++ todo.tail, visited + tuple, follow, dontFollow)
+            }
+        }
+
+        @scala.annotation.tailrec
+        def findError(todo: Set[List[aam.MachineState]], visited: Set[aam.MachineState]): List[aam.MachineState] = todo.headOption match {
+          case None => throw new Exception()
+          case Some(path) if path.last.isErrorState => path
+          case Some(path) if visited.contains(path.last) => findError(todo.tail, visited)
+          case Some(path) =>
+            val state = path.last
+            val edges = graph.nodeEdges(state)
+            val newStuff = edges.map(path :+ _._2)
+            findError(newStuff ++ todo.tail, visited + state)
+        }
+
+        val cycle10Exists = findSatPath(Set((root, 2)), Set(), hasThen, hasElse)
+        println(s"cycle10Exists = $cycle10Exists")
+        val else1Exists = findSatPath(Set((cycle10Exists, 1)), Set(), hasElse, hasThen)
+        println(s"else1Exists = $else1Exists")
+        val errorPathFound = findError(Set(List(else1Exists)), Set())
+        errorPathFound.foreach(state => println(s"id of $state is ${graph.nodeId(state)}"))
+        println(s"errorPathFound = $errorPathFound")
+
 //        incrementalAnalysis.initializeGraph(result.hasGraph.graph)
         initializeAnalyses(result.hasGraph.graph, programName)
         result
