@@ -13,6 +13,19 @@ object ScalaAMReporter {
   private var currentPath: Path = Nil
   private var currentReport: PathConstraint = Nil
 
+  def getCurrentPath: Path = currentPath
+  private def resetCurrentPath(): Unit = {
+    currentPath = Nil
+  }
+
+  def getCurrentReport: PathConstraint = currentReport
+  private def resetCurrentReport(): Unit = {
+    currentReport = Nil
+  }
+  def addToCurrentPath(thenBranchTaken: Boolean): Unit = {
+    currentPath :+= (if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken)
+  }
+
   private def testCurrentPath: Boolean = {
     val pathString = currentPath.map({
       case ElseBranchTaken => "e"
@@ -20,7 +33,12 @@ object ScalaAMReporter {
     }).mkString("")
     Logger.log(s"Current pathstring is $pathString", Logger.D)
 
-    InitialErrorPaths.get.get.partialMatch(pathString)
+    val partialMatch = InitialErrorPaths.get.get.incrementalMatch(pathString)
+    if (partialMatch) {
+      /* We're using the incremental match for performance reasons, so the string should be reset if there is a match. */
+      resetCurrentPath()
+    }
+    partialMatch
   }
 
   def enableConcolic(): Unit = {
@@ -33,8 +51,8 @@ object ScalaAMReporter {
   def clear(isFirstClear: Boolean): Unit = {
     Reporter.clear()
     InputVariableStore.reset()
-    currentPath = Nil
-    currentReport = Nil
+    resetCurrentPath()
+    resetCurrentReport()
     GlobalSymbolicEnvironment.reset()
     GlobalSymbolicStore.reset()
   }
@@ -75,13 +93,6 @@ object ScalaAMReporter {
         throw AbortConcolicRunException
       }
     }
-  }
-
-  def getCurrentPath: Path = currentPath
-  def getCurrentReport: PathConstraint = currentReport
-
-  def addToCurrentPath(thenBranchTaken: Boolean): Unit = {
-    currentPath :+= (if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken)
   }
 
   def printReports(): Unit = {
