@@ -683,10 +683,8 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
 
     def convertValue(value: Value): Abs = value match {
       case Bot => convLat.bottom
-      case Str(s) => convLat.inject(s.asInstanceOf[ISet[String]].toList.head)
-      case Bool(b) =>
-        val mapped = b.asInstanceOf[ISet[Boolean]].toList.map(convLat.inject)
-        mapped.reduce((a, b) => convLat.join(a, b)) // TODO MV
+      case Str(s) => convLat.inject(s.returnSingle)
+      case Bool(b) => convLat.inject(b.returnSingle)
       case Int(i) => convLat.inject(i.returnSingle)
       case Real(r) => convLat.inject(r.returnSingle)
       case Char(c) => convLat.inject(c.returnSingle)

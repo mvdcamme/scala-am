@@ -1,5 +1,3 @@
-import scalaz.ISet
-
 object SimpleTypes extends Enumeration {
   val Boolean, Bottom, Char, Closure, Cons, Float, Integer, Nil, Primitive,
   String, Symbol, Top, Vector, VectorAddress = Value
