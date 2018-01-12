@@ -1,5 +1,3 @@
-import java.util.regex.{Matcher, Pattern}
-
 import backend._
 import backend.tree._
 import backend.tree.path._
@@ -16,7 +14,7 @@ object ScalaAMReporter {
 
   import scala.language.implicitConversions
   implicit def pathToString(path: Path): String = {
-    currentPath.map({
+    path.map({
       case ElseBranchTaken => "e"
       case ThenBranchTaken => "t"
     }).mkString("")
