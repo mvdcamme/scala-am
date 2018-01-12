@@ -36,7 +36,7 @@ object ScalaAMReporter {
   }
 
   private def testCurrentPath: Boolean = {
-    Logger.log(s"Current pathstring is $currentPath", Logger.E)
+    Logger.log(s"Current pathstring is ${pathToString(currentPath)}", Logger.E)
     val partialMatch = InitialErrorPaths.get.get.incrementalMatch(currentPath)
     if (partialMatch) {
       /* We're using the incremental match for performance reasons, so the string should be reset if there is a match. */
@@ -67,16 +67,6 @@ object ScalaAMReporter {
     resetCurrentReport()
     GlobalSymbolicEnvironment.reset()
     GlobalSymbolicStore.reset()
-  }
-
-  private case class SplitErrorPaths(thenPaths: Set[Path], elsePaths: Set[Path])
-
-  private def splitErrorPaths(errorPaths: Set[Path]): SplitErrorPaths = {
-    // If node does not follow a path along which an error is located, make the corresponding branch ineligable for testing
-    val nonEmptyPaths = errorPaths.filter(_.nonEmpty)
-    val startsWithThen = nonEmptyPaths.filter(_.head == backend.tree.path.ThenBranchTaken)
-    val startsWithElse = nonEmptyPaths.filter(_.head == backend.tree.path.ElseBranchTaken)
-    SplitErrorPaths(startsWithThen, startsWithElse)
   }
 
   private def addConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean): Unit = {
