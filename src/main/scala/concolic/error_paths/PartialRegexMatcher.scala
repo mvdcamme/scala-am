@@ -1,6 +1,6 @@
 import dk.brics.automaton.{ Automaton, State }
 
-case class PartialRegexMatcher(automaton: Automaton) {
+class PartialRegexMatcher(val automaton: Automaton) {
 
   sealed trait MatchResult {
     def representsMatch: Boolean

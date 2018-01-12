@@ -38,7 +38,7 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
       Automaton.setMinimization(1) // brzozowski
       automaton.minimize()
       
-      val partialMatcher = PartialRegexMatcher(automaton)
+      val partialMatcher = new PartialRegexMatcher(automaton)
       Some(partialMatcher)
     } else {
       None
