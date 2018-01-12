@@ -13,23 +13,14 @@ object ScalaAMReporter {
   private var currentPath: Path = Nil
   private var currentReport: PathConstraint = Nil
 
-  private var optCurrentErrorPaths: Option[Set[Pattern]] = None
-
-  def setCurrentErrorPaths(newCurrentErrorPaths: Set[Regex]): Unit = {
-    optCurrentErrorPaths = Some(newCurrentErrorPaths.map((regex: Regex) => Pattern.compile(regex.toString)))
-  }
-
   private def testCurrentPath: Boolean = {
     val pathString = currentPath.map({
       case ElseBranchTaken => "e"
       case ThenBranchTaken => "t"
     }).mkString("")
-    Logger.log(s"Current pathstring is $pathString", Logger.E)
+    Logger.log(s"Current pathstring is $pathString", Logger.D)
 
-    val matchers: Set[Matcher] = optCurrentErrorPaths.get.map(_.matcher(pathString))
-    val result = matchers.exists(_.matches())
-    lazy val hitEnd = matchers.exists(_.hitEnd())
-    result || hitEnd
+    InitialErrorPaths.get.get.partialMatch(pathString)
   }
 
   def enableConcolic(): Unit = {
@@ -44,8 +35,6 @@ object ScalaAMReporter {
     InputVariableStore.reset()
     currentPath = Nil
     currentReport = Nil
-    /* Reset initial error regexes */
-    InitialErrorPaths.get.foreach(setCurrentErrorPaths)
     GlobalSymbolicEnvironment.reset()
     GlobalSymbolicStore.reset()
   }
@@ -79,7 +68,7 @@ object ScalaAMReporter {
     val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
     addConstraint(optimizedConstraint, thenBranchTaken)
     if (ConcolicRunTimeFlags.checkAnalysis) {
-      assert(optCurrentErrorPaths.isDefined)
+      assert(InitialErrorPaths.get.isDefined)
       val result: Boolean = testCurrentPath
       if (! result) {
         Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
@@ -99,14 +88,5 @@ object ScalaAMReporter {
     Logger.log(s"Reporter recorded path: ${currentReport.mkString("; ")}", Logger.U)
   }
 
-  def doErrorPathsDiverge: Boolean = optCurrentErrorPaths match {
-    case Some(errorPaths) =>
-      //TODO
-//      val SplitErrorPaths(startsWithThen, startsWithElse) = splitErrorPaths(errorPaths)
-//      startsWithThen.nonEmpty && startsWithElse.nonEmpty
-      ???
-    case None =>
-      assert(false, "Should not happen: some errorpaths should be defined")
-      false
-  }
+  def doErrorPathsDiverge: Boolean = ??? // TODO
 }

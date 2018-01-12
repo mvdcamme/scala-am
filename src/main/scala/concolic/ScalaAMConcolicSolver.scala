@@ -4,10 +4,10 @@ import backend.solvers._
 import backend.tree.path.SymbolicTreeEdge
 
 object InitialErrorPaths {
-  private var regexes: Option[Set[Regex]] = None
-  def get: Option[Set[Regex]] = regexes
-  def set(newRegexes: Set[Regex]): Unit = {
-    regexes = Some(newRegexes)
+  private var maybePartialMatcher: Option[PartialRegexMatcher] = None
+  def get: Option[PartialRegexMatcher] = maybePartialMatcher
+  def set(partialMatcher: PartialRegexMatcher): Unit = {
+    maybePartialMatcher = Some(partialMatcher)
 //    regexes = Some(paths)
 //    Reporter.replaceWhitelistedPaths(paths) TODO Trying to use regexes-approach now...
   }
@@ -24,13 +24,13 @@ object ScalaAMConcolicSolver {
 
   private def handleAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult): Option[Set[Regex]] = {
+    (result: StaticAnalysisResult): Option[PartialRegexMatcher] = {
     if (ConcolicRunTimeFlags.checkAnalysis) {
       result match {
         case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
-          val optRegexes = errorPathDetector.detectErrors(outputGraph.hasGraph.graph)
+          val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.hasGraph.graph)
 //          Logger.log(s"### Concolic got error paths $automaton", Logger.U)
-          optRegexes
+          maybePartialMatcher
         case _ =>
           Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
           None
@@ -59,23 +59,22 @@ object ScalaAMConcolicSolver {
 
   def handleInitialAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult): Option[Set[Regex]] = {
-    val regexes = handleAnalysisResult[Abs](errorPathDetector)(result)
-    InitialErrorPaths.set(regexes.get)
-    regexes
+    (result: StaticAnalysisResult): Option[PartialRegexMatcher] = {
+    val maybePartialMatcher = handleAnalysisResult[Abs](errorPathDetector)(result)
+    InitialErrorPaths.set(maybePartialMatcher.get)
+    maybePartialMatcher
   }
 
 
   def handleRunTimeAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult, prefixErrorPath: Path): Option[Set[Regex]] = {
-    val regexes = handleAnalysisResult[Abs](errorPathDetector)(result)
-    // TODO MV Using automaton approach now...
+    (result: StaticAnalysisResult, prefixErrorPath: Path): Option[PartialRegexMatcher] = {
+    val maybePartialMatcher = handleAnalysisResult[Abs](errorPathDetector)(result)
 //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
 //    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
-    InitialErrorPaths.set(regexes.get)
+    InitialErrorPaths.set(maybePartialMatcher.get)
 //    ScalaAMReporter.setCurrentErrorPaths(automaton)
-    regexes
+    maybePartialMatcher
   }
 
 }

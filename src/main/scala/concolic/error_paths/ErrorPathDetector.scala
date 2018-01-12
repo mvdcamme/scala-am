@@ -29,14 +29,14 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
     }
   }
 
-  def detectErrors(graph: RelevantGraph): Option[Set[Regex]] = graph.getNode(0) match {
+  def detectErrors(graph: RelevantGraph): Option[PartialRegexMatcher] = graph.getNode(0) match {
     case None =>
       Logger.log("Graph is empty", Logger.U)
       None
     case Some(_) =>
       val transitiveClosure = new TransitiveClosure(graph, (state: aam.State) => state.isErrorState, annotToOptChar)
-      val regexes = transitiveClosure.computeRegexes
-      regexes
+      val maybePartialMatcher = transitiveClosure.computePartialMatcher
+      maybePartialMatcher
   }
 
 }

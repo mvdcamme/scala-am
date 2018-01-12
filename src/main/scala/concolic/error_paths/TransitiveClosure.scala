@@ -1,3 +1,5 @@
+import java.io.{BufferedWriter, FileWriter}
+
 import dk.brics.automaton._
 
 /*
@@ -14,7 +16,7 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
     */
   val numberOfStates: Int = graph.nodes.size
 
-  def computeRegexes: Option[Set[Regex]] = {
+  def computePartialMatcher: Option[PartialRegexMatcher] = {
     val annots = graph.getAnnotations
     val root = graph.getNode(0).get
 
@@ -35,25 +37,13 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
 
       Automaton.setMinimization(1) // brzozowski
       automaton.minimize()
-      var grap = Graph.empty[State, String, Unit]
-      automaton.getStates.forEach((st: State) => {
-        grap = grap.addNode(st)
-        var lt = Set[Transition]()
-        st.getTransitions.forEach(x => lt = lt + new Transition(x.getMin, x.getDest))
-        assert(lt.size == st.getTransitions.size)
-        lt.foreach({ s => grap = grap.addEdge(st, s.getMin.toString, s.getDest) })
-      })
 
-      val states = grap.nodes.toArray
-      val initialState = automaton.getInitialState
-
-      var finals = Set[State]()
-      automaton.getAcceptStates.forEach((x: State) => finals = finals + x)
-
-      val regex = new NFARegex2(grap, initialState, states, finals.toList)
-      val regexes = regex.compute2()
-      println(s"regexes are ${regexes.mkString(";;;")}")
-      Some(regexes)
+      val dotString = automaton.toDot
+      val fw = new BufferedWriter(new FileWriter("automaton.dot"))
+      fw.write(dotString)
+      fw.close()
+      val partialMatcher = PartialRegexMatcher(automaton)
+      Some(partialMatcher)
     } else {
       None
     }

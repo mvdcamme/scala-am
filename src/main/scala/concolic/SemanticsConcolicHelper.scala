@@ -10,10 +10,8 @@ object SemanticsConcolicHelper {
         case Some(b: BooleanConcolicExpression) =>
           val baseConstraint = BranchConstraint(b)
           ScalaAMReporter.addBranchConstraint(baseConstraint, thenBranchTaken)
-        case Some(_) =>
-          Logger.log(s"Using a non-BooleanConcolicExpression in a branch constraint: $optConcolicExpression", Logger.E)
+        case Some(_) => Logger.log(s"Using a non-BooleanConcolicExpression in a branch constraint: $optConcolicExpression", Logger.E)
         case None =>
-          Logger.log("Branch constraint not added to symbolic tree", Logger.E)
       }
     }
   }
