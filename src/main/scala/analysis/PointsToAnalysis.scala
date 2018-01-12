@@ -15,7 +15,7 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
   case class MetricsToWrite(max: Int, median: Double, average: Double, sum: Int, nrOfTops: Int)
 
   private def calculateMetrics(result: List[(Addr, Option[Int])]): MetricsToWrite = {
-    val integerValues = result.map(_._2).filter(_.isDefined).map(_.get)
+    val integerValues = result.flatMap(_._2)
     val numberValues = integerValues.map(_.toDouble).sortWith(_ < _)
     val length = numberValues.length
     if (length == 0) {
@@ -66,7 +66,7 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
     })
     val metrics = calculateMetrics(result)
     Logger.log(
-      s"Static points-to analysis completed:\n" +
+      "Static points-to analysis completed:\n" +
       s"resulting value is ${output.finalValues}\n" +
       s"resulting set equals $result\n" +
       s"metrics equals $metrics\n",
@@ -84,7 +84,7 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
       startState: machine.InitialState,
       isInitial: Boolean,
       stepSwitched: Option[Int]): StaticAnalysisResult = {
-    Logger.log(s"Starting static points-to analysis", Logger.I)
+    Logger.log("Starting static points-to analysis", Logger.I)
     val result = machine.kickstartEval(startState, sem, None, Timeout.none, stepSwitched)
     toDot.foreach(result.toFile)
     analyzeOutput(machine, pointsTo, relevantAddress)(result)
