@@ -13,6 +13,15 @@ object ScalaAMReporter {
   private var currentPath: Path = Nil
   private var currentReport: PathConstraint = Nil
 
+
+  import scala.language.implicitConversions
+  implicit def pathToString(path: Path): String = {
+    currentPath.map({
+      case ElseBranchTaken => "e"
+      case ThenBranchTaken => "t"
+    }).mkString("")
+  }
+
   def getCurrentPath: Path = currentPath
   private def resetCurrentPath(): Unit = {
     currentPath = Nil
@@ -27,18 +36,21 @@ object ScalaAMReporter {
   }
 
   private def testCurrentPath: Boolean = {
-    val pathString = currentPath.map({
-      case ElseBranchTaken => "e"
-      case ThenBranchTaken => "t"
-    }).mkString("")
-    Logger.log(s"Current pathstring is $pathString", Logger.D)
-
-    val partialMatch = InitialErrorPaths.get.get.incrementalMatch(pathString)
+    Logger.log(s"Current pathstring is $currentPath", Logger.E)
+    val partialMatch = InitialErrorPaths.get.get.incrementalMatch(currentPath)
     if (partialMatch) {
       /* We're using the incremental match for performance reasons, so the string should be reset if there is a match. */
       resetCurrentPath()
     }
     partialMatch
+  }
+
+  def doErrorPathsDiverge: Boolean = {
+    val currentPathFollowingElse = currentPath :+ ElseBranchTaken
+    val currentPathFollowingThen = currentPath :+ ThenBranchTaken
+    val isErrorViaElse = InitialErrorPaths.get.get.tentativeIncrementalMatch(currentPathFollowingElse)
+    val isErrorViaThen = InitialErrorPaths.get.get.tentativeIncrementalMatch(currentPathFollowingThen)
+    isErrorViaElse && isErrorViaThen
   }
 
   def enableConcolic(): Unit = {
@@ -98,6 +110,4 @@ object ScalaAMReporter {
   def printReports(): Unit = {
     Logger.log(s"Reporter recorded path: ${currentReport.mkString("; ")}", Logger.U)
   }
-
-  def doErrorPathsDiverge: Boolean = ??? // TODO
 }

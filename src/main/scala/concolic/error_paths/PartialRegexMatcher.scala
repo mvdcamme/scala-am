@@ -2,10 +2,18 @@ import dk.brics.automaton.{ Automaton, State }
 
 case class PartialRegexMatcher(automaton: Automaton) {
 
-  sealed trait MatchResult
-  case class PartialMatch(terminatingState: State) extends MatchResult
-  case class CompleteMatch(terminatingState: State) extends MatchResult
-  case object NoMatch extends MatchResult
+  sealed trait MatchResult {
+    def representsMatch: Boolean
+  }
+  case class PartialMatch(terminatingState: State) extends MatchResult {
+    override def representsMatch: Boolean = true
+  }
+  case class CompleteMatch(terminatingState: State) extends MatchResult {
+    override def representsMatch: Boolean = true
+  }
+  case object NoMatch extends MatchResult {
+    override def representsMatch: Boolean = false
+  }
 
   private val initialState: State = automaton.getInitialState
 
@@ -31,36 +39,50 @@ case class PartialRegexMatcher(automaton: Automaton) {
     loop(startState, string)
   }
 
-
   def partialMatch(string: String): Boolean = {
-    tryPartialMatch(initialState, string) match {
-      case PartialMatch(_) | CompleteMatch(_) => true
-      case NoMatch => false
-    }
+    tryPartialMatch(initialState, string).representsMatch
   }
 
   private var lastState: Option[State] = None
 
   /**
-    * Similar to [[partialMatch]], but starts checking the string from the final, cached state that was reached in the last incremental match.
-    * If no final state was cached yet, e.g., because this is the first incremental match, starts from the automaton's initial state.
+    * Similar to [[partialMatch]], but starts checking the string from the final, cached state that was reached in the
+    * last incremental match.
+    * If the updateState-parameter is true, the final state reached during this match is cached so subsequent
+    * incremental matches start from this state.
     *
     * If the string does not match, the final state is not cached.
     */
-  def incrementalMatch(string: String): Boolean = {
+  private def incrementalMatchAndMaybeUpdateState(string: String, updateState: Boolean): MatchResult = {
     /* If lastState is None, incrementalMatch hasn't yet been called before, so we start from the initial state. */
     val startState = lastState.getOrElse(initialState)
     tryPartialMatch(startState, string) match {
       case PartialMatch(endState) =>
-        lastState = Some(endState)
-        true
+        if (updateState) { lastState = Some(endState) }
+        PartialMatch(endState)
       case CompleteMatch(endState) =>
-        lastState = Some(endState)
-        true
+        if (updateState) { lastState = Some(endState) }
+        CompleteMatch(endState)
       case NoMatch =>
         /* Don't reassign lastState */
-        false
+        NoMatch
     }
+  }
+
+  /**
+    * Similar to [[partialMatch]], but starts checking the string from the final, cached state that was reached in the
+    * last incremental match.
+    * If no final state was cached yet, e.g., because this is the first incremental match, starts from the automaton's
+    * initial state.
+    *
+    * If the string does not match, the final state is not cached.
+    */
+  def incrementalMatch(string: String): Boolean = {
+    incrementalMatchAndMaybeUpdateState(string, updateState = true).representsMatch
+  }
+
+  def tentativeIncrementalMatch(string: String): Boolean = {
+    incrementalMatchAndMaybeUpdateState(string, updateState = false).representsMatch
   }
 
 }
