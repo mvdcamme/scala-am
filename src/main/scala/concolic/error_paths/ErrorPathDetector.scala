@@ -1,5 +1,4 @@
-import backend._
-import backend.tree.path._
+import backend.path_filtering.PartialRegexMatcher
 
 class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
   (val aam: KickstartAAMGlobalStore[Exp, Abs, Addr, Time]) {

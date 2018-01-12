@@ -1,15 +1,13 @@
 import backend._
 import backend.expression.ConcolicInput
+import backend.path_filtering.PartialRegexMatcher
 import backend.solvers._
-import backend.tree.path.SymbolicTreeEdge
 
 object InitialErrorPaths {
   private var maybePartialMatcher: Option[PartialRegexMatcher] = None
   def get: Option[PartialRegexMatcher] = maybePartialMatcher
   def set(partialMatcher: PartialRegexMatcher): Unit = {
     maybePartialMatcher = Some(partialMatcher)
-//    regexes = Some(paths)
-//    Reporter.replaceWhitelistedPaths(paths) TODO Trying to use regexes-approach now...
   }
 }
 
@@ -47,7 +45,10 @@ object ScalaAMConcolicSolver {
   def solve(): Boolean = {
     resetInputs()
     val report = ScalaAMReporter.getCurrentReport
-    Reporter.addExploredPath(report)
+    InitialErrorPaths.get match {
+      case Some(partialMatcher) => Reporter.addExploredPathWithPartialMatcher(report, partialMatcher)
+      case None => Reporter.addExploredPath(report)
+    }
     val result = ConcolicSolver.solve
     result match {
       case NewInput(inputs) =>

@@ -1,6 +1,6 @@
-import java.io.{BufferedWriter, FileWriter}
-
 import dk.brics.automaton._
+
+import backend.path_filtering.PartialRegexMatcher
 
 /*
  * Computes the regular expressions that describe paths between specific nodes in a general, directed graph.
