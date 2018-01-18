@@ -54,7 +54,7 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
   @scala.annotation.tailrec
   private def convert(todo: Set[(N, State)], visited: Set[(N, State)], epsilons: java.util.HashSet[StatePair]): java.util.HashSet[StatePair] = todo.headOption match {
     // S = state
-    case Some((state, ast)) if visited.exists(_._1 == state) =>
+    case Some((state, _)) if visited.exists(_._1 == state) =>
       convert(todo.tail, visited, epsilons)
     case Some((state, ast)) =>
       var newStates = Set[(N, State)]()
