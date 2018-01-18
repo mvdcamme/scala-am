@@ -3,14 +3,6 @@ import backend.expression.ConcolicInput
 import backend.path_filtering.PartialRegexMatcher
 import backend.solvers._
 
-object InitialErrorPaths {
-  private var maybePartialMatcher: Option[PartialRegexMatcher] = None
-  def get: Option[PartialRegexMatcher] = maybePartialMatcher
-  def set(partialMatcher: PartialRegexMatcher): Unit = {
-    maybePartialMatcher = Some(partialMatcher)
-  }
-}
-
 object ScalaAMConcolicSolver {
 
   private var latestInputs: List[(ConcolicInput, Int)] = Nil
@@ -45,7 +37,7 @@ object ScalaAMConcolicSolver {
   def solve(): Boolean = {
     resetInputs()
     val report = ScalaAMReporter.getCurrentReport
-    InitialErrorPaths.get match {
+    PartialMatcherStore.get match {
       case Some(partialMatcher) => Reporter.addExploredPathWithPartialMatcher(report, partialMatcher)
       case None => Reporter.addExploredPath(report)
     }
@@ -60,22 +52,19 @@ object ScalaAMConcolicSolver {
 
   def handleInitialAnalysisResult[Abs: IsSchemeLattice]
   (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult): Option[PartialRegexMatcher] = {
+    (result: StaticAnalysisResult): Unit = {
     val maybePartialMatcher = handleAnalysisResult[Abs](errorPathDetector)(result)
-    InitialErrorPaths.set(maybePartialMatcher.get)
-    maybePartialMatcher
+    PartialMatcherStore.setInitial(maybePartialMatcher.get)
   }
 
 
   def handleRunTimeAnalysisResult[Abs: IsSchemeLattice]
-  (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult, prefixErrorPath: Path): Option[PartialRegexMatcher] = {
+  (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T], result: StaticAnalysisResult): Unit = {
     val maybePartialMatcher = handleAnalysisResult[Abs](errorPathDetector)(result)
 //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
 //    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
-    InitialErrorPaths.set(maybePartialMatcher.get)
+    PartialMatcherStore.setRunTime(maybePartialMatcher.get)
 //    ScalaAMReporter.setCurrentErrorPaths(automaton)
-    maybePartialMatcher
   }
 
 }

@@ -35,7 +35,7 @@ object ScalaAMReporter {
 
   private def testCurrentPath: Boolean = {
     Logger.log(s"Current pathstring is ${pathToString(currentPath)}", Logger.V)
-    val partialMatch = InitialErrorPaths.get.get.incrementalMatch(currentPath)
+    val partialMatch = PartialMatcherStore.get.get.incrementalMatch(currentPath)
     if (partialMatch) {
       /* We're using the incremental match for performance reasons, so the string should be reset if there is a match. */
       resetCurrentPath()
@@ -46,8 +46,8 @@ object ScalaAMReporter {
   def doErrorPathsDiverge: Boolean = {
     val currentPathFollowingElse = currentPath :+ ElseBranchTaken
     val currentPathFollowingThen = currentPath :+ ThenBranchTaken
-    val isErrorViaElse = InitialErrorPaths.get.get.tentativeIncrementalMatch(currentPathFollowingElse)
-    val isErrorViaThen = InitialErrorPaths.get.get.tentativeIncrementalMatch(currentPathFollowingThen)
+    val isErrorViaElse = PartialMatcherStore.get.get.tentativeIncrementalMatch(currentPathFollowingElse)
+    val isErrorViaThen = PartialMatcherStore.get.get.tentativeIncrementalMatch(currentPathFollowingThen)
     isErrorViaElse && isErrorViaThen
   }
 
@@ -65,6 +65,7 @@ object ScalaAMReporter {
     resetCurrentReport()
     GlobalSymbolicEnvironment.reset()
     GlobalSymbolicStore.reset()
+    PartialMatcherStore.reset()
   }
 
   private def addConstraint(constraint: Constraint, thenBranchTaken: Boolean): Unit = {
@@ -85,7 +86,7 @@ object ScalaAMReporter {
        */
       addConstraint(optimizedConstraint, thenBranchTaken)
       if (ConcolicRunTimeFlags.checkAnalysis) {
-        assert(InitialErrorPaths.get.isDefined)
+        assert(PartialMatcherStore.get.isDefined)
         val result: Boolean = testCurrentPath
         if (!result) {
           Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)

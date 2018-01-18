@@ -428,12 +428,8 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
     if (ConcolicRunTimeFlags.checkAnalysis) {
       ScalaAMReporter.disableConcolic()
       val analysisResult = analysisLauncher.runInitialStaticAnalysis(initialState, programName)
-      val errorPaths = ScalaAMConcolicSolver.handleInitialAnalysisResult[PAbs](errorPathDetector)(analysisResult)
-      if (errorPaths.isEmpty) {
-        Logger.log("Initial static analysis detected no possible errors: aborting concolic testing", Logger.U)
-      } else {
-        loopConcolic(initialState, 1)
-      }
+      ScalaAMConcolicSolver.handleInitialAnalysisResult[PAbs](errorPathDetector)(analysisResult)
+      loopConcolic(initialState, 1)
     } else {
       loopConcolic(initialState, 1)
     }
@@ -450,8 +446,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
     if (ConcolicRunTimeFlags.shouldStartRunTimeAnalysis && ConcolicRunTimeFlags.checkAnalysis && ConcolicRunTimeFlags.checkRunTimeAnalysis) {
       Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.U)
       val analysisResult = startRunTimeAnalysis(programName, state)
-      val prefixErrorPath = ScalaAMReporter.getCurrentPath
-      ScalaAMConcolicSolver.handleRunTimeAnalysisResult[PAbs](errorPathDetector)(analysisResult, prefixErrorPath)
+      ScalaAMConcolicSolver.handleRunTimeAnalysisResult[PAbs](errorPathDetector, analysisResult)
     }
   }
 
