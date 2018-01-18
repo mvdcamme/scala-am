@@ -35,12 +35,13 @@ object ScalaAMReporter {
 
   private def testCurrentPath: Boolean = {
     Logger.log(s"Current pathstring is ${pathToString(currentPath)}", Logger.V)
-    val partialMatch = PartialMatcherStore.get.get.incrementalMatch(currentPath)
-    if (partialMatch) {
+    val (matched, newPartialMatcher) = PartialMatcherStore.get.get.incrementalMatch(currentPath)
+    PartialMatcherStore.setCurrentMatcher(newPartialMatcher)
+    if (matched) {
       /* We're using the incremental match for performance reasons, so the string should be reset if there is a match. */
       resetCurrentPath()
     }
-    partialMatch
+    matched
   }
 
   def doErrorPathsDiverge: Boolean = {

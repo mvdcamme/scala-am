@@ -38,7 +38,9 @@ object ScalaAMConcolicSolver {
     resetInputs()
     val report = ScalaAMReporter.getCurrentReport
     PartialMatcherStore.get match {
-      case Some(partialMatcher) => Reporter.addExploredPathWithPartialMatcher(report, partialMatcher)
+      case Some(partialMatcher) =>
+        val newPartialMatcher = Reporter.addExploredPathWithPartialMatcher(report, partialMatcher)
+        PartialMatcherStore.setCurrentMatcher(newPartialMatcher)
       case None => Reporter.addExploredPath(report)
     }
     val result = ConcolicSolver.solve
@@ -63,7 +65,7 @@ object ScalaAMConcolicSolver {
     val maybePartialMatcher = handleAnalysisResult[Abs](errorPathDetector)(result)
 //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
 //    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
-    PartialMatcherStore.setRunTime(maybePartialMatcher.get)
+    PartialMatcherStore.setCurrentMatcher(maybePartialMatcher.get)
 //    ScalaAMReporter.setCurrentErrorPaths(automaton)
   }
 

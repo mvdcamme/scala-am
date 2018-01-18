@@ -10,12 +10,11 @@ object PartialMatcherStore {
     maybeInitialPartialMatcher = Some(partialMatcher)
     reset()
   }
-  def setRunTime(partialMatcher: PartialRegexMatcher): Unit = {
+  def setCurrentMatcher(partialMatcher: PartialRegexMatcher): Unit = {
     maybeCurrentPartialMatcher = Some(partialMatcher)
   }
   def reset(): Unit = maybeInitialPartialMatcher match {
-    case Some(partialMatcher) =>
-      maybeCurrentPartialMatcher = Some(partialMatcher.makeNewMatcher())
+    case Some(initialPartialMatcher) => setCurrentMatcher(initialPartialMatcher)
     case None =>
   }
 }
