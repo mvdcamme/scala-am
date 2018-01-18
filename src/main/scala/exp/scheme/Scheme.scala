@@ -913,7 +913,7 @@ object SchemeDesugarer {
                          desugaredRest,
                          pos)
               case other =>
-                SchemeIf(other, desugaredBody, desugaredRest, pos)
+                SchemeIf(other, desugaredBody, desugaredRest, other.pos)
             }
         }
 
