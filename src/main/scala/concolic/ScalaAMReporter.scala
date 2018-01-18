@@ -34,7 +34,7 @@ object ScalaAMReporter {
   }
 
   private def testCurrentPath: Boolean = {
-    Logger.log(s"Current pathstring is ${pathToString(currentPath)}", Logger.E)
+    Logger.log(s"Current pathstring is ${pathToString(currentPath)}", Logger.V)
     val partialMatch = InitialErrorPaths.get.get.incrementalMatch(currentPath)
     if (partialMatch) {
       /* We're using the incremental match for performance reasons, so the string should be reset if there is a match. */
@@ -67,15 +67,8 @@ object ScalaAMReporter {
     GlobalSymbolicStore.reset()
   }
 
-  private def addConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean): Unit = {
-    if (! ConstraintOptimizer.isConstraintConstant(constraint)) {
-      /*
-       * If the constraint is constant, don't bother adding it to the currentReport as it will always be either true or false anyway.
-       * The currentPath should still be updated, because this path is compared with the path computed via static analyses,
-       * which don't (or can't) check whether some condition is constant or not.
-       */
-      currentReport :+= (constraint, thenBranchTaken)
-    }
+  private def addConstraint(constraint: Constraint, thenBranchTaken: Boolean): Unit = {
+    currentReport :+= (constraint, thenBranchTaken)
   }
 
   def addBranchConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean): Unit = {
@@ -84,18 +77,36 @@ object ScalaAMReporter {
     }
 
     val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
-    addConstraint(optimizedConstraint, thenBranchTaken)
-    if (ConcolicRunTimeFlags.checkAnalysis) {
-      assert(InitialErrorPaths.get.isDefined)
-      val result: Boolean = testCurrentPath
-      if (! result) {
-        Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
-        throw AbortConcolicRunException
+    if (! ConstraintOptimizer.isConstraintConstant(constraint)) {
+      /*
+       * If the constraint is constant, don't bother adding it to the currentReport as it will always be either true or false anyway.
+       * The currentPath should still be updated, because this path is compared with the path computed via static analyses,
+       * which don't (or can't) check whether some condition is constant or not.
+       */
+      addConstraint(optimizedConstraint, thenBranchTaken)
+      if (ConcolicRunTimeFlags.checkAnalysis) {
+        assert(InitialErrorPaths.get.isDefined)
+        val result: Boolean = testCurrentPath
+        if (!result) {
+          Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
+          throw AbortConcolicRunException
+        }
       }
+    } else {
+      addUnusableConstraint(thenBranchTaken)
+    }
+  }
+
+  def addUnusableConstraint(thenBranchTaken: Boolean): Unit = {
+    if (doConcolic) {
+      addConstraint(UnusableConstraint, thenBranchTaken)
     }
   }
 
   def printReports(): Unit = {
-    Logger.log(s"Reporter recorded path: ${currentReport.mkString("; ")}", Logger.U)
+    Logger.log(s"Reporter recorded path: ${currentReport.filter({
+      case (_: BranchConstraint, _) => true
+      case _ => false
+    }).mkString("; ")}", Logger.U)
   }
 }
