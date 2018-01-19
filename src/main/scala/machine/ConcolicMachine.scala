@@ -396,28 +396,34 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
       State(ConcolicControlEval(instrumentedExp, env), sto, KontStore.empty[KontAddr], HaltKontAddress, Timestamp[HybridTimestamp.T].initial(""))
     }
 
+    @scala.annotation.tailrec
     def loopConcolic(initialState: State, nrOfRuns: Int): Unit = {
+
+      def finishUpLoop: Boolean = {
+        Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.U)
+        Reporter.printTree()
+        ScalaAMReporter.printReports()
+        val shouldContinue = ScalaAMConcolicSolver.solve()
+        shouldContinue
+      }
+
       ScalaAMReporter.enableConcolic()
       Logger.log(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${ScalaAMConcolicSolver.getInputs}", Logger.U)
       ScalaAMReporter.clear(nrOfRuns < 2)
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
-      try {
+      val shouldContinue = try {
         val concolicIterationResult = loop(initialState, System.nanoTime, 0)
         concolicIterationResult match {
           case ConcolicMachineErrorEncountered(err) =>
             Logger.log(s"ERROR DETECTED DURING CONCOLIC TESTING: $err", Logger.E)
           case _ =>
         }
+        finishUpLoop
       } catch {
-        case AbortConcolicRunException =>
-      } finally {
-        Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.U)
-        Reporter.printTree()
-        ScalaAMReporter.printReports()
-        val shouldContinue = ScalaAMConcolicSolver.solve()
-        if (nrOfRuns < ConcolicRunTimeFlags.MAX_CONCOLIC_ITERATIONS && shouldContinue) {
-          loopConcolic(initialState, nrOfRuns + 1)
-        }
+        case AbortConcolicRunException => finishUpLoop
+      }
+      if (nrOfRuns < ConcolicRunTimeFlags.MAX_CONCOLIC_ITERATIONS && shouldContinue) {
+        loopConcolic(initialState, nrOfRuns + 1)
       }
     }
 
