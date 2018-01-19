@@ -53,7 +53,7 @@ object ScalaAMReporter {
 
   private def maybeIncludePartialMatcher: Option[PartialRegexMatcher] = {
     if (ConcolicRunTimeFlags.useRunTimeAnalyses && ConcolicRunTimeFlags.checkHasCompletedAnalysis) {
-      PartialMatcherStore.get
+      PartialMatcherStore.getCurrent
     } else {
       None
     }
@@ -61,7 +61,7 @@ object ScalaAMReporter {
 
   private def testCurrentPath: Boolean = {
     Logger.log(s"Current pathstring is ${pathToString(getCurrentPath)}", Logger.V)
-    val (matched, newPartialMatcher) = PartialMatcherStore.get.get.incrementalMatch(getCurrentPath)
+    val (matched, newPartialMatcher) = PartialMatcherStore.getCurrent.get.incrementalMatch(getCurrentPath)
     PartialMatcherStore.setCurrentMatcher(newPartialMatcher)
     if (matched) {
       /* We're using the incremental match for performance reasons, so the string should be reset if there is a match. */
@@ -73,8 +73,8 @@ object ScalaAMReporter {
   def doErrorPathsDiverge: Boolean = {
     val currentPathFollowingElse = (ElseBranchTaken :: currentPath).reverse
     val currentPathFollowingThen = (ThenBranchTaken :: currentPath).reverse
-    val isErrorViaElse = PartialMatcherStore.get.get.tentativeIncrementalMatch(currentPathFollowingElse)
-    val isErrorViaThen = PartialMatcherStore.get.get.tentativeIncrementalMatch(currentPathFollowingThen)
+    val isErrorViaElse = PartialMatcherStore.getCurrent.get.tentativeIncrementalMatch(currentPathFollowingElse)
+    val isErrorViaThen = PartialMatcherStore.getCurrent.get.tentativeIncrementalMatch(currentPathFollowingThen)
     isErrorViaElse && isErrorViaThen
   }
 
@@ -109,7 +109,7 @@ object ScalaAMReporter {
        */
       addConstraint(optimizedConstraint, thenBranchTaken)
       if (ConcolicRunTimeFlags.checkAnalysis) {
-        assert(PartialMatcherStore.get.isDefined)
+        assert(PartialMatcherStore.getCurrent.isDefined)
         val result: Boolean = testCurrentPath
         if (!result) {
           Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
