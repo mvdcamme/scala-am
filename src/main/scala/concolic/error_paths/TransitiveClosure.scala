@@ -11,6 +11,19 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
   implicit val stateGraphNode: GraphNode[State, Unit] = new GraphNode[State, Unit] { }
   implicit val stateGraphAnnotation: GraphAnnotation[String, Unit] = new GraphAnnotation[String, Unit] { }
 
+  private case class AutomatonToDot(automaton: Automaton) {
+    def toDotFile(path: String): Unit = {
+      val dotString = automaton.toDot
+      val fileWriter = new java.io.FileWriter(path, false)
+      fileWriter.write(dotString)
+      fileWriter.close()
+    }
+  }
+  import scala.language.implicitConversions
+  implicit private def automatonToDot(automaton: Automaton): AutomatonToDot = AutomatonToDot(automaton)
+
+
+
   /**
     * Returns the number of visited states
     */
@@ -37,6 +50,7 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
 
       Automaton.setMinimization(1) // brzozowski
       automaton.minimize()
+      automaton.toDotFile("minimized_DFA.dot")
       
       val partialMatcher = new PartialRegexMatcher(automaton)
       Some(partialMatcher)
