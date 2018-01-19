@@ -18,6 +18,11 @@ object ScalaAMConcolicSolver {
     if (ConcolicRunTimeFlags.checkAnalysis) {
       result match {
         case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
+          // TODO can't just pass the current partial matcher, because that one starts from some cached final state instead of the initial state
+          // TODO and the ENTIRE path is passed to the matcher (so including the part it has actually already matched).
+          // TODO Just passing the initial matcher would mean the current matcher wouldn't be used at all though.
+          // TODO Solution: when an AbortConcolicExecution-error is thrown, pass the path that was already created
+          // TODO to the backend and ask to invalidate that one?
           val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.hasGraph.graph)
 //          Logger.log(s"### Concolic got error paths $automaton", Logger.U)
           maybePartialMatcher
@@ -38,8 +43,8 @@ object ScalaAMConcolicSolver {
     resetInputs()
     val report = ScalaAMReporter.getCurrentReport
     PartialMatcherStore.get match {
-      case Some(partialMatcher) =>
-        val newPartialMatcher = Reporter.addExploredPathWithPartialMatcher(report, partialMatcher)
+      case Some(_) =>
+        val newPartialMatcher = Reporter.addExploredPathWithPartialMatcher(report)
         PartialMatcherStore.setCurrentMatcher(newPartialMatcher)
       case None => Reporter.addExploredPath(report)
     }
