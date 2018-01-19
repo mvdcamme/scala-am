@@ -117,7 +117,7 @@ object ScalaAMReporter {
 
   def printReports(): Unit = {
     Logger.log(s"Reporter recorded path: ${getCurrentReport.filter({
-      case (_: BranchConstraint, _) => true
+      case (_: BranchConstraint, _, _) => true
       case _ => false
     }).mkString("; ")}", Logger.U)
   }

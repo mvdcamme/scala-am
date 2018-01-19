@@ -146,11 +146,11 @@ object ConstraintOptimizer {
 
   def optimizeReport(report: PathConstraint): PathConstraint = {
     report.map({
-      case (b: BranchConstraint, constraintWasTrue) =>
+      case (b: BranchConstraint, constraintWasTrue, maybePartialMatcher) =>
         /* We only optimize actual BranchConstraints */
         val optimizedConstraint = optimizeConstraint(b)
-        (optimizedConstraint, constraintWasTrue)
-      case tuple => tuple
+        (optimizedConstraint, constraintWasTrue, maybePartialMatcher)
+      case triple => triple
     })
   }
 
