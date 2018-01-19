@@ -4,6 +4,7 @@ object PartialMatcherStore {
   private var maybeInitialPartialMatcher: Option[PartialRegexMatcher] = None
   private var maybeCurrentPartialMatcher: Option[PartialRegexMatcher] = None
   def get: Option[PartialRegexMatcher] = maybeCurrentPartialMatcher
+  def getInitial: Option[PartialRegexMatcher] = maybeInitialPartialMatcher
   def setInitial(partialMatcher: PartialRegexMatcher): Unit = {
     /* The initial error partial matcher should only be set once */
     assert(maybeInitialPartialMatcher.isEmpty)
