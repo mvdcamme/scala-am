@@ -43,8 +43,8 @@ object ScalaAMConcolicSolver {
     resetInputs()
     val report = ScalaAMReporter.getCurrentReport
     PartialMatcherStore.get match {
-      case Some(partialMatcher) =>
-        val newPartialMatcher = Reporter.addExploredPathWithPartialMatcher(report, partialMatcher)
+      case Some(_) =>
+        val newPartialMatcher = Reporter.addExploredPathWithPartialMatcher(report)
         PartialMatcherStore.setCurrentMatcher(newPartialMatcher)
       case None => Reporter.addExploredPath(report)
     }

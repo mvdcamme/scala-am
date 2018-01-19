@@ -137,6 +137,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoPro
         val startState = convertStateAAM(aam, concSem, abstSem, currentProgramState)
         val result = pointsToAnalysis.analyze(toDotFile, aam, abstSem, lip.pointsTo, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startState, false, stepSwitched)
         Logger.log(s"Static points-to analysis result is $result", Logger.U)
+        ConcolicRunTimeFlags.setHasCompletedAnalysis()
         result
       })
   }

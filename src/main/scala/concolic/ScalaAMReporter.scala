@@ -1,4 +1,5 @@
 import backend._
+import backend.path_filtering.PartialRegexMatcher
 import backend.tree._
 import backend.tree.path._
 
@@ -44,7 +45,18 @@ object ScalaAMReporter {
   }
   private def addConstraint(constraint: Constraint, thenBranchTaken: Boolean): Unit = {
     /* New constraints are added to the front of the list for performance reasons. */
-    currentReport ::= (constraint, thenBranchTaken)
+
+    /* If a new partial matcher was constructed before executing the condition, the matcher is included in the triple.
+     * NOTE: this partial matcher starts at a state corresponding to BEFORE the branch. */
+    currentReport ::= (constraint, thenBranchTaken, maybeIncludePartialMatcher)
+  }
+
+  private def maybeIncludePartialMatcher: Option[PartialRegexMatcher] = {
+    if (ConcolicRunTimeFlags.useRunTimeAnalyses && ConcolicRunTimeFlags.checkHasCompletedAnalysis) {
+      PartialMatcherStore.get
+    } else {
+      None
+    }
   }
 
   private def testCurrentPath: Boolean = {
