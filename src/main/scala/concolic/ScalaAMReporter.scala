@@ -8,7 +8,15 @@ object ScalaAMReporter {
 
   private var doConcolic: Boolean = false
 
+  /*
+   * For performance reasons, new constraints are added to the FRONT of the list, so when returning the path,
+   * the list should be reversed first.
+   */
   private var currentPath: Path = Nil
+  /*
+   * For performance reasons, new constraints are added to the FRONT of the list, so when returning the report,
+   * the list should be reversed first.
+   */
   private var currentReport: PathConstraint = Nil
 
 
@@ -20,22 +28,28 @@ object ScalaAMReporter {
     }).mkString("")
   }
 
-  def getCurrentPath: Path = currentPath
+  def getCurrentPath: Path = currentPath.reverse
   private def resetCurrentPath(): Unit = {
     currentPath = Nil
   }
+  def addToCurrentPath(thenBranchTaken: Boolean): Unit = {
+    /* New constraints are added to the front of the list for performance reasons. */
+    currentPath ::= (if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken)
+  }
 
-  def getCurrentReport: PathConstraint = currentReport
+  /* Report is reversed first, as new constraints are added to the front of the list for performance reasons. */
+  def getCurrentReport: PathConstraint = currentReport.reverse
   private def resetCurrentReport(): Unit = {
     currentReport = Nil
   }
-  def addToCurrentPath(thenBranchTaken: Boolean): Unit = {
-    currentPath :+= (if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken)
+  private def addConstraint(constraint: Constraint, thenBranchTaken: Boolean): Unit = {
+    /* New constraints are added to the front of the list for performance reasons. */
+    currentReport ::= (constraint, thenBranchTaken)
   }
 
   private def testCurrentPath: Boolean = {
-    Logger.log(s"Current pathstring is ${pathToString(currentPath)}", Logger.V)
-    val (matched, newPartialMatcher) = PartialMatcherStore.get.get.incrementalMatch(currentPath)
+    Logger.log(s"Current pathstring is ${pathToString(getCurrentPath)}", Logger.V)
+    val (matched, newPartialMatcher) = PartialMatcherStore.get.get.incrementalMatch(getCurrentPath)
     PartialMatcherStore.setCurrentMatcher(newPartialMatcher)
     if (matched) {
       /* We're using the incremental match for performance reasons, so the string should be reset if there is a match. */
@@ -45,8 +59,8 @@ object ScalaAMReporter {
   }
 
   def doErrorPathsDiverge: Boolean = {
-    val currentPathFollowingElse = currentPath :+ ElseBranchTaken
-    val currentPathFollowingThen = currentPath :+ ThenBranchTaken
+    val currentPathFollowingElse = (ElseBranchTaken :: currentPath).reverse
+    val currentPathFollowingThen = (ThenBranchTaken :: currentPath).reverse
     val isErrorViaElse = PartialMatcherStore.get.get.tentativeIncrementalMatch(currentPathFollowingElse)
     val isErrorViaThen = PartialMatcherStore.get.get.tentativeIncrementalMatch(currentPathFollowingThen)
     isErrorViaElse && isErrorViaThen
@@ -67,10 +81,6 @@ object ScalaAMReporter {
     GlobalSymbolicEnvironment.reset()
     GlobalSymbolicStore.reset()
     PartialMatcherStore.reset()
-  }
-
-  private def addConstraint(constraint: Constraint, thenBranchTaken: Boolean): Unit = {
-    currentReport :+= (constraint, thenBranchTaken)
   }
 
   def addBranchConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean): Unit = {
@@ -106,7 +116,7 @@ object ScalaAMReporter {
   }
 
   def printReports(): Unit = {
-    Logger.log(s"Reporter recorded path: ${currentReport.filter({
+    Logger.log(s"Reporter recorded path: ${getCurrentReport.filter({
       case (_: BranchConstraint, _) => true
       case _ => false
     }).mkString("; ")}", Logger.U)
