@@ -30,7 +30,7 @@ object ScalaAMReporter {
   }
 
   def getCurrentPath: Path = currentPath.reverse
-  private def resetCurrentPath(): Unit = {
+  def resetCurrentPath(): Unit = {
     currentPath = Nil
   }
   def addToCurrentPath(thenBranchTaken: Boolean): Unit = {

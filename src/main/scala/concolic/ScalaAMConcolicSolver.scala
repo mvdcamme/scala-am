@@ -87,6 +87,15 @@ object ScalaAMConcolicSolver {
 //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
 //    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
     PartialMatcherStore.setCurrentMatcher(maybePartialMatcher.get)
+    /*
+     * A new partial matcher was generated using a run-time static analysis.
+     * This matcher starts matching from a certain point _in the execution of the  program_ and hence skips the part
+     * of the path that comes before this point.
+     * The path should therefore be reset, otherwise the path (which includes every constraint encountered since
+     * the start of the execution of the program) is matched with a matches that only takes into account the constraints
+     * encountered _from the current point in the program on_.
+     */
+    ScalaAMReporter.resetCurrentPath()
 //    ScalaAMReporter.setCurrentErrorPaths(automaton)
   }
 
