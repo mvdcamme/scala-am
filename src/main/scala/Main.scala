@@ -173,6 +173,7 @@ object Main {
           val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[typeLattice.L](sem)(typeConvLattice, typeLatInfoProv, config.analysisFlags)
 
           val machine = new ConcolicMachine[typeLattice.L](pointsToAnalysisLauncher, config.analysisFlags)
+          sem.rTAnalysisStarter = machine
           runOnFile(config.file.get, program => machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined, Timeout.none))
           }
       })

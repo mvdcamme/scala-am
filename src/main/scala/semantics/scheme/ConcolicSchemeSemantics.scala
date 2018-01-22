@@ -13,6 +13,8 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
   implicit val abs: JoinLattice[ConcreteValue] = ConcreteConcreteLattice.isSchemeLattice
   implicit def sabs: IsSchemeLattice[ConcreteValue] = ConcreteConcreteLattice.isSchemeLattice
 
+  var rTAnalysisStarter: RTAnalysisStarter = _
+
   override def stepEval(e: SchemeExp,
     env: Environment[Addr],
     store: Store[Addr, ConcreteValue],
@@ -284,7 +286,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
       if (ConcolicRunTimeFlags.useRunTimeAnalyses && ScalaAMReporter.doErrorPathsDiverge) {
         // The subtree with the root at this if-expression has at least one potential error in both branches:
         // a run-time analysis should be started to try to eliminate any of these alarms.
-        ConcolicRunTimeFlags.setStartRunTimeAnalysis()
+        rTAnalysisStarter.saveCurrentState()
       }
       addPushActionR(ActionPush(FrameIf[ConcreteValue, Addr, Time](cons, alt, env, e), cond, env, store))
     case SchemeLet(Nil, body, _) =>
@@ -397,7 +399,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
         funcallArgs(frame.f, frame, frame.fexp, (frame.cur, v, concolicValue) :: frame.args,
                     frame.toeval, frame.env, store, t, v, concolicValue, frameGeneratorGenerator)
       case frame: FrameIf[ConcreteValue, Addr, Time] =>
-        SemanticsConcolicHelper.handleIf(concolicValue, sabs.isTrue(v))
+        SemanticsConcolicHelper.handleIf(concolicValue, sabs.isTrue(v), rTAnalysisStarter)
         conditional(v, addEvalActionT(ActionEval(frame.cons, frame.env, store)), addEvalActionT(ActionEval(frame.alt, frame.env, store)))
       case frame: FrameLet[ConcreteValue, Addr, Time] =>
         val variable = frame.variable
@@ -470,7 +472,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
           evalBody(frame.rest, frame.env, store)
       }
       case frame: FrameCond[ConcreteValue, Addr, Time] =>
-        SemanticsConcolicHelper.handleIf(concolicValue, sabs.isTrue(v))
+        SemanticsConcolicHelper.handleIf(concolicValue, sabs.isTrue(v), rTAnalysisStarter)
         val falseValue = sabs.inject(false)
         conditional(v,
                     if (frame.cons.isEmpty) {
