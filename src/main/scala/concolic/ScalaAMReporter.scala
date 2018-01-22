@@ -100,22 +100,23 @@ object ScalaAMReporter {
       return
     }
 
-    val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
-    if (! ConstraintOptimizer.isConstraintConstant(constraint)) {
+    lazy val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
+    if (ConcolicRunTimeFlags.checkAnalysis) {
+      addConstraint(optimizedConstraint, thenBranchTaken)
+      assert(PartialMatcherStore.getCurrent.isDefined)
+      val currentMatcher = PartialMatcherStore.getCurrent.get // TODO Debugging
+      val result: Boolean = testCurrentPath
+      if (!result) {
+        Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
+        throw AbortConcolicRunException
+      }
+    } else if (! ConstraintOptimizer.isConstraintConstant(constraint)) {
       /*
        * If the constraint is constant, don't bother adding it to the currentReport as it will always be either true or false anyway.
        * The currentPath should still be updated, because this path is compared with the path computed via static analyses,
        * which don't (or can't) check whether some condition is constant or not.
        */
       addConstraint(optimizedConstraint, thenBranchTaken)
-      if (ConcolicRunTimeFlags.checkAnalysis) {
-        assert(PartialMatcherStore.getCurrent.isDefined)
-        val result: Boolean = testCurrentPath
-        if (!result) {
-          Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
-          throw AbortConcolicRunException
-        }
-      }
     } else {
       addUnusableConstraint(thenBranchTaken)
     }
