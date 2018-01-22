@@ -210,6 +210,8 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
                        timedOut: Boolean, stepSwitched: Option[Int])
       extends Output with HasGraph[Exp, Abs, Addr, State] with HasFinalStores[Addr, Abs] {
 
+    override def toString = s"AAMOutput($numberOfStates states, ${time}s, $stepSwitched)"
+
     /**
       * Returns the list of final values that can be reached
       */
