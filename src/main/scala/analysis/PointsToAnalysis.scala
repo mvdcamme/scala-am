@@ -145,12 +145,6 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoPro
                         programName: String,
                         addressesUsed: Set[HybridAddress.A]): StaticAnalysisResult = {
     val result = runStaticAnalysisGeneric(currentProgramState, stepSwitched, None)
-    result match {
-      case o: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] =>
-        GraphDOTOutput.toFile(o.hasGraph.graph, ())(s"${GlobalFlags.ANALYSIS_PATH}Run_time/run_time_${stepSwitched.getOrElse(-1)}.dot")
-        runMetrics(o.hasGraph.graph, stepSwitched.getOrElse[Int](-1), runTimeAnalysisMetricsOutputPath,
-          runTimePointsToOutputPath, programName, addressesUsed)
-    }
     result
   }
 
