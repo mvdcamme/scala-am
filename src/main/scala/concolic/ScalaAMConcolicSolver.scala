@@ -82,7 +82,7 @@ object ScalaAMConcolicSolver {
 
 
   def handleRunTimeAnalysisResult[Abs: IsSchemeLattice]
-  (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T], result: StaticAnalysisResult): Unit = {
+  (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T], result: StaticAnalysisResult): Option[PartialRegexMatcher] = {
     val maybePartialMatcher = handleAnalysisResult[Abs](errorPathDetector)(result)
 //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
 //    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
@@ -97,6 +97,7 @@ object ScalaAMConcolicSolver {
      */
     ScalaAMReporter.resetCurrentPath()
 //    ScalaAMReporter.setCurrentErrorPaths(automaton)
+    maybePartialMatcher
   }
 
 }

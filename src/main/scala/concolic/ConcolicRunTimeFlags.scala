@@ -7,21 +7,12 @@ object ConcolicRunTimeFlags {
   val checkAnalysis: Boolean = true
   val checkRunTimeAnalysis: Boolean = true
 
-  private var startRunTimeAnalysis: Boolean = false
   private var hasCompletedAnalysis: Boolean = false
 
-  def setStartRunTimeAnalysis(): Unit = {
-    startRunTimeAnalysis = true
-  }
   def setHasCompletedAnalysis(): Unit = {
     hasCompletedAnalysis = true
   }
 
-  def shouldStartRunTimeAnalysis: Boolean = {
-    val temp = startRunTimeAnalysis
-    startRunTimeAnalysis = false
-    temp
-  }
   def checkHasCompletedAnalysis: Boolean = {
     val temp = hasCompletedAnalysis
     hasCompletedAnalysis = false

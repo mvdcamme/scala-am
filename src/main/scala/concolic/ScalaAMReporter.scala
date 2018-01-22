@@ -95,14 +95,10 @@ object ScalaAMReporter {
     PartialMatcherStore.reset()
   }
 
-  def addBranchConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean): Unit = {
-    if (!doConcolic) {
-      return
-    }
+  def addBranchConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter): Unit = {
 
-    lazy val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
-    if (ConcolicRunTimeFlags.checkAnalysis) {
-      addConstraint(optimizedConstraint, thenBranchTaken)
+    def checkWithPartialMatcher(constraint: BranchConstraint): Unit = {
+      addConstraint(constraint, thenBranchTaken)
       assert(PartialMatcherStore.getCurrent.isDefined)
       val currentMatcher = PartialMatcherStore.getCurrent.get // TODO Debugging
       val result: Boolean = testCurrentPath
@@ -110,21 +106,35 @@ object ScalaAMReporter {
         Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
         throw AbortConcolicRunException
       }
-    } else if (! ConstraintOptimizer.isConstraintConstant(constraint)) {
+    }
+
+    if (!doConcolic) {
+      return
+    }
+
+    val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
+    if (ConstraintOptimizer.isConstraintConstant(optimizedConstraint)) {
+      addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
+    } else if (ConcolicRunTimeFlags.useRunTimeAnalyses && rTAnalysisStarter.currentStateSaved) {
+      val maybePartialMatcher = rTAnalysisStarter.startAnalysisFromSavedState() //TODO Debugging
+      checkWithPartialMatcher(optimizedConstraint)
+    } else if (ConcolicRunTimeFlags.checkAnalysis) {
+      checkWithPartialMatcher(optimizedConstraint)
+    } else {
+      /* Constraint is not constant and checkAnalysis is false */
       /*
        * If the constraint is constant, don't bother adding it to the currentReport as it will always be either true or false anyway.
        * The currentPath should still be updated, because this path is compared with the path computed via static analyses,
        * which don't (or can't) check whether some condition is constant or not.
        */
       addConstraint(optimizedConstraint, thenBranchTaken)
-    } else {
-      addUnusableConstraint(thenBranchTaken)
     }
   }
 
-  def addUnusableConstraint(thenBranchTaken: Boolean): Unit = {
+  def addUnusableConstraint(thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter): Unit = {
     if (doConcolic) {
       addConstraint(UnusableConstraint, thenBranchTaken)
+      rTAnalysisStarter.discardSavedState()
     }
   }
 
@@ -132,6 +142,8 @@ object ScalaAMReporter {
     Logger.log(s"Reporter recorded path: ${getCurrentReport.filter({
       case (_: BranchConstraint, _, _) => true
       case _ => false
+    }).map({
+      case (constraint, constraintTrue, _) => (constraint, constraintTrue)
     }).mkString("; ")}", Logger.U)
   }
 }

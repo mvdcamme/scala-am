@@ -3,12 +3,16 @@ import java.io.{BufferedWriter, File, FileWriter}
 import backend._
 import backend.expression._
 import ConcreteConcreteLattice.{L => ConcreteValue}
+import backend.path_filtering.PartialRegexMatcher
 
-class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
-  analysisLauncher: AnalysisLauncher[PAbs], analysisFlags: AnalysisFlags)(
-  implicit unused1: IsSchemeLattice[ConcreteValue]) extends EvalKontMachine[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] {
+class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](analysisLauncher: AnalysisLauncher[PAbs], analysisFlags: AnalysisFlags)
+                                                                              (implicit unused1: IsSchemeLattice[ConcreteValue])
+  extends EvalKontMachine[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] with RTAnalysisStarter {
 
   def name = "ConcolicMachine"
+
+  private var currentState: Option[State] = None
+  private var savedState: Option[State] = None
 
   var stepCount: Int = 0
 
@@ -253,6 +257,8 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
            graph: Boolean, timeout: Timeout): Output = {
     def loop(state: State, start: Long, count: Int): ConcolicMachineOutput = {
 
+      currentState = Some(state)
+
       Logger.log(s"stepCount: $stepCount", Logger.V)
       stepCount += 1
 
@@ -364,7 +370,6 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
         }
 
         val stepped = step(control)
-        potentiallyStartRunTimeAnalysis(programName, state)
 
         stepped match {
           case Left(output) =>
@@ -447,11 +452,13 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
     * rum-time static analysis and use the results to further prune the symbolic tree.
     * @param state
     */
-    if (ConcolicRunTimeFlags.shouldStartRunTimeAnalysis && ConcolicRunTimeFlags.checkAnalysis && ConcolicRunTimeFlags.checkRunTimeAnalysis) {
   private def potentiallyStartRunTimeAnalysis(state: State): Option[PartialRegexMatcher] = {
+    if (ConcolicRunTimeFlags.useRunTimeAnalyses) {
       Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.U)
       val analysisResult = startRunTimeAnalysis(state)
       ScalaAMConcolicSolver.handleRunTimeAnalysisResult[PAbs](errorPathDetector, analysisResult)
+    } else {
+      None
     }
   }
 
@@ -470,5 +477,21 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
     val bw = new BufferedWriter(new FileWriter(file, true))
     bw.write(s"${GlobalFlags.CURRENT_PROGRAM}: ${Stopwatch.time}\n")
     bw.close()
+  }
+
+  def saveCurrentState(): Unit = {
+    savedState = currentState
+  }
+  def discardSavedState(): Unit = {
+    savedState = None
+  }
+  def currentStateSaved: Boolean = {
+    savedState.isDefined
+  }
+  def startAnalysisFromSavedState(): Option[PartialRegexMatcher] = {
+    assert(savedState.isDefined)
+    val maybePartialMatcher = potentiallyStartRunTimeAnalysis(savedState.get)
+    discardSavedState()
+    maybePartialMatcher
   }
 }
