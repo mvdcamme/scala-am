@@ -63,6 +63,6 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
   }
 
   def runInitialStaticAnalysis(currentProgramState: PS, programName: String): StaticAnalysisResult
-  def runStaticAnalysis(currentProgramState: PS, stepSwitched: Option[Int], programName: String, addressesUsed: Set[HybridAddress.A]): StaticAnalysisResult
+  def runStaticAnalysis(currentProgramState: PS, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A]): StaticAnalysisResult
 
 }
