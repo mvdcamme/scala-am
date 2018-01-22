@@ -14,7 +14,6 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
   type SpecEnv = Environment[HybridAddress.A]
 
   val aam: SpecAAM = new SpecAAM()
-//  implicit val stateChangeEdgeApplier = aam.ActionReplayApplier
   implicit val stateInfoProvider = aam.AAMStateInfoProvider
 
   protected def switchToAbstract(): Unit = {
@@ -61,16 +60,6 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
     (aam.State(convertedControl, a, t), deltaStore, kstore)
   }
 
-//  def doConcreteStep(convertValue: SchemePrimitives[HybridAddress.A, Abs] => ConcreteConcreteLattice.L => Abs,
-//                     convertFrame: (ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-//                                    ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
-//                                    ConcreteConcreteLattice.L => Abs)
-//                                   => ConvertableSchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
-//                                   => ConvertableSchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T],
-//                     filters: FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A],
-//                     stepNumber: Int): Unit
-//  def end(): Unit
-//  def incrementalAnalysis(concreteState: PS, stepCount: Int, programName: String, addressesUsed: Set[HybridAddress.A])(implicit g: GraphNode[aam.State, Unit]): Unit
   def runInitialStaticAnalysis(currentProgramState: PS, programName: String): StaticAnalysisResult
   def runStaticAnalysis(currentProgramState: PS, stepSwitched: Option[Int], programName: String, addressesUsed: Set[HybridAddress.A]): StaticAnalysisResult
 

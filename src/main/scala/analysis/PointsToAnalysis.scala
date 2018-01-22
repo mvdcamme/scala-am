@@ -101,8 +101,6 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoPro
   import usesGraph._
   implicit def g: GraphNode[aam.MachineState, Unit] = aam.State.graphNode
 
-//  val incrementalAnalysis = new IncrementalPointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.MachineState](aam.AAMGraphPrinter)
-
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[PointsToLatticeInfoProvider[Abs]]
 
@@ -146,7 +144,6 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoPro
                         stepSwitched: Option[Int],
                         programName: String,
                         addressesUsed: Set[HybridAddress.A]): StaticAnalysisResult = {
-//    assert(incrementalAnalysis.hasInitialGraph)
     val result = runStaticAnalysisGeneric(currentProgramState, stepSwitched, None)
     result match {
       case o: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] =>
@@ -173,62 +170,5 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoPro
         result
       case other => throw new Exception(s"Expected initial analysis to produce a graph, got $other instead")
     }
-
-//  def doConcreteStep(convertValue: SchemePrimitives[HybridAddress.A, Abs] => ConcreteConcreteLattice.L => Abs,
-//                     convertFrame: (ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
-//                                    ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
-//                                    ConcreteConcreteLattice.L => Abs) => ConvertableSchemeFrame[ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T]
-//                       => ConvertableSchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T],
-//                     filters: FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A],
-//                     stepNumber: Int) = {
-//    val convertValueFun = convertValue(abstSem.primitives)
-//    incrementalAnalysis.computeSuccNodes(convertFrame(concSem, abstSem, convertValueFun), filters, stepNumber)
-//  }
-
-//  def end(): Unit = {
-//    incrementalAnalysis.end()
-//  }
-
-//  protected def filterReachable(stepCount: Int, programName: String, addressesUsed: Set[HybridAddress.A]): Unit = {
-//    val optionPrunedGraph = incrementalAnalysis.filterReachable(stepCount)
-//    optionPrunedGraph.foreach( (prunedGraph) => {
-//      aam.AAMGraphPrinter.printGraph(prunedGraph, s"${GlobalFlags.ANALYSIS_PATH}Incremental/pruned_graph_$stepCount.dot")
-//      runMetrics(prunedGraph, stepCount, prunedMetricsOutputPath, prunedPointsToOutputPath, programName, addressesUsed)
-//    })
-//  }
-
-//  protected def applyEdgeActions(concreteState: PS, stepCount: Int, programName: String, addressesUsed: Set[HybridAddress.A])(implicit g: GraphNode[aam.State, Unit]): Unit = {
-//    val applyEdgeActions = () => {
-//      val convertedState = convertStateAAM(aam, concSem, abstSem, concreteState)
-//      val optionIncrementalGraph: Option[AbstractGraph] = incrementalAnalysis.applyEdgeActions(convertedState, stepCount)
-//      optionIncrementalGraph.foreach( (incrementalGraph) => {
-//        runMetrics(incrementalGraph, stepCount, incrementalMetricsOutputPath, incrementalPointsToOutputPath, programName, addressesUsed)
-//        aam.AAMGraphPrinter.printGraph(incrementalGraph, s"${GlobalFlags.ANALYSIS_PATH}Incremental/incremental_graph_$stepCount.dot")
-////        assert(incrementalGraph.nodes.size <= incrementalAnalysis.prunedGraph.get.nodes.size)
-////        assert(incrementalGraph.edges.size <= incrementalAnalysis.prunedGraph.get.edges.size)
-//        val completelyNewGraph: AbstractGraph = runStaticAnalysis(concreteState, Some(stepCount), programName, addressesUsed) match {
-//          case a: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] =>
-////            implicit val g: GraphNode[StateTrait[Any, Any, Any, _], Unit] = aam.State.graphNode
-////            implicit val a: GraphAnnotation[EdgeAnnotation[Any, Any, Any], Unit] = ??? //aam.State.graphNode
-//            GraphDOTOutput.toFile(a.hasGraph.graph, ())(s"${GlobalFlags.ANALYSIS_PATH}Run_time/run_time_$stepCount.dot")
-//            a.hasGraph.graph.asInstanceOf[AbstractGraph]
-//        }
-//        runMetrics(completelyNewGraph, stepCount, runTimeAnalysisMetricsOutputPath, runTimePointsToOutputPath, programName, addressesUsed)
-//        val areEqual = incrementalAnalysis.subsumedGraphsEqual(completelyNewGraph, incrementalGraph)
-//        Logger.log(s"Graphs equal? $areEqual\n", Logger.U)
-//        assert(areEqual)
-//      })
-//    }
-//    wrapAbstractEvaluation(applyEdgeActions)
-//  }
-
-//  def incrementalAnalysis(concreteState: PS, stepCount: Int, programName: String, addressesUsed: Set[HybridAddress.A])(implicit g: GraphNode[aam.State, Unit]): Unit = {
-//    if (! analysisFlags.doPropagationPhase) {
-//      filterReachable(stepCount, programName, addressesUsed)
-//    }
-//    if (analysisFlags.doPropagationPhase) {
-//      applyEdgeActions(concreteState, stepCount, programName, addressesUsed)
-//    }
-//  }
 
 }
