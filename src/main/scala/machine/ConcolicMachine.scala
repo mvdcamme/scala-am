@@ -445,23 +445,22 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](
   /**
     * If an if-expression has just been encountered (and a corresponding branch node has been made), launch a
     * rum-time static analysis and use the results to further prune the symbolic tree.
-    * @param programName
     * @param state
     */
-  private def potentiallyStartRunTimeAnalysis(programName: String, state: State): Unit = {
     if (ConcolicRunTimeFlags.shouldStartRunTimeAnalysis && ConcolicRunTimeFlags.checkAnalysis && ConcolicRunTimeFlags.checkRunTimeAnalysis) {
+  private def potentiallyStartRunTimeAnalysis(state: State): Option[PartialRegexMatcher] = {
       Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.U)
-      val analysisResult = startRunTimeAnalysis(programName, state)
+      val analysisResult = startRunTimeAnalysis(state)
       ScalaAMConcolicSolver.handleRunTimeAnalysisResult[PAbs](errorPathDetector, analysisResult)
     }
   }
 
-  private def startRunTimeAnalysis(programName: String, state: State): StaticAnalysisResult = {
+  private def startRunTimeAnalysis(state: State): StaticAnalysisResult = {
     ScalaAMReporter.disableConcolic()
     val currentAddresses: Set[HybridAddress.A] = state.store.toSet.map(_._1)
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
     val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
-    val result = analysisLauncher.runStaticAnalysis(state, Some(stepCount), programName, convertedCurrentAddresses)
+    val result = analysisLauncher.runStaticAnalysis(state, Some(stepCount), convertedCurrentAddresses)
     ScalaAMReporter.enableConcolic()
     result
   }

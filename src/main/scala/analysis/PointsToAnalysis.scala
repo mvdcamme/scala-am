@@ -147,7 +147,6 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoPro
 
   def runStaticAnalysis(currentProgramState: PS,
                         stepSwitched: Option[Int],
-                        programName: String,
                         addressesUsed: Set[HybridAddress.A]): StaticAnalysisResult = {
     val result = runStaticAnalysisGeneric(currentProgramState, stepSwitched, None)
     result
