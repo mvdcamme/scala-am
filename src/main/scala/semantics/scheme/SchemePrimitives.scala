@@ -284,16 +284,20 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   object Remainder extends Remainder
   class Random extends NoStoreOperation("random", Some(1)) {
     override def call[Exp: Expression](fexp: Exp, x: (Exp, Arg)): (MayFail[Abs], Option[ConcolicExpression]) = {
-      val value: MayFail[Abs] = if (ScalaAMReporter.isConcolicEnabled) {
-        val optInput: Option[Int] = InputVariableStore.getInput
-        optInput match {
-          case Some(int) => MayFailSuccess(abs.inject(int))
-          case None => callRandom(x._2._1)
+      if (ScalaAMReporter.isConcolicEnabled) {
+        val value: MayFail[Abs] = if (ScalaAMReporter.isConcolicEnabled) {
+          val optInput: Option[Int] = InputVariableStore.getInput
+          optInput match {
+            case Some(int) => MayFailSuccess(abs.inject(int))
+            case None => callRandom(x._2._1)
+          }
+        } else {
+          callRandom(x._2._1)
         }
+        (value, symbolicCall(fexp.asInstanceOf[SchemeExp]))
       } else {
         callRandom(x._2._1)
       }
-      (value, symbolicCall(fexp.asInstanceOf[SchemeExp]))
     }
     def callRandom(x: Abs) = random(x)
     private def symbolicCall(fexp: SchemeExp): Option[ConcolicExpression] = {
