@@ -170,7 +170,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
     override def call(args: List[Arg]) = args match {
       case Nil => MayFailError[Abs](List(VariadicArityError(name, 1, 0)))
       case x :: rest =>
-        val (multrest: MayFail[Abs], timesSymbolic: Option[ConcolicExpression]) = Times.call(rest)
+        val (multrest: MayFail[Abs], maybeTimesSymbolic: Option[ConcolicExpression]) = Times.call(rest)
         (for {
           rest <- multrest
           r <- div(x._1, rest)
@@ -184,9 +184,9 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
           val t = if (abs.isTrue(convert)) { exr } else { abs.bottom }
           val f = if (abs.isFalse(convert)) { r } else { abs.bottom }
           abs.join(t, f)
-        }, timesSymbolic.map({
+        }, maybeTimesSymbolic.flatMap({
           case ArithmeticalConcolicExpression(_, symbolicArgs) =>
-            ArithmeticalConcolicExpression(IntDiv, symbolicArgs)
+            x._2.map((x: ConcolicExpression) => ArithmeticalConcolicExpression(IntDiv, x :: symbolicArgs))
         }))
     }
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
