@@ -1,5 +1,3 @@
-import java.io.FileWriter
-
 /**
   * Created by mvdcamme on 11/04/16.
   */
@@ -36,8 +34,9 @@ object Logger {
     }
   }
   private def logToFile(str: String): Unit = {
-    val writer = new FileWriter(logFilePath, true)
+    val writer = new java.io.BufferedWriter(new java.io.FileWriter(logFilePath, true))
     writer.write(str)
+    writer.write("\n")
     writer.close()
   }
 
