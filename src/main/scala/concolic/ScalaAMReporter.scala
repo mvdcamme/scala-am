@@ -90,7 +90,6 @@ object ScalaAMReporter {
     InputVariableStore.reset()
     resetCurrentPath()
     resetCurrentReport()
-    GlobalSymbolicEnvironment.reset()
     GlobalSymbolicStore.reset()
     PartialMatcherStore.reset()
   }
@@ -116,7 +115,7 @@ object ScalaAMReporter {
     if (ConstraintOptimizer.isConstraintConstant(optimizedConstraint)) {
       addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
     } else if (ConcolicRunTimeFlags.useRunTimeAnalyses && rTAnalysisStarter.currentStateSaved) {
-      val maybePartialMatcher = rTAnalysisStarter.startAnalysisFromSavedState() //TODO Debugging
+      rTAnalysisStarter.startAnalysisFromSavedState()
       addToCurrentPath(thenBranchTaken)
       checkWithPartialMatcher(optimizedConstraint)
     } else if (ConcolicRunTimeFlags.checkAnalysis) {

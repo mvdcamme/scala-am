@@ -68,7 +68,7 @@ class BaseSchemeSemantics[V : IsSchemeLattice, Addr : Address, Time : Timestamp]
 
   def evalCall(function: V, fexp: SchemeExp, argsv: List[(SchemeExp, V)], store: Sto, t: Time): Actions = {
     val fromClo: Actions = IsSchemeLattice[V].getClosures[SchemeExp, Addr](function).map({
-      case (SchemeLambda(args, body, pos), env1) =>
+      case (SchemeLambda(args, body, pos), env1, _) =>
         if (args.length == argsv.length) {
           bindArgs(args.zip(argsv.map(_._2)), env1, store, t) match {
             case (env2, store) =>
@@ -78,7 +78,7 @@ class BaseSchemeSemantics[V : IsSchemeLattice, Addr : Address, Time : Timestamp]
                 Action.stepIn(fexp, (SchemeLambda(args, body, pos), env1), SchemeBegin(body, pos), env2, store, argsv)
           }
         } else { Action.error(ArityError(fexp.toString, args.length, argsv.length)) }
-      case (lambda, _) => Action.error(TypeError(lambda.toString, "operator", "closure", "not a closure"))
+      case (lambda, _, _) => Action.error(TypeError(lambda.toString, "operator", "closure", "not a closure"))
     })
     val fromPrim: Actions = IsSchemeLattice[V].getPrimitives(function).flatMap(prim =>
       for { (res, store2, effects) <- prim.call(fexp, argsv.map(x => (x._1, (x._2, None))), store, t)._1 } yield Action.value(res, store2, effects) )
@@ -130,7 +130,7 @@ class BaseSchemeSemantics[V : IsSchemeLattice, Addr : Address, Time : Timestamp]
   }
 
   def stepEval(e: SchemeExp, env: Env, store: Sto, t: Time) = e match {
-    case λ: SchemeLambda => Action.value(IsSchemeLattice[V].inject[SchemeExp, Addr]((λ, env)), store)
+    case λ: SchemeLambda => Action.value(IsSchemeLattice[V].inject[SchemeExp, Addr]((λ, env), None), store)
     case SchemeFuncall(f, args, _) => Action.push(FrameFuncallOperator(f, args, env), f, env, store)
     case SchemeIf(cond, cons, alt, _) => Action.push(FrameIf(cons, alt, env), cond, env, store)
     case SchemeLet(Nil, body, _) => evalBody(body, env, store)
@@ -151,7 +151,7 @@ class BaseSchemeSemantics[V : IsSchemeLattice, Addr : Address, Time : Timestamp]
       val fexp = SchemeLambda(bindings.map(_._1), body, pos)
       val a = Address[Addr].variable(name, JoinLattice[V].bottom, t)
       val env2 = env.extend(name.name, a)
-      val f = IsSchemeLattice[V].inject[SchemeExp, Addr]((fexp, env2))
+      val f = IsSchemeLattice[V].inject[SchemeExp, Addr]((fexp, env2), None)
       funcallArgs(f, fexp, List(), bindings.map(_._2), env2, store.extend(a, f), t)
     case SchemeSet(variable, exp, _) => Action.push(FrameSet(variable, env), exp, env, store)
     case SchemeBegin(body, _) => evalBody(body, env, store)
@@ -165,7 +165,7 @@ class BaseSchemeSemantics[V : IsSchemeLattice, Addr : Address, Time : Timestamp]
     case SchemeDefineVariable(name, exp, _) => Action.push(FrameDefine(name, env), exp, env, store)
     case SchemeDefineFunction(f, args, body, pos) => {
       val a = Address[Addr].variable(f, JoinLattice[V].bottom, t)
-      val v = IsSchemeLattice[V].inject[SchemeExp, Addr]((SchemeLambda(args, body, pos), env))
+      val v = IsSchemeLattice[V].inject[SchemeExp, Addr]((SchemeLambda(args, body, pos), env), None)
       val env1 = env.extend(f.name, a)
       val store1 = store.extend(a, v)
       Action.value(v, store)
@@ -291,7 +291,7 @@ class SchemeSemantics[V : IsSchemeLattice, Addr : Address, Time : Timestamp](pri
   /** Tries to perform atomic evaluation of an expression. Returns the result of
     * the evaluation if it succeeded, otherwise returns None */
   protected def atomicEval(e: SchemeExp, env: Env, store: Sto): Option[(V, Set[Effect[Addr]])] = e match {
-    case λ: SchemeLambda => Some((IsSchemeLattice[V].inject[SchemeExp, Addr]((λ, env)), Set()))
+    case λ: SchemeLambda => Some((IsSchemeLattice[V].inject[SchemeExp, Addr]((λ, env), None), Set()))
     case SchemeVar(variable) => env.lookup(variable.name).flatMap(a => store.lookup(a).map(v => (v, Set(EffectReadVariable(a)))))
     case SchemeValue(v, _) => evalValue(v).map(value => (value, Set()))
     case _ => None

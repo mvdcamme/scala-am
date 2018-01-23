@@ -4,6 +4,7 @@ import backend._
 import backend.expression._
 import ConcreteConcreteLattice.{L => ConcreteValue}
 import backend.path_filtering.PartialRegexMatcher
+import concolic.SymbolicEnvironment
 
 class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](analysisLauncher: AnalysisLauncher[PAbs], analysisFlags: AnalysisFlags)
                                                                               (implicit unused1: IsSchemeLattice[ConcreteValue])
@@ -68,7 +69,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
     override def subsumes(that: Control): Boolean = false
   }
 
-  case class ConcolicControlEval(exp: SchemeExp, env: Environment[HybridAddress.A]) extends ConcolicControl
+  case class ConcolicControlEval(exp: SchemeExp, env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment) extends ConcolicControl
   case class ConcolicControlKont(v: ConcreteValue, concolicValue: Option[ConcolicExpression]) extends ConcolicControl
   case class ConcolicControlError(error: SemanticError) extends ConcolicControl
 
@@ -87,7 +88,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
     }
 
     def graphNodeColor = control match {
-      case ConcolicControlEval(_, _) => Colors.Green
+      case ConcolicControlEval(_, _, _) => Colors.Green
       case ConcolicControlKont(_, _) => Colors.Pink
       case ConcolicControlError(_) => Colors.Red
     }
@@ -178,7 +179,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
                                                   control: ConcolicControl)
     : Set[HybridAddress.A] =
       control match {
-        case ConcolicControlEval(_, env) =>
+        case ConcolicControlEval(_, env, _) =>
           reachesEnvironment(concBaseSem, sto)(env)
         case ConcolicControlKont(value, _) =>
           reachesValue(concBaseSem, sto)(value)
@@ -227,13 +228,10 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
 
       val convertedControl: ConvertedControl[SchemeExp, AbstL, HybridAddress.A] =
         control match {
-          case ConcolicControlEval(exp, env) =>
-            ConvertedControlEval[SchemeExp, AbstL, HybridAddress.A](
-              exp,
-              convertEnv(env))
+          case ConcolicControlEval(exp, env, _) =>
+            ConvertedControlEval[SchemeExp, AbstL, HybridAddress.A](exp, convertEnv(env))
           case ConcolicControlKont(v, _) =>
-            ConvertedControlKont[SchemeExp, AbstL, HybridAddress.A](
-              convertValueFun(v))
+            ConvertedControlKont[SchemeExp, AbstL, HybridAddress.A](convertValueFun(v))
         }
 
       val GCedStore = garbageCollectStore(concBaseSem, store, control, kstore, a)
@@ -282,34 +280,33 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
                                  actionTs: List[ActionReplay[SchemeExp, ConcreteValue, HybridAddress.A]])
 
         def step(control: ConcolicControl): Either[ConcolicMachineOutput, StepSucceeded] = control match {
-          case ConcolicControlEval(e, env) =>
-            val edgeInfo = sem.stepConcolicEval(e, env, store, t)
+          case ConcolicControlEval(e, env, symEnv) =>
+            val edgeInfo = sem.stepConcolicEval(e, env, symEnv, store, t)
             handleFunctionCalled(edgeInfo)
             edgeInfo match {
-              case EdgeInformation(ActionConcolicReachedValue(v, optionConcolicValue, store2, _), actions, semanticsFilters) =>
+              case EdgeInformation(ActionConcolicReachedValue(ActionReachedValue(v, store2, _), optionConcolicValue), actions, semanticsFilters) =>
                 val machineFilters = Set[MachineFilterAnnotation]()
                 Right(StepSucceeded(State(ConcolicControlKont(v, optionConcolicValue), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
                   FilterAnnotations(machineFilters, semanticsFilters),
                   actions))
-                case EdgeInformation(ActionPush(frame, e, env, store2, _), actions, semanticsFilters) =>
+                case EdgeInformation(ActionConcolicPush(ActionPush(frame, e, env, store2, _), _, symEnv), actions, semanticsFilters) =>
                   val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                   val kont = Kont(frame, a)
                   val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
-                  Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore.extend(next, kont), next, Timestamp[HybridTimestamp.T].tick(t)),
+                  Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, kstore.extend(next, kont), next, Timestamp[HybridTimestamp.T].tick(t)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
-                case EdgeInformation(ActionEval(e, env, store2, _), actions, semanticsFilters) =>
+                case EdgeInformation(ActionConcolicEval(ActionEval(e, env, store2, _), symEnv), actions, semanticsFilters) =>
                   val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
-                  Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
+                  Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
-                case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
-                  GlobalSymbolicEnvironment.pushEnvironment()
+                case EdgeInformation(ActionConcolicStepIn(ActionStepIn(fexp, _, e, env, store2, _, _), symEnv), actions, semanticsFilters) =>
                   val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
-                  Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t, fexp)),
+                  Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t, fexp)),
                                       FilterAnnotations(machineFilters, semanticsFilters),
                                       actions))
-                case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
+                case EdgeInformation(ActionConcolicError(ActionError(err)), actions, semanticsFilters) =>
                   Left(ConcolicMachineErrorEncountered(err))
               }
 
@@ -320,44 +317,44 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
             } else {
               val frames = kstore.lookup(a)
               if (frames.size == 1) {
-                val frame = frames.head.frame
+                val frame = frames.head.frame.asInstanceOf[SchemeConcolicFrame]
                 val originFrameCast = frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
                 val oldA = state.a
                 val a = frames.head.next
                 val edgeInfo = sem.stepConcolicKont(v, symbolicValue, frame, store, t)
                 handleFunctionCalled(edgeInfo)
                 edgeInfo match {
-                  case EdgeInformation(ActionConcolicReachedValue(v, optionConcolicValue, store2, _), actions, semanticsFilters) =>
+                  case EdgeInformation(ActionConcolicReachedValue(ActionReachedValue(v, store2, _), optionConcolicValue), actions, semanticsFilters) =>
                     val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                       FrameFollowed[ConcreteValue](originFrameCast))
                     Right(StepSucceeded(State(ConcolicControlKont(v, optionConcolicValue), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
-                  case EdgeInformation(ActionPush(frame, e, env, store2, _), actions, semanticsFilters) =>
+                  case EdgeInformation(ActionConcolicPush(ActionPush(frame, e, env, store2, _), _, symEnv), actions, semanticsFilters) =>
                     val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
                     val machineFilters = Set[MachineFilterAnnotation](//KontAddrPushed(next),
                       KontAddrPopped(oldA, a),
                       EvaluatingExpression(e),
                       FrameFollowed(originFrameCast))
-                    Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore.extend(next, Kont(frame, a)), next, Timestamp[HybridTimestamp.T].tick(t)),
+                    Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, kstore.extend(next, Kont(frame, a)), next, Timestamp[HybridTimestamp.T].tick(t)),
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
-                  case EdgeInformation(ActionEval(e, env, store2, _), actions, semanticsFilters) =>
+                  case EdgeInformation(ActionConcolicEval(ActionEval(e, env, store2, _), symEnv), actions, semanticsFilters) =>
                     val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                       EvaluatingExpression(e),
                       FrameFollowed[ConcreteValue](originFrameCast))
-                    Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
+                    Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
-                  case EdgeInformation(ActionStepIn(fexp, _, e, env, store2, _, _), actions, semanticsFilters) =>
-                    GlobalSymbolicEnvironment.pushEnvironment()
+                  case EdgeInformation(ActionConcolicStepIn(ActionStepIn(fexp, _, e, env, store2, _, _), symEnv), actions, semanticsFilters) =>
+//                    GlobalSymbolicEnvironment.pushEnvironment()
                     val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                       EvaluatingExpression(e),
                       FrameFollowed[ConcreteValue](originFrameCast))
-                    Right(StepSucceeded(State(ConcolicControlEval(e, env), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t, fexp)),
+                    Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t, fexp)),
                       FilterAnnotations(machineFilters, semanticsFilters),
                       actions))
-                  case EdgeInformation(ActionError(err), actions, semanticsFilters) =>
+                  case EdgeInformation(ActionConcolicError(ActionError(err)), actions, semanticsFilters) =>
                     Left(ConcolicMachineErrorEncountered(err))
                 }
               } else {
@@ -398,7 +395,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
 
     def inject(exp: SchemeExp, env: Environment[HybridAddress.A], sto: Store[HybridAddress.A, ConcreteValue]): State = {
       val instrumentedExp = ConcolicInstrumenter.instrument(exp)
-      State(ConcolicControlEval(instrumentedExp, env), sto, KontStore.empty[KontAddr], HaltKontAddress, Timestamp[HybridTimestamp.T].initial(""))
+      State(ConcolicControlEval(instrumentedExp, env, concolic.initialSymEnv), sto, KontStore.empty[KontAddr], HaltKontAddress, Timestamp[HybridTimestamp.T].initial(""))
     }
 
     @scala.annotation.tailrec

@@ -95,7 +95,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
                            actions)
           /* When a function is stepped in, we also go to an eval state */
           case ActionStepIn(fexp, clo, e, env, store, _, _) =>
-            val closureFilter =  ClosureCallMark[Exp, Abs, Time](fexp, sabs.inject[Exp, Addr](clo._1, clo._2), clo._1, t)
+            val closureFilter =  ClosureCallMark[Exp, Abs, Time](fexp, sabs.inject[Exp, Addr]((clo._1, clo._2), None), clo._1, t)
             EdgeComponents(State(ControlEval(e, env), store, kstore, a, Timestamp[Time].tick(t, fexp)),
                            filters + closureFilter,
                            actions)
@@ -473,11 +473,11 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
         val newStore = a.addresses.foldLeft(state.store)( (store, address) => store.extend(address, JoinLattice[Abs].bottom))
         Set(noEdgeFilters(state.copy(store = newStore)))
       case ActionClosureCallR(fExp, lam, env) =>
-        val closure = sabs.inject(lam, env)
+        val closure = sabs.inject((lam, env), None)
         val filter = ClosureCallMark(fExp, closure, lam, state.t)
         Set((state, Set[MachineFilterAnnotation](filter)))
       case a: ActionCreateClosureT[Exp, Abs, Addr] =>
-        val closure = sabs.inject[Exp, Addr]((a.λ, a.env.get))
+        val closure = sabs.inject[Exp, Addr]((a.λ, a.env.get), None)
         Set(noEdgeFilters(state.copy(control = ControlKont(closure))))
       case a: ActionDefineAddressesPopR[Exp, Abs, Addr] =>
         val statesKonts = defineAddresses(state, a.addresses)

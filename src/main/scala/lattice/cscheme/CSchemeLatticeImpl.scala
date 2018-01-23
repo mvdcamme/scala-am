@@ -1,6 +1,7 @@
 import scalaz.Scalaz._
 import scalaz._
 import SchemeOps._
+import concolic.SymbolicEnvironment
 
 class MakeCSchemeLattice[LSeq : IsSchemeLattice] extends CSchemeLattice {
   val lat = implicitly[IsSchemeLattice[LSeq]]
@@ -115,7 +116,7 @@ class MakeCSchemeLattice[LSeq : IsSchemeLattice] extends CSchemeLattice {
     def inject(x: Boolean) = Value(seq = lat.inject(x))
     def inject(x: Char) = Value(seq = lat.inject(x))
     def inject[Addr : Address, Abs : JoinLattice](x: Primitive[Addr, Abs]) = Value(seq = lat.inject[Addr, Abs](x))
-    def inject[Exp : Expression, Addr : Address](x: (Exp, Environment[Addr])) = Value(seq = lat.inject[Exp, Addr](x))
+    def inject[Exp : Expression, Addr : Address](x: (Exp, Environment[Addr]), maybeSymEnv: Option[SymbolicEnvironment]) = Value(seq = lat.inject[Exp, Addr](x, None))
     def injectSymbol(x: String) = Value(seq = lat.injectSymbol(x))
     def cons[Addr : Address](car: Addr, cdr: Addr) = Value(seq = lat.cons[Addr](car, cdr))
     def nil = Value(seq = lat.nil)

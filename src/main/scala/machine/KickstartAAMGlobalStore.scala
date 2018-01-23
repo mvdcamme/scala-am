@@ -104,7 +104,7 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
             (acc._1 + EdgeComponents(State(ControlEval(e, env), a, Timestamp[Time].tick(t)), filters, actions), acc._2.includeDelta(store2.delta), acc._3)
           /* When a function is stepped in, we also go to an eval state */
           case ActionStepIn(fexp, clo, e, env, store2, _, _) =>
-            val closureFilter =  ClosureCallMark[Exp, Abs, Time](fexp, sabs.inject[Exp, Addr](clo._1, clo._2), clo._1, t)
+            val closureFilter =  ClosureCallMark[Exp, Abs, Time](fexp, sabs.inject[Exp, Addr]((clo._1, clo._2), None), clo._1, t)
             (acc._1 + EdgeComponents(State(ControlEval(e, env), a, Timestamp[Time].tick(t, fexp)), filters + closureFilter, actions), acc._2.includeDelta(store2.delta), acc._3)
           /* When an error is reached, we go to an error state */
           case ActionError(err) =>
