@@ -154,7 +154,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
       case Nil => (MayFailSuccess(abs.inject(1)), List(Some(ConcolicInt(1))))
       case x :: rest =>
         val (regResult: MayFail[Abs], symbolic: List[Option[ConcolicExpression]]) = regularCall(rest)
-        (regResult._1 >>= (plus(x._1, _)), x._2 :: symbolic)
+        (regResult._1 >>= (times(x._1, _)), x._2 :: symbolic)
     }
     override def call(args: List[Arg]) = args match {
       case Nil => (MayFailSuccess(abs.inject(1)), Some(ConcolicInt(1)))
