@@ -2,8 +2,6 @@ import ConcreteConcreteLattice.{ L => ConcreteValue }
 
 abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
 
-  protected val analysisResultCache: StaticAnalysisResultCache[aam.InitialState] = new StaticAnalysisResultCache[aam.InitialState]
-
   protected val abstSem = new ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, Abs])
 
   /* The concrete program state the static analysis gets as input. This state is then converted to an
