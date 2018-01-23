@@ -79,7 +79,7 @@ case class FrameConcolicIf[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
 
   override def meaningfullySubsumes = true
   override def subsumes(that: Frame): Boolean = that match {
-    case that: FrameIf[Abs, Addr, Time] => cons == that.cons && alt == that.alt && env.subsumes(that.env)
+    case that: FrameConcolicIf[Abs, Addr, Time] => cons == that.cons && alt == that.alt && env.subsumes(that.env)
     case _ => false
   }
 
