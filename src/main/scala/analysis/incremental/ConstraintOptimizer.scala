@@ -105,6 +105,18 @@ object ConstraintOptimizer {
       }
     case IntMinus => throw new Exception(s"Constraint optimization does not allow optimisation of IntMinus with more than < 2 or > 3 arguments")
     case IntTimes => reduceCommutativeArithExp(exp, _.product)
+    case IntDiv if exp.exps.size == 2 =>
+      /* Integer division expressions are only optimized if the divider is equal to 1. */
+      val reduced1 = reduceToInt(exp.exps.head)
+      val reduced2 = reduceToInt(exp.exps(1))
+      (reduced1, reduced2) match {
+        case (Right(int1), Right(1)) => Right(int1)
+        case (Right(int1), Right(int2)) =>  Left(exp.copy(exps = List(ConcolicInt(int1), ConcolicInt(int2))))
+        case (Right(int1), Left(arg2)) => Left(exp.copy(exps = List(ConcolicInt(int1), arg2)))
+        case (Left(arg1), Right(1)) => Left(arg1)
+        case (Left(arg1), Right(int2)) => Left(exp.copy(exps = List(arg1, ConcolicInt(int2))))
+        case (Left(arg1), Left(arg2)) =>  Left(exp.copy(exps = List(arg1, arg2)))
+      }
     case _ =>
       /* TODO Optimize other arithmetical operations as well */
       Left(exp)
