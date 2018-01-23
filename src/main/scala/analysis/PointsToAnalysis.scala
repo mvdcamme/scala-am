@@ -126,20 +126,15 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoPro
     })
   }
 
-  def runStaticAnalysisGeneric(currentProgramState: PS, stepSwitched: Option[Int], toDotFile: Option[String]): StaticAnalysisResult = {
+  def runStaticAnalysisGeneric(
+      currentProgramState: PS,
+      stepSwitched: Option[Int],
+      toDotFile: Option[String]): StaticAnalysisResult = {
     wrapRunAnalysis(
       () => {
-        val startState: aam.InitialState = convertStateAAM(aam, concSem, abstSem, currentProgramState)
-        val result = analysisResultCache.get(startState) match {
-          case Some(analysisResult) =>
-            Logger.log("Used cached result for static analysis", Logger.E)
-            analysisResult
-          case None =>
-            val result = pointsToAnalysis.analyze(toDotFile, aam, abstSem, lip.pointsTo, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startState, false, stepSwitched)
-            analysisResultCache.add(startState, result)
-            result
-        }
-        Logger.log(s"Static points-to analysis result is $result", Logger.E)
+        val startState = convertStateAAM(aam, concSem, abstSem, currentProgramState)
+        val result = pointsToAnalysis.analyze(toDotFile, aam, abstSem, lip.pointsTo, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startState, false, stepSwitched)
+        Logger.log(s"Static points-to analysis result is $result", Logger.U)
         ConcolicRunTimeFlags.setHasCompletedAnalysis()
         result
       })
