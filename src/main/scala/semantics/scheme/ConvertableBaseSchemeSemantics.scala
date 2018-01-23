@@ -9,9 +9,6 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
   type Env = Environment[Addr]
   type Sto = Store[Addr, V]
 
-  def convertToAbsSemanticsFrame(frame: Frame, ρ: Environment[Addr], vStack: List[Storable[V, Addr]], absSem: ConvertableBaseSchemeSemantics[V, Addr, Time]): (Option[Frame], List[Storable[V, Addr]], Environment[Addr]) =
-    (Some(frame), vStack, ρ)
-
   protected def evalBody(body: List[SchemeExp], env: Environment[Addr], store: Store[Addr, V]): EdgeInfo = body match {
     case Nil => noEdgeInfos(ActionReachedValue[SchemeExp, V, Addr](IsSchemeLattice[V].inject(false), store), List(ActionReachedValueT[SchemeExp, V, Addr](IsSchemeLattice[V].inject(false))))
     case List(exp) => noEdgeInfos(ActionEval(exp, env, store), ActionEvalR[SchemeExp, V, Addr](exp, env))
@@ -54,7 +51,7 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
     val fromClo: EdgeInfos = IsSchemeLattice[V]
       .getClosures[SchemeExp, Addr](function)
       .map({
-        case (lambda@(SchemeLambda(args, body, pos)), env1) =>
+        case (lambda@(SchemeLambda(args, body, pos)), env1, _) =>
           val cloCall = ActionClosureCallR[SchemeExp, V, Addr](fexp, lambda, env1)
           if (args.length == argsv.length) {
             val argsZipped: List[(Identifier, (SchemeExp, V))] = args.zip(argsv)
@@ -82,7 +79,7 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
             val actionError = ActionErrorT[SchemeExp, V, Addr](error)
             EdgeInformation(ActionError[SchemeExp, V, Addr](error), List(actionError, cloCall), Set())
           }
-        case (lambda, env) =>
+        case (lambda, env, _) =>
           val cloCall = ActionClosureCallR[SchemeExp, V, Addr](fexp, lambda, env)
           val error = TypeError(lambda.toString, "operator", "closure", "not a closure")
           val actionError = ActionErrorT[SchemeExp, V, Addr](error)
@@ -223,7 +220,7 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
                store: Store[Addr, V],
                t: Time): EdgeInfos = e match { // Cases in stepEval shouldn't generate any splits in abstract graph
     case λ: SchemeLambda =>
-      val action = ActionReachedValue[SchemeExp, V, Addr](IsSchemeLattice[V].inject[SchemeExp, Addr]((λ, env)), store)
+      val action = ActionReachedValue[SchemeExp, V, Addr](IsSchemeLattice[V].inject[SchemeExp, Addr]((λ, env), None), store)
       val actionEdge = List(ActionCreateClosureT[SchemeExp, V, Addr](λ, Some(env)))
       noEdgeInfosSet(action, actionEdge)
     case SchemeFuncall(f, args, _) =>
@@ -282,7 +279,7 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
     case SchemeDefineFunction(name, args, body, pos) =>
       val a = Address[Addr].variable(name, IsSchemeLattice[V].bottom, t)
       val lambda = SchemeLambda(args, body, pos)
-      val v = IsSchemeLattice[V].inject[SchemeExp, Addr]((lambda, env))
+      val v = IsSchemeLattice[V].inject[SchemeExp, Addr]((lambda, env), None)
       val action = ActionReachedValue[SchemeExp, V, Addr](v, store)
       val actionEdges = List(ActionCreateClosureT[SchemeExp, V, Addr](lambda, Some(env)),
                              ActionDefineAddressesR[SchemeExp, V, Addr](List(a)))
@@ -380,8 +377,7 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
             simpleActionSet(ActionError[SchemeExp, V, Addr](UnboundVariable(frame.variable)))
         }
       case frame: FrameBegin[V, Addr, Time] => frame.rest match {
-        case List(SchemePopSymEnv(_)) =>
-          GlobalSymbolicEnvironment.popEnvironment()
+        case Nil =>
           val action = ActionReachedValue[SchemeExp, V, Addr](v, store)
           val actionR = ActionReachedValueT[SchemeExp, V, Addr](v)
           noEdgeInfosSet(action, actionR)

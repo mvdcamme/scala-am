@@ -1,16 +1,11 @@
 object ConcolicInstrumenter {
 
-  private def addPopEnvExp(body: List[SchemeExp]): List[SchemeExp] = {
-    val instrumentedBody = body.map(instrument)
-    instrumentedBody :+ SchemePopSymEnv(instrumentedBody.last.pos)
-  }
-
   def instrument(exp: SchemeExp): SchemeExp = exp match {
     case SchemeDefineFunction(name, args, body, pos) =>
-      val instrumentedBody = addPopEnvExp(body)
+      val instrumentedBody = body.map(instrument)
       SchemeDefineFunction(name, args, instrumentedBody, pos)
     case SchemeLambda(args, body, pos) =>
-      val instrumentedBody = addPopEnvExp(body)
+      val instrumentedBody = body.map(instrument)
       SchemeLambda(args, instrumentedBody, pos)
     case SchemeFuncall(f, args, pos) =>
       SchemeFuncall(instrument(f), args.map(instrument), pos)
@@ -40,12 +35,9 @@ object ConcolicInstrumenter {
       SchemeOr(exps.map(instrument), pos)
     case SchemeDefineVariable(varName, exp, pos) =>
       SchemeDefineVariable(varName, instrument(exp), pos)
-    case SchemeVar(_) =>
-      exp
-    case SchemeQuoted(_, _) =>
-      exp
-    case SchemeValue(_, _) =>
-      exp
+    case SchemeVar(_) => exp
+    case SchemeQuoted(_, _) =>exp
+    case SchemeValue(_, _) => exp
     case SchemeCas(varName, eold, enew, pos) =>
       SchemeCas(varName, instrument(eold), instrument(enew), pos)
     case SchemeCasVector(varName, index, eold, enew, pos) =>

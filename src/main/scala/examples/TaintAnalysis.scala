@@ -1,3 +1,5 @@
+import concolic.SymbolicEnvironment
+
 import scalaz.Scalaz._
 import scalaz._
 /* Here, we develop a static taint analysis of Scheme programs. */
@@ -94,14 +96,14 @@ class TaintLattice[Abs : IsSchemeLattice] extends SchemeLattice {
     def inject(x: Char): L = (Untainted, IsSchemeLattice[Abs].inject(x))
     def inject(x: Boolean): L = (Untainted, IsSchemeLattice[Abs].inject(x))
     def inject[Addr : Address, Abs2 : JoinLattice](x: Primitive[Addr, Abs2]): L = (Untainted, IsSchemeLattice[Abs].inject[Addr, Abs2](x))
-    def inject[Exp : Expression, Addr : Address](x: (Exp, Environment[Addr])): L = (Untainted, IsSchemeLattice[Abs].inject[Exp, Addr](x))
+    def inject[Exp : Expression, Addr : Address](x: (Exp, Environment[Addr]), maybeSymEnv: Option[SymbolicEnvironment]): L = (Untainted, IsSchemeLattice[Abs].inject[Exp, Addr](x, None))
     def injectSymbol(x: String): L = (Untainted, IsSchemeLattice[Abs].injectSymbol(x))
     def cons[Addr : Address](car: Addr, cdr: Addr): L = (Untainted, IsSchemeLattice[Abs].cons[Addr](car, cdr))
     def vector[Addr : Address](addr: Addr, size: L, init: Addr): MayFail[(L, L)] = IsSchemeLattice[Abs].vector(addr, size._2, init).map({
       case (v, va) => ((Untainted, v), (Untainted, va)) })
     def nil: L = (Untainted, IsSchemeLattice[Abs].nil)
 
-    def getClosures[Exp : Expression, Addr : Address](x: L): Set[(Exp, Environment[Addr])] = IsSchemeLattice[Abs].getClosures(x._2)
+    def getClosures[Exp : Expression, Addr : Address](x: L): Set[(Exp, Environment[Addr], Option[SymbolicEnvironment])] = IsSchemeLattice[Abs].getClosures(x._2)
     def getPrimitives[Addr : Address, Abs2 : JoinLattice](x: L): Set[Primitive[Addr, Abs2]] = IsSchemeLattice[Abs].getPrimitives(x._2)
     def getVectors[Addr : Address](x: L): Set[Addr] = IsSchemeLattice[Abs].getVectors(x._2)
   }

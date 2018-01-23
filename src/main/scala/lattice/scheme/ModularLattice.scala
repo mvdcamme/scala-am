@@ -3,6 +3,7 @@ import scalaz.Scalaz._
 import SchemeOps._
 import UnaryOperator._
 import BinaryOperator._
+import concolic.SymbolicEnvironment
 
 class MakeSchemeLattice[
 S : StringLattice,
@@ -378,7 +379,7 @@ Sym : SymbolLattice
 
     def inject[Addr: Address, Abs: JoinLattice](x: Primitive[Addr, Abs]): Value = Prim(x)
 
-    def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr])): Value = Closure(x._1, x._2)
+    def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr]), maybeSymEnv: Option[SymbolicEnvironment]): Value = Closure(x._1, x._2)
 
     def injectSymbol(x: String): Value = Symbol(SymbolLattice[Sym].inject(x))
 
@@ -387,7 +388,7 @@ Sym : SymbolLattice
     def cons[Addr: Address](car: Addr, cdr: Addr): Value = Cons(car, cdr)
 
     def getClosures[Exp: Expression, Addr: Address](x: Value) = x match {
-      case Closure(lam: Exp@unchecked, env: Environment[Addr]@unchecked) => Set((lam, env))
+      case Closure(lam: Exp@unchecked, env: Environment[Addr]@unchecked) => Set((lam, env, None))
       case _ => Set()
     }
 
@@ -570,7 +571,7 @@ Sym : SymbolLattice
     def vectorSet[Addr: Address](vector: L, index: L, addr: Addr): MayFail[(L, Set[Addr])] = foldMapL(vector, vector => foldMapL(index, index =>
       isSchemeLatticeValue.vectorSet(vector, index, addr).map({ case (v, addrs) => (wrap(v), addrs) })))
 
-    def getClosures[Exp: Expression, Addr: Address](x: L): Set[(Exp, Environment[Addr])] = foldMapL(x, x => isSchemeLatticeValue.getClosures(x))
+    def getClosures[Exp: Expression, Addr: Address](x: L): Set[(Exp, Environment[Addr], Option[SymbolicEnvironment])] = foldMapL(x, x => isSchemeLatticeValue.getClosures(x))
     def getPrimitives[Addr: Address, Abs: JoinLattice](x: L): Set[Primitive[Addr, Abs]] = foldMapL(x, x => isSchemeLatticeValue.getPrimitives(x))
     def getVectors[Addr: Address](x: L): Set[Addr] = foldMapL(x, x => isSchemeLatticeValue.getVectors(x))
 
@@ -582,7 +583,7 @@ Sym : SymbolLattice
     def inject(x: scala.Char): L = Element(isSchemeLatticeValue.inject(x))
     def inject(x: Boolean): L = Element(isSchemeLatticeValue.inject(x))
     def inject[Addr: Address, Abs: JoinLattice](x: Primitive[Addr, Abs]): L = Element(isSchemeLatticeValue.inject(x))
-    def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr])): L = Element(isSchemeLatticeValue.inject(x))
+    def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr]), maybeSymEnv: Option[SymbolicEnvironment]): L = Element(isSchemeLatticeValue.inject(x, None))
     def injectSymbol(x: String): L = Element(isSchemeLatticeValue.injectSymbol(x))
     def cons[Addr: Address](car: Addr, cdr: Addr): L = Element(isSchemeLatticeValue.cons(car, cdr))
     def vector[Addr: Address](addr: Addr, size: L, init: Addr): MayFail[(L, L)] = foldMapL(size, size =>

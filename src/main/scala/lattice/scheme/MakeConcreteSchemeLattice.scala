@@ -3,6 +3,7 @@ import scalaz.Scalaz._
 import SchemeOps._
 import UnaryOperator._
 import BinaryOperator._
+import concolic.SymbolicEnvironment
 
 class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
   type S = Concrete.S
@@ -45,7 +46,7 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
     extends Value {
     override def toString = s"#<prim ${prim.name}>"
   }
-  case class Closure[Exp: Expression, Addr: Address](lambda: Exp, env: Environment[Addr]) extends Value {
+  case class Closure[Exp: Expression, Addr: Address](lambda: Exp, env: Environment[Addr], maybeSymEnv: Option[SymbolicEnvironment]) extends Value {
     override def toString = "#<clo>"
   }
   case class Cons[Addr: Address](car: Addr, cdr: Addr) extends Value
@@ -77,7 +78,7 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
       case Element(Bool(_)) => SimpleTypes.Boolean
       case Element(Bot) => SimpleTypes.Bottom
       case Element(Char(_)) => SimpleTypes.Char
-      case Element(Closure(_, _)) => SimpleTypes.Closure
+      case Element(Closure(_, _, _)) => SimpleTypes.Closure
       case Element(Cons(_, _)) => SimpleTypes.Cons
       case Element(Real(_)) => SimpleTypes.Float
       case Element(Int(_)) => SimpleTypes.Integer
@@ -92,7 +93,7 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
 
     def pointsTo(x: L): Option[scala.Int] = {
       def pointsTo(value: Value): Boolean = value match {
-        case Symbol(_) | Prim(_) | Closure(_, _) | Cons(_, _) | Vec(_, _, _) | VectorAddress(_) => true
+        case Symbol(_) | Prim(_) | Closure(_, _ ,_) | Cons(_, _) | Vec(_, _, _) | VectorAddress(_) => true
         case _ => false
       }
 
@@ -111,7 +112,7 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
       reachesAddress: Addr => Set[Addr]
     ): Set[Addr] = {
       def reachesValue(v: Value): Set[Addr] = v match {
-        case Closure(_, env) => reachesEnv(env.asInstanceOf[Environment[Addr]])
+        case Closure(_, env, _) => reachesEnv(env.asInstanceOf[Environment[Addr]])
         case Cons(car, cdr) => reachesAddress(car.asInstanceOf[Addr]) ++ reachesAddress(cdr.asInstanceOf[Addr])
         case v: Vec[Addr] => reachesAddress(v.init) ++ v.elements.foldLeft[Set[Addr]](Set())((
         acc,
@@ -163,7 +164,7 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
 
     def isPrimitiveValue(x: Value): Boolean = x match {
       case Bot | Str(_) | Bool(_) | Int(_) | Real(_) | Char(_) | Symbol(_) | Nil => true
-      case Closure(_, _) | Prim(_) | Cons(_, _) | VectorAddress(_) | Vec(_, _, _) => false
+      case Closure(_, _, _) | Prim(_) | Cons(_, _) | VectorAddress(_) | Vec(_, _, _) => false
     }
 
     def cardinality(x: Value): Cardinality = x match {
@@ -175,7 +176,7 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
       case Char(c) => CharLattice[C].cardinality(c)
       case Symbol(s) => SymbolLattice[Sym].cardinality(s)
       case Nil => CardinalityNumber(1)
-      case Closure(_, _) | Prim(_) | Cons(_, _) | VectorAddress(_) | Vec(_, _, _) => CardinalityNumber(1)
+      case Closure(_, _, _) | Prim(_) | Cons(_, _) | VectorAddress(_) | Vec(_, _, _) => CardinalityNumber(1)
     }
 
     def isTrue(x: Value): Boolean = x match {
@@ -410,7 +411,7 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
           case (Symbol(s1), Symbol(s2)) => Bool(SymbolLattice[Sym].eql(s1, s2))
           case (Nil, Nil) => True
           case (Prim(_), Prim(_)) => Bool(BoolLattice[B].inject(x == y))
-          case (Closure(_, _), Closure(_, _)) => Bool(BoolLattice[B].inject(x == y))
+          case (Closure(_, _, _), Closure(_, _, _)) => Bool(BoolLattice[B].inject(x == y))
           case (Cons(_, _), Cons(_, _)) => Bool(BoolLattice[B].inject(x == y))
           case (VectorAddress(_), VectorAddress(_)) => Bool(BoolLattice[B].inject(x == y))
           case _ => False
@@ -440,7 +441,7 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
 
     def inject[Addr: Address, Abs: JoinLattice](x: Primitive[Addr, Abs]): Value = Prim(x)
 
-    def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr])): Value = Closure(x._1, x._2)
+    def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr]), maybeSymEnv: Option[SymbolicEnvironment]): Value = Closure(x._1, x._2, maybeSymEnv)
 
     def injectSymbol(x: String): Value = Symbol(SymbolLattice[Sym].inject(x))
 
@@ -449,7 +450,7 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
     def cons[Addr: Address](car: Addr, cdr: Addr): Value = Cons(car, cdr)
 
     def getClosures[Exp: Expression, Addr: Address](x: Value) = x match {
-      case Closure(lam: Exp@unchecked, env: Environment[Addr]@unchecked) => Set((lam, env))
+      case Closure(lam: Exp@unchecked, env: Environment[Addr]@unchecked, maybeSymEnv) => Set((lam, env, maybeSymEnv))
       case _ => Set()
     }
 
@@ -632,7 +633,7 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
     def vectorSet[Addr: Address](vector: L, index: L, addr: Addr): MayFail[(L, Set[Addr])] = foldMapL(vector, vector => foldMapL(index, index =>
       isSchemeLatticeValue.vectorSet(vector, index, addr).map({ case (v, addrs) => (wrap(v), addrs) })))
 
-    def getClosures[Exp: Expression, Addr: Address](x: L): Set[(Exp, Environment[Addr])] = foldMapL(x, x => isSchemeLatticeValue.getClosures(x))
+    def getClosures[Exp: Expression, Addr: Address](x: L): Set[(Exp, Environment[Addr], Option[SymbolicEnvironment])] = foldMapL(x, x => isSchemeLatticeValue.getClosures(x))
     def getPrimitives[Addr: Address, Abs: JoinLattice](x: L): Set[Primitive[Addr, Abs]] = foldMapL(x, x => isSchemeLatticeValue.getPrimitives(x))
     def getVectors[Addr: Address](x: L): Set[Addr] = foldMapL(x, x => isSchemeLatticeValue.getVectors(x))
 
@@ -644,7 +645,7 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
     def inject(x: scala.Char): L = Element(isSchemeLatticeValue.inject(x))
     def inject(x: Boolean): L = Element(isSchemeLatticeValue.inject(x))
     def inject[Addr: Address, Abs: JoinLattice](x: Primitive[Addr, Abs]): L = Element(isSchemeLatticeValue.inject(x))
-    def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr])): L = Element(isSchemeLatticeValue.inject(x))
+    def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr]), maybeSymEnv: Option[SymbolicEnvironment]): L = Element(isSchemeLatticeValue.inject(x, maybeSymEnv))
     def injectSymbol(x: String): L = Element(isSchemeLatticeValue.injectSymbol(x))
     def cons[Addr: Address](car: Addr, cdr: Addr): L = Element(isSchemeLatticeValue.cons(car, cdr))
     def vector[Addr: Address](addr: Addr, size: L, init: Addr): MayFail[(L, L)] = foldMapL(size, size =>
@@ -690,10 +691,9 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
       case Char(c) => convLat.inject(c.returnSingle)
       case Symbol(s) => convLat.injectSymbol(s.returnSingle)
       case p: Prim[Addr, L] => convLat.inject(p.prim.convert(abstPrims))
-      case Closure(lambda, env) =>
+      case Closure(lambda, env, maybeSymEnv) =>
         val convertedEnv = convertEnv(env.asInstanceOf[Environment[Addr]])
-        convLat.inject(
-          (lambda, convertedEnv).asInstanceOf[(Exp, Environment[Addr])])
+        convLat.inject((lambda, convertedEnv).asInstanceOf[(Exp, Environment[Addr])], maybeSymEnv)
       case c: Cons[Addr] =>
         convLat.cons[Addr](addressConverter.convertAddress(c.car),
           addressConverter.convertAddress(c.cdr))

@@ -2,6 +2,8 @@ import scalaz._
 
 import backend.expression._
 
+import concolic.SymbolicEnvironment
+
 case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address](
   action: Action[Exp, Abs, Addr],
   actions: List[ActionReplay[Exp, Abs, Addr]],
@@ -39,16 +41,28 @@ trait GeneratesEdgeInfo[Exp, Abs, Addr, Time] {
   def addEvalActionT(action: ActionEval[Exp, Abs, Addr])(
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
     noEdgeInfos(action, ActionEvalR[Exp, Abs, Addr](action.e, action.env))
+  def addEvalActionT(action: ActionConcolicEval[Exp, Abs, Addr])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
+    noEdgeInfos(action, ActionEvalR[Exp, Abs, Addr](action.normalAction.e, action.normalAction.env))
 
   def addEvalActionTSet(action: ActionEval[Exp, Abs, Addr])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    Set(addEvalActionT(action))
+  def addEvalActionTSet(action: ActionConcolicEval[Exp, Abs, Addr])(
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
     Set(addEvalActionT(action))
 
   def addPushActionR(action: ActionPush[Exp, Abs, Addr])(
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
     noEdgeInfos(action, ActionEvalPushR[Exp, Abs, Addr](action.e, action.env, action.frame))
+  def addPushActionR(action: ActionConcolicPush[Exp, Abs, Addr])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
+    noEdgeInfos(action, ActionEvalPushR[Exp, Abs, Addr](action.normalAction.e, action.normalAction.env, action.normalAction.frame))
 
   protected def addPushActionRSet(action: ActionPush[Exp, Abs, Addr])(
+    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
+    Set(addPushActionR(action))
+  protected def addPushActionRSet(action: ActionConcolicPush[Exp, Abs, Addr])(
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
     Set(addPushActionR(action))
 }
@@ -71,9 +85,6 @@ abstract class ConvertableSemantics[Exp: Expression, Abs: JoinLattice, Addr: Add
   def stepKont(v: Abs, frame: Frame, store: Store[Addr, Abs], t: Time): EdgeInfos
 
   def primitives: Primitives[Addr, Abs]
-
-  def convertToAbsSemanticsFrame(frame: Frame, ρ: Environment[Addr], vStack: List[Storable[Abs, Addr]],
-    absSem: ConvertableBaseSchemeSemantics[Abs, Addr, Time]): (Option[Frame], List[Storable[Abs, Addr]], Environment[Addr])
 
   def convertAbsInFrame[OtherAbs: IsConvertableLattice](frame: ConvertableSchemeFrame[Abs, Addr, Time], convertValue: (Abs) => OtherAbs,
     convertEnv: (Environment[Addr]) => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]): ConvertableSchemeFrame[OtherAbs, Addr, Time]
@@ -265,6 +276,9 @@ case class EffectRelease[Addr: Address](target: Addr) extends Effect[Addr] {
 abstract class Action[Exp : Expression, Abs : JoinLattice, Addr : Address] {
   def addEffects(effects: Set[Effect[Addr]]): Action[Exp, Abs, Addr]
 }
+sealed abstract class ActionConcolic[Exp : Expression, Abs : JoinLattice, Addr : Address] extends Action[Exp, Abs, Addr] {
+  def normalAction: Action[Exp, Abs, Addr]
+}
 class ActionHelpers[Exp : Expression, Abs : JoinLattice, Addr : Address] {
   type Effs = Set[Effect[Addr]]
   type Env = Environment[Addr]
@@ -288,16 +302,6 @@ class ActionHelpers[Exp : Expression, Abs : JoinLattice, Addr : Address] {
 }
 
 /**
-  * A value is reached by the interpreter. As a result, a continuation will be
-  * popped with the given reached value.
-  */
-case class ActionConcolicReachedValue[Exp: Expression, Abs: JoinLattice, Addr: Address]
-  (v: Abs, concolicExp: Option[ConcolicExpression], store: Store[Addr, Abs], effects: Set[Effect[Addr]] = Set[Effect[Addr]]())
-    extends Action[Exp, Abs, Addr] {
-  def addEffects(effs: Set[Effect[Addr]]) = this.copy(effects = effects ++ effs)
-}
-
-/**
  * A value is reached by the interpreter. As a result, a continuation will be
  * popped with the given reached value.
  */
@@ -306,6 +310,13 @@ case class ActionReachedValue[Exp : Expression, Abs : JoinLattice, Addr : Addres
     extends Action[Exp, Abs, Addr] {
   def addEffects(effs: Set[Effect[Addr]]) = this.copy(effects = effects ++ effs)
 }
+case class ActionConcolicReachedValue[Exp: Expression, Abs: JoinLattice, Addr: Address](
+  normalAction: ActionReachedValue[Exp, Abs, Addr],
+  concolicExp: Option[ConcolicExpression])
+  extends ActionConcolic[Exp, Abs, Addr] {
+  def addEffects(effs: Set[Effect[Addr]]) = this.copy(normalAction = normalAction.addEffects(effs))
+}
+
 /**
   * A frame needs to be pushed on the stack, and the interpretation continues by
   * evaluating expression e in environment env
@@ -319,6 +330,14 @@ case class ActionPush[Exp: Expression, Abs: JoinLattice, Addr: Address](
     extends Action[Exp, Abs, Addr] {
   def addEffects(effs: Set[Effect[Addr]]) = this.copy(effects = effects ++ effs)
 }
+case class ActionConcolicPush[Exp: Expression, Abs: JoinLattice, Addr: Address](
+  normalAction: ActionPush[Exp, Abs, Addr],
+  frame: ConcolicFrame, /* TODO Debugging: also add frame here to make sure we're using a ConcolicFrame. This frame should be the same as the one included in the normalAction. */
+  symEnv: SymbolicEnvironment)
+  extends ActionConcolic[Exp, Abs, Addr] {
+  def addEffects(effs: Set[Effect[Addr]]) = this.copy(normalAction = normalAction.addEffects(effs))
+}
+
 /**
   * Evaluation continues with expression e in environment env
   */
@@ -329,6 +348,12 @@ case class ActionEval[Exp: Expression, Abs: JoinLattice, Addr: Address](
     effects: Set[Effect[Addr]] = Set[Effect[Addr]]())
     extends Action[Exp, Abs, Addr] {
   def addEffects(effs: Set[Effect[Addr]]) = this.copy(effects = effects ++ effs)
+}
+case class ActionConcolicEval[Exp: Expression, Abs: JoinLattice, Addr: Address](
+  normalAction: ActionEval[Exp, Abs, Addr],
+  symEnv: SymbolicEnvironment
+) extends ActionConcolic[Exp, Abs, Addr] {
+  def addEffects(effs: Set[Effect[Addr]]) = this.copy(normalAction = normalAction.addEffects(effs))
 }
 /**
   * Similar to ActionEval, but only used when stepping inside a function's body
@@ -347,12 +372,23 @@ case class ActionStepIn[Exp: Expression, Abs: JoinLattice, Addr: Address](
     extends Action[Exp, Abs, Addr] {
   def addEffects(effs: Set[Effect[Addr]]) = this.copy(effects = effects ++ effs)
 }
+case class ActionConcolicStepIn[Exp: Expression, Abs: JoinLattice, Addr: Address](
+  normalAction: ActionStepIn[Exp, Abs, Addr],
+  symEnv: SymbolicEnvironment
+) extends ActionConcolic[Exp, Abs, Addr] {
+  def addEffects(effs: Set[Effect[Addr]]) = this.copy(normalAction = normalAction.addEffects(effs))
+}
 /**
  * An error has been reached
  */
 case class ActionError[Exp : Expression, Abs : JoinLattice, Addr : Address]
   (error: SemanticError) extends Action[Exp, Abs, Addr] {
   def addEffects(effs: Set[Effect[Addr]]) = this /* no effects stored in this action */
+}
+case class ActionConcolicError[Exp : Expression, Abs : JoinLattice, Addr : Address](
+  normalAction: ActionError[Exp, Abs, Addr])
+  extends ActionConcolic[Exp, Abs, Addr] {
+  def addEffects(effs: Set[Effect[Addr]]) = this.copy(normalAction = normalAction.addEffects(effs))
 }
 
 trait SemanticError

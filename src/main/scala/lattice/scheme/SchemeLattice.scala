@@ -1,6 +1,7 @@
 import scalaz.{Plus => _, _}
 import scalaz.Scalaz._
 import SchemeOps._
+import concolic.SymbolicEnvironment
 
 case class CannotAccessVector(vector: String) extends SemanticError
 case class CannotAccessCar(v: String) extends SemanticError
@@ -36,12 +37,10 @@ trait IsSchemeLattice[L] extends JoinLattice[L] {
     case (true, true) => join(x, y) /* either x is true, and we have x, or x is false, and we have y */
   }
   /** Extract closures contained in this value */
-  def getClosures[Exp: Expression, Addr: Address](
-      x: L): Set[(Exp, Environment[Addr])]
+  def getClosures[Exp: Expression, Addr: Address](x: L): Set[(Exp, Environment[Addr], Option[SymbolicEnvironment])]
 
   /** Extract primitives contained in this value */
-  def getPrimitives[Addr: Address, Abs: JoinLattice](
-      x: L): Set[Primitive[Addr, Abs]]
+  def getPrimitives[Addr: Address, Abs: JoinLattice](x: L): Set[Primitive[Addr, Abs]]
 
   /** Injection of an integer */
   def inject(x: Int): L
@@ -63,7 +62,7 @@ trait IsSchemeLattice[L] extends JoinLattice[L] {
   def inject[Addr: Address, Abs: JoinLattice](x: Primitive[Addr, Abs]): L
 
   /** Injection of a closure */
-  def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr])): L
+  def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr]), maybeSymEnv: Option[SymbolicEnvironment]): L
 
   /** Injection of a symbol */
   def injectSymbol(x: String): L

@@ -23,7 +23,7 @@ class CountFunCalls[Exp : Expression,
         val machineFilters = edge._1.filters.machineFilters
         machineFilters.foldLeft(map)( (map, actionR) => actionR match {
           case filter: FunCallMark[Exp, Abs, Time] =>
-            val flattenedClosures: Set[Abs] = sabs.getClosures(filter.fValue).map(sabs.inject[Exp, Addr])
+            val flattenedClosures: Set[Abs] = sabs.getClosures(filter.fValue).map(triple => sabs.inject[Exp, Addr]((triple._1, triple._2), None))
             val flattenedPrimitives: Set[Abs] = sabs.getPrimitives(filter.fValue).map(sabs.inject[Addr, Abs])
             val allFunctions = flattenedClosures ++ flattenedPrimitives
             val key = (filter.fExp, filter.t)

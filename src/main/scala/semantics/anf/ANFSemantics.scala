@@ -19,7 +19,7 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
 
   /** Performs evaluation of an atomic expression, returning either an error or the produced value */
   def atomicEval(e: ANFAtomicExp, env: Environment[Addr], store: Store[Addr, Abs]): MayFail[(Abs, Set[Effect[Addr]])] = e match {
-    case lam: ANFLambda => (IsSchemeLattice[Abs].inject[ANFExp, Addr]((lam, env)), Effect.none).point[MayFail]
+    case lam: ANFLambda => (IsSchemeLattice[Abs].inject[ANFExp, Addr]((lam, env), None), Effect.none).point[MayFail]
     case ANFVar(variable) => env.lookup(variable.name) match {
       case Some(a) => store.lookup(a) match {
         case Some(v) => (v, Set(Effect.readVariable(a))).point[MayFail]
@@ -55,7 +55,7 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
       } yield {
         /* For every value of the operand, we call the contained closure and primitive */
         val fromClo: Actions = IsSchemeLattice[Abs].getClosures[ANFExp, Addr](fv).map({
-          case (ANFLambda(args, body, pos), env) => if (args.length == argsv.length) {
+          case (ANFLambda(args, body, pos), env, _) => if (args.length == argsv.length) {
             /* To call a closure, bind the arguments and step into the function */
             bindArgs(args.zip(argsv.reverseMap(_._2)), env, store, t) match {
               case (env2, store) => Action.stepIn(f, (ANFLambda(args, body, pos), env), body, env2, store, argsv, effects)
@@ -63,7 +63,7 @@ class ANFSemantics[Abs : IsSchemeLattice, Addr : Address, Time : Timestamp](prim
           } else {
             Action.error(ArityError(f.toString, args.length, argsv.length))
           }
-          case (lambda, _) => Action.error(TypeError(lambda.toString, "operator", "closure", "not a closure"))
+          case (lambda, _, _) => Action.error(TypeError(lambda.toString, "operator", "closure", "not a closure"))
         })
         val fromPrim: Actions = IsSchemeLattice[Abs].getPrimitives(fv).flatMap(prim =>
           /* To call a primitive, apply the call method with the given arguments and the store */

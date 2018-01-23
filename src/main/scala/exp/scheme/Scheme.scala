@@ -10,10 +10,6 @@ object SchemeExp {
   }
 }
 
-case class SchemePopSymEnv(pos: Position) extends SchemeExp {
-  override def toString = "SchemePopSymEnv"
-}
-
 /**
  * A lambda expression: (lambda (args...) body...)
  * Not supported: "rest"-arguments, of the form (lambda arg body), or (lambda (arg1 . args) body...)
@@ -877,7 +873,7 @@ object SchemeDesugarer {
           case Nil => SchemeValue(ValueBoolean(true), pos)
           case andExp :: Nil => desugarExp(andExp)
           case andExp :: rest =>
-            SchemeIf(desugarExp(andExp), desugarExp(SchemeAnd(rest, exp.pos)), SchemeValue(ValueBoolean(false), pos), pos)
+            SchemeIf(desugarExp(andExp), desugarExp(SchemeAnd(rest, andExp.pos)), SchemeValue(ValueBoolean(false), pos), pos)
         }
       case SchemeOr(exps, pos) =>
         exps match {
@@ -891,11 +887,10 @@ object SchemeDesugarer {
             val tempVarName = newVarName()
             val body: SchemeExp = SchemeIf(SchemeVar(Identifier(tempVarName, pos)),
                                            SchemeVar(Identifier(tempVarName, pos)),
-                                           desugarExp(SchemeOr(rest, exp.pos)),
+                                           desugarExp(SchemeOr(rest, orExp.pos)),
                                            pos)
-            SchemeLet(List((Identifier(tempVarName, pos), desugarExp(orExp))), List(body), pos)
+            SchemeLet(List((Identifier(tempVarName, orExp.pos), desugarExp(orExp))), List(body), pos)
         }
-
       case SchemeCond(clauses, pos) =>
         clauses match {
           case Nil => SchemeValue(ValueBoolean(false), pos)
@@ -916,7 +911,6 @@ object SchemeDesugarer {
                 SchemeIf(other, desugaredBody, desugaredRest, other.pos)
             }
         }
-
       case SchemeLambda(args, body, pos) =>
         SchemeLambda(args, body.map(desugarExp), pos)
       case SchemeFuncall(f, args, pos) =>
