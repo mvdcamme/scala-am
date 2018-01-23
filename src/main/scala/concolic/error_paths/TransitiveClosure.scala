@@ -42,11 +42,11 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
       val epsilons = new java.util.HashSet[StatePair]()
       convert(Set((root, initial)), Set(), epsilons)
 
-      println("Took " + ((System.nanoTime - startx) / Math.pow(10, 9)) + "s TIME")
+      Logger.log("Took " + ((System.nanoTime - startx) / Math.pow(10, 9)) + "s TIME", Logger.E)
       startx = System.nanoTime()
       automaton.addEpsilons(epsilons)
       val diff = (System.nanoTime - startx) / Math.pow(10, 9)
-      println(s"Took ${diff}s TIME")
+      Logger.log(s"Took ${diff}s TIME", Logger.E)
 
       Automaton.setMinimization(1) // brzozowski
       automaton.minimize()
