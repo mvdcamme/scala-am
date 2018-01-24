@@ -169,7 +169,7 @@ case class TimestampedKontStore[KontAddr : KontAddress](content: Map[KontAddr, S
     }))
 
   def map[KAddr <: KontAddr : KontAddress](f: KontAddr => KAddr, g: Frame => Frame): KontStore[KAddr] = {
-    content.foldLeft[KontStore[KAddr]](TimestampedKontStore[KAddr](Map(), timestamp))( (newKstore, keyValue) => {
+    content.foldLeft[KontStore[KAddr]](TimestampedKontStore[KAddr](Map(), 0))( (newKstore, keyValue) => {
       val (ka, konts) = keyValue
       val convertedKA = f(ka)
       val convertedKonts = konts.map( (kont) => Kont(g(kont.frame), f(kont.next)) )
