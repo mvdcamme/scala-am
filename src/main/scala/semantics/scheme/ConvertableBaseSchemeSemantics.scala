@@ -215,7 +215,7 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
                  t)
   }
 
-  def stepEval(e: SchemeExp,
+  override def stepEval(e: SchemeExp,
                env: Environment[Addr],
                store: Store[Addr, V],
                t: Time): EdgeInfos = e match { // Cases in stepEval shouldn't generate any splits in abstract graph
@@ -311,7 +311,7 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
       }
   }
 
-  def stepKont(v: V, frame: Frame, store: Store[Addr, V], t: Time): EdgeInfos =
+  override def stepKont(v: V, frame: Frame, store: Store[Addr, V], t: Time): EdgeInfos =
     frame match {
       case frame: FrameFuncallOperator[V, Addr, Time] =>
         funcallArgs(v, frame, frame.fexp, frame.args, frame.env, store, t)
@@ -443,4 +443,55 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
 
   def parse(program: String): SchemeExp = Scheme.parse(program)
   override def initialBindings = primitives.bindings
+}
+
+class ConvertableSchemeSemantics[V : IsSchemeLattice, Addr : Address, Time : Timestamp](primitives: SchemePrimitives[Addr, V])
+  extends ConvertableBaseSchemeSemantics[V, Addr, Time](primitives) {
+  /** Tries to perform atomic evaluation of an expression. Returns the result of
+    * the evaluation if it succeeded, otherwise returns None */
+  protected def atomicEval(e: SchemeExp, env: Env, store: Sto): Option[(V, Set[Effect[Addr]])] = e match {
+    case λ: SchemeLambda => Some((IsSchemeLattice[V].inject[SchemeExp, Addr]((λ, env), None), Set()))
+    case SchemeVar(variable) => env.lookup(variable.name).flatMap(a => store.lookup(a).map(v => (v, Set(EffectReadVariable(a)))))
+    case SchemeValue(v, _) => evalValue(v).map(value => (value, Set()))
+    case _ => None
+  }
+
+  /**
+    * Optimize the following pattern: when we see an ActionPush(frame, exp, env, store)
+    * where exp is an atomic expression, we can atomically evaluate exp to get v,
+    * and call stepKont(v, store, frame).
+    */
+  protected def optimizeAtomic(edgeInfos: EdgeInfos, t: Time): EdgeInfos = edgeInfos.flatMap(edgeInfo => {
+    edgeInfo.action match {
+      case ActionPush(frame, exp, env, store, effects) => atomicEval(exp, env, store) match {
+        case Some((v, effs)) =>
+          val newEdgeInfos = stepKont(v, frame, store, t).map(edgeInfo => edgeInfo.copy(action = edgeInfo.action.addEffects(effs ++ effects)))
+          newEdgeInfos.map(edgeInfo.merge)
+        case None =>
+          val newPushAction = Action.push(frame, exp, env, store, effects)
+          val newPushEdgeAnnotation = simpleAction(newPushAction)
+          Set(edgeInfo.merge(newPushEdgeAnnotation))
+      }
+      case _ => Set(edgeInfo)
+    }
+  })
+
+  override protected def funcallArgs(f: V, fexp: SchemeExp, args: List[(SchemeExp, V)], toeval: List[SchemeExp],
+                                     env: Env, store: Sto, t: Time): EdgeInfos = toeval match {
+    case Nil => evalCall(f, fexp, args.reverse, store, t)
+    case e :: rest => atomicEval(e, env, store) match {
+      case Some((v, effs)) =>
+        val edgeInfos = funcallArgs(f, fexp, (e, v) :: args, rest, env, store, t)
+        edgeInfos.map(edgeInfo => edgeInfo.copy(action = edgeInfo.action.addEffects(effs)))
+      case None =>
+        val action = Action.push(FrameFuncallOperands(f, fexp, e, args, rest, env), e, env, store)
+        simpleActionSet(action)
+    }
+  }
+
+  override def stepEval(e: SchemeExp, env: Env, store: Sto, t: Time): EdgeInfos =
+    optimizeAtomic(super.stepEval(e, env, store, t), t)
+
+  override def stepKont(v: V, frame: Frame, store: Sto, t: Time): EdgeInfos =
+    optimizeAtomic(super.stepKont(v, frame, store, t), t)
 }
