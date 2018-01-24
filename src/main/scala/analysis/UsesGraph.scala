@@ -4,7 +4,7 @@ class UsesGraph[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, State <
 
   type EdgeAnnotation2 = EdgeAnnotation[Exp, Abs, Addr]
   type Edge = (EdgeAnnotation2, State)
-  type AbstractGraph = Graph[State, EdgeAnnotation2, Unit]
+  type AbstractGraph = Graph[State, EdgeAnnotation2, Set[State]]
 
   type AbstractFrame = ConvertableSchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]
   type ConcreteFrame = ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]

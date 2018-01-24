@@ -129,7 +129,8 @@ trait GraphPrinter[Graph] {
 }
 
 trait HasGraph[Exp, Abs, Addr, MachineState <: StateTrait[Exp, Abs, Addr, _]] {
-  def graph: Graph[MachineState, EdgeAnnotation[Exp, Abs, Addr], Unit]
+  def halted: Set[MachineState]
+  def graph: Graph[MachineState, EdgeAnnotation[Exp, Abs, Addr], Set[MachineState]]
 }
 
 trait HasFinalStores[Addr, Abs] {

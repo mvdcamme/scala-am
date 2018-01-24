@@ -14,7 +14,6 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
   type SpecEnv = Environment[HybridAddress.A]
 
   val aam: SpecAAM = new SpecAAM()
-  implicit val stateInfoProvider = aam.AAMStateInfoProvider
 
   protected def switchToAbstract(): Unit = {
     Logger.log("HybridMachine switching to abstract", Logger.I)

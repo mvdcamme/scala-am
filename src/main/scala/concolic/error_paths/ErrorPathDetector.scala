@@ -3,7 +3,7 @@ import backend.path_filtering.PartialRegexMatcher
 class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp]
   (val aam: KickstartAAMGlobalStore[Exp, Abs, Addr, Time]) {
 
-  type RelevantGraph =  Graph[aam.State, EdgeAnnotation[Exp, Abs, Addr], Unit]
+  type RelevantGraph =  Graph[aam.State, EdgeAnnotation[Exp, Abs, Addr], Set[aam.State]]
 
   private val elseBranchChar = 'e'
   private val thenBranchChar = 't'
