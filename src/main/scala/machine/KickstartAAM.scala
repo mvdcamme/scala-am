@@ -189,8 +189,8 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
         Store.initial[Addr, Abs](store), KontStore.empty[KontAddr], HaltKontAddress, Timestamp[Time].initial(""))
     import scala.language.implicitConversions
 
-    type Context = Unit
-    implicit val graphNode = new GraphNode[State, Unit] {
+    type Context = Set[State]
+    implicit val graphNode = new GraphNode[State, Set[State]] {
       override def label(s: State) = s.toString
       override def color(s: State) = if (s.halted) { Colors.Yellow } else { s.control match {
         case _: ControlEval => Colors.Green
@@ -205,10 +205,17 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       override def content(s: State) =
         ("control" -> s.control) ~ ("store" -> s.store) ~ ("kstore" -> s.kstore) ~ ("kont" -> s.a.toString) ~ ("time" -> s.t.toString)
     }
+    implicit val graphAnnotation: GraphAnnotation[EdgeAnnotation[Exp, Abs, Addr], Context] = new GraphAnnotation[EdgeAnnotation[Exp, Abs, Addr], Context] {
+      override def label(e: EdgeAnnotation[Exp, Abs, Addr]): String = {
+        if (e.filters.semanticsFilters.contains(ThenBranchFilter)) "t"
+        else if (e.filters.semanticsFilters.contains(ElseBranchFilter)) "e"
+        else ""
+      }
+    }
   }
 
-  type G = Option[Graph[State, Unit, Unit]]
-  case class AAMOutput(halted: Set[State], numberOfStates: Int, time: Double, graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Unit],
+  type G = Option[Graph[State, EdgeAnnotation[Exp, Abs, Addr], State.Context]]
+  case class AAMOutput(halted: Set[State], numberOfStates: Int, time: Double, graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]],
                        timedOut: Boolean, stepSwitched: Option[Int])
       extends Output with HasGraph[Exp, Abs, Addr, State] with HasFinalStores[Addr, Abs] {
 
@@ -241,7 +248,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       * Outputs the graph in a dot file
       */
     def toDotFile(path: String): Unit = AAMGraphPrinter.printGraph(graph, path)
-    def toFile(path: String)(output: GraphOutput): Unit = output.toFile(graph, ())(path)
+    def toFile(path: String)(output: GraphOutput): Unit = output.toFile(graph, halted)(path)
   }
 
   /*
@@ -273,7 +280,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
              visited: Set[State],
              halted: Set[State],
              startingTime: Long,
-             graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Unit]): AAMOutput = {
+             graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AAMOutput = {
       if (timeout.reached) {
         AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9), graph, true, stepSwitched)
       } else {
@@ -288,7 +295,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
                * states but leads to non-determinism due to the non-determinism
                * of Scala's headOption (it seems so at least).
                * We do have to add an edge from the current state to the subsumed state. */
-              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, EdgeAnnotation[Exp, Abs, Addr], Unit]]
+              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]]
               (graph)({
                 case (graph, s2) =>
                   if (s2.subsumes(s)) {
@@ -327,7 +334,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       }
     }
     val startingTime = System.nanoTime
-    loop(Set(initialState), Set(), Set(), startingTime, Graph.empty[State, EdgeAnnotation[Exp, Abs, Addr], Unit].addNode(initialState))
+    loop(Set(initialState), Set(), Set(), startingTime, Graph.empty[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]].addNode(initialState))
   }
 
   def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Timeout): Output = ???
@@ -339,11 +346,11 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
   def eval(exp: Exp, sem: ConvertableSemantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Timeout): Output =
     kickstartEval(State.inject(exp, sem.initialEnv, sem.initialStore), sem, None, timeout, None)
 
-  object AAMGraphPrinter extends GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr], Unit]] {
+  object AAMGraphPrinter extends GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]] {
 
-    def printGraph(graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Unit],
+    def printGraph(graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]],
                    path: String): Unit = {
-      GraphDOTOutput.toFile(graph, ())(path)
+      GraphDOTOutput.toFile(graph, Set[State]())(path)
     }
   }
 

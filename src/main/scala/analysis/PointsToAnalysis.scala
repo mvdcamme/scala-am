@@ -99,7 +99,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoPro
 
   val usesGraph = new UsesGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
   import usesGraph._
-  implicit def g: GraphNode[aam.MachineState, Unit] = aam.State.graphNode
+  implicit def g: GraphNode[aam.MachineState, Set[aam.MachineState]] = aam.State.graphNode
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[PointsToLatticeInfoProvider[Abs]]
@@ -158,7 +158,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoPro
   def runInitialStaticAnalysis(currentProgramState: PS, programName: String): StaticAnalysisResult =
     runStaticAnalysisGeneric(currentProgramState, None, Some("initial_graph.dot")) match {
       case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.MachineState] =>
-        GraphDOTOutput.toFile(result.hasGraph.graph, ())("initial_graph.dot")
+        GraphDOTOutput.toFile(result.hasGraph.graph, result.hasGraph.halted)("initial_graph.dot")
         initializeAnalyses(result.hasGraph.graph, programName)
         result
       case other => throw new Exception(s"Expected initial analysis to produce a graph, got $other instead")
