@@ -82,7 +82,6 @@ object HybridTimestamp extends TimestampWrapper {
         a == v.a
       case _ => super.equals(that)
     }
-
     override def hashCode() = a.hashCode()
   }
   case class ConcreteTime(c: ConcreteT, a: AbstractT) extends T

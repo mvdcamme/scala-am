@@ -90,7 +90,6 @@ object HybridAddress extends AddressWrapper {
         a == v.a
       case _ => super.equals(that)
     }
-
     override def hashCode() = a.hashCode()
   }
   case class PrimitiveAddress(name: String) extends A
@@ -113,8 +112,7 @@ object HybridAddress extends AddressWrapper {
     def cell[Exp: Expression, Time: Timestamp](exp: Exp, t: Time) = HybridAddr(cellAbstract[Exp, Time](exp, t))
     def allocationSite[Exp : Expression](a: A) = a match {
       case PrimitiveAddress(_) => None
-      case HybridAddr(a) =>
-        abstractAddress.allocationSite(a)
+      case HybridAddr(a) => abstractAddress.allocationSite(a)
     }
   }
 }
