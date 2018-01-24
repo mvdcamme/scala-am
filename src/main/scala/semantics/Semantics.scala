@@ -7,7 +7,17 @@ import concolic.SymbolicEnvironment
 case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address](
   action: Action[Exp, Abs, Addr],
   actions: List[ActionReplay[Exp, Abs, Addr]],
-  semanticsFilters: Set[SemanticsFilterAnnotation])
+  semanticsFilters: Set[SemanticsFilterAnnotation]) {
+  /**
+    * Results in a new EdgeAnnotation containing the action of the @param other [[EdgeAnnotation]], and
+    * combines the [[actions]] and [[semanticsFilters]] of the two EdgeAnnotations together.
+    * @param other
+    * @return
+    */
+  def merge(other: EdgeInformation[Exp, Abs, Addr]): EdgeInformation[Exp, Abs, Addr] = {
+    EdgeInformation(other.action, actions ++ other.actions, semanticsFilters ++ other.semanticsFilters)
+  }
+}
 
 trait GeneratesEdgeInfo[Exp, Abs, Addr, Time] {
   def noEdgeInfos(action: Action[Exp, Abs, Addr], actionRs: List[ActionReplay[Exp, Abs, Addr]])(
