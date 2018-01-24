@@ -394,8 +394,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
     }
 
     def inject(exp: SchemeExp, env: Environment[HybridAddress.A], sto: Store[HybridAddress.A, ConcreteValue]): State = {
-      val instrumentedExp = ConcolicInstrumenter.instrument(exp)
-      State(ConcolicControlEval(instrumentedExp, env, concolic.initialSymEnv), sto, KontStore.empty[KontAddr], HaltKontAddress, Timestamp[HybridTimestamp.T].initial(""))
+      State(ConcolicControlEval(exp, env, concolic.initialSymEnv), sto, TimestampedKontStore[KontAddr](Map(), 0), HaltKontAddress, Timestamp[HybridTimestamp.T].initial(""))
     }
 
     @scala.annotation.tailrec
