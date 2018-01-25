@@ -5,6 +5,6 @@ trait RTAnalysisStarter {
   def discardSavedState(): Unit
   def saveCurrentState(): Unit
   def currentStateSaved: Boolean
-  def startAnalysisFromSavedState(): Option[PartialRegexMatcher]
+  def startAnalysisFromSavedState(thenBranchTaken: Boolean): Option[PartialRegexMatcher]
 
 }

@@ -426,14 +426,13 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
       }
     }
 
-    val initialState = inject(exp, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue]
-                             (sem.initialStore))
+    val initialState = inject(exp, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
 
     // Use initial static analysis to detect paths to errors
     if (ConcolicRunTimeFlags.checkAnalysis) {
       ScalaAMReporter.disableConcolic()
       val analysisResult = analysisLauncher.runInitialStaticAnalysis(initialState, programName)
-      ScalaAMConcolicSolver.handleInitialAnalysisResult[PAbs](errorPathDetector)(analysisResult)
+      handleInitialAnalysisResult[PAbs](errorPathDetector, analysisResult)
       loopConcolic(initialState, 1)
     } else {
       loopConcolic(initialState, 1)
@@ -446,14 +445,64 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
     * rum-time static analysis and use the results to further prune the symbolic tree.
     * @param state
     */
-  private def potentiallyStartRunTimeAnalysis(state: State): Option[PartialRegexMatcher] = {
+  private def potentiallyStartRunTimeAnalysis(state: State, thenBranchTaken: Boolean): Option[PartialRegexMatcher] = {
     if (ConcolicRunTimeFlags.useRunTimeAnalyses) {
       Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.U)
       val analysisResult = startRunTimeAnalysis(state)
-      ScalaAMConcolicSolver.handleRunTimeAnalysisResult[PAbs](errorPathDetector, analysisResult)
+      handleRunTimeAnalysisResult[PAbs](errorPathDetector, analysisResult, thenBranchTaken)
     } else {
       None
     }
+  }
+
+
+
+  private def handleAnalysisResult[Abs: IsSchemeLattice](errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T], result: StaticAnalysisResult): Option[PartialRegexMatcher] = {
+    if (ConcolicRunTimeFlags.checkAnalysis) {
+      result match {
+        case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
+          // TODO can't just pass the current partial matcher, because that one starts from some cached final state instead of the initial state
+          // TODO and the ENTIRE path is passed to the matcher (so including the part it has actually already matched).
+          // TODO Just passing the initial matcher would mean the current matcher wouldn't be used at all though.
+          // TODO Solution: when an AbortConcolicExecution-error is thrown, pass the path that was already created
+          // TODO to the backend and ask to invalidate that one?
+          val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.hasGraph.graph)
+          //          Logger.log(s"### Concolic got error paths $automaton", Logger.U)
+          maybePartialMatcher
+        case _ =>
+          Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
+          None
+      }
+    } else {
+      None
+    }
+  }
+
+  private def handleInitialAnalysisResult[Abs: IsSchemeLattice](errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
+    result: StaticAnalysisResult): Unit = {
+    val maybePartialMatcher = handleAnalysisResult[Abs](errorPathDetector, result)
+    PartialMatcherStore.setInitial(maybePartialMatcher.get)
+  }
+
+  private def handleRunTimeAnalysisResult[Abs: IsSchemeLattice](errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
+    result: StaticAnalysisResult,
+    thenBranchTaken: Boolean): Option[PartialRegexMatcher] = {
+    val maybePartialMatcher = handleAnalysisResult[Abs](errorPathDetector, result)
+    //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
+    //    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
+    PartialMatcherStore.setCurrentMatcher(maybePartialMatcher.get)
+    /*
+     * A new partial matcher was generated using a run-time static analysis.
+     * This matcher starts matching from a certain point _in the execution of the  program_ and hence skips the part
+     * of the path that comes before this point.
+     * The path should therefore be reset, otherwise the path (which includes every constraint encountered since
+     * the start of the execution of the program) is matched with a matches that only takes into account the constraints
+     * encountered _from the current point in the program on_.
+     * Once the path has been reset, add the constraint that triggered this run-time analysis back to the path.
+     */
+    ScalaAMReporter.resetCurrentPath()
+    ScalaAMReporter.addToCurrentPath(thenBranchTaken)
+    maybePartialMatcher
   }
 
   private def startRunTimeAnalysis(state: State): StaticAnalysisResult = {
@@ -482,9 +531,9 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
   def currentStateSaved: Boolean = {
     savedState.isDefined
   }
-  def startAnalysisFromSavedState(): Option[PartialRegexMatcher] = {
+  def startAnalysisFromSavedState(thenBranchTaken: Boolean): Option[PartialRegexMatcher] = {
     assert(savedState.isDefined)
-    val maybePartialMatcher = potentiallyStartRunTimeAnalysis(savedState.get)
+    val maybePartialMatcher = potentiallyStartRunTimeAnalysis(savedState.get, thenBranchTaken)
     discardSavedState()
     maybePartialMatcher
   }

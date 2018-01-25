@@ -12,29 +12,6 @@ object ScalaAMConcolicSolver {
   }
   def getInputs: List[(ConcolicInput, Int)] = latestInputs
 
-  private def handleAnalysisResult[Abs: IsSchemeLattice]
-  (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult): Option[PartialRegexMatcher] = {
-    if (ConcolicRunTimeFlags.checkAnalysis) {
-      result match {
-        case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
-          // TODO can't just pass the current partial matcher, because that one starts from some cached final state instead of the initial state
-          // TODO and the ENTIRE path is passed to the matcher (so including the part it has actually already matched).
-          // TODO Just passing the initial matcher would mean the current matcher wouldn't be used at all though.
-          // TODO Solution: when an AbortConcolicExecution-error is thrown, pass the path that was already created
-          // TODO to the backend and ask to invalidate that one?
-          val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.hasGraph.graph)
-//          Logger.log(s"### Concolic got error paths $automaton", Logger.U)
-          maybePartialMatcher
-        case _ =>
-          Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
-          None
-      }
-    } else {
-      None
-    }
-  }
-
   private def convertInputs(inputs: Map[ConcolicInput, Int]) = {
     inputs.toList.sortBy(_._1.id)
   }
@@ -71,33 +48,6 @@ object ScalaAMConcolicSolver {
         true
       case SymbolicTreeFullyExplored => false
     }
-  }
-
-  def handleInitialAnalysisResult[Abs: IsSchemeLattice]
-  (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T])
-    (result: StaticAnalysisResult): Unit = {
-    val maybePartialMatcher = handleAnalysisResult[Abs](errorPathDetector)(result)
-    PartialMatcherStore.setInitial(maybePartialMatcher.get)
-  }
-
-
-  def handleRunTimeAnalysisResult[Abs: IsSchemeLattice]
-  (errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T], result: StaticAnalysisResult): Option[PartialRegexMatcher] = {
-    val maybePartialMatcher = handleAnalysisResult[Abs](errorPathDetector)(result)
-//    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
-//    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
-    PartialMatcherStore.setCurrentMatcher(maybePartialMatcher.get)
-    /*
-     * A new partial matcher was generated using a run-time static analysis.
-     * This matcher starts matching from a certain point _in the execution of the  program_ and hence skips the part
-     * of the path that comes before this point.
-     * The path should therefore be reset, otherwise the path (which includes every constraint encountered since
-     * the start of the execution of the program) is matched with a matches that only takes into account the constraints
-     * encountered _from the current point in the program on_.
-     */
-    ScalaAMReporter.resetCurrentPath()
-//    ScalaAMReporter.setCurrentErrorPaths(automaton)
-    maybePartialMatcher
   }
 
 }

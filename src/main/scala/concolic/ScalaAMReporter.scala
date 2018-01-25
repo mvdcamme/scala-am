@@ -115,8 +115,7 @@ object ScalaAMReporter {
     if (ConstraintOptimizer.isConstraintConstant(optimizedConstraint)) {
       addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
     } else if (ConcolicRunTimeFlags.useRunTimeAnalyses && rTAnalysisStarter.currentStateSaved) {
-      rTAnalysisStarter.startAnalysisFromSavedState()
-      addToCurrentPath(thenBranchTaken)
+      rTAnalysisStarter.startAnalysisFromSavedState(thenBranchTaken)
       checkWithPartialMatcher(optimizedConstraint)
     } else if (ConcolicRunTimeFlags.checkAnalysis) {
       checkWithPartialMatcher(optimizedConstraint)
