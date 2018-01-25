@@ -76,6 +76,9 @@ abstract class ConvertableSemantics[Exp: Expression, Abs: JoinLattice, Addr: Add
   type EdgeInfo = EdgeInformation[Exp, Abs, Addr]
   type EdgeInfos = Set[EdgeInformation[Exp, Abs, Addr]]
 
+  def frameReaches(frame: ConvertableSchemeFrame[Abs, Addr, Time], valueReaches: Abs => Set[Addr],
+                   envReaches: Environment[Addr] => Set[Addr], addressReaches: Addr => Set[Addr]): Set[Addr]
+
   /**
     * Defines what actions should be taken when an expression e needs to be
     * evaluated, in environment env with store store

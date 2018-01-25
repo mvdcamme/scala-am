@@ -130,12 +130,12 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
 
     var reached = Set[HybridAddress.A]()
 
-    private def reachesValue(concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+    private def reachesValue(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                              sto: Store[HybridAddress.A, ConcreteValue])
                             (value: ConcreteValue): Set[HybridAddress.A] =
       ConcreteConcreteLattice.latticeInfoProvider.reaches[HybridAddress.A](value, reachesEnvironment(concBaseSem, sto), reachesAddress(concBaseSem, sto))
 
-    private def reachesAddress(concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+    private def reachesAddress(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                sto: Store[HybridAddress.A, ConcreteValue])(
                                address: HybridAddress.A): Set[HybridAddress.A] = {
       if (! reached.contains(address)) {
@@ -147,7 +147,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
       }
     }
 
-    private def reachesEnvironment(concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+    private def reachesEnvironment(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                    sto: Store[HybridAddress.A, ConcreteValue])
                                   (env: Environment[HybridAddress.A]): Set[HybridAddress.A] = {
       var reached: Set[HybridAddress.A] = Set()
@@ -159,7 +159,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
       reached
     }
 
-    private def reachesKontAddr[KAddr <: KontAddr](concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+    private def reachesKontAddr[KAddr <: KontAddr](concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                                    sto: Store[HybridAddress.A, ConcreteValue], kstore: KontStore[KAddr])
                                                   (ka: KAddr): Set[HybridAddress.A] = {
       kstore
@@ -173,7 +173,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
             reachesAddress(concBaseSem, sto)) ++ reachesKontAddr(concBaseSem, sto, kstore)(kont.next))
     }
 
-    private def reachesControl[KAddr <: KontAddr](concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+    private def reachesControl[KAddr <: KontAddr](concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                                   sto: Store[HybridAddress.A, ConcreteValue],
                                                   kstore: KontStore[KAddr])(
                                                   control: ConcolicControl)
@@ -186,7 +186,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
         case ConcolicControlError(_) => Set()
       }
 
-    private def reachesStoreAddresses[KAddr <: KontAddr](concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+    private def reachesStoreAddresses[KAddr <: KontAddr](concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                                          sto: Store[HybridAddress.A, ConcreteValue])(
                                                          control: ConcolicControl,
                                                          kstore: KontStore[KAddr],
@@ -195,7 +195,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
     }
 
     private def garbageCollectStore[KAddr <: KontAddr]
-                                   (concBaseSem: ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                                   (concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                     store: Store[HybridAddress.A, ConcreteValue],
                                     control: ConcolicControl,
                                     kstore: KontStore[KAddr],
@@ -222,8 +222,6 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
          KontAddr,
          HybridTimestamp.T) = {
 
-      val concBaseSem = new ConvertableBaseSchemeSemantics[ConcreteValue, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteValue])
-
       val convertValueFun = convertValue[AbstL](abstSem.primitives) _
 
       val convertedControl: ConvertedControl[SchemeExp, AbstL, HybridAddress.A] =
@@ -234,9 +232,9 @@ class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](a
             ConvertedControlKont[SchemeExp, AbstL, HybridAddress.A](convertValueFun(v))
         }
 
-      val GCedStore = garbageCollectStore(concBaseSem, store, control, kstore, a)
+      val GCedStore = garbageCollectStore(concSem, store, control, kstore, a)
       val convertedStore = convertStore(GCedStore, convertValueFun)
-      val convertedKStore = convertKStore[AbstL, KontAddr](mapKontAddress, kstore, convertValueFun, concBaseSem, abstSem)
+      val convertedKStore = convertKStore[AbstL, KontAddr](mapKontAddress, kstore, convertValueFun, concSem, abstSem)
 
       val convertedA = convertKontAddr(a, None, mapKontAddress)
       val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
