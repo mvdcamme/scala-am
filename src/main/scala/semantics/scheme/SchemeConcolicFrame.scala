@@ -149,9 +149,8 @@ case class FrameConcolicLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timest
     abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) = {
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]()
     FrameLetrec(addressConverter.convertAddress(addr.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr],
-      variable,
       bindings.map( (binding) =>
-        (addressConverter.convertAddress(binding._1.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr], binding._2, binding._3)),
+        (addressConverter.convertAddress(binding._1.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr], binding._3)),
       body,
       convertEnv(env))
   }

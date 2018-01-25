@@ -9,8 +9,8 @@ case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address](
   actions: List[ActionReplay[Exp, Abs, Addr]],
   semanticsFilters: Set[SemanticsFilterAnnotation]) {
   /**
-    * Results in a new EdgeAnnotation containing the action of the @param other [[EdgeAnnotation]], and
-    * combines the [[actions]] and [[semanticsFilters]] of the two EdgeAnnotations together.
+    * Results in a new EdgeInformation containing the action of the @param other [[EdgeInformation]], and
+    * combines the [[actions]] and [[semanticsFilters]] of the two [[EdgeInformation]]s together.
     * @param other
     * @return
     */
@@ -20,6 +20,8 @@ case class EdgeInformation[Exp : Expression, Abs : JoinLattice, Addr : Address](
 }
 
 trait GeneratesEdgeInfo[Exp, Abs, Addr, Time] {
+
+  import scala.language.implicitConversions
   def noEdgeInfos(action: Action[Exp, Abs, Addr], actionRs: List[ActionReplay[Exp, Abs, Addr]])(
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
     EdgeInformation(action, actionRs, Set())
@@ -36,7 +38,7 @@ trait GeneratesEdgeInfo[Exp, Abs, Addr, Time] {
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
     noEdgeInfosSet(action, List(actionR))
 
-  def simpleAction(action: Action[Exp, Abs, Addr])(
+  implicit def simpleAction(action: Action[Exp, Abs, Addr])(
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
     EdgeInformation(action, Nil, Set())
 
@@ -44,34 +46,25 @@ trait GeneratesEdgeInfo[Exp, Abs, Addr, Time] {
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
     simpleActionSet(Set(action))
 
-  def simpleActionSet(actions: Set[Action[Exp, Abs, Addr]])(
+  implicit def simpleActionSet(actions: Set[Action[Exp, Abs, Addr]])(
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
     actions.map(EdgeInformation(_, Nil, Set()))
 
   def addEvalActionT(action: ActionEval[Exp, Abs, Addr])(
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
-    noEdgeInfos(action, ActionEvalR[Exp, Abs, Addr](action.e, action.env))
+    noEdgeInfos(action, Nil)
   def addEvalActionT(action: ActionConcolicEval[Exp, Abs, Addr])(
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
     noEdgeInfos(action, ActionEvalR[Exp, Abs, Addr](action.normalAction.e, action.normalAction.env))
 
-  def addEvalActionTSet(action: ActionEval[Exp, Abs, Addr])(
-    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
-    Set(addEvalActionT(action))
   def addEvalActionTSet(action: ActionConcolicEval[Exp, Abs, Addr])(
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
     Set(addEvalActionT(action))
 
-  def addPushActionR(action: ActionPush[Exp, Abs, Addr])(
-    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
-    noEdgeInfos(action, ActionEvalPushR[Exp, Abs, Addr](action.e, action.env, action.frame))
   def addPushActionR(action: ActionConcolicPush[Exp, Abs, Addr])(
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): EdgeInformation[Exp, Abs, Addr] =
     noEdgeInfos(action, ActionEvalPushR[Exp, Abs, Addr](action.normalAction.e, action.normalAction.env, action.normalAction.frame))
 
-  protected def addPushActionRSet(action: ActionPush[Exp, Abs, Addr])(
-    implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
-    Set(addPushActionR(action))
   protected def addPushActionRSet(action: ActionConcolicPush[Exp, Abs, Addr])(
     implicit unused1: Expression[Exp], unused2: JoinLattice[Abs], unused3: Address[Addr]): Set[EdgeInformation[Exp, Abs, Addr]] =
     Set(addPushActionR(action))
