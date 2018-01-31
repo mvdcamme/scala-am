@@ -5,6 +5,8 @@ import ConcreteConcreteLattice.{ L => ConcreteValue }
 
 trait ConvertableProgramState[Exp, Addr, Time] {
 
+  def addressesReachable: Set[Addr]
+
   def convertState[AbstL: IsConvertableLattice](
       concSem: ConvertableSemantics[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
       abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
