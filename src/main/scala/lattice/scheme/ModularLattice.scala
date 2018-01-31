@@ -599,7 +599,7 @@ Sym : SymbolLattice
   val isSchemeLattice: IsConvertableLattice[L] = isConvertableSchemeLattice
   val isJoinLattice: JoinLattice[L] = isConvertableSchemeLattice
 
-  val latticeInfoProvider: PointsToLatticeInfoProvider[L] = new PointsToLatticeInfoProvider[L] {
+  val latticeInfoProvider: LatticeInfoProvider[L] = new LatticeInfoProvider[L] {
     def simpleType(x: L): SimpleTypes.Value = x match {
       case Element(Bool(_)) => SimpleTypes.Boolean
       case Element(Bot) => SimpleTypes.Bottom
@@ -615,16 +615,6 @@ Sym : SymbolLattice
       case Element(Vec(_, _, _)) => SimpleTypes.Vector
       case Element(VectorAddress(_)) => SimpleTypes.VectorAddress
       case _ => SimpleTypes.Top
-    }
-    def pointsTo(x: L): Option[scala.Int] = {
-      def pointsTo(value: Value): Boolean = value match {
-        case Symbol(_) | Prim(_) | Closure(_, _) | Cons(_, _) | Vec(_, _, _) | VectorAddress(_) => true
-        case _ => false
-      }
-      x match {
-        case Element(value) => if (pointsTo(value)) Some(1) else Some(0)
-        case Elements(values) => values.foldLeft[Option[scala.Int]](Some(0))((acc, value) => acc.flatMap( (res) => Some(if (pointsTo(value)) 1 else 0) ))
-      }
     }
     def reaches[Addr: Address](x: L,  reachesEnv: Environment[Addr] => Set[Addr], reachesAddress: Addr => Set[Addr]): Set[Addr] = {
       def reachesValue(v: Value): Set[Addr] = v match {
@@ -645,6 +635,19 @@ Sym : SymbolLattice
     implicit val lattice: IsSchemeLattice[L] = isSchemeLattice
     implicit val monoid: Monoid[L] = lsetMonoid
   }
+}
+
+class PointsToLattice(counting: Boolean) extends SchemeLattice {
+  import PointsToString._
+  import PointsToBoolean._
+  import PointsToInteger._
+  import PointsToFloat._
+  import PointsToChar._
+  import PointsToSymbol._
+  val lattice = new MakeSchemeLattice[S, B, I, F, C, Sym](counting)
+  type L = lattice.L
+  val isSchemeLattice: IsConvertableLattice[lattice.L] = lattice.isSchemeLattice
+  val latticeInfoProvider: LatticeInfoProvider[lattice.L] = lattice.latticeInfoProvider
 }
 
 object SchemeLattices {

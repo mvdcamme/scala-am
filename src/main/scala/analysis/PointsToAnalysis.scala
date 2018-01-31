@@ -46,40 +46,10 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
     }
   }
 
-  private def analyzeOutput[
-      Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](
-      machine: Machine,
-      pointsTo: L => Option[Int],
-      relevantAddress: Addr => Boolean)(
-      output: Machine#MachineOutput): List[(Addr, Option[Int])] = {
-    val storeValues = output.finalStores.head.toSet
-    val initial: List[(Addr, Option[Int])] = Nil
-    val result: List[(Addr, Option[Int])] = storeValues.foldLeft(initial)({
-      case (result, (address, value)) =>
-        val numberOfObjectsPointedTo = pointsTo(value)
-        if (relevantAddress(address) && numberOfObjectsPointedTo.getOrElse(1) > 0) {
-          /* List all addresses pointing to more than one value */
-          (address, numberOfObjectsPointedTo) :: result
-        } else {
-          result
-        }
-    })
-    val metrics = calculateMetrics(result)
-    Logger.log(
-      "Static points-to analysis completed:\n" +
-      s"resulting value is ${output.finalValues}\n" +
-      s"resulting set equals $result\n" +
-      s"metrics equals $metrics\n",
-      Logger.I)
-    possiblyWriteMetrics(output.stepSwitched.getOrElse(-1), metrics)
-    result
-  }
-
   def analyze[Machine <: ProducesStateGraph[Exp, L, Addr, Time]](
       toDot: Option[String],
       machine: Machine,
       sem: ConvertableSemantics[Exp, L, Addr, Time],
-      pointsTo: L => Option[Int],
       relevantAddress: Addr => Boolean)(
       startState: machine.InitialState,
       isInitial: Boolean,
@@ -87,12 +57,11 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
     Logger.log("Starting static points-to analysis", Logger.I)
     val result = machine.kickstartEval(startState, sem, None, Timeout.none, stepSwitched)
     toDot.foreach(result.toFile)
-    analyzeOutput(machine, pointsTo, relevantAddress)(result)
     AnalysisOutputGraph[Exp, L, Addr, machine.MachineState](result)
   }
 }
 
-class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoProvider](
+class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
     concSem: ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T])
     (implicit analysisFlags: AnalysisFlags)
     extends AnalysisLauncher[Abs] {
@@ -102,7 +71,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoPro
   implicit def g: GraphNode[aam.MachineState, Set[aam.MachineState]] = aam.State.graphNode
 
   val abs = implicitly[IsConvertableLattice[Abs]]
-  val lip = implicitly[PointsToLatticeInfoProvider[Abs]]
+  val lip = implicitly[LatticeInfoProvider[Abs]]
 
   val pointsToAnalysis = new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
   val countFunCallsMetricsComputer = new CountFunCalls[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.State]
@@ -133,7 +102,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: PointsToLatticeInfoPro
     wrapRunAnalysis(
       () => {
         val startState = convertStateAAM(aam, concSem, abstSem, currentProgramState)
-        val result = pointsToAnalysis.analyze(toDotFile, aam, abstSem, lip.pointsTo, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startState, false, stepSwitched)
+        val result = pointsToAnalysis.analyze(toDotFile, aam, abstSem, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startState, false, stepSwitched)
         Logger.log(s"Static points-to analysis result is $result", Logger.U)
         ConcolicRunTimeFlags.setHasCompletedAnalysis()
         result

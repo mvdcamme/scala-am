@@ -166,13 +166,13 @@ object Main {
           implicit val sabsCCLattice = ConcreteConcreteLattice.isSchemeLattice
           val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L])
 
-          val typeLattice = new MakeSchemeLattice[Type.S, Concrete.B, Type.I, Type.F, Type.C, Concrete.Sym](false) // SchemeLattices.WithCounting(false).TypeLattice
-          implicit val typeConvLattice: IsConvertableLattice[typeLattice.L] = typeLattice.isConvertableSchemeLattice
-          implicit val typeLatInfoProv = typeLattice.latticeInfoProvider
+          val pointsToLattice = new PointsToLattice(false)
+          implicit val pointsToConvLattice: IsConvertableLattice[pointsToLattice.L] = pointsToLattice.isSchemeLattice
+          implicit val pointsToLatInfoProv = pointsToLattice.latticeInfoProvider
           implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
-          val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[typeLattice.L](sem)(typeConvLattice, typeLatInfoProv, config.analysisFlags)
+          val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](sem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
 
-          val machine = new ConcolicMachine[typeLattice.L](pointsToAnalysisLauncher, config.analysisFlags)
+          val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, config.analysisFlags)
           sem.rTAnalysisStarter = machine
           runOnFile(config.file.get, program => machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined, Timeout.none))
           }

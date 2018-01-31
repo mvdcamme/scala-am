@@ -6,7 +6,7 @@ import ConcreteConcreteLattice.{L => ConcreteValue}
 import backend.path_filtering.PartialRegexMatcher
 import concolic.SymbolicEnvironment
 
-class ConcolicMachine[PAbs: IsConvertableLattice: PointsToLatticeInfoProvider](analysisLauncher: AnalysisLauncher[PAbs], analysisFlags: AnalysisFlags)
+class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLauncher: AnalysisLauncher[PAbs], analysisFlags: AnalysisFlags)
                                                                               (implicit unused1: IsSchemeLattice[ConcreteValue])
   extends EvalKontMachine[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] with RTAnalysisStarter {
 

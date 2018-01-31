@@ -72,7 +72,7 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
     override def toString = "CannotJoin(" + values.mkString(", ") + ")"
   }
 
-  class IsSchemeLatticeValueImpl extends IsSchemeLattice[Value] with PointsToLatticeInfoProvider[L] {
+  class IsSchemeLatticeValueImpl extends IsSchemeLattice[Value] with LatticeInfoProvider[L] {
 
     def simpleType(x: L): SimpleTypes.Value = x match {
       case Element(Bool(_)) => SimpleTypes.Boolean
@@ -666,7 +666,7 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
     implicit val monoid: Monoid[L] = lsetMonoid
   }
   val isSchemeLatticeValue: IsSchemeLatticeValueImpl = new IsSchemeLatticeValueImpl
-  val latticeInfoProvider: PointsToLatticeInfoProvider[L] = isSchemeLatticeValue
+  val latticeInfoProvider: LatticeInfoProvider[L] = isSchemeLatticeValue
 
   def simplify(x: L): Option[SExpValueType] = x match {
     case Element(Str(s)) => Some(ValueString(s.returnSingle))

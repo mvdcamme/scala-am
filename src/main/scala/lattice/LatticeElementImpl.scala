@@ -313,6 +313,199 @@ class BoundedInteger(bound: Int) {
   }
 }
 
+abstract class PointsTo[PT <: Concrete.L[_]](val maxSize: Int) {
+  sealed trait L
+  case object Top extends L
+  case class Precise(v: PT) extends L
+  def concreteLattice: LatticeElement[PT]
+  abstract class BaseInstance(val name: String, val le: LatticeElement[PT]) extends LatticeElement[L] {
+    private def cardinalityToOptInt(x: PT): Option[Int] = concreteLattice.cardinality(x) match {
+      case CardinalityNumber(int) => Some(int)
+      case _ => None
+    }
+    def cardinality(x: L): Cardinality = x match {
+      case Top => CardinalityPrimitiveLikeInf()
+      case Precise(v) => concreteLattice.cardinality(v)
+    }
+    override def shows(f: L): String = f match {
+      case Precise(v) =>
+        le.shows(v)
+      case Top => name
+    }
+    val bottom: L = Precise(le.bottom)
+    def top: L = Top
+    def join(x: L, y: => L) = x match {
+      case Top => Top
+      case Precise(vX) => y match {
+        case Top => Top
+        case Precise(vY) => checkSize(le.join(vX, vY))
+      }
+    }
+    def subsumes(x: L, y: => L) = (x, y) match {
+      case (Top, _) => true
+      case (_, Top) => false
+      case (Precise(vX), Precise(vY)) => le.subsumes(vX, vY)
+    }
+
+    def order(x: L, y: L): Ordering = (x, y) match {
+      case (Top, Top) => Ordering.EQ
+      case (Top, _) => Ordering.GT
+      case (Precise(vX), Precise(vY)) =>
+        le.order(vX, vY)
+    }
+
+    def eql[B: BoolLattice](s1: L, s2: L): B =
+      applyAndCheckOtherBinary(s1, s2, (vX, vY) => le.eql(vX, vY)(implicitly[BoolLattice[B]]))
+
+    protected def checkSize(x: PT): L =
+      if (cardinalityToOptInt(x).forall(_ > maxSize)) {
+        Top
+      } else {
+        Precise(x)
+      }
+
+    protected def applyAndCheckOtherUnary[OL](
+      x: L,
+      f: (PT) => OL)(implicit l: LatticeElement[OL]): OL =
+      x match {
+        case Top => l.top
+        case Precise(vX) =>
+          f(vX)
+      }
+
+    protected def applyAndCheckOtherBinary[OL](
+      x: L,
+      y: L,
+      f: (PT,
+        PT) => OL)(implicit l: LatticeElement[OL]): OL =
+      (x, y) match {
+        case (Top, _) | (_, Top) => l.top
+        case (Precise(vX), Precise(vY)) =>
+          f(vX, vY)
+      }
+
+    protected def applyAndCheckUnary(
+      x: L,
+      f: (PT) => PT) = x match {
+      case Top => Top
+      case Precise(v) =>
+        checkSize(f(v))
+    }
+    protected def applyAndCheckBinary(
+      x: L,
+      y: L,
+      f: (PT, PT) => PT): L =
+      (x, y) match {
+        case (Top, _) => Top
+        case (_, Top) => Top
+        case (Precise(vX), Precise(vY)) =>
+          checkSize(f(vX, vY))
+
+      }
+  }
+}
+
+object PointsToString extends PointsTo[Concrete.S](3) {
+  type S = L
+  val concreteLattice = Concrete.L.stringConcrete
+  implicit val isString = new BaseInstance("PointsToString", concreteLattice) with StringLattice[S] {
+    def inject(s: String) = checkSize(concreteLattice.inject(s))
+    def length[I](s: S)(implicit int: IntLattice[I]): I = applyAndCheckOtherUnary(s, (s) => concreteLattice.length(s)
+    (int))
+    def append(s1: S, s2: S) = applyAndCheckBinary(s1, s2, concreteLattice.append)
+    def lt[B](s1: S, s2: S)(implicit bool: BoolLattice[B]): B = applyAndCheckOtherBinary(s1, s2, concreteLattice.lt(_, _)(bool))
+    def toNumber[I](s: S)(implicit int: IntLattice[I]): I = applyAndCheckOtherUnary(s, concreteLattice.toNumber(_)(int))
+    def toSymbol[Sym](s: S)(implicit sym: SymbolLattice[Sym]) =
+      applyAndCheckOtherUnary(s, (s) => concreteLattice.toSymbol(s)(sym))
+  }
+}
+
+object PointsToBoolean extends PointsTo[Concrete.B](2) {
+  type B = L
+  val concreteLattice = Concrete.L.boolConcrete
+  implicit val isBoolean = new BaseInstance("PointsToBoolean", concreteLattice) with BoolLattice[B] {
+    def inject(b: Boolean) = checkSize(concreteLattice.inject(b))
+    def isTrue(b: B) = b match {
+      case Top => true
+      case Precise(vs) => concreteLattice.isTrue(vs)
+    }
+    def isFalse(b: B) = b match {
+      case Top => true
+      case Precise(vs) => concreteLattice.isFalse(vs)
+    }
+    def not(b: B) = applyAndCheckUnary(b, concreteLattice.not)
+  }
+}
+
+object PointsToInteger extends PointsTo[Concrete.I](3) {
+  type I = L
+  val concreteLattice = Concrete.L.intConcrete
+  implicit val isInteger = new BaseInstance("PointsToInteger", concreteLattice) with IntLattice[I] {
+    override def shows(x: L) = super.shows(x)
+    def inject(x: Int): L = Precise(concreteLattice.inject(x))
+    def ceiling(n: L): L = n
+    def toReal[F](n: L)(implicit float: RealLattice[F]): F = n match {
+      case Top => float.top
+      case Precise(v) => concreteLattice.toReal(v)(float)
+    }
+    def random(n: L): L = Top //applyAndCheckUnary(n, concreteIsInteger.random)
+    def plus(n1: L, n2: L): L = applyAndCheckBinary(n1, n2, concreteLattice.plus)
+    def minus(n1: L, n2: L): L = applyAndCheckBinary(n1, n2, concreteLattice.minus)
+    def times(n1: L, n2: L): L = applyAndCheckBinary(n1, n2, concreteLattice.times)
+    def div[F](n1: L, n2: L)(implicit real: RealLattice[F]): F = applyAndCheckOtherBinary(n1, n2, concreteLattice.div(_, _)(real))
+    def quotient(n1: L, n2: L): L = applyAndCheckBinary(n1, n2, concreteLattice.quotient)
+    def modulo(n1: L, n2: L): L = applyAndCheckBinary(n1, n2, concreteLattice.modulo)
+    def remainder(n1: L, n2: L): L = applyAndCheckBinary(n1, n2, concreteLattice.remainder)
+    def lt[B](n1: L, n2: L)(implicit bool: BoolLattice[B]): B = applyAndCheckOtherBinary(n1, n2, concreteLattice.lt(_, _)(bool))
+    def toChar[C](n: L)(implicit char: CharLattice[C]): C = applyAndCheckOtherUnary(n, concreteLattice.toChar(_)(char))
+    def toString[S](n: L)(implicit str: StringLattice[S]): S = applyAndCheckOtherUnary(n, concreteLattice.toString(_)(str))
+  }
+}
+
+object PointsToFloat extends PointsTo[Concrete.F](3) {
+  type F = L
+  val concreteLattice = Concrete.L.floatConcrete
+  implicit val isFloat = new BaseInstance("PointsToFloat", concreteLattice) with RealLattice[F] {
+    def inject(n: Double) = checkSize(concreteLattice.inject(n))
+    def toInt[I](n: F)(implicit int: IntLattice[I]): I = applyAndCheckOtherUnary(n, concreteLattice.toInt(_)(int))
+    def ceiling(n: F) = applyAndCheckUnary(n, concreteLattice.ceiling)
+    def floor(n: F) = applyAndCheckUnary(n, concreteLattice.floor)
+    def round(n: F) = applyAndCheckUnary(n, concreteLattice.round)
+    def log(n: F) = applyAndCheckUnary(n, concreteLattice.log)
+    def random(n: F) = Top //applyAndCheckUnary(n, concreteIsFloat.random)
+    def sin(n: F): F = applyAndCheckUnary(n, concreteLattice.sin)
+    def asin(n: F): F = applyAndCheckUnary(n, concreteLattice.asin)
+    def cos(n: F): F = applyAndCheckUnary(n, concreteLattice.cos)
+    def acos(n: F): F = applyAndCheckUnary(n, concreteLattice.acos)
+    def tan(n: F): F = applyAndCheckUnary(n, concreteLattice.tan)
+    def atan(n: F): F = applyAndCheckUnary(n, concreteLattice.atan)
+    def sqrt(n: F): F = applyAndCheckUnary(n, concreteLattice.sqrt)
+    def plus(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteLattice.plus)
+    def minus(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteLattice.minus)
+    def times(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteLattice.times)
+    def div(n1: F, n2: F) = applyAndCheckBinary(n1, n2, concreteLattice.div)
+    def lt[B](n1: F, n2: F)(implicit bool: BoolLattice[B]) = applyAndCheckOtherBinary(n1, n2, concreteLattice.lt(_, _)(bool))
+    def toString[Str](n: F)(implicit str: StringLattice[Str]) = applyAndCheckOtherUnary(n, concreteLattice.toString(_)(str))
+  }
+}
+
+object PointsToChar extends PointsTo[Concrete.C](3) {
+  type C = L
+  val concreteLattice = Concrete.L.charConcrete
+  implicit val isChar = new BaseInstance("PointsToChar", concreteLattice) with CharLattice[C] {
+    def inject(c: Char) = checkSize(concreteLattice.inject(c))
+  }
+}
+
+object PointsToSymbol extends PointsTo[Concrete.Sym](3) {
+  type Sym = L
+  val concreteLattice = Concrete.L.symConcrete
+  implicit val isSymbol = new BaseInstance("PointsToSymbol", concreteLattice) with SymbolLattice[Sym] {
+    def inject(sym: String) = checkSize(concreteLattice.inject(sym))
+    def toString[S](sym: Sym)(implicit str: StringLattice[S]): S = applyAndCheckOtherUnary(sym, concreteLattice.toString(_)(str))
+  }
+}
+
 object Type {
   sealed trait T
   case object Top extends T

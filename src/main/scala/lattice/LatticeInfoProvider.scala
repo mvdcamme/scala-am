@@ -13,7 +13,3 @@ trait LatticeInfoProvider[L] {
   }
   def reaches[Addr: Address](x: L, reachesEnv: Environment[Addr] => Set[Addr], reachesAddress: Addr => Set[Addr]): Set[Addr]
 }
-
-trait PointsToLatticeInfoProvider[L] extends LatticeInfoProvider[L] {
-  def pointsTo(x: L): Option[Int]
-}
