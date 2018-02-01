@@ -85,6 +85,11 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
       store.toSet.map(_._1)
     }
 
+    def optEnvs: Option[(Environment[HybridAddress.A], SymbolicEnvironment)] = control match {
+      case ConcolicControlEval(_, env, symEnv) => Some((env, symEnv))
+      case _ => None
+    }
+
     def halted = control match {
       case ConcolicControlError(_) => true
       case ConcolicControlKont(_, _) => a == HaltKontAddress

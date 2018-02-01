@@ -27,6 +27,7 @@ package object concolic {
     addVariable(originalName, concolicExpression, currentScope)
   }
 
+  def containsVariable(name: String, env: SymbolicEnvironment): Boolean = lookupVariable(name, env).isDefined
   def lookupVariable(name: String, env: SymbolicEnvironment): Option[ConcolicExpression] = {
     @scala.annotation.tailrec
     def loopEnv(env: SymbolicEnvironment): Option[ConcolicExpression] = env match {

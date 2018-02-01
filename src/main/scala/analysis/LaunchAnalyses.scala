@@ -2,6 +2,7 @@ import backend.PathConstraint
 import backend.expression._
 import backend.path_filtering.PartialRegexMatcher
 import backend.tree.BranchConstraint
+import concolic.SymbolicEnvironment
 
 class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLauncher: AnalysisLauncher[PAbs]) {
 
@@ -50,23 +51,6 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
     maybePartialMatcher
   }
 
-  private def findExactInputVariables(exp: ConcolicExpression): Option[(ConcolicInput, Int)] = exp match {
-    case RelationalConcolicExpression(exp1, IntEqual, exp2) => (exp1, exp2) match {
-      case (i: ConcolicInput, int: ConcolicInt) => Some((i, int.i))
-      case (int: ConcolicInt, i: ConcolicInput) => Some((i, int.i))
-      case _ => None
-    }
-    case _ => None
-  }
-
-  private def filterPreciseInputVariables(report: PathConstraint): List[(ConcolicInput, Int)] = {
-    report.flatMap({
-      /* Only consider the expression if the constraint was actually true */
-      case (bc: BranchConstraint, true, _) => findExactInputVariables(bc.exp)
-      case _ => Nil
-    })
-  }
-
   /**
     * If an if-expression has just been encountered (and a corresponding branch node has been made), launch a
     * rum-time static analysis and use the results to further prune the symbolic tree.
@@ -74,9 +58,11 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
     */
   def startRunTimeAnalysis(state: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T], thenBranchTaken: Boolean, stepCount: Int): Option[PartialRegexMatcher] = {
     ScalaAMReporter.disableConcolic()
+    state.optEnvs.foreach((envs) => ExactSymbolicVariablesFinder.matchSymEnvAndStateEnv(envs._2, envs._1, state.store))
     Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.E)
-    val exactInputs = filterPreciseInputVariables(ScalaAMReporter.getCurrentReport)
-    Logger.log(s"exactInputs are $exactInputs", Logger.E)
+    state.optEnvs.foreach((envs) => {
+      val exactSymbolicVariables = ExactSymbolicVariablesFinder.findExactSymbolicVariables(envs._1, envs._2)
+      Logger.log(s"exactSymbolicVariables are $exactSymbolicVariables", Logger.E) })
     val currentAddresses: Set[HybridAddress.A] = state.addressesReachable
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
     val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
@@ -88,6 +74,7 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
 
   def startInitialAnalysis(initialState: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T], programName: String): Option[PartialRegexMatcher] = {
     ScalaAMReporter.disableConcolic()
+    initialState.optEnvs.foreach((envs) => ExactSymbolicVariablesFinder.matchSymEnvAndStateEnv(envs._2, envs._1, initialState.store))
     val analysisResult = analysisLauncher.runInitialStaticAnalysis(initialState, programName)
     val result = handleInitialAnalysisResult[PAbs](errorPathDetector, analysisResult)
     ScalaAMReporter.enableConcolic()
