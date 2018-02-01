@@ -218,13 +218,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
         concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
         abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
         initialKontAddress: KontAddr,
-        mapKontAddress: (KontAddr,
-                         Option[Environment[HybridAddress.A]]) => KontAddr)
-      : (ConvertedControl[SchemeExp, AbstL, HybridAddress.A],
-         Store[HybridAddress.A, AbstL],
-         KontStore[KontAddr],
-         KontAddr,
-         HybridTimestamp.T) = {
+        mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr): Conversion[AbstL] = {
 
       val convertValueFun = convertValue[AbstL](abstSem.primitives) _
 
