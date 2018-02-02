@@ -60,11 +60,11 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
 
   protected def addPushDataActionT(currentValue: ConcreteValue,
                                    optConcolicValue: Option[ConcolicExpression],
-                                   currentFrame: SchemeConcolicFrame,
+                                   currentFrame: SchemeConcolicFrame[ConcreteValue, Addr, Time],
                                    frameGenerator: FrameGenerator[ConcreteValue],
-                                   actionGenerator: SchemeConcolicFrame => ActionConcolicPush[SchemeExp, ConcreteValue, Addr]): EdgeInformation[SchemeExp, ConcreteValue, Addr] = {
+                                   actionGenerator: SchemeConcolicFrame[ConcreteValue, Addr, Time] => ActionConcolicPush[SchemeExp, ConcreteValue, Addr]): EdgeInformation[SchemeExp, ConcreteValue, Addr] = {
     val newFrame = frameGenerator(currentValue, optConcolicValue, currentFrame)
-    val currentAction = actionGenerator(newFrame.asInstanceOf[SchemeConcolicFrame])
+    val currentAction = actionGenerator(newFrame.asInstanceOf[SchemeConcolicFrame[ConcreteValue, Addr, Time]])
     noEdgeInfos(currentAction, ActionEvalPushDataR(currentAction.normalAction.e, currentAction.normalAction.env, frameGenerator))
   }
 
@@ -146,7 +146,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
   }
 
   protected def funcallArgs(f: ConcreteValue,
-                            currentFrame: SchemeConcolicFrame,
+                            currentFrame: SchemeConcolicFrame[ConcreteValue, Addr, Time],
                             fexp: SchemeExp,
                             args: List[(SchemeExp, ConcreteValue, Option[ConcolicExpression])],
                             toeval: List[SchemeExp],
@@ -162,7 +162,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
         evalCall(f, fexp, args.reverse, store, t)
       case e :: rest =>
         val frameGenerator = frameGeneratorGenerator(e, rest)
-        val actionGenerator = (frame: SchemeConcolicFrame) => ActionConcolicPush(ActionPush(frame, e, env, store), frame, symEnv)
+        val actionGenerator = (frame: SchemeConcolicFrame[ConcreteValue, Addr, Time]) => ActionConcolicPush(ActionPush(frame, e, env, store), frame, symEnv)
         addPushDataActionT(currentValue, optConcolicValue, currentFrame, frameGenerator, actionGenerator)
     }
 
@@ -173,7 +173,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
                                                                 env: Environment[Addr],
                                                                 symEnv: SymbolicEnvironment)
     extends FrameGenerator[ConcreteValue] {
-    def apply(value: ConcreteValue, optConcolicValue: Option[ConcolicExpression], frame: Frame): SchemeConcolicFrame = {
+    def apply(value: ConcreteValue, optConcolicValue: Option[ConcolicExpression], frame: Frame): SchemeConcolicFrame[ConcreteValue, Addr, Time] = {
       FrameConcolicFuncallOperands(value, fexp, e, args, rest, env, symEnv)
     }
   }
@@ -186,7 +186,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
                                        env: Environment[Addr],
                                        symEnv: SymbolicEnvironment)
     extends FrameGenerator[ConcreteValue] {
-    def apply(value: ConcreteValue, optConcolicValue: Option[ConcolicExpression], other: Frame): SchemeConcolicFrame = other match {
+    def apply(value: ConcreteValue, optConcolicValue: Option[ConcolicExpression], other: Frame): SchemeConcolicFrame[ConcreteValue, Addr, Time] = other match {
       case other: FrameConcolicLet[ConcreteValue, Addr, Time] =>
         FrameConcolicLet(variable, (frameVariable, value, optConcolicValue) :: other.bindings, toeval, body, env, symEnv)
     }
@@ -201,7 +201,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
                                                                env: Environment[Addr],
                                                                symEnv: SymbolicEnvironment)
     extends FrameGenerator[ConcreteValue] {
-    def apply(value: ConcreteValue, optConcolicValue: Option[ConcolicExpression], other: Frame): SchemeConcolicFrame = other match {
+    def apply(value: ConcreteValue, optConcolicValue: Option[ConcolicExpression], other: Frame): SchemeConcolicFrame[ConcreteValue, Addr, Time] = other match {
       case other: FrameConcolicFuncallOperands[ConcreteValue, Addr, Time] =>
         FrameConcolicFuncallOperands(f, fexp, e, (cur, value, optConcolicValue) :: other.args, rest, env, symEnv)
     }
@@ -212,7 +212,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
    */
   protected def funcallArgs(f: ConcreteValue,
                             optConcolicValue: Option[ConcolicExpression],
-                            currentFrame: SchemeConcolicFrame,
+                            currentFrame: SchemeConcolicFrame[ConcreteValue, Addr, Time],
                             fexp: SchemeExp,
                             args: List[SchemeExp],
                             env: Environment[Addr],
@@ -228,7 +228,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
       case Nil => evalCall(f, fexp, List(), store, t)
       case e :: rest =>
         val frameGenerator = PlaceOperatorFuncallOperandsConcolicFrameGenerator(fexp, e, Nil, rest, env, symEnv)
-        val actionGenerator = (frame: SchemeConcolicFrame) => ActionConcolicPush(ActionPush(frame, e, env, store), frame, symEnv)
+        val actionGenerator = (frame: SchemeConcolicFrame[ConcreteValue, Addr, Time]) => ActionConcolicPush(ActionPush(frame, e, env, store), frame, symEnv)
         addPushDataActionT(currentValue, optConcolicValue, currentFrame, frameGenerator, actionGenerator)
     }
   }
@@ -399,7 +399,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
 
   def stepConcolicKont(v: ConcreteValue,
                        concolicValue: Option[ConcolicExpression],
-                       frame: SchemeConcolicFrame,
+                       frame: SchemeConcolicFrame[ConcreteValue, Addr, Time],
                        store: Store[Addr, ConcreteValue],
                        t: Time) = frame match {
       case frame: FrameConcolicFuncallOperator[ConcreteValue, Addr, Time] =>
@@ -431,7 +431,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
             EdgeInformation(action, ActionDefineAddressesPopR[SchemeExp, ConcreteValue, Addr](addresses) :: actionEdges, filters)
           case (variable, e) :: toeval =>
             val newFrameGenerator = LetConcolicFrameGenerator(variable, frame.variable, frame.bindings, toeval, frame.body, frame.env, frame.symEnv)
-            val actionGenerator = (currentFrame: SchemeConcolicFrame) => ActionConcolicPush(ActionPush(currentFrame, e, frame.env, store), currentFrame, frame.symEnv)
+            val actionGenerator = (currentFrame: SchemeConcolicFrame[ConcreteValue, Addr, Time]) => ActionConcolicPush(ActionPush(currentFrame, e, frame.env, store), currentFrame, frame.symEnv)
             addPushDataActionT(v, concolicValue, frame, newFrameGenerator, actionGenerator)
         }
       case frame: FrameConcolicLetStar[ConcreteValue, Addr, Time] =>

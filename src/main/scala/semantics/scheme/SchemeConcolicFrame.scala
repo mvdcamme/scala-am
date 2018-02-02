@@ -9,14 +9,17 @@ sealed trait ConcolicFrame extends Frame {
    */
   protected def symEnv: SymbolicEnvironment
 }
-sealed trait SchemeConcolicFrame extends ConcolicFrame
+sealed trait SchemeConcolicFrame[Abs, Addr, Time] extends ConcolicFrame {
+  def env: Environment[Addr]
+  def symEnv: SymbolicEnvironment
+}
 
 case class FrameConcolicFuncallOperator[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   fexp: SchemeExp,
   args: List[SchemeExp],
   env: Environment[Addr],
   symEnv: SymbolicEnvironment)
-  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame {
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
     convertEnv: Environment[Addr] => Environment[Addr],
     abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
@@ -32,7 +35,7 @@ case class FrameConcolicFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Tim
   toeval: List[SchemeExp],
   env: Environment[Addr],
   symEnv: SymbolicEnvironment)
-  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame {
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
   override def toString: String = s"FrameConcolicFuncallOperands($f, $args, $env)"
   override def meaningfullySubsumes = true
   override def subsumes(that: Frame): Boolean = that match {
@@ -75,7 +78,7 @@ case class FrameConcolicIf[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
   env: Environment[Addr],
   symEnv: SymbolicEnvironment,
   ifExp: SchemeIf)
-  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame {
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
   override def meaningfullySubsumes = true
   override def subsumes(that: Frame): Boolean = that match {
@@ -98,7 +101,7 @@ case class FrameConcolicLet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp
   body: List[SchemeExp],
   env: Environment[Addr],
   symEnv: SymbolicEnvironment)
-  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame {
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
     convertEnv: Environment[Addr] => Environment[Addr],
@@ -123,7 +126,7 @@ case class FrameConcolicLetStar[Abs: IsSchemeLattice, Addr: Address, Time: Times
   body: List[SchemeExp],
   env: Environment[Addr],
   symEnv: SymbolicEnvironment)
-  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame {
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
     convertEnv: Environment[Addr] => Environment[Addr],
@@ -142,7 +145,7 @@ case class FrameConcolicLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timest
   body: List[SchemeExp],
   env: Environment[Addr],
   symEnv: SymbolicEnvironment)
-  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame {
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
     convertEnv: Environment[Addr] => Environment[Addr],
@@ -163,7 +166,7 @@ case class FrameConcolicSet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp
   variable: Identifier,
   env: Environment[Addr],
   symEnv: SymbolicEnvironment)
-  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame {
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
     convertEnv: Environment[Addr] => Environment[Addr],
@@ -177,7 +180,7 @@ case class FrameConcolicBegin[Abs: IsSchemeLattice, Addr: Address, Time: Timesta
   rest: List[SchemeExp],
   env: Environment[Addr],
   symEnv: SymbolicEnvironment)
-  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame {
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameBegin(rest, convertEnv(env))
@@ -190,7 +193,7 @@ case class FrameConcolicCond[Abs: IsSchemeLattice, Addr: Address, Time: Timestam
   clauses: List[(SchemeExp, List[SchemeExp])],
   env: Environment[Addr],
   symEnv: SymbolicEnvironment)
-  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame {
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameCond(cons, clauses, convertEnv(env))
@@ -203,7 +206,7 @@ case class FrameConcolicCase[Abs: IsSchemeLattice, Addr: Address, Time: Timestam
   default: List[SchemeExp],
   env: Environment[Addr],
   symEnv: SymbolicEnvironment)
-  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame {
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameCase(clauses, default, convertEnv(env))
@@ -216,7 +219,7 @@ case class FrameConcolicCase[Abs: IsSchemeLattice, Addr: Address, Time: Timestam
 //  evaluatedSymbolicValues: List[Option[ConcolicExpression]],
 //  env: Environment[Addr],
 //  symEnv: SymbolicEnvironment)
-//  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame {
+//  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 //
 //  def generateConcolicExpression(concreteValue: Boolean): Option[ConcolicExpression] = evaluatedSymbolicValues match {
 //    case Nil =>
@@ -244,7 +247,7 @@ case class FrameConcolicCase[Abs: IsSchemeLattice, Addr: Address, Time: Timestam
 //  evaluatedSymbolicValues: List[Option[ConcolicExpression]],
 //  env: Environment[Addr],
 //  symEnv: SymbolicEnvironment)
-//  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame {
+//  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 //
 //  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
 //    FrameOr(rest, convertEnv(env))
@@ -257,7 +260,7 @@ case class FrameConcolicDefine[Abs: IsSchemeLattice, Addr: Address, Time: Timest
   variable: Identifier,
   env: Environment[Addr],
   symEnv: SymbolicEnvironment)
-  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame {
+  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameDefine(variable, convertEnv(env))

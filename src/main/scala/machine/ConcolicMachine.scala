@@ -87,6 +87,14 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
 
     def optEnvs: Option[(Environment[HybridAddress.A], SymbolicEnvironment)] = control match {
       case ConcolicControlEval(_, env, symEnv) => Some((env, symEnv))
+      case ConcolicControlKont(_, _) => if (halted) {
+        None
+      } else {
+        val topKonts = kstore.lookup(a)
+        assert(topKonts.size == 1)
+        val topFrame = topKonts.head.frame.asInstanceOf[SchemeConcolicFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
+        Some((topFrame.env, topFrame.symEnv))
+      }
       case _ => None
     }
 
@@ -318,7 +326,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
             } else {
               val frames = kstore.lookup(a)
               if (frames.size == 1) {
-                val frame = frames.head.frame.asInstanceOf[SchemeConcolicFrame]
+                val frame = frames.head.frame.asInstanceOf[SchemeConcolicFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
                 val originFrameCast = frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
                 val oldA = state.a
                 val a = frames.head.next
