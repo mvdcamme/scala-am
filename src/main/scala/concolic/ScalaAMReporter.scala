@@ -97,7 +97,6 @@ object ScalaAMReporter {
   def addBranchConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter): Unit = {
 
     def checkWithPartialMatcher(constraint: BranchConstraint): Unit = {
-      addConstraint(constraint, thenBranchTaken)
       assert(PartialMatcherStore.getCurrent.isDefined)
       val currentMatcher = PartialMatcherStore.getCurrent.get // TODO Debugging
       val result: Boolean = testCurrentPath
@@ -114,7 +113,9 @@ object ScalaAMReporter {
     val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
     if (ConstraintOptimizer.isConstraintConstant(optimizedConstraint)) {
       addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
-    } else if (ConcolicRunTimeFlags.useRunTimeAnalyses && rTAnalysisStarter.currentStateSaved) {
+    } else if (ConcolicRunTimeFlags.useRunTimeAnalyses) {
+      addConstraint(constraint, thenBranchTaken)
+      rTAnalysisStarter.saveCurrentState()
       rTAnalysisStarter.startAnalysisFromSavedState(thenBranchTaken)
       checkWithPartialMatcher(optimizedConstraint)
     } else if (ConcolicRunTimeFlags.checkAnalysis) {

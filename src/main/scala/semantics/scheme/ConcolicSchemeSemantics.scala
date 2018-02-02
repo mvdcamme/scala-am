@@ -284,7 +284,6 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
       if (ConcolicRunTimeFlags.useRunTimeAnalyses && ScalaAMReporter.doErrorPathsDiverge) {
         // The subtree with the root at this if-expression has at least one potential error in both branches:
         // a run-time analysis should be started to try to eliminate any of these alarms.
-        rTAnalysisStarter.saveCurrentState()
       }
       val frame = FrameConcolicIf[ConcreteValue, Addr, Time](cons, alt, env, symEnv, e)
       addPushActionR(ActionConcolicPush(ActionPush(frame, cond, env, store), frame, symEnv))
