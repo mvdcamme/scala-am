@@ -56,7 +56,7 @@ class PathStorage {
   def updateReport(constraint: Constraint, thenBranchTaken: Boolean, maybePartialMatcher: Option[PartialRegexMatcher]): Unit = {
 
     /* If a new partial matcher was constructed before executing the condition, the matcher is included in the triple.
-     * NOTE: this partial matcher starts at a state corresponding to BEFORE the branch. */
+     * NOTE: this partial matcher starts at a state corresponding to AFTER the branch. */
     currentReport = addToReport(constraint, thenBranchTaken, maybePartialMatcher)
   }
 
