@@ -79,20 +79,20 @@ object ScalaAMReporter {
       addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
     } else if (ConcolicRunTimeFlags.useRunTimeAnalyses) {
 
-      pathStorage.addConstraint(constraint, thenBranchTaken)
+      pathStorage.updateReport(constraint, thenBranchTaken)
       rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken, pathStorage.getCurrentReport)
       checkWithPartialMatcher(optimizedConstraint)
     } else if (ConcolicRunTimeFlags.checkAnalysis) {
       checkWithPartialMatcher(optimizedConstraint)
     } else {
       /* Constraint is not constant and checkAnalysis is false */
-      pathStorage.addConstraint(optimizedConstraint, thenBranchTaken)
+      pathStorage.updateReport(optimizedConstraint, thenBranchTaken)
     }
   }
 
   def addUnusableConstraint(thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter): Unit = {
     if (doConcolic) {
-      pathStorage.addConstraint(UnusableConstraint, thenBranchTaken)
+      pathStorage.updateReport(UnusableConstraint, thenBranchTaken)
     }
   }
 

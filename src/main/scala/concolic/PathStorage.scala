@@ -20,7 +20,7 @@ class PathStorage {
   def resetCurrentPath(): Unit = {
     currentPath = Nil
   }
-  def addToCurrentPath(thenBranchTaken: Boolean): Unit = {
+  def updateCurrentPath(thenBranchTaken: Boolean): Unit = {
     /* New constraints are added to the front of the list for performance reasons. */
     currentPath ::= (if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken)
   }
@@ -31,7 +31,7 @@ class PathStorage {
     currentReport = Nil
   }
 
-  def addConstraint(constraint: Constraint, thenBranchTaken: Boolean): Unit = {
+  def updateReport(constraint: Constraint, thenBranchTaken: Boolean): Unit = {
     /* New constraints are added to the front of the list for performance reasons. */
 
     /* If a new partial matcher was constructed before executing the condition, the matcher is included in the triple.
