@@ -45,7 +45,7 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
      * the start of the execution of the program) is matched with a matcher that only takes into account the constraints
      * encountered _from the current point in the program on_.
      */
-    ScalaAMReporter.resetCurrentPath()
+    ScalaAMReporter.pathStorage.resetCurrentPath()
     maybePartialMatcher
   }
 

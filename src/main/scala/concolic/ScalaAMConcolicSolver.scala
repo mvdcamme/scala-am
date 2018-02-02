@@ -34,7 +34,7 @@ object ScalaAMConcolicSolver {
 
   def solve(): Boolean = {
     resetInputs()
-    val report = ScalaAMReporter.getCurrentReport
+    val report = ScalaAMReporter.pathStorage.getCurrentReport
     PartialMatcherStore.getInitial match {
       case Some(initialPartialMatcher) =>
         val patchedReport = patchInitialPartialMatcher(report, initialPartialMatcher)

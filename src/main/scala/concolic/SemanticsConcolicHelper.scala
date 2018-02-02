@@ -4,7 +4,7 @@ import backend.tree._
 object SemanticsConcolicHelper {
 
   def handleIf(optConcolicExpression: Option[ConcolicExpression], thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter): Unit = {
-    ScalaAMReporter.addToCurrentPath(thenBranchTaken)
+    ScalaAMReporter.pathStorage.addToCurrentPath(thenBranchTaken)
     if (ScalaAMReporter.isConcolicEnabled) {
       optConcolicExpression match {
         case Some(b: BooleanConcolicExpression) =>

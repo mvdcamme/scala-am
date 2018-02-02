@@ -9,70 +9,30 @@ object ScalaAMReporter {
 
   private var doConcolic: Boolean = false
 
-  /*
-   * For performance reasons, new constraints are added to the FRONT of the list, so when returning the path,
-   * the list should be reversed first.
-   */
-  private var currentPath: Path = Nil
-  /*
-   * For performance reasons, new constraints are added to the FRONT of the list, so when returning the report,
-   * the list should be reversed first.
-   */
-  private var currentReport: PathConstraint = Nil
-
+  val pathStorage = new PathStorage
 
   import scala.language.implicitConversions
-  implicit def pathToString(path: Path): String = {
+  implicit private def pathToString(path: Path): String = {
     path.map({
       case ElseBranchTaken => "e"
       case ThenBranchTaken => "t"
     }).mkString("")
   }
 
-  def getCurrentPath: Path = currentPath.reverse
-  def resetCurrentPath(): Unit = {
-    currentPath = Nil
-  }
-  def addToCurrentPath(thenBranchTaken: Boolean): Unit = {
-    /* New constraints are added to the front of the list for performance reasons. */
-    currentPath ::= (if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken)
-  }
-
-  /* Report is reversed first, as new constraints are added to the front of the list for performance reasons. */
-  def getCurrentReport: PathConstraint = currentReport.reverse
-  private def resetCurrentReport(): Unit = {
-    currentReport = Nil
-  }
-  private def addConstraint(constraint: Constraint, thenBranchTaken: Boolean): Unit = {
-    /* New constraints are added to the front of the list for performance reasons. */
-
-    /* If a new partial matcher was constructed before executing the condition, the matcher is included in the triple.
-     * NOTE: this partial matcher starts at a state corresponding to BEFORE the branch. */
-    currentReport ::= (constraint, thenBranchTaken, maybeIncludePartialMatcher)
-  }
-
-  private def maybeIncludePartialMatcher: Option[PartialRegexMatcher] = {
-    if (ConcolicRunTimeFlags.useRunTimeAnalyses && ConcolicRunTimeFlags.checkHasCompletedAnalysis) {
-      PartialMatcherStore.getCurrent
-    } else {
-      None
-    }
-  }
-
   private def testCurrentPath: Boolean = {
-    Logger.log(s"Current pathstring is ${pathToString(getCurrentPath)}", Logger.V)
-    val (matched, newPartialMatcher) = PartialMatcherStore.getCurrent.get.incrementalMatch(getCurrentPath)
+    Logger.log(s"Current pathstring is ${pathToString(pathStorage.getCurrentPath)}", Logger.V)
+    val (matched, newPartialMatcher) = PartialMatcherStore.getCurrent.get.incrementalMatch(pathStorage.getCurrentPath)
     PartialMatcherStore.setCurrentMatcher(newPartialMatcher)
     if (matched) {
       /* We're using the incremental match for performance reasons, so the string should be reset if there is a match. */
-      resetCurrentPath()
+      pathStorage.resetCurrentPath()
     }
     matched
   }
 
   def doErrorPathsDiverge: Boolean = {
-    val currentPathFollowingElse = (ElseBranchTaken :: currentPath).reverse
-    val currentPathFollowingThen = (ThenBranchTaken :: currentPath).reverse
+    val currentPathFollowingElse = pathStorage.getCurrentPath :+ ElseBranchTaken
+    val currentPathFollowingThen = pathStorage.getCurrentPath :+ ThenBranchTaken
     val isErrorViaElse = PartialMatcherStore.getCurrent.get.tentativeIncrementalMatch(currentPathFollowingElse)
     val isErrorViaThen = PartialMatcherStore.getCurrent.get.tentativeIncrementalMatch(currentPathFollowingThen)
     isErrorViaElse && isErrorViaThen
@@ -88,8 +48,8 @@ object ScalaAMReporter {
   def clear(isFirstClear: Boolean): Unit = {
     Reporter.clear()
     InputVariableStore.reset()
-    resetCurrentPath()
-    resetCurrentReport()
+    pathStorage.resetCurrentPath()
+    pathStorage.resetCurrentReport()
     GlobalSymbolicStore.reset()
     PartialMatcherStore.reset()
   }
@@ -119,25 +79,25 @@ object ScalaAMReporter {
        */
       addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
     } else if (ConcolicRunTimeFlags.useRunTimeAnalyses) {
-      addConstraint(constraint, thenBranchTaken)
+      pathStorage.addConstraint(constraint, thenBranchTaken)
       rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken)
       checkWithPartialMatcher(optimizedConstraint)
     } else if (ConcolicRunTimeFlags.checkAnalysis) {
       checkWithPartialMatcher(optimizedConstraint)
     } else {
       /* Constraint is not constant and checkAnalysis is false */
-      addConstraint(optimizedConstraint, thenBranchTaken)
+      pathStorage.addConstraint(optimizedConstraint, thenBranchTaken)
     }
   }
 
   def addUnusableConstraint(thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter): Unit = {
     if (doConcolic) {
-      addConstraint(UnusableConstraint, thenBranchTaken)
+      pathStorage.addConstraint(UnusableConstraint, thenBranchTaken)
     }
   }
 
   def printReports(): Unit = {
-    Logger.log(s"Reporter recorded path: ${getCurrentReport.filter({
+    Logger.log(s"Reporter recorded path: ${pathStorage.getCurrentReport.filter({
       case (_: BranchConstraint, _, _) => true
       case _ => false
     }).map({
