@@ -5,38 +5,59 @@ import backend.tree.path.{ElseBranchTaken, ThenBranchTaken}
 
 class PathStorage {
 
-  /*
-   * For performance reasons, new constraints are added to the FRONT of the list, so when returning the path,
-   * the list should be reversed first.
-   */
   private var currentPath: Path = Nil
-  /*
-   * For performance reasons, new constraints are added to the FRONT of the list, so when returning the report,
-   * the list should be reversed first.
-   */
   private var currentReport: PathConstraint = Nil
 
-  def getCurrentPath: Path = currentPath.reverse
+  def getCurrentPath: Path = currentPath
+
+  /**
+    * Adds an element to the current path, without actually replacing the current path.
+    * @param thenBranchTaken
+    * @return
+    */
+  def addToPath(thenBranchTaken: Boolean): Path = {
+    val newPathElement = if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken
+    currentPath :+ newPathElement
+  }
   def resetCurrentPath(): Unit = {
     currentPath = Nil
   }
+
+  /**
+    * Destructively adds an element to the current path.
+    * @param thenBranchTaken
+    */
   def updateCurrentPath(thenBranchTaken: Boolean): Unit = {
-    /* New constraints are added to the front of the list for performance reasons. */
-    currentPath ::= (if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken)
+    currentPath = addToPath(thenBranchTaken)
   }
 
-  /* Report is reversed first, as new constraints are added to the front of the list for performance reasons. */
-  def getCurrentReport: PathConstraint = currentReport.reverse
+  def getCurrentReport: PathConstraint = currentReport
+
+  /**
+    * Adds the given parameters as an element to the current path constraint, without actually replacing the current
+    * path constraint.
+    * @param constraint
+    * @param thenBranchTaken
+    * @param maybePartialMatcher
+    * @return
+    */
+  private def addToReport(constraint: Constraint, thenBranchTaken: Boolean, maybePartialMatcher: Option[PartialRegexMatcher]): PathConstraint = {
+    currentReport :+ (constraint, thenBranchTaken, maybePartialMatcher)
+  }
   def resetCurrentReport(): Unit = {
     currentReport = Nil
   }
 
+  /**
+    * Destructively adds the given parameters as an element to the current path constraint.
+    * @param constraint
+    * @param thenBranchTaken
+    */
   def updateReport(constraint: Constraint, thenBranchTaken: Boolean): Unit = {
-    /* New constraints are added to the front of the list for performance reasons. */
 
     /* If a new partial matcher was constructed before executing the condition, the matcher is included in the triple.
      * NOTE: this partial matcher starts at a state corresponding to BEFORE the branch. */
-    currentReport ::= (constraint, thenBranchTaken, maybeIncludePartialMatcher)
+    currentReport = addToReport(constraint, thenBranchTaken, maybeIncludePartialMatcher)
   }
 
   private def maybeIncludePartialMatcher: Option[PartialRegexMatcher] = {

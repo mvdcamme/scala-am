@@ -1,6 +1,6 @@
 import java.io.{BufferedWriter, File, FileWriter}
 
-import backend._
+import backend.tree.Constraint
 import backend.expression._
 import ConcreteConcreteLattice.{L => ConcreteValue}
 import backend.path_filtering.PartialRegexMatcher
@@ -271,7 +271,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
       abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
       initialKontAddress: KontAddr, mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr,
       env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment,
-      pathConstraint: PathConstraint): Conversion[AbstL] = {
+      pathConstraint: List[(Constraint, Boolean)]): Conversion[AbstL] = {
 
       val exactSymVariables = ExactSymbolicVariablesFinder.findExactSymbolicVariables(env, symEnv, pathConstraint)
       def shouldMakeValPrecise(variable: String): Boolean = {
@@ -314,7 +314,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
         concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
         abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
         initialKontAddress: KontAddr, mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr,
-        pathConstraint: PathConstraint): Conversion[AbstL] = {
+        pathConstraint: List[(Constraint, Boolean)]): Conversion[AbstL] = {
 
       optEnvs match {
         case Some((env, symEnv)) =>
@@ -482,7 +482,6 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
 
       def finishUpLoop: Boolean = {
         Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.U)
-        Reporter.printTree()
         ScalaAMReporter.printReports()
         val shouldContinue = ScalaAMConcolicSolver.solve()
         shouldContinue
@@ -527,7 +526,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
     bw.close()
   }
 
-  def startAnalysisFromCurrentState(thenBranchTaken: Boolean, pathConstraint: PathConstraint): Option[PartialRegexMatcher] = {
+  def startAnalysisFromCurrentState(thenBranchTaken: Boolean, pathConstraint: List[(Constraint, Boolean)]): Option[PartialRegexMatcher] = {
     assert(currentState.isDefined)
     val maybePartialMatcher = rtAnalysis.startRunTimeAnalysis(currentState.get, thenBranchTaken, stepCount, pathConstraint)
     maybePartialMatcher

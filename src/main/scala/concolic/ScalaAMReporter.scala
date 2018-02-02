@@ -80,7 +80,7 @@ object ScalaAMReporter {
     } else if (ConcolicRunTimeFlags.useRunTimeAnalyses) {
 
       pathStorage.updateReport(constraint, thenBranchTaken)
-      rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken, pathStorage.getCurrentReport)
+      rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken, pathStorage.getCurrentReport.map(triple => (triple._1, triple._2)))
       checkWithPartialMatcher(optimizedConstraint)
     } else if (ConcolicRunTimeFlags.checkAnalysis) {
       checkWithPartialMatcher(optimizedConstraint)

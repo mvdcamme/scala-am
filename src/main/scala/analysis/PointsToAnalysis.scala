@@ -101,7 +101,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
       toDotFile: Option[String]): StaticAnalysisResult = {
     wrapRunAnalysis(
       () => {
-        val pathConstraint = ScalaAMReporter.pathStorage.getCurrentReport
+        val pathConstraint = ScalaAMReporter.pathStorage.getCurrentReport.map(triple => (triple._1, triple._2))
         val startState = convertStateAAM(aam, concSem, abstSem, currentProgramState, pathConstraint)
         val result = pointsToAnalysis.analyze(toDotFile, aam, abstSem, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startState, false, stepSwitched)
         Logger.log(s"Static points-to analysis result is $result", Logger.U)

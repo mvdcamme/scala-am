@@ -1,8 +1,5 @@
-import backend.PathConstraint
-import backend.expression._
 import backend.path_filtering.PartialRegexMatcher
-import backend.tree.BranchConstraint
-import concolic.SymbolicEnvironment
+import backend.tree.Constraint
 
 class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLauncher: AnalysisLauncher[PAbs]) {
 
@@ -56,7 +53,7 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
     */
   def startRunTimeAnalysis(state: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T],
                            thenBranchTaken: Boolean,
-                           stepCount: Int, pathConstraint: PathConstraint): Option[PartialRegexMatcher] = {
+                           stepCount: Int, pathConstraint: List[(Constraint, Boolean)]): Option[PartialRegexMatcher] = {
     ScalaAMReporter.disableConcolic()
     Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.E)
     state.optEnvs.foreach((envs) => {

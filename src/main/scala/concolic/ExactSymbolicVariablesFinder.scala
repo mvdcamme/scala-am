@@ -1,6 +1,5 @@
-import backend.PathConstraint
 import backend.expression._
-import backend.tree.BranchConstraint
+import backend.tree.{BranchConstraint, Constraint}
 import concolic.SymbolicEnvironment
 
 object ExactSymbolicVariablesFinder {
@@ -33,10 +32,10 @@ object ExactSymbolicVariablesFinder {
       isExactSymExpressions(left, exactInputVariables) && isExactSymExpressions(right, exactInputVariables)
   }
 
-  private def filterExactInputVariables(report: PathConstraint): List[(ConcolicInput, Int)] = {
+  private def filterExactInputVariables(report: List[(Constraint, Boolean)]): List[(ConcolicInput, Int)] = {
     report.flatMap({
       /* Only consider the expression if the constraint was actually true */
-      case (bc: BranchConstraint, true, _) => findExactInputVariables(bc.exp)
+      case (bc: BranchConstraint, true) => findExactInputVariables(bc.exp)
       case _ => Nil
     })
   }
@@ -49,7 +48,7 @@ object ExactSymbolicVariablesFinder {
     * @return
     */
   def findExactSymbolicVariables(env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment,
-                                 pathConstraint: PathConstraint): Set[String] = {
+                                 pathConstraint: List[(Constraint, Boolean)]): Set[String] = {
     val exactInputVariables = filterExactInputVariables(pathConstraint).map(_._1).toSet
     Logger.log(s"exactInputVariables are = $exactInputVariables", Logger.E)
     env.keys.filter(name => concolic.lookupVariable(name, symEnv) match {

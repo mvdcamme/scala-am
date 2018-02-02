@@ -1,5 +1,5 @@
 import ConcreteConcreteLattice.{L => ConcreteValue}
-import backend.PathConstraint
+import backend.tree.Constraint
 
 abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
 
@@ -49,7 +49,7 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
   protected def convertStateAAM(aam: KickstartAAMGlobalStore[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
                                 concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                 abstSem: ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
-                                programState: PS, pathConstraint: PathConstraint): aam.InitialState = {
+                                programState: PS, pathConstraint: List[(Constraint, Boolean)]): aam.InitialState = {
     val (control, store, kstore, a, t) = programState.convertState[Abs](concSem, abstSem, HaltKontAddress, (x, _) => x, pathConstraint)
     val deltaStore = aam.GlobalStore(DeltaStore[HybridAddress.A, Abs](store.toSet.toMap, Map()), Map())
     val convertedControl = control match {
