@@ -41,7 +41,7 @@ class PathStorage {
     * @param maybePartialMatcher
     * @return
     */
-  private def addToReport(constraint: Constraint, thenBranchTaken: Boolean, maybePartialMatcher: Option[PartialRegexMatcher]): PathConstraint = {
+  def addToReport(constraint: Constraint, thenBranchTaken: Boolean, maybePartialMatcher: Option[PartialRegexMatcher]): PathConstraint = {
     currentReport :+ (constraint, thenBranchTaken, maybePartialMatcher)
   }
   def resetCurrentReport(): Unit = {
@@ -53,19 +53,11 @@ class PathStorage {
     * @param constraint
     * @param thenBranchTaken
     */
-  def updateReport(constraint: Constraint, thenBranchTaken: Boolean): Unit = {
+  def updateReport(constraint: Constraint, thenBranchTaken: Boolean, maybePartialMatcher: Option[PartialRegexMatcher]): Unit = {
 
     /* If a new partial matcher was constructed before executing the condition, the matcher is included in the triple.
      * NOTE: this partial matcher starts at a state corresponding to BEFORE the branch. */
-    currentReport = addToReport(constraint, thenBranchTaken, maybeIncludePartialMatcher)
-  }
-
-  private def maybeIncludePartialMatcher: Option[PartialRegexMatcher] = {
-    if (ConcolicRunTimeFlags.useRunTimeAnalyses && ConcolicRunTimeFlags.checkHasCompletedAnalysis) {
-      PartialMatcherStore.getCurrent
-    } else {
-      None
-    }
+    currentReport = addToReport(constraint, thenBranchTaken, maybePartialMatcher)
   }
 
 }
