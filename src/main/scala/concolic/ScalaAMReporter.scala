@@ -1,5 +1,4 @@
 import backend._
-import backend.path_filtering.PartialRegexMatcher
 import backend.tree._
 import backend.tree.path._
 
@@ -79,8 +78,9 @@ object ScalaAMReporter {
        */
       addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
     } else if (ConcolicRunTimeFlags.useRunTimeAnalyses) {
+
       pathStorage.addConstraint(constraint, thenBranchTaken)
-      rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken)
+      rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken, pathStorage.getCurrentReport)
       checkWithPartialMatcher(optimizedConstraint)
     } else if (ConcolicRunTimeFlags.checkAnalysis) {
       checkWithPartialMatcher(optimizedConstraint)

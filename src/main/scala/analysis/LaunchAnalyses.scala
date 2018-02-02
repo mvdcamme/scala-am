@@ -54,11 +54,13 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
     * rum-time static analysis and use the results to further prune the symbolic tree.
     * @param state
     */
-  def startRunTimeAnalysis(state: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T], thenBranchTaken: Boolean, stepCount: Int): Option[PartialRegexMatcher] = {
+  def startRunTimeAnalysis(state: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T],
+                           thenBranchTaken: Boolean,
+                           stepCount: Int, pathConstraint: PathConstraint): Option[PartialRegexMatcher] = {
     ScalaAMReporter.disableConcolic()
     Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.E)
     state.optEnvs.foreach((envs) => {
-      val exactSymbolicVariables = ExactSymbolicVariablesFinder.findExactSymbolicVariables(envs._1, envs._2)
+      val exactSymbolicVariables = ExactSymbolicVariablesFinder.findExactSymbolicVariables(envs._1, envs._2, pathConstraint)
       Logger.log(s"exactSymbolicVariables are $exactSymbolicVariables", Logger.E) })
     val currentAddresses: Set[HybridAddress.A] = state.addressesReachable
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]

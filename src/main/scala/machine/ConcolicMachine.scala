@@ -269,16 +269,16 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
     private def converstateWithExactSymVariables[AbstL: IsConvertableLattice](
       concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
       abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
-      initialKontAddress: KontAddr,
-      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr,
-      env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment): Conversion[AbstL] = {
+      initialKontAddress: KontAddr, mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr,
+      env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment,
+      pathConstraint: PathConstraint): Conversion[AbstL] = {
 
-      val exactSymVariables = ExactSymbolicVariablesFinder.findExactSymbolicVariables(env, symEnv)
+      val exactSymVariables = ExactSymbolicVariablesFinder.findExactSymbolicVariables(env, symEnv, pathConstraint)
       def shouldMakeValPrecise(variable: String): Boolean = {
         /*
          * If a variable is not part of the symbolic environment, the variable's value was not computed via
          * operations supported by the concolic tester (e.g., because the value is a string).
-         * We therefore _assume_ [TODO This is not actually correct: counterexample:
+         * We therefore *assume* [TODO This is not actually correct: counterexample:
          * (let ((a 0) (i (random))) (if (< i 0) (set! a 1) (set! a 2)))
          *    -> a is exact but should not be made precise? Although, given the path constraint, a is of course constant]
          * for the moment that this value is independent of the value of the input variables,
@@ -313,12 +313,12 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
     def convertState[AbstL: IsConvertableLattice](
         concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
         abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
-        initialKontAddress: KontAddr,
-        mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr): Conversion[AbstL] = {
+        initialKontAddress: KontAddr, mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr,
+        pathConstraint: PathConstraint): Conversion[AbstL] = {
 
       optEnvs match {
         case Some((env, symEnv)) =>
-          converstateWithExactSymVariables(concSem, abstSem, initialKontAddress, mapKontAddress, env, symEnv)
+          converstateWithExactSymVariables(concSem, abstSem, initialKontAddress, mapKontAddress, env, symEnv, pathConstraint)
         case None => converstateNoExactSymVariables(concSem, abstSem, initialKontAddress, mapKontAddress)
       }
     }
@@ -527,9 +527,9 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
     bw.close()
   }
 
-  def startAnalysisFromCurrentState(thenBranchTaken: Boolean): Option[PartialRegexMatcher] = {
+  def startAnalysisFromCurrentState(thenBranchTaken: Boolean, pathConstraint: PathConstraint): Option[PartialRegexMatcher] = {
     assert(currentState.isDefined)
-    val maybePartialMatcher = rtAnalysis.startRunTimeAnalysis(currentState.get, thenBranchTaken, stepCount)
+    val maybePartialMatcher = rtAnalysis.startRunTimeAnalysis(currentState.get, thenBranchTaken, stepCount, pathConstraint)
     maybePartialMatcher
   }
 }

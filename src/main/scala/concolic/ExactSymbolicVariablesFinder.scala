@@ -48,9 +48,9 @@ object ExactSymbolicVariablesFinder {
     * @param symEnv
     * @return
     */
-  def findExactSymbolicVariables(env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment): Set[String] = {
-    val report = ScalaAMReporter.pathStorage.getCurrentReport
-    val exactInputVariables = filterExactInputVariables(report).map(_._1).toSet
+  def findExactSymbolicVariables(env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment,
+                                 pathConstraint: PathConstraint): Set[String] = {
+    val exactInputVariables = filterExactInputVariables(pathConstraint).map(_._1).toSet
     Logger.log(s"exactInputVariables are = $exactInputVariables", Logger.E)
     env.keys.filter(name => concolic.lookupVariable(name, symEnv) match {
       case None => false
