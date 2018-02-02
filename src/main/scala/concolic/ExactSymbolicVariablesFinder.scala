@@ -30,7 +30,7 @@ object ExactSymbolicVariablesFinder {
       isExactSymExpressions(left, exactInputVariables) && isExactSymExpressions(right, exactInputVariables)
   }
 
-  private def filterPreciseInputVariables(report: PathConstraint): List[(ConcolicInput, Int)] = {
+  private def filterExactInputVariables(report: PathConstraint): List[(ConcolicInput, Int)] = {
     report.flatMap({
       /* Only consider the expression if the constraint was actually true */
       case (bc: BranchConstraint, true, _) => findExactInputVariables(bc.exp)
@@ -40,7 +40,8 @@ object ExactSymbolicVariablesFinder {
 
   def findExactSymbolicVariables(env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment): Set[String] = {
     val report = ScalaAMReporter.getCurrentReport
-    val exactInputVariables = filterPreciseInputVariables(report).map(_._1).toSet
+    val exactInputVariables = filterExactInputVariables(report).map(_._1).toSet
+    Logger.log(s"exactInputVariables are = $exactInputVariables", Logger.E)
     env.keys.filter(name => concolic.lookupVariable(name, symEnv) match {
       case None => false
       case Some(exp) => isExactSymExpressions(exp, exactInputVariables)
