@@ -15,7 +15,6 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
   val rtAnalysis = new LaunchAnalyses[PAbs](analysisLauncher)
 
   private var currentState: Option[State] = None
-  private var savedState: Option[State] = None
 
   var stepCount: Int = 0
 
@@ -46,12 +45,10 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
   }
 
   private def convertValue[AbstL: IsConvertableLattice](abstPrims: SchemePrimitives[HybridAddress.A, AbstL])
-                                                       (value: ConcreteValue): AbstL =
-    ConcreteConcreteLattice.convert[SchemeExp, AbstL, HybridAddress.A](
-      value,
-      new DefaultHybridAddressConverter[SchemeExp],
-      convertEnv,
-      abstPrims)
+                                                       (value: ConcreteValue, makeValuePrecise: Boolean): AbstL = {
+    val addrConverter = new DefaultHybridAddressConverter[SchemeExp]
+    ConcreteConcreteLattice.convert[SchemeExp, AbstL, HybridAddress.A](value, addrConverter, convertEnv, abstPrims, makeValuePrecise)
+  }
 
   /**
     * Converts all addresses in the environment.
@@ -110,13 +107,30 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
       case ConcolicControlError(_) => Colors.Red
     }
 
-    private def convertStore[AbstL: IsConvertableLattice](
+    private def convertStoreNoExactSymVariables[AbstL: IsConvertableLattice](
         store: Store[HybridAddress.A, ConcreteValue],
         convertValue: ConcreteValue => AbstL): Store[HybridAddress.A, AbstL] = {
       var valuesConvertedStore = Store.empty[HybridAddress.A, AbstL]
       def addToNewStore(tuple: (HybridAddress.A, ConcreteValue)): Boolean = {
         val convertedAddress = new DefaultHybridAddressConverter[SchemeExp]().convertAddress(tuple._1)
         val convertedValue = convertValue(tuple._2)
+        valuesConvertedStore = valuesConvertedStore.extend(convertedAddress, convertedValue)
+        true
+      }
+      store.forall(addToNewStore)
+      valuesConvertedStore
+    }
+
+    private def convertStoreWithExactSymVariables[AbstL: IsConvertableLattice](
+      store: Store[HybridAddress.A, ConcreteValue],
+      convertValue: (ConcreteValue, Boolean) => AbstL,
+      preciseVariablesAddresses: Set[HybridAddress.A]): Store[HybridAddress.A, AbstL] = {
+
+      var valuesConvertedStore = Store.empty[HybridAddress.A, AbstL]
+      def addToNewStore(tuple: (HybridAddress.A, ConcreteValue)): Boolean = {
+        val (address: HybridAddress.A, value: ConcreteValue) = tuple
+        val convertedAddress = new DefaultHybridAddressConverter[SchemeExp]().convertAddress(address)
+        val convertedValue = convertValue(value, preciseVariablesAddresses.contains(address))
         valuesConvertedStore = valuesConvertedStore.extend(convertedAddress, convertedValue)
         true
       }
@@ -227,29 +241,86 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
       mapKontAddress(kontAddrConverter.convertKontAddr(ka), env)
     }
 
+    private def converstateNoExactSymVariables[AbstL: IsConvertableLattice](
+      concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+      abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
+      initialKontAddress: KontAddr,
+      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr): Conversion[AbstL] = {
+
+      val convertValueFun = (value: ConcreteValue) => convertValue[AbstL](abstSem.primitives) (value, false)
+
+      val convertedControl: ConvertedControl[SchemeExp, AbstL, HybridAddress.A] = control match {
+        case ConcolicControlEval(exp, env, _) =>
+          ConvertedControlEval[SchemeExp, AbstL, HybridAddress.A](exp, convertEnv(env))
+        case ConcolicControlKont(v, _) =>
+          ConvertedControlKont[SchemeExp, AbstL, HybridAddress.A](convertValueFun(v))
+      }
+
+      val GCedStore = garbageCollectStore(concSem, store, control, kstore, a)
+      val convertedStore = convertStoreNoExactSymVariables(GCedStore, convertValueFun)
+      val convertedKStore = convertKStore[AbstL, KontAddr](mapKontAddress, kstore, convertValueFun, concSem, abstSem)
+
+      val convertedA = convertKontAddr(a, None, mapKontAddress)
+      val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
+      (convertedControl, convertedStore, convertedKStore, convertedA, newT)
+
+    }
+
+    private def converstateWithExactSymVariables[AbstL: IsConvertableLattice](
+      concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+      abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
+      initialKontAddress: KontAddr,
+      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr,
+      env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment): Conversion[AbstL] = {
+
+      val exactSymVariables = ExactSymbolicVariablesFinder.findExactSymbolicVariables(env, symEnv)
+      def shouldMakeValPrecise(variable: String): Boolean = {
+        /*
+         * If a variable is not part of the symbolic environment, the variable's value was not computed via
+         * operations supported by the concolic tester (e.g., because the value is a string).
+         * We therefore _assume_ [TODO This is not actually correct: counterexample:
+         * (let ((a 0) (i (random))) (if (< i 0) (set! a 1) (set! a 2)))
+         *    -> a is exact but should not be made precise? Although, given the path constraint, a is of course constant]
+         * for the moment that this value is independent of the value of the input variables,
+         * and can therefore be precisely abstracted.
+         *
+         *
+         */
+        exactSymVariables.contains(variable) || !symEnv.contains(variable)
+      }
+
+      val preciseVariables = env.keys.filter(shouldMakeValPrecise)
+      val preciseVariablesAddresses = preciseVariables.map(env.lookup(_).get)
+      val convertValueFun = convertValue[AbstL](abstSem.primitives) _
+
+      val convertedControl: ConvertedControl[SchemeExp, AbstL, HybridAddress.A] = control match {
+        case ConcolicControlEval(exp, env, _) =>
+          ConvertedControlEval[SchemeExp, AbstL, HybridAddress.A](exp, convertEnv(env))
+        case ConcolicControlKont(v, _) =>
+          ConvertedControlKont[SchemeExp, AbstL, HybridAddress.A](convertValueFun(v, false))
+      }
+
+      val GCedStore = garbageCollectStore(concSem, store, control, kstore, a)
+      val convertedStore = convertStoreWithExactSymVariables(GCedStore, convertValueFun, preciseVariablesAddresses.toSet)
+      val convertedKStore = convertKStore[AbstL, KontAddr](mapKontAddress, kstore, convertValueFun(_, false), concSem, abstSem)
+
+      val convertedA = convertKontAddr(a, None, mapKontAddress)
+      val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
+      (convertedControl, convertedStore, convertedKStore, convertedA, newT)
+
+    }
+
     def convertState[AbstL: IsConvertableLattice](
         concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
         abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
         initialKontAddress: KontAddr,
         mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr): Conversion[AbstL] = {
 
-      val convertValueFun = convertValue[AbstL](abstSem.primitives) _
-
-      val convertedControl: ConvertedControl[SchemeExp, AbstL, HybridAddress.A] =
-        control match {
-          case ConcolicControlEval(exp, env, _) =>
-            ConvertedControlEval[SchemeExp, AbstL, HybridAddress.A](exp, convertEnv(env))
-          case ConcolicControlKont(v, _) =>
-            ConvertedControlKont[SchemeExp, AbstL, HybridAddress.A](convertValueFun(v))
-        }
-
-      val GCedStore = garbageCollectStore(concSem, store, control, kstore, a)
-      val convertedStore = convertStore(GCedStore, convertValueFun)
-      val convertedKStore = convertKStore[AbstL, KontAddr](mapKontAddress, kstore, convertValueFun, concSem, abstSem)
-
-      val convertedA = convertKontAddr(a, None, mapKontAddress)
-      val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
-      (convertedControl, convertedStore, convertedKStore, convertedA, newT)
+      optEnvs match {
+        case Some((env, symEnv)) =>
+          converstateWithExactSymVariables(concSem, abstSem, initialKontAddress, mapKontAddress, env, symEnv)
+        case None => converstateNoExactSymVariables(concSem, abstSem, initialKontAddress, mapKontAddress)
+      }
     }
   }
 
@@ -456,19 +527,9 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
     bw.close()
   }
 
-  def saveCurrentState(): Unit = {
-    savedState = currentState
-  }
-  def discardSavedState(): Unit = {
-    savedState = None
-  }
-  def currentStateSaved: Boolean = {
-    savedState.isDefined
-  }
-  def startAnalysisFromSavedState(thenBranchTaken: Boolean): Option[PartialRegexMatcher] = {
-    assert(savedState.isDefined)
-    val maybePartialMatcher = rtAnalysis.startRunTimeAnalysis(savedState.get, thenBranchTaken, stepCount)
-    discardSavedState()
+  def startAnalysisFromCurrentState(thenBranchTaken: Boolean): Option[PartialRegexMatcher] = {
+    assert(currentState.isDefined)
+    val maybePartialMatcher = rtAnalysis.startRunTimeAnalysis(currentState.get, thenBranchTaken, stepCount)
     maybePartialMatcher
   }
 }

@@ -21,7 +21,10 @@ object ExactSymbolicVariablesFinder {
     case ArithmeticalConcolicExpression(_, exps) => exps.forall(isExactSymExpressions(_, exactInputVariables))
     case _: ConcolicBool => true
     case _: ConcolicInt => true
-    case i: ConcolicInput => exactInputVariables.contains(i)
+    case i: ConcolicInput =>
+      val isContained = exactInputVariables.contains(i)
+      Logger.log(s"FOund input variable $i, contained in exactInputVariables? $isContained", Logger.U)
+      isContained
     case ConcolicObject(_, fields) => fields.values.forall(isExactSymExpressions(_, exactInputVariables))
     case LogicalUnaryConcolicExpression(_, exp) => isExactSymExpressions(exp, exactInputVariables)
     case LogicalBinaryConcolicExpression(left, _, right) =>
@@ -38,6 +41,13 @@ object ExactSymbolicVariablesFinder {
     })
   }
 
+  /**
+    * Filters all variables contained in the given environment that correspond to exact symbolic values
+    * in the symbolic environment.
+    * @param env
+    * @param symEnv
+    * @return
+    */
   def findExactSymbolicVariables(env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment): Set[String] = {
     val report = ScalaAMReporter.getCurrentReport
     val exactInputVariables = filterExactInputVariables(report).map(_._1).toSet

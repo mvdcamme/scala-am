@@ -433,9 +433,15 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
 
     def inject(x: Double): Value = Real(RealLattice[F].inject(x))
 
+    def realTop: Value = Real(RealLattice[F].top)
+
     def inject(x: String): Value = Str(StringLattice[S].inject(x))
 
+    def stringTop: Value = Str(StringLattice[S].top)
+
     def inject(x: scala.Char): Value = Char(CharLattice[C].inject(x))
+
+    def charTop: Value = Char(CharLattice[C].top)
 
     def inject(x: Boolean): Value = Bool(BoolLattice[B].inject(x))
 
@@ -444,6 +450,8 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
     def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr]), maybeSymEnv: Option[SymbolicEnvironment]): Value = Closure(x._1, x._2, maybeSymEnv)
 
     def injectSymbol(x: String): Value = Symbol(SymbolLattice[Sym].inject(x))
+
+    def symbolTop: Value = Symbol(SymbolLattice[Sym].top)
 
     def nil: Value = Nil
 
@@ -641,12 +649,16 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
     def inject(x: scala.Int): L = Element(isSchemeLatticeValue.inject(x))
     def intTop: L = Element(isSchemeLatticeValue.intTop)
     def inject(x: Double): L = Element(isSchemeLatticeValue.inject(x))
+    def realTop: L = Element(isSchemeLatticeValue.realTop)
     def inject(x: String): L = Element(isSchemeLatticeValue.inject(x))
+    def stringTop: L = Element(isSchemeLatticeValue.stringTop)
     def inject(x: scala.Char): L = Element(isSchemeLatticeValue.inject(x))
+    def charTop: L = Element(isSchemeLatticeValue.charTop)
     def inject(x: Boolean): L = Element(isSchemeLatticeValue.inject(x))
     def inject[Addr: Address, Abs: JoinLattice](x: Primitive[Addr, Abs]): L = Element(isSchemeLatticeValue.inject(x))
     def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr]), maybeSymEnv: Option[SymbolicEnvironment]): L = Element(isSchemeLatticeValue.inject(x, maybeSymEnv))
     def injectSymbol(x: String): L = Element(isSchemeLatticeValue.injectSymbol(x))
+    def symbolTop: L = Element(isSchemeLatticeValue.symbolTop)
     def cons[Addr: Address](car: Addr, cdr: Addr): L = Element(isSchemeLatticeValue.cons(car, cdr))
     def vector[Addr: Address](addr: Addr, size: L, init: Addr): MayFail[(L, L)] = foldMapL(size, size =>
       isSchemeLatticeValue.vector(addr, size, init).map({ case (a, v) => (Element(a), Element(v)) }))
@@ -679,31 +691,34 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
   }
 
   def convert[Exp: Expression, Abs: IsConvertableLattice, Addr: Address](
-    x: L, addressConverter: AddressConverter[Addr], convertEnv: Environment[Addr] => Environment[Addr], abstPrims: SchemePrimitives[Addr, Abs]): Abs = {
+    x: L, addressConverter: AddressConverter[Addr], convertEnv: Environment[Addr] => Environment[Addr], abstPrims: SchemePrimitives[Addr, Abs], makeValuePrecise: Boolean): Abs = {
     val convLat = implicitly[IsConvertableLattice[Abs]]
+
+    def convert(precise: => Abs, top: => Abs): Abs = {
+      if (makeValuePrecise) precise else top
+    }
 
     def convertValue(value: Value): Abs = value match {
       case Bot => convLat.bottom
-      case Str(s) => convLat.inject(s.returnSingle)
-      case Bool(b) => convLat.inject(b.returnSingle)
-      case Int(i) => convLat.inject(i.returnSingle)
-      case Real(r) => convLat.inject(r.returnSingle)
-      case Char(c) => convLat.inject(c.returnSingle)
-      case Symbol(s) => convLat.injectSymbol(s.returnSingle)
+      case Str(s) => convert(convLat.inject(s.returnSingle), convLat.stringTop)
+      case Bool(b) => convLat.inject(b.returnSingle) // TODO BoolLattice that we convert the value into, uses concrete booleans anyway
+      case Int(i) => convert(convLat.inject(i.returnSingle), convLat.intTop)
+      case Real(r) => convert(convLat.inject(r.returnSingle), convLat.realTop)
+      case Char(c) => convert(convLat.inject(c.returnSingle), convLat.charTop)
+      case Symbol(s) => convert(convLat.injectSymbol(s.returnSingle), convLat.symbolTop)
       case p: Prim[Addr, L] => convLat.inject(p.prim.convert(abstPrims))
       case Closure(lambda, env, maybeSymEnv) =>
         val convertedEnv = convertEnv(env.asInstanceOf[Environment[Addr]])
         convLat.inject((lambda, convertedEnv).asInstanceOf[(Exp, Environment[Addr])], maybeSymEnv)
       case c: Cons[Addr] =>
-        convLat.cons[Addr](addressConverter.convertAddress(c.car),
-          addressConverter.convertAddress(c.cdr))
+        convLat.cons[Addr](addressConverter.convertAddress(c.car), addressConverter.convertAddress(c.cdr))
       case Nil => convLat.nil
       case v: Vec[Addr] =>
         val actualSize: scala.Int = v.size.returnSingle
         var abstractElements = collection.immutable.Map[scala.Int, Addr]()
         v.elements.foreach({
           case (i, address: Addr) => {
-            val index: scala.Int = i.returnSingle
+            val index: scala.Int = i.returnSingle //TODO Shouldn't the address also be converted?
             abstractElements = abstractElements + (index -> address)
           }
         })

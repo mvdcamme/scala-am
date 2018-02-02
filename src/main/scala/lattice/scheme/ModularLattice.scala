@@ -371,9 +371,15 @@ Sym : SymbolLattice
 
     def inject(x: Double): Value = Real(RealLattice[F].inject(x))
 
+    def realTop: Value = Real(RealLattice[F].top)
+
     def inject(x: String): Value = Str(StringLattice[S].inject(x))
 
+    def stringTop: Value = Str(StringLattice[S].top)
+
     def inject(x: scala.Char): Value = Char(CharLattice[C].inject(x))
+
+    def charTop: Value = Char(CharLattice[C].top)
 
     def inject(x: Boolean): Value = Bool(BoolLattice[B].inject(x))
 
@@ -382,6 +388,8 @@ Sym : SymbolLattice
     def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr]), maybeSymEnv: Option[SymbolicEnvironment]): Value = Closure(x._1, x._2)
 
     def injectSymbol(x: String): Value = Symbol(SymbolLattice[Sym].inject(x))
+
+    def symbolTop: Value = Symbol(SymbolLattice[Sym].top)
 
     def nil: Value = Nil
 
@@ -579,12 +587,16 @@ Sym : SymbolLattice
     def inject(x: scala.Int): L = Element(isSchemeLatticeValue.inject(x))
     def intTop: L = Element(isSchemeLatticeValue.intTop)
     def inject(x: Double): L = Element(isSchemeLatticeValue.inject(x))
+    def realTop: L = Element(isSchemeLatticeValue.realTop)
     def inject(x: String): L = Element(isSchemeLatticeValue.inject(x))
+    def stringTop: L = Element(isSchemeLatticeValue.stringTop)
     def inject(x: scala.Char): L = Element(isSchemeLatticeValue.inject(x))
+    def charTop: L = Element(isSchemeLatticeValue.charTop)
     def inject(x: Boolean): L = Element(isSchemeLatticeValue.inject(x))
     def inject[Addr: Address, Abs: JoinLattice](x: Primitive[Addr, Abs]): L = Element(isSchemeLatticeValue.inject(x))
     def inject[Exp: Expression, Addr: Address](x: (Exp, Environment[Addr]), maybeSymEnv: Option[SymbolicEnvironment]): L = Element(isSchemeLatticeValue.inject(x, None))
     def injectSymbol(x: String): L = Element(isSchemeLatticeValue.injectSymbol(x))
+    def symbolTop: L = Element(isSchemeLatticeValue.symbolTop)
     def cons[Addr: Address](car: Addr, cdr: Addr): L = Element(isSchemeLatticeValue.cons(car, cdr))
     def vector[Addr: Address](addr: Addr, size: L, init: Addr): MayFail[(L, L)] = foldMapL(size, size =>
       isSchemeLatticeValue.vector(addr, size, init).map({ case (a, v) => (Element(a), Element(v)) }))

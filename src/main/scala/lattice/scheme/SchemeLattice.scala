@@ -48,8 +48,12 @@ trait IsSchemeLattice[L] extends JoinLattice[L] {
   def intTop: L
   /** Injection of a float */
   def inject(x: Double): L
+  /** The top float */
+  def realTop: L
   /** Injection of a string */
   def inject(x: String): L
+  /** The top string */
+  def stringTop: L
 
   /** Injection of a boolean */
   def inject(x: Boolean): L
@@ -57,6 +61,8 @@ trait IsSchemeLattice[L] extends JoinLattice[L] {
   def boolTop: L = join(inject(true), inject(false))
   /** Injection of a character */
   def inject(x: Char): L
+  /** The top character */
+  def charTop: L
 
   /** Injection of a primitive function */
   def inject[Addr: Address, Abs: JoinLattice](x: Primitive[Addr, Abs]): L
@@ -66,6 +72,8 @@ trait IsSchemeLattice[L] extends JoinLattice[L] {
 
   /** Injection of a symbol */
   def injectSymbol(x: String): L
+  /** The top symbol */
+  def symbolTop: L
 
   /** Creates a cons cell */
   def cons[Addr: Address](car: Addr, cdr: Addr): L

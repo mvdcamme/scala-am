@@ -42,12 +42,10 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
      * This matcher starts matching from a certain point _in the execution of the  program_ and hence skips the part
      * of the path that comes before this point.
      * The path should therefore be reset, otherwise the path (which includes every constraint encountered since
-     * the start of the execution of the program) is matched with a matches that only takes into account the constraints
+     * the start of the execution of the program) is matched with a matcher that only takes into account the constraints
      * encountered _from the current point in the program on_.
-     * Once the path has been reset, add the constraint that triggered this run-time analysis back to the path.
      */
     ScalaAMReporter.resetCurrentPath()
-    ScalaAMReporter.addToCurrentPath(thenBranchTaken)
     maybePartialMatcher
   }
 
@@ -58,7 +56,6 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
     */
   def startRunTimeAnalysis(state: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T], thenBranchTaken: Boolean, stepCount: Int): Option[PartialRegexMatcher] = {
     ScalaAMReporter.disableConcolic()
-    state.optEnvs.foreach((envs) => ExactSymbolicVariablesFinder.matchSymEnvAndStateEnv(envs._2, envs._1, state.store))
     Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.E)
     state.optEnvs.foreach((envs) => {
       val exactSymbolicVariables = ExactSymbolicVariablesFinder.findExactSymbolicVariables(envs._1, envs._2)
@@ -74,7 +71,6 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
 
   def startInitialAnalysis(initialState: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T], programName: String): Option[PartialRegexMatcher] = {
     ScalaAMReporter.disableConcolic()
-    initialState.optEnvs.foreach((envs) => ExactSymbolicVariablesFinder.matchSymEnvAndStateEnv(envs._2, envs._1, initialState.store))
     val analysisResult = analysisLauncher.runInitialStaticAnalysis(initialState, programName)
     val result = handleInitialAnalysisResult[PAbs](errorPathDetector, analysisResult)
     ScalaAMReporter.enableConcolic()
