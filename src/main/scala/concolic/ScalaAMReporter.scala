@@ -80,9 +80,14 @@ object ScalaAMReporter {
     } else if (ConcolicRunTimeFlags.useRunTimeAnalyses) {
       val constraintAddedPC = pathStorage.addToReport(constraint, thenBranchTaken, None).map(triple => (triple._1, triple._2))
       val maybeNewPartialMatcher = rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken, constraintAddedPC)
+      /*
+       * PartialMatcherStore's current matcher now refers to a matcher starting from *after* this constraint.
+       * The current path is empty.
+       */
       pathStorage.updateReport(constraint, thenBranchTaken, maybeNewPartialMatcher)
       checkWithPartialMatcher(optimizedConstraint)
     } else if (ConcolicRunTimeFlags.checkAnalysis) {
+      pathStorage.updateReport(constraint, thenBranchTaken, None)
       checkWithPartialMatcher(optimizedConstraint)
     } else {
       /* Constraint is not constant and checkAnalysis is false */
