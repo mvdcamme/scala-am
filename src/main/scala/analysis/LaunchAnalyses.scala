@@ -61,7 +61,7 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
     val currentAddresses: Set[HybridAddress.A] = state.addressesReachable
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
     val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
-    val analysisResult = analysisLauncher.runStaticAnalysis(state, Some(stepCount), convertedCurrentAddresses)
+    val analysisResult = analysisLauncher.runStaticAnalysis(state, Some(stepCount), convertedCurrentAddresses, pathConstraint)
     val result = handleRunTimeAnalysisResult[PAbs](errorPathDetector, analysisResult, thenBranchTaken)
     ScalaAMReporter.enableConcolic()
     result
