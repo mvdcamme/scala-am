@@ -37,8 +37,7 @@ object ScalaAMConcolicSolver {
     val report = ScalaAMReporter.pathStorage.getCurrentReport
     PartialMatcherStore.getInitial match {
       case Some(initialPartialMatcher) =>
-        val patchedReport = patchInitialPartialMatcher(report, initialPartialMatcher)
-        Reporter.addExploredPathWithPartialMatcher(patchedReport)
+        Reporter.addExploredPathWithPartialMatcher(report, initialPartialMatcher)
       case None => Reporter.addExploredPath(report)
     }
     val result = ConcolicSolver.solve
