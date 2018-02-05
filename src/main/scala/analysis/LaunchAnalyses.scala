@@ -55,10 +55,7 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
                            thenBranchTaken: Boolean,
                            stepCount: Int, pathConstraint: List[(Constraint, Boolean)]): Option[PartialRegexMatcher] = {
     ScalaAMReporter.disableConcolic()
-    Logger.log("Starting run-time analysis because divergence in error paths has been detected", Logger.E)
-    state.optEnvs.foreach((envs) => {
-      val exactSymbolicVariables = ExactSymbolicVariablesFinder.findExactSymbolicVariables(envs._1, envs._2, pathConstraint)
-      Logger.log(s"exactSymbolicVariables are $exactSymbolicVariables", Logger.E) })
+    Logger.log("Starting run-time analysis", Logger.E)
     val currentAddresses: Set[HybridAddress.A] = state.addressesReachable
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
     val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)

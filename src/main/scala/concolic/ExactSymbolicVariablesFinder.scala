@@ -22,7 +22,7 @@ object ExactSymbolicVariablesFinder {
     case _: ConcolicInt => true
     case i: ConcolicInput =>
       val isContained = exactInputVariables.contains(i)
-      Logger.log(s"FOund input variable $i, contained in exactInputVariables? $isContained", Logger.U)
+      Logger.log(s"Found input variable $i, contained in exactInputVariables? $isContained", Logger.U)
       isContained
     case ConcolicObject(_, fields) => fields.values.forall(isExactSymExpressions(_, exactInputVariables))
     case LogicalUnaryConcolicExpression(_, exp) => isExactSymExpressions(exp, exactInputVariables)
