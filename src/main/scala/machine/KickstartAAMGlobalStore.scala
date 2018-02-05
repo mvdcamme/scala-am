@@ -114,8 +114,8 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
   }
 
   type G = Graph[State, EdgeAnnotation[Exp, Abs, Addr], State.Context]
-  case class AAMOutput(halted: Set[State], finalStore: Store[Addr, Abs],
-    numberOfStates: Int, time: Double, graph: G, timedOut: Boolean, stepSwitched: Option[Int])
+  case class AAMOutput(halted: Set[State], finalStore: Store[Addr, Abs], numberOfStates: Int, time: Double,
+                       errorStates: Set[State], graph: G, timedOut: Boolean, stepSwitched: Option[Int])
       extends Output with HasGraph[Exp, Abs, Addr, State] with HasFinalStores[Addr, Abs] {
 
     override def toString = s"AAMOutput($numberOfStates states, ${time}s, $stepSwitched)"
@@ -148,8 +148,8 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
     def loop[VS[_]: VisitedSet](todo: Set[State], visited: VS[State], store: GlobalStore, kstore: KontStore[KontAddr],
       halted: Set[State], graph: G, reallyVisited: Set[State]): AAMOutput = {
       if (todo.isEmpty || timeout.reached) {
-        AAMOutput(halted, store.commit.store,
-          reallyVisited.size, timeout.time, graph, timeout.reached, stepSwitched)
+        AAMOutput(halted, store.commit.store, reallyVisited.size, timeout.time, halted.filter(_.isErrorState),
+                  graph, timeout.reached, stepSwitched)
       } else {
         val (edges, store2, kstore2) = todo.foldLeft(Set[(State, EdgeAnnotation[Exp, Abs, Addr], State)](), store, kstore)((acc, state) =>
           state.step(sem, acc._2, acc._3) match {

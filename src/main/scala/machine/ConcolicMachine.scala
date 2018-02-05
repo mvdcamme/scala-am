@@ -500,7 +500,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
         }
         finishUpLoop
       } catch {
-        case AbortConcolicRunException => finishUpLoop
+        case AbortConcolicIterationException => finishUpLoop
       }
       if (nrOfRuns < ConcolicRunTimeFlags.MAX_CONCOLIC_ITERATIONS && shouldContinue) {
         loopConcolic(initialState, nrOfRuns + 1)
@@ -526,9 +526,9 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
     bw.close()
   }
 
-  def startAnalysisFromCurrentState(thenBranchTaken: Boolean, pathConstraint: List[(Constraint, Boolean)]): Option[PartialRegexMatcher] = {
+  def startAnalysisFromCurrentState(thenBranchTaken: Boolean, pathConstraint: List[(Constraint, Boolean)]): AnalysisResult = {
     assert(currentState.isDefined)
-    val maybePartialMatcher = rtAnalysis.startRunTimeAnalysis(currentState.get, thenBranchTaken, stepCount, pathConstraint)
-    maybePartialMatcher
+    val analysisResult = rtAnalysis.startRunTimeAnalysis(currentState.get, thenBranchTaken, stepCount, pathConstraint)
+    analysisResult
   }
 }

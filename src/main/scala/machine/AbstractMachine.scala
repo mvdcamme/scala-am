@@ -130,6 +130,7 @@ trait GraphPrinter[Graph] {
 
 trait HasGraph[Exp, Abs, Addr, MachineState <: StateTrait[Exp, Abs, Addr, _]] {
   def halted: Set[MachineState]
+  def errorStates: Set[MachineState]
   def graph: Graph[MachineState, EdgeAnnotation[Exp, Abs, Addr], Set[MachineState]]
 }
 

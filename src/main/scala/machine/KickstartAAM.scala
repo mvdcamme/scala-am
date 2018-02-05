@@ -215,8 +215,9 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
   }
 
   type G = Option[Graph[State, EdgeAnnotation[Exp, Abs, Addr], State.Context]]
-  case class AAMOutput(halted: Set[State], numberOfStates: Int, time: Double, graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]],
-                       timedOut: Boolean, stepSwitched: Option[Int])
+  case class AAMOutput(halted: Set[State], numberOfStates: Int, time: Double, errorStates: Set[State],
+                       graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]], timedOut: Boolean,
+                       stepSwitched: Option[Int])
       extends Output with HasGraph[Exp, Abs, Addr, State] with HasFinalStores[Addr, Abs] {
 
     /**
@@ -276,13 +277,11 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
 
   def kickstartEval(initialState: State, sem: ConvertableSemantics[Exp, Abs, Addr, Time], stopEval: Option[State => Boolean],
                     timeout: Timeout, stepSwitched: Option[Int]): AAMOutput = {
-    def loop(todo: Set[State],
-             visited: Set[State],
-             halted: Set[State],
-             startingTime: Long,
+    def loop(todo: Set[State], visited: Set[State], halted: Set[State], startingTime: Long,
              graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AAMOutput = {
       if (timeout.reached) {
-        AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9), graph, true, stepSwitched)
+        AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9),
+                  halted.filter(_.isErrorState), graph, true, stepSwitched)
       } else {
         todo.headOption match {
           case Some(s) =>
@@ -324,12 +323,8 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
                    newGraph)
             }
           case None =>
-            AAMOutput(halted,
-                      visited.size,
-                      (System.nanoTime - startingTime) / Math.pow(10, 9),
-                      graph,
-                      false,
-                      stepSwitched)
+            AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9),
+                      halted.filter(_.isErrorState), graph, false, stepSwitched)
         }
       }
     }
