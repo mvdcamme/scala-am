@@ -1,4 +1,5 @@
 import backend.expression._
+import concolic.SymbolicEnvironment
 
 /**
   * Basic Scheme semantics, without any optimization
@@ -23,10 +24,9 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
     : ConvertableSchemeFrame[OtherAbs, Addr, Time] =
     frame.convert(convertValue, convertEnv, abstSem)
 
-  def frameReaches(frame: ConvertableSchemeFrame[V, Addr, Time],
-                   valueReaches: V => Set[Addr],
-                   envReaches: Environment[Addr] => Set[Addr],
-                   addressReaches: Addr => Set[Addr]): Set[Addr] =
+  def frameReaches(frame: ConvertableSchemeFrame[V, Addr, Time], valueReaches: V => Reached[Addr],
+                   envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+                   addressReaches: Addr => Reached[Addr]): Reached[Addr] =
     frame.reaches(valueReaches, envReaches, addressReaches)
 
   def conditional(v: V, t: => EdgeInfos, f: => EdgeInfos): EdgeInfos = {

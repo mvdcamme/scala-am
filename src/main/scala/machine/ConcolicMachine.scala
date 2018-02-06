@@ -3,8 +3,16 @@ import java.io.{BufferedWriter, File, FileWriter}
 import backend.tree.Constraint
 import backend.expression._
 import ConcreteConcreteLattice.{L => ConcreteValue}
-import backend.path_filtering.PartialRegexMatcher
 import concolic.SymbolicEnvironment
+
+case class Reached[Addr : Address](addressesReachable: Set[Addr], preciseAddresses: Set[Addr]) {
+  def ++(other: Reached[Addr]): Reached[Addr] = {
+    Reached(this.addressesReachable ++ other.addressesReachable, this.preciseAddresses ++ other.preciseAddresses)
+  }
+}
+object Reached {
+  def empty[Addr : Address] = Reached[Addr](Set(), Set())
+}
 
 class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLauncher: AnalysisLauncher[PAbs], analysisFlags: AnalysisFlags)
                                                                               (implicit unused1: IsSchemeLattice[ConcreteValue])
@@ -159,112 +167,28 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
             abstSem))
     }
 
-    var reached = Set[HybridAddress.A]()
+    private var reached = Set[HybridAddress.A]()
 
     private def reachesValue(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                             sto: Store[HybridAddress.A, ConcreteValue])
-                            (value: ConcreteValue): Set[HybridAddress.A] =
-      ConcreteConcreteLattice.latticeInfoProvider.reaches[HybridAddress.A](value, reachesEnvironment(concBaseSem, sto), reachesAddress(concBaseSem, sto))
+                             sto: Store[HybridAddress.A, ConcreteValue], pathConstraint: List[(Constraint, Boolean)])
+                            (value: ConcreteValue): Reached[HybridAddress.A] =
+      ConcreteConcreteLattice.latticeInfoProvider.reaches[HybridAddress.A](value, reachesEnvironment(concBaseSem, sto, pathConstraint), reachesAddress(concBaseSem, sto, pathConstraint))
 
     private def reachesAddress(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                               sto: Store[HybridAddress.A, ConcreteValue])
-                              (address: HybridAddress.A): Set[HybridAddress.A] = {
+                               sto: Store[HybridAddress.A, ConcreteValue], pathConstraint: List[(Constraint, Boolean)])
+                              (address: HybridAddress.A): Reached[HybridAddress.A] = {
       if (! reached.contains(address)) {
         reached = reached + address
-        Set(address) ++ sto.lookup(address).foldLeft[Set[HybridAddress.A]](Set())((_, value) =>
-          reachesValue(concBaseSem, sto)(value))
+        val lookedUp = sto.lookup(address).map(reachesValue(concBaseSem, sto, pathConstraint)).getOrElse(Reached.empty[HybridAddress.A])
+        Reached(Set(address) ++ lookedUp.addressesReachable, lookedUp.preciseAddresses)
       } else {
-        Set()
+        Reached.empty[HybridAddress.A]
       }
     }
 
     private def reachesEnvironment(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                                   sto: Store[HybridAddress.A, ConcreteValue])
-                                  (env: Environment[HybridAddress.A]): Set[HybridAddress.A] = {
-      var reached: Set[HybridAddress.A] = Set()
-      env.forall((tuple) => {
-        reached = (reached + tuple._2) ++ reachesAddress(concBaseSem, sto)(tuple._2)
-        true
-      })
-      reached
-    }
-
-    private def reachesKontAddr[KAddr <: KontAddr](concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                                                   sto: Store[HybridAddress.A, ConcreteValue], kstore: KontStore[KAddr],
-                                                   ka: KAddr): Set[HybridAddress.A] = {
-      kstore.lookup(ka).foldLeft[Set[HybridAddress.A]](Set())(
-        (acc, kont) =>
-          acc ++ concBaseSem.frameReaches(
-            kont.frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]],
-            reachesValue(concBaseSem, sto),
-            reachesEnvironment(concBaseSem, sto),
-            reachesAddress(concBaseSem, sto)) ++ reachesKontAddr(concBaseSem, sto, kstore, kont.next))
-    }
-
-    private def reachesControl[KAddr <: KontAddr](concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                                                  sto: Store[HybridAddress.A, ConcreteValue],
-                                                  kstore: KontStore[KAddr], control: ConcolicControl): Set[HybridAddress.A] =
-      control match {
-        case ConcolicControlEval(_, env, _) =>
-          reachesEnvironment(concBaseSem, sto)(env)
-        case ConcolicControlKont(value, _) =>
-          reachesValue(concBaseSem, sto)(value)
-        case ConcolicControlError(_) => Set()
-      }
-
-    private def reachesStoreAddresses[KAddr <: KontAddr](concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                                                         sto: Store[HybridAddress.A, ConcreteValue],
-                                                         control: ConcolicControl, kstore: KontStore[KAddr],
-                                                         ka: KAddr): Set[HybridAddress.A] = {
-      reachesControl[KAddr](concBaseSem, sto, kstore, control) ++ reachesKontAddr[KAddr](concBaseSem, sto, kstore, ka)
-    }
-
-    private def garbageCollectStore[KAddr <: KontAddr]
-                                   (concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                                    store: Store[HybridAddress.A, ConcreteValue],
-                                    control: ConcolicControl, kstore: KontStore[KAddr],
-                                    ka: KAddr): Store[HybridAddress.A, ConcreteValue] = {
-      reached = Set()
-      val storeAddressReachable = reachesStoreAddresses[KAddr](concBaseSem, store, control, kstore, ka)
-      store.gc(storeAddressReachable)
-    }
-
-    private def convertKontAddr[KAddr <: KontAddr](ka: KontAddr, env: Option[Environment[HybridAddress.A]], mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr): KAddr = {
-      val kontAddrConverter = new DefaultKontAddrConverter[SchemeExp]
-      mapKontAddress(kontAddrConverter.convertKontAddr(ka), env)
-    }
-
-    private def converstateNoExactSymVariables[AbstL: IsConvertableLattice](
-      concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-      abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
-      initialKontAddress: KontAddr,
-      mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr): Conversion[AbstL] = {
-
-      val convertValueFun = (value: ConcreteValue) => convertValue[AbstL](abstSem.primitives) (value, false)
-
-      val convertedControl: ConvertedControl[SchemeExp, AbstL, HybridAddress.A] = control match {
-        case ConcolicControlEval(exp, env, _) =>
-          ConvertedControlEval[SchemeExp, AbstL, HybridAddress.A](exp, convertEnv(env))
-        case ConcolicControlKont(v, _) =>
-          ConvertedControlKont[SchemeExp, AbstL, HybridAddress.A](convertValueFun(v))
-      }
-
-      val GCedStore = garbageCollectStore(concSem, store, control, kstore, a)
-      val convertedStore = convertStoreNoExactSymVariables(GCedStore, convertValueFun)
-      val convertedKStore = convertKStore[AbstL, KontAddr](mapKontAddress, kstore, convertValueFun, concSem, abstSem)
-
-      val convertedA = convertKontAddr(a, None, mapKontAddress)
-      val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
-      (convertedControl, convertedStore, convertedKStore, convertedA, newT)
-
-    }
-
-    private def converstateWithExactSymVariables[AbstL: IsConvertableLattice](
-      concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-      abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
-      initialKontAddress: KontAddr, mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr,
-      env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment,
-      pathConstraint: List[(Constraint, Boolean)]): Conversion[AbstL] = {
+                                   sto: Store[HybridAddress.A, ConcreteValue], pathConstraint: List[(Constraint, Boolean)])
+                                  (env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment): Reached[HybridAddress.A] = {
 
       val exactSymVariables = ExactSymbolicVariablesFinder.findExactSymbolicVariables(env, symEnv, pathConstraint)
       Logger.log(s"exactSymVariables are $exactSymVariables", Logger.E)
@@ -284,7 +208,69 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
       }
 
       val preciseVariables = env.keys.filter(shouldMakeValPrecise)
-      val preciseVariablesAddresses = preciseVariables.map(env.lookup(_).get)
+      var preciseAddresses = exactSymVariables.map(env.lookup(_).get)
+
+      var reached: Set[HybridAddress.A] = Set()
+      env.forall((tuple) => {
+        val reachedResult = reachesAddress(concBaseSem, sto, pathConstraint)(tuple._2)
+        reached = (reached + tuple._2) ++ reachedResult.addressesReachable
+        preciseAddresses ++= reachedResult.preciseAddresses
+        true
+      })
+      Reached(reached, preciseAddresses)
+    }
+
+    private def reachesKontAddr[KAddr <: KontAddr](concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                                                   sto: Store[HybridAddress.A, ConcreteValue], kstore: KontStore[KAddr],
+                                                   ka: KAddr, pathConstraint: List[(Constraint, Boolean)]): Reached[HybridAddress.A] = {
+      kstore.lookup(ka).foldLeft[Reached[HybridAddress.A]](Reached.empty[HybridAddress.A])((acc, kont) =>
+          acc ++ concBaseSem.frameReaches(
+            kont.frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]],
+            reachesValue(concBaseSem, sto, pathConstraint),
+            reachesEnvironment(concBaseSem, sto, pathConstraint),
+            reachesAddress(concBaseSem, sto, pathConstraint)) ++ reachesKontAddr(concBaseSem, sto, kstore, kont.next, pathConstraint))
+    }
+
+    private def reachesControl[KAddr <: KontAddr](concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                                                  sto: Store[HybridAddress.A, ConcreteValue],
+                                                  kstore: KontStore[KAddr], control: ConcolicControl,
+                                                  pathConstraint: List[(Constraint, Boolean)]): Reached[HybridAddress.A] =
+      control match {
+        case ConcolicControlEval(_, env, symEnv) =>
+          reachesEnvironment(concBaseSem, sto, pathConstraint)(env, symEnv)
+        case ConcolicControlKont(value, _) =>
+          reachesValue(concBaseSem, sto, pathConstraint)(value)
+        case ConcolicControlError(_) => Reached.empty[HybridAddress.A]
+      }
+
+    private def reachesStoreAddresses[KAddr <: KontAddr](concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                                                         sto: Store[HybridAddress.A, ConcreteValue],
+                                                         control: ConcolicControl, kstore: KontStore[KAddr],
+                                                         ka: KAddr, pathConstraint: List[(Constraint, Boolean)]): Reached[HybridAddress.A] = {
+      reachesControl[KAddr](concBaseSem, sto, kstore, control, pathConstraint) ++ reachesKontAddr[KAddr](concBaseSem, sto, kstore, ka, pathConstraint)
+    }
+
+    private def garbageCollectStore[KAddr <: KontAddr]
+                                   (concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                                    store: Store[HybridAddress.A, ConcreteValue], control: ConcolicControl, kstore: KontStore[KAddr],
+                                    ka: KAddr, pathConstraint: List[(Constraint, Boolean)]): (Store[HybridAddress.A, ConcreteValue], Set[HybridAddress.A]) = {
+      reached = Set()
+      val result: Reached[HybridAddress.A] = reachesStoreAddresses[KAddr](concBaseSem, store, control, kstore, ka, pathConstraint)
+      val gcedStore = store.gc(result.addressesReachable)
+      (gcedStore, result.preciseAddresses)
+    }
+
+    private def convertKontAddr[KAddr <: KontAddr](ka: KontAddr, env: Option[Environment[HybridAddress.A]], mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr): KAddr = {
+      val kontAddrConverter = new DefaultKontAddrConverter[SchemeExp]
+      mapKontAddress(kontAddrConverter.convertKontAddr(ka), env)
+    }
+
+    private def converstateWithExactSymVariables[AbstL: IsConvertableLattice](
+      concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+      abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
+      initialKontAddress: KontAddr, mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr,
+      pathConstraint: List[(Constraint, Boolean)]): Conversion[AbstL] = {
+
       val convertValueFun = convertValue[AbstL](abstSem.primitives) _
 
       val convertedControl: ConvertedControl[SchemeExp, AbstL, HybridAddress.A] = control match {
@@ -294,8 +280,8 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
           ConvertedControlKont[SchemeExp, AbstL, HybridAddress.A](convertValueFun(v, false))
       }
 
-      val GCedStore = garbageCollectStore(concSem, store, control, kstore, a)
-      val convertedStore = convertStoreWithExactSymVariables(GCedStore, convertValueFun, preciseVariablesAddresses.toSet)
+      val (gcedStore, preciseVariablesAddresses) = garbageCollectStore(concSem, store, control, kstore, a, pathConstraint)
+      val convertedStore = convertStoreWithExactSymVariables(gcedStore, convertValueFun, preciseVariablesAddresses)
       val convertedKStore = convertKStore[AbstL, KontAddr](mapKontAddress, kstore, convertValueFun(_, false), concSem, abstSem)
 
       val convertedA = convertKontAddr(a, None, mapKontAddress)
@@ -309,12 +295,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
         abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
         initialKontAddress: KontAddr, mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr,
         pathConstraint: List[(Constraint, Boolean)]): Conversion[AbstL] = {
-
-      optEnvs match {
-        case Some((env, symEnv)) =>
-          converstateWithExactSymVariables(concSem, abstSem, initialKontAddress, mapKontAddress, env, symEnv, pathConstraint)
-        case None => converstateNoExactSymVariables(concSem, abstSem, initialKontAddress, mapKontAddress)
-      }
+      converstateWithExactSymVariables(concSem, abstSem, initialKontAddress, mapKontAddress, pathConstraint)
     }
   }
 

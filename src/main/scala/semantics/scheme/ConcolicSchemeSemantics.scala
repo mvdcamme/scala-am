@@ -41,9 +41,9 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
     frame.convert(convertValue, convertEnv, abstSem)
 
   def frameReaches(frame: ConvertableSchemeFrame[ConcreteValue, Addr, Time],
-                   valueReaches: ConcreteValue => Set[Addr],
-                   envReaches: Environment[Addr] => Set[Addr],
-                   addressReaches: Addr => Set[Addr]): Set[Addr] =
+                   valueReaches: ConcreteValue => Reached[Addr],
+                   envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+                   addressReaches: Addr => Reached[Addr]): Reached[Addr] =
     frame.reaches(valueReaches, envReaches, addressReaches)
 
   def conditional(v: ConcreteValue,

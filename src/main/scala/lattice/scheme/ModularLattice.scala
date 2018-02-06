@@ -628,17 +628,18 @@ Sym : SymbolLattice
       case Element(VectorAddress(_)) => SimpleTypes.VectorAddress
       case _ => SimpleTypes.Top
     }
-    def reaches[Addr: Address](x: L,  reachesEnv: Environment[Addr] => Set[Addr], reachesAddress: Addr => Set[Addr]): Set[Addr] = {
-      def reachesValue(v: Value): Set[Addr] = v match {
-        case Closure(_, env) => reachesEnv(env.asInstanceOf[Environment[Addr]])
+    def reaches[Addr: Address](x: L,  reachesEnv: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+                               reachesAddress: Addr => Reached[Addr]): Reached[Addr] = {
+      def reachesValue(v: Value): Reached[Addr] = v match {
+        case Closure(_, env) => reachesEnv(env.asInstanceOf[Environment[Addr]], ???)
         case Cons(car, cdr) => reachesAddress(car.asInstanceOf[Addr]) ++ reachesAddress(cdr.asInstanceOf[Addr])
-        case v: Vec[Addr] => reachesAddress(v.init) ++ v.elements.foldLeft[Set[Addr]](Set())((acc, pair) => acc ++ reachesAddress(pair._2))
+        case v: Vec[Addr] => reachesAddress(v.init) ++ v.elements.foldLeft(Reached.empty[Addr])((acc, pair) => acc ++ reachesAddress(pair._2))
         case v: VectorAddress[Addr] => reachesAddress(v.a)
-        case _ => Set[Addr]()
+        case _ => Reached.empty[Addr]
       }
       x match {
         case Element(v) => reachesValue(v)
-        case Elements(vs) => vs.foldLeft(Set[Addr]())((acc, v) => acc ++ reachesValue(v))
+        case Elements(vs) => vs.foldLeft(Reached.empty[Addr])((acc, v) => acc ++ reachesValue(v))
       }
     }
   }

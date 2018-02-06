@@ -1,3 +1,5 @@
+import concolic.SymbolicEnvironment
+
 trait LatticeInfoProvider[L] {
   def simpleType(x: L): SimpleTypes.Value
   def simpleTypes(xs: List[L]): SimpleTypes.Value = {
@@ -11,5 +13,6 @@ trait LatticeInfoProvider[L] {
       }
     })
   }
-  def reaches[Addr: Address](x: L, reachesEnv: Environment[Addr] => Set[Addr], reachesAddress: Addr => Set[Addr]): Set[Addr]
+  def reaches[Addr: Address](x: L, reachesEnv: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+                             reachesAddress: Addr => Reached[Addr]): Reached[Addr]
 }

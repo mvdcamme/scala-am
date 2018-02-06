@@ -24,7 +24,8 @@ case class FrameConcolicFuncallOperator[Abs: IsSchemeLattice, Addr: Address, Tim
     convertEnv: Environment[Addr] => Environment[Addr],
     abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameFuncallOperator(fexp, args, convertEnv(env))
-  def reaches(valueReaches: Abs => Set[Addr], envReaches: Environment[Addr] => Set[Addr], addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
+  def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+              addressReaches: Addr => Reached[Addr]): Reached[Addr] = envReaches(env, symEnv)
 }
 
 case class FrameConcolicFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
@@ -64,12 +65,10 @@ case class FrameConcolicFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Tim
       toeval,
       convertEnv(env))
 
-  def reaches(valueReaches: Abs => Set[Addr],
-    envReaches: Environment[Addr] => Set[Addr],
-    addressReaches: Addr => Set[Addr]): Set[Addr] =
-    valueReaches(f) ++ args.foldLeft[Set[Addr]](Set[Addr]())((acc, arg) =>
-      acc ++ valueReaches(arg._2)) ++
-      envReaches(env)
+  def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+              addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
+    valueReaches(f) ++ args.foldLeft(Reached.empty[Addr])((acc, arg) => acc ++ valueReaches(arg._2)) ++ envReaches(env, symEnv)
+  }
 }
 
 case class FrameConcolicIf[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
@@ -91,7 +90,8 @@ case class FrameConcolicIf[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameIf(cons, alt, convertEnv(env), ifExp)
 
-  def reaches(valueReaches: Abs => Set[Addr], envReaches: Environment[Addr] => Set[Addr], addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
+  def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+              addressReaches: Addr => Reached[Addr]): Reached[Addr] = envReaches(env, symEnv)
 }
 
 case class FrameConcolicLet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
@@ -112,12 +112,10 @@ case class FrameConcolicLet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp
       body,
       convertEnv(env))
 
-  def reaches(valueReaches: Abs => Set[Addr],
-    envReaches: Environment[Addr] => Set[Addr],
-    addressReaches: Addr => Set[Addr]): Set[Addr] =
-    bindings.foldLeft[Set[Addr]](Set[Addr]())((acc, binding) =>
-      acc ++ valueReaches(binding._2)) ++
-      envReaches(env)
+  def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+    addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
+    bindings.foldLeft(Reached.empty[Addr])((acc, binding) => acc ++ valueReaches(binding._2)) ++ envReaches(env, symEnv)
+  }
 }
 
 case class FrameConcolicLetStar[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
@@ -133,9 +131,10 @@ case class FrameConcolicLetStar[Abs: IsSchemeLattice, Addr: Address, Time: Times
     abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameLetStar(variable, bindings, body, convertEnv(env))
 
-  def reaches(valueReaches: Abs => Set[Addr],
-    envReaches: Environment[Addr] => Set[Addr],
-    addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
+  def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+              addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
+    envReaches(env, symEnv)
+  }
 }
 
 case class FrameConcolicLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
@@ -158,8 +157,10 @@ case class FrameConcolicLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timest
       convertEnv(env))
   }
 
-  def reaches(valueReaches: Abs => Set[Addr], envReaches: Environment[Addr] => Set[Addr], addressReaches: Addr => Set[Addr]): Set[Addr] =
-    addressReaches(addr) ++ envReaches(env)
+  def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+              addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
+    addressReaches(addr) ++ envReaches(env, symEnv)
+  }
 }
 
 case class FrameConcolicSet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
@@ -173,7 +174,10 @@ case class FrameConcolicSet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp
     abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameSet(variable, convertEnv(env))
 
-  def reaches(valueReaches: Abs => Set[Addr], envReaches: Environment[Addr] => Set[Addr], addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
+  def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+              addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
+    envReaches(env, symEnv)
+  }
 }
 
 case class FrameConcolicBegin[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
@@ -185,7 +189,10 @@ case class FrameConcolicBegin[Abs: IsSchemeLattice, Addr: Address, Time: Timesta
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameBegin(rest, convertEnv(env))
 
-  def reaches(valueReaches: Abs => Set[Addr], envReaches: Environment[Addr] => Set[Addr], addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
+  def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+              addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
+    envReaches(env, symEnv)
+  }
 }
 
 case class FrameConcolicCond[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
@@ -198,7 +205,10 @@ case class FrameConcolicCond[Abs: IsSchemeLattice, Addr: Address, Time: Timestam
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameCond(cons, clauses, convertEnv(env))
 
-  def reaches(valueReaches: Abs => Set[Addr], envReaches: Environment[Addr] => Set[Addr], addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
+  def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+              addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
+    envReaches(env, symEnv)
+  }
 }
 
 case class FrameConcolicCase[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
@@ -211,7 +221,10 @@ case class FrameConcolicCase[Abs: IsSchemeLattice, Addr: Address, Time: Timestam
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameCase(clauses, default, convertEnv(env))
 
-  def reaches(valueReaches: Abs => Set[Addr], envReaches: Environment[Addr] => Set[Addr], addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
+  def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+              addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
+    envReaches(env, symEnv)
+  }
 }
 
 case class FrameConcolicDefine[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
@@ -223,5 +236,8 @@ case class FrameConcolicDefine[Abs: IsSchemeLattice, Addr: Address, Time: Timest
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
     FrameDefine(variable, convertEnv(env))
 
-  def reaches(valueReaches: Abs => Set[Addr], envReaches: Environment[Addr] => Set[Addr], addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
+  def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
+              addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
+    envReaches(env, symEnv)
+  }
 }
