@@ -214,48 +214,6 @@ case class FrameConcolicCase[Abs: IsSchemeLattice, Addr: Address, Time: Timestam
   def reaches(valueReaches: Abs => Set[Addr], envReaches: Environment[Addr] => Set[Addr], addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
 }
 
-//case class FrameConcolicAnd[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
-//  rest: List[SchemeExp],
-//  evaluatedSymbolicValues: List[Option[ConcolicExpression]],
-//  env: Environment[Addr],
-//  symEnv: SymbolicEnvironment)
-//  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
-//
-//  def generateConcolicExpression(concreteValue: Boolean): Option[ConcolicExpression] = evaluatedSymbolicValues match {
-//    case Nil =>
-//      Some(ConcolicBool(concreteValue))
-//    case (head : Option[BooleanConcolicExpression]) :: rest =>
-//      val optLeftOperand = rest.foldLeft[Option[BooleanConcolicExpression]](head)((optAcc, optConcolicValue) => optAcc.flatMap(acc => optConcolicValue.flatMap(concolicValue => (acc, concolicValue) match {
-//        case (acc: BooleanConcolicExpression, concolicValue : BooleanConcolicExpression) =>
-//          Some(LogicalBinaryConcolicExpression(acc, LogicalAnd, concolicValue))
-//        case _ => None
-//      })))
-//      optLeftOperand.map(LogicalBinaryConcolicExpression(_, LogicalAnd, ConcolicBool(concreteValue)))
-//    case _ =>
-//      None
-//  }
-//
-//  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
-//    FrameAnd(rest, convertEnv(env))
-//
-//  def reaches(valueReaches: Abs => Set[Addr], envReaches: Environment[Addr] => Set[Addr], addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
-//
-//}
-//
-//case class FrameConcolicOr[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
-//  rest: List[SchemeExp],
-//  evaluatedSymbolicValues: List[Option[ConcolicExpression]],
-//  env: Environment[Addr],
-//  symEnv: SymbolicEnvironment)
-//  extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
-//
-//  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
-//    FrameOr(rest, convertEnv(env))
-//
-//  def reaches(valueReaches: Abs => Set[Addr], envReaches: Environment[Addr] => Set[Addr], addressReaches: Addr => Set[Addr]): Set[Addr] = envReaches(env)
-//
-//}
-
 case class FrameConcolicDefine[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
   variable: Identifier,
   env: Environment[Addr],
