@@ -6,7 +6,6 @@ trait ConvertableProgramState[Exp, Addr, Time] {
   type Conversion[AbstL] = (ConvertedControl[Exp, AbstL, Addr], Store[Addr, AbstL], KontStore[KontAddr], KontAddr, HybridTimestamp.T)
 
   def store: Store[Addr, ConcreteValue]
-  def optEnvs: Option[(Environment[Addr], concolic.SymbolicEnvironment)]
 
   def addressesReachable: Set[Addr]
 
