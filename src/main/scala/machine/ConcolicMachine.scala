@@ -164,7 +164,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
                                   (env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment): Reached[HybridAddress.A] = {
 
       val exactSymVariables = ExactSymbolicVariablesFinder.findExactSymbolicVariables(env, symEnv, pathConstraint)
-      Logger.log(s"exactSymVariables are $exactSymVariables", Logger.E)
+      Logger.log(s"exactSymVariables are $exactSymVariables", Logger.I)
       def shouldMakeValPrecise(variable: String): Boolean = {
         /*
          * If a variable is not part of the symbolic environment, the variable's value was not computed via
