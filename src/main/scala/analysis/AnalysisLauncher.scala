@@ -10,7 +10,7 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
   type PS = ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
   /* The specific type of KickstartAAM used for this analysis: a KickstartAAM using the HybridLattice, HybridAddress and ZeroCFA
    * components. */
-  type SpecAAM = KickstartAAMGlobalStore[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
+  type SpecAAM = KickstartAAM[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
   /* The specific environment used in the concrete state: an environment using the HybridAddress components. */
   type SpecEnv = Environment[HybridAddress.A]
 
@@ -46,18 +46,18 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
     * @param abstSem The semantics to be used during the analysis.
     * @param programState The program state to be converted.
     */
-  protected def convertStateAAM(aam: KickstartAAMGlobalStore[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
+  protected def convertStateAAM(aam: SpecAAM,
                                 concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
                                 abstSem: ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
                                 programState: PS, pathConstraint: List[(Constraint, Boolean)]): aam.InitialState = {
     val (control, store, kstore, a, t) = programState.convertState[Abs](concSem, abstSem, HaltKontAddress, (x, _) => x, pathConstraint)
-    val deltaStore = aam.GlobalStore(DeltaStore[HybridAddress.A, Abs](store.toSet.toMap, Map()), Map())
+//    val deltaStore = aam.GlobalStore(DeltaStore[HybridAddress.A, Abs](store.toSet.toMap, Map()), Map())
     val convertedControl = control match {
       case ConvertedControlError(reason) => aam.ControlError(reason)
       case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
       case ConvertedControlKont(v) => aam.ControlKont(v)
     }
-    (aam.State(convertedControl, a, t), deltaStore, kstore)
+    aam.State(convertedControl, store, kstore, a, t)
   }
 
   def runInitialStaticAnalysis(currentProgramState: PS, programName: String): StaticAnalysisResult

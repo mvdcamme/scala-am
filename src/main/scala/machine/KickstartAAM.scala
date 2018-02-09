@@ -46,6 +46,10 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       case _: ControlError => true
       case _ => false
     }
+    def isUserErrorState: Boolean = control match {
+      case ControlError(UserError(_, _)) => true
+      case _ => false
+    }
 
     /**
       * Checks whether a states subsumes another, i.e., if it is "bigger". This
@@ -276,26 +280,28 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
   }
 
   def kickstartEval(initialState: State, sem: ConvertableSemantics[Exp, Abs, Addr, Time], stopEval: Option[State => Boolean],
-                    timeout: Timeout, stepSwitched: Option[Int]): AAMOutput = {
-    def loop(todo: Set[State], visited: Set[State], halted: Set[State], startingTime: Long,
-             graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AAMOutput = {
-      if (timeout.reached) {
+    timeout: Timeout, stepSwitched: Option[Int]): AAMOutput = {
+    def loop(counter: Int, todo: Set[State], visited: Set[State], halted: Set[State], startingTime: Long,
+      graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AAMOutput = {
+
+      Logger.log(s"Counter: $counter", Logger.U)
+      if (timeout.reached || counter >= 500 || visited.size > 500 || todo.size > 500) {
         AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9),
-                  halted.filter(_.isErrorState), graph, true, stepSwitched)
+          halted.filter(_.isErrorState), graph, true, stepSwitched)
       } else {
         todo.headOption match {
           case Some(s) =>
             if (visited.contains(s)) {
               /* If we already visited the state, we ignore it. */
-              loop(todo.tail, visited, halted, startingTime, graph)
+              loop(counter + 1, todo.tail, visited, halted, startingTime, graph)
             } else if (GlobalFlags.AAM_CHECK_SUBSUMES && visited.exists(s2 => s2.subsumes(s))) {
               /* If the state is subsumed by another already visited state,
                * we ignore it. The subsumption part reduces the number of visited
                * states but leads to non-determinism due to the non-determinism
                * of Scala's headOption (it seems so at least).
                * We do have to add an edge from the current state to the subsumed state. */
-              loop(todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]]
-              (graph)({
+              loop(counter + 1, todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]]
+                (graph)({
                 case (graph, s2) =>
                   if (s2.subsumes(s)) {
                     val subsumptionFilter = StateSubsumed
@@ -307,7 +313,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
             } else if (s.halted || stopEval.fold(false)(pred => pred(s))) {
               /* If the state is a final state or the stopEval predicate determines the machine can stop exploring
                * this state, add it to the list of final states and continue exploring the graph */
-              loop(todo.tail, visited + s, halted + s, startingTime, graph)
+              loop(counter + 1, todo.tail, visited + s, halted + s, startingTime, graph)
             } else {
               /* Otherwise, compute the successors (and edges to these successors) of this state,
               update the graph, and push the new successors on the todo list */
@@ -316,11 +322,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
                 val filters = addSuccStateFilter(s2.state, s2.filters)
                 (s, EdgeAnnotation(filters, s2.actions), s2.state)
               }))
-              loop(todo.tail ++ succsEdges.map(_.state),
-                   visited + s,
-                   halted,
-                   startingTime,
-                   newGraph)
+              loop(counter + 1, todo.tail ++ succsEdges.map(_.state), visited + s, halted, startingTime, newGraph)
             }
           case None =>
             AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9),
@@ -329,7 +331,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       }
     }
     val startingTime = System.nanoTime
-    loop(Set(initialState), Set(), Set(), startingTime, Graph.empty[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]].addNode(initialState))
+    loop(1, Set(initialState), Set(), Set(), startingTime, Graph.empty[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]].addNode(initialState))
   }
 
   def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Timeout): Output = ???
