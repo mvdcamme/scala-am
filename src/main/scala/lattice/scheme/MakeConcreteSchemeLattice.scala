@@ -690,7 +690,8 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
     val convLat = implicitly[IsConvertableLattice[Abs]]
 
     def convert(precise: => Abs, top: => Abs): Abs = {
-      if (makeValuePrecise) precise else top
+//      if (makeValuePrecise) precise else top TODO
+      precise
     }
 
     def convertValue(value: Value): Abs = value match {
