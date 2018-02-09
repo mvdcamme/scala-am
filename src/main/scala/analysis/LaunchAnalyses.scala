@@ -15,6 +15,7 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
       // TODO Just passing the initial matcher would mean the current matcher wouldn't be used at all though.
       // TODO Solution: when an AbortConcolicExecution-error is thrown, pass the path that was already created
       // TODO to the backend and ask to invalidate that one?
+      GraphDOTOutput.toFile(outputGraph.hasGraph.graph, outputGraph.hasGraph.halted)("rt_graph.dot")
       val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.hasGraph.graph)
       val result = AnalysisResult(maybePartialMatcher.get, outputGraph.hasGraph.errorStates.nonEmpty)
       Some(result)
