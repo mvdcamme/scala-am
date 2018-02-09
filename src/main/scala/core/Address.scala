@@ -84,14 +84,7 @@ object HybridAddress extends AddressWrapper {
 
   val abstractAddress = ClassicalAddress.isAddress
 
-  case class HybridAddr(a: ClassicalAddress.A) extends A {
-    override def equals(that: Any): Boolean = that match {
-      case v: HybridAddr =>
-        a == v.a
-      case _ => super.equals(that)
-    }
-    override def hashCode() = a.hashCode()
-  }
+  case class HybridAddr(a: ClassicalAddress.A) extends A
   case class PrimitiveAddress(name: String) extends A
 
   implicit val isAddress = new Address[A] {
