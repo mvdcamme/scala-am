@@ -88,7 +88,7 @@ object ScalaAMReporter {
        * via static analyses, which don't (or can't) check whether some condition is constant or not.
        */
       addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
-    } else if (ConcolicRunTimeFlags.useRunTimeAnalyses) {
+    } else if (ConcolicRunTimeFlags.useRunTimeAnalyses) { // Final non-constant BranchConstraint is evaluated at stepCount 565560
       val constraintAddedPC = pathStorage.addToReport(optimizedConstraint, thenBranchTaken, None).map(triple => (triple._1, triple._2))
       val analysisResult = rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken, constraintAddedPC)
       /*
