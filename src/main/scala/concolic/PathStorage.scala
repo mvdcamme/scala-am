@@ -1,14 +1,13 @@
 import backend.{Path, PathConstraint}
 import backend.path_filtering.PartialRegexMatcher
 import backend.tree.Constraint
-import backend.tree.path.{ElseBranchTaken, ThenBranchTaken}
 
 class PathStorage {
 
   private var currentPath: Path = Nil
   private var currentReport: PathConstraint = Nil
 
-  def getCurrentPath: Path = currentPath
+  def getCurrentPath: Path = currentPath.reverse /* Elements were added in reverse order, so reverse list now. */
 
   /**
     * Adds an element to the current path, without actually replacing the current path.
@@ -16,8 +15,9 @@ class PathStorage {
     * @return
     */
   def addToPath(thenBranchTaken: Boolean): Path = {
+    /* New path symbols are added in reverse order, i.e., to the front, for performance reasons. */
     val newPathElement = if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken
-    currentPath :+ newPathElement
+    newPathElement :: currentPath
   }
   def resetCurrentPath(): Unit = {
     currentPath = Nil
@@ -31,7 +31,7 @@ class PathStorage {
     currentPath = addToPath(thenBranchTaken)
   }
 
-  def getCurrentReport: PathConstraint = currentReport
+  def getCurrentReport: PathConstraint = currentReport.reverse /* Constraints were added in reverse order, so reverse list now. */
 
   /**
     * Adds the given parameters as an element to the current path constraint, without actually replacing the current
@@ -42,7 +42,8 @@ class PathStorage {
     * @return
     */
   def addToReport(constraint: Constraint, thenBranchTaken: Boolean, maybePartialMatcher: Option[PartialRegexMatcher]): PathConstraint = {
-    currentReport :+ (constraint, thenBranchTaken, maybePartialMatcher)
+    /* New constraints are added in reverse order, i.e., to the front, for performance reasons. */
+    (constraint, thenBranchTaken, maybePartialMatcher) :: currentReport
   }
   def resetCurrentReport(): Unit = {
     currentReport = Nil
