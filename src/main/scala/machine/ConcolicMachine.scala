@@ -119,25 +119,29 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
       valuesConvertedStore
     }
 
-    private def convertKStore[AbstL: IsConvertableLattice,
-                              KAddr <: KontAddr: KontAddress](
-        mapKontAddress: (KontAddr,
-                         Option[Environment[HybridAddress.A]]) => KAddr,
-        kontStore: KontStore[KontAddr],
-        convertValue: ConcreteValue => AbstL,
-        concBaseSem: ConvertableSemantics[SchemeExp,
-                                          ConcreteValue,
-                                          HybridAddress.A,
-                                          HybridTimestamp.T],
-        abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T]): KontStore[KAddr] = {
-      kontStore.map[KAddr](
-        (ka) => convertKontAddr(ka, None, mapKontAddress),
-        (frame: Frame) =>
-          concBaseSem.convertAbsInFrame[AbstL](
+    private def convertKStore[AbstL: IsConvertableLattice](
+        kontStore: KontStore[KontAddr], initialAddress: KontAddr, convertValue: ConcreteValue => AbstL,
+        concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+        abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T]): KontStore[KontAddr] = {
+      @scala.annotation.tailrec
+      def loop(address: KontAddr, convertedKStore: KontStore[KontAddr]): KontStore[KontAddr] = {
+        if (address == HaltKontAddress) {
+          convertedKStore
+        } else {
+          val convertedAddress = convertKontAddr(address)
+          val konts = kontStore.lookup(address)
+          assert(konts.size == 1) // Concolic machine uses concrete execution, so there should only be one Kont
+          val next = konts.head.next
+          val convertedNext = convertKontAddr(next)
+          val frame = konts.head.frame
+          val convertedFrame = concBaseSem.convertAbsInFrame[AbstL](
             frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]],
-            convertValue,
-            convertEnv,
-            abstSem))
+            convertValue, convertEnv, abstSem)
+          val newConvertedKStore = convertedKStore.extend(convertedAddress, Kont(convertedFrame, convertedNext))
+          loop(next, newConvertedKStore)
+        }
+      }
+      loop(initialAddress, TimestampedKontStore(Map(), 0))
     }
 
     private var reached = Set[HybridAddress.A]()
@@ -180,7 +184,6 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
         exactSymVariables.contains(variable) || !symEnv.contains(variable)
       }
 
-      val preciseVariables = env.keys.filter(shouldMakeValPrecise)
       var preciseAddresses = exactSymVariables.map(env.lookup(_).get)
 
       var reached: Set[HybridAddress.A] = Set()
@@ -233,16 +236,15 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
       (gcedStore, result.preciseAddresses)
     }
 
-    private def convertKontAddr[KAddr <: KontAddr](ka: KontAddr, env: Option[Environment[HybridAddress.A]], mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KAddr): KAddr = {
+    private def convertKontAddr(ka: KontAddr): KontAddr = {
       val kontAddrConverter = new DefaultKontAddrConverter[SchemeExp]
-      mapKontAddress(kontAddrConverter.convertKontAddr(ka), env)
+      kontAddrConverter.convertKontAddr(ka)
     }
 
     private def converstateWithExactSymVariables[AbstL: IsConvertableLattice](
       concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
       abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
-      initialKontAddress: KontAddr, mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr,
-      pathConstraint: List[(Constraint, Boolean)]): Conversion[AbstL] = {
+      initialKontAddress: KontAddr, pathConstraint: List[(Constraint, Boolean)]): Conversion[AbstL] = {
 
       val convertValueFun = convertValue[AbstL](abstSem.primitives) _
 
@@ -255,9 +257,9 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
 
       val (gcedStore, preciseVariablesAddresses) = garbageCollectStore(concSem, store, control, kstore, a, pathConstraint)
       val convertedStore = convertStoreWithExactSymVariables(gcedStore, convertValueFun, preciseVariablesAddresses)
-      val convertedKStore = convertKStore[AbstL, KontAddr](mapKontAddress, kstore, convertValueFun(_, false), concSem, abstSem)
 
-      val convertedA = convertKontAddr(a, None, mapKontAddress)
+      val convertedKStore = convertKStore[AbstL](kstore, a, convertValueFun(_, false), concSem, abstSem)
+      val convertedA = convertKontAddr(a)
       val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
       (convertedControl, convertedStore, convertedKStore, convertedA, newT)
 
@@ -266,9 +268,8 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
     def convertState[AbstL: IsConvertableLattice](
         concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
         abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
-        initialKontAddress: KontAddr, mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr,
-        pathConstraint: List[(Constraint, Boolean)]): Conversion[AbstL] = {
-      converstateWithExactSymVariables(concSem, abstSem, initialKontAddress, mapKontAddress, pathConstraint)
+        initialKontAddress: KontAddr, pathConstraint: List[(Constraint, Boolean)]): Conversion[AbstL] = {
+      converstateWithExactSymVariables(concSem, abstSem, initialKontAddress, pathConstraint)
     }
   }
 

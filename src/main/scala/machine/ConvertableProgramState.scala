@@ -12,6 +12,5 @@ trait ConvertableProgramState[Exp, Addr, Time] {
   def convertState[AbstL: IsConvertableLattice](
       concSem: ConvertableSemantics[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
       abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
-      initialKontAddress: KontAddr, mapKontAddress: (KontAddr, Option[Environment[HybridAddress.A]]) => KontAddr,
-      pathConstraint: List[(Constraint, Boolean)]): Conversion[AbstL]
+      initialKontAddress: KontAddr, pathConstraint: List[(Constraint, Boolean)]): Conversion[AbstL]
 }
