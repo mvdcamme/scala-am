@@ -35,6 +35,10 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
       case _: ControlError => true
       case _ => false
     }
+    def isUserErrorState: Boolean = control match {
+      case ControlError(UserError(_, _)) => true
+      case _ => false
+    }
 
     import scala.language.implicitConversions
     implicit private def semFiltersToFilterAnnots(filters: Set[SemanticsFilterAnnotation]): FilterAnnotations[Exp, Abs, Addr] = {

@@ -33,7 +33,7 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
       Logger.log("Graph is empty", Logger.U)
       None
     case Some(_) =>
-      val transitiveClosure = new TransitiveClosure(graph, (state: aam.State) => state.isErrorState, annotToOptChar)
+      val transitiveClosure = new TransitiveClosure(graph, (state: aam.State) => state.isUserErrorState, annotToOptChar)
       val maybePartialMatcher = transitiveClosure.computePartialMatcher
       maybePartialMatcher
   }
