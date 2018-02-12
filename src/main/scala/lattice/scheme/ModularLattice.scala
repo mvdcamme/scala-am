@@ -429,13 +429,11 @@ Sym : SymbolLattice
         val f: Set[Addr] = Set()
         MayFailSuccess(t ++ f)
       }
+      case (Vec(size, content: Map[I, Addr]@unchecked, init: Addr@unchecked), _) =>
+        MayFailError(List(TypeError("vector-ref", "second operand", "integer", "not an integer")))
     }
 
-    def vectorSet[Addr: Address](
-      vector: Value,
-      index: Value,
-      addr: Addr
-    ): MayFail[(Value, Set[Addr])] = (vector, index) match {
+    def vectorSet[Addr: Address](vector: Value, index: Value, addr: Addr): MayFail[(Value, Set[Addr])] = (vector, index) match {
       case (Vec(size, content: Map[I, Addr]@unchecked, init: Addr@unchecked), Int(index)) => {
         val comp = IntLattice[I].lt(index, size)
         val t: (Value, Set[Addr]) = if (BoolLattice[B].isTrue(comp)) {
@@ -449,6 +447,8 @@ Sym : SymbolLattice
         val f: (Value, Set[Addr]) = (Bot, Set())
         MayFailSuccess((join(t._1, f._1), t._2 ++ f._2))
       }
+      case (Vec(size, content: Map[I, Addr]@unchecked, init: Addr@unchecked), _) =>
+        MayFailError(List(TypeError("vector-set!", "second operand", "integer", "not an integer")))
     }
 
     def getVectors[Addr: Address](x: Value) = x match {
