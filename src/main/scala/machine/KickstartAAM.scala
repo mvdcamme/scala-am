@@ -283,9 +283,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
     timeout: Timeout, stepSwitched: Option[Int]): AAMOutput = {
     def loop(counter: Int, todo: Set[State], visited: Set[State], halted: Set[State], startingTime: Long,
       graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AAMOutput = {
-
-      Logger.log(s"Counter: $counter", Logger.U)
-      if (timeout.reached || counter >= 500 || visited.size > 500 || todo.size > 500) {
+      if (timeout.reached) {
         AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9),
           halted.filter(_.isErrorState), graph, true, stepSwitched)
       } else {

@@ -151,7 +151,7 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
     @scala.annotation.tailrec
     def loop[VS[_]: VisitedSet](todo: Set[State], visited: VS[State], store: GlobalStore, kstore: KontStore[KontAddr],
       halted: Set[State], graph: G, reallyVisited: Set[State]): AAMOutput = {
-      if (todo.isEmpty || timeout.reached || VisitedSet[VS].size(visited) > 500) {
+      if (todo.isEmpty || timeout.reached) {
         AAMOutput(halted, store.commit.store, reallyVisited.size, timeout.time, halted.filter(_.isErrorState),
                   graph, timeout.reached, stepSwitched)
       } else {
