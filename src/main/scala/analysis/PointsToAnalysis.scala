@@ -56,7 +56,7 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
       isInitial: Boolean,
       stepSwitched: Option[Int]): StaticAnalysisResult = {
     Logger.log("Starting static points-to analysis", Logger.I)
-    val result = machine.kickstartEval(startState, sem, None, Timeout.none, stepSwitched)
+    val result = machine.kickstartEval(startState, isInitial, sem, None, Timeout.none, stepSwitched)
     toDot.foreach(result.toFile)
     AnalysisOutputGraph[Exp, L, Addr, machine.MachineState](result)
   }
@@ -97,11 +97,11 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
   }
 
   def runStaticAnalysisGeneric(currentProgramState: PS, stepSwitched: Option[Int], toDotFile: Option[String],
-                               pathConstraint: List[(Constraint, Boolean)]): StaticAnalysisResult = {
+                               pathConstraint: List[(Constraint, Boolean)], isInitialAnalysis: Boolean): StaticAnalysisResult = {
     wrapRunAnalysis(
       () => {
         val startState = convertStateAAM(aam, concSem, abstSem, currentProgramState, pathConstraint)
-        val result = pointsToAnalysis.analyze(toDotFile, aam, abstSem, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startState, false, stepSwitched)
+        val result = pointsToAnalysis.analyze(toDotFile, aam, abstSem, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startState, isInitialAnalysis, stepSwitched)
         Logger.log(s"Static points-to analysis result is $result", Logger.U)
         result
       })
@@ -109,7 +109,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
 
   def runStaticAnalysis(currentProgramState: PS, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
                         pathConstraint: List[(Constraint, Boolean)]): StaticAnalysisResult = {
-    val result = runStaticAnalysisGeneric(currentProgramState, stepSwitched, None, pathConstraint)
+    val result = runStaticAnalysisGeneric(currentProgramState, stepSwitched, None, pathConstraint, false)
     result
   }
 
@@ -122,7 +122,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
   }
 
   def runInitialStaticAnalysis(currentProgramState: PS, programName: String): StaticAnalysisResult =
-    runStaticAnalysisGeneric(currentProgramState, None, Some("initial_graph.dot"), Nil) match {
+    runStaticAnalysisGeneric(currentProgramState, None, Some("initial_graph.dot"), Nil, true) match {
       case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.MachineState] =>
         GraphDOTOutput.toFile(result.hasGraph.graph, result.hasGraph.halted)("initial_graph.dot")
         initializeAnalyses(result.hasGraph.graph, programName)

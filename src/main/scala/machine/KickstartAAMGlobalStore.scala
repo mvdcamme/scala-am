@@ -145,11 +145,11 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
     def toFile(path: String)(output: GraphOutput): Unit = output.toFile(graph, halted)(path)
   }
 
-  def kickstartEval(initialState: InitialState, sem: ConvertableSemantics[Exp, Abs, Addr, Time], stopEval: Option[State => Boolean],
+  def kickstartEval(initialState: InitialState, includeFiltersFirstState: Boolean, sem: ConvertableSemantics[Exp, Abs, Addr, Time], stopEval: Option[State => Boolean],
                     timeout: Timeout, stepSwitched: Option[Int]): AAMOutput = {
     val startingTime = System.nanoTime
     @scala.annotation.tailrec
-    def loop[VS[_]: VisitedSet](todo: Set[State], visited: VS[State], store: GlobalStore, kstore: KontStore[KontAddr],
+    def loop[VS[_]: VisitedSet](includeFilters: Boolean, todo: Set[State], visited: VS[State], store: GlobalStore, kstore: KontStore[KontAddr],
       halted: Set[State], graph: G, reallyVisited: Set[State]): AAMOutput = {
       if (todo.isEmpty || timeout.reached) {
         AAMOutput(halted, store.commit.store, reallyVisited.size, timeout.time, halted.filter(_.isErrorState),
@@ -162,15 +162,15 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
           })
         if (store2.isUnchanged && kstore.fastEq(kstore2)) {
           //assert(store2.commit.store == store2.store)
-          loop(edges.map({ case (s1, e, s2) => s2 }).filter(s2 => !VisitedSet[VS].contains(visited, s2)),
+          loop(true, edges.map({ case (s1, e, s2) => s2 }).filter(s2 => !VisitedSet[VS].contains(visited, s2)),
             VisitedSet[VS].append(visited, todo),
             store2, kstore2,
             halted ++ todo.filter(_.halted),
-               graph.addEdges(edges.map({ case (s1, e, s2) => (s1, e, s2) })),
+               graph.addEdges(edges.map({ case (s1, e, s2) => (s1, if (includeFilters) { e } else { e.copy(filters = FilterAnnotations[Exp, Abs, Addr](Set(), Set())) } , s2) })),
             reallyVisited ++ todo)
         } else {
           //assert(!(!store2.isUnchanged && store2.commit.store == store2.store))
-          loop(edges.map({ case (s1, e, s2) => s2 }),
+          loop(true, edges.map({ case (s1, e, s2) => s2 }),
             VisitedSet[VS].empty,
             store2.commit, kstore2,
             halted ++ todo.filter(_.halted),
@@ -180,7 +180,7 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
       }
     }
     val (state, store, kstore) = initialState
-    loop(Set(state),
+    loop(includeFiltersFirstState, Set(state),
       VisitedSet.MapVisitedSet.empty,
       store, kstore, Set(),
       Graph.empty[State, EdgeAnnotation[Exp, Abs, Addr], State.Context].addNode(state), Set())
@@ -194,6 +194,6 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
     */
   def eval(exp: Exp, sem: ConvertableSemantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Timeout): Output = {
     val initialState = State.inject(exp, sem.initialEnv, sem.initialStore)
-    kickstartEval(initialState, sem, None, timeout, None)
+    kickstartEval(initialState, true, sem, None, timeout, None)
   }
 }
