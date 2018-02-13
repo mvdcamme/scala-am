@@ -477,8 +477,17 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
         val comp = IntLattice[I].lt(index, size)
         val t: Set[Addr] = if (BoolLattice[B].isTrue(comp)) {
           val vals = content.filterKeys(index2 => BoolLattice[B].isTrue(IntLattice[I].eql(index, index2))).values
-          /* init doesn't have to be included if we know for sure that index is precise enough */
-          vals.foldLeft(Set(init))((acc, v) => acc + v)
+          /*
+           * We're using the concrete lattice, so there should be only one val at most.
+           * If the given index of the vector was never set, vals will be empty and the initial address must
+           * be returned.
+           */
+          assert(vals.size <= 1)
+          if (vals.isEmpty) {
+            Set(init)
+          } else {
+            vals.toSet
+          }
         } else {
           Set()
         }
