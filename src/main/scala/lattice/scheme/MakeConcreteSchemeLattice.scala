@@ -722,15 +722,14 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
         var abstractElements = collection.immutable.Map[scala.Int, Addr]()
         v.elements.foreach({
           case (i, address: Addr) => {
-            val index: scala.Int = i.returnSingle //TODO Shouldn't the address also be converted?
-            abstractElements = abstractElements + (index -> address)
+            val index: scala.Int = i.returnSingle
+            val abstractAddress = addressConverter.convertAddress(address)
+            abstractElements = abstractElements + (index -> abstractAddress)
           }
         })
         val abstractInit = addressConverter.convertAddress(v.init)
         convLat.injectVector[Addr](actualSize, abstractElements, abstractInit)
-      case va: VectorAddress[Addr] =>
-        convLat.injectVectorAddress[Addr](
-          addressConverter.convertAddress(va.a))
+      case va: VectorAddress[Addr] => convLat.injectVectorAddress[Addr](addressConverter.convertAddress(va.a))
     }
 
     x match {
