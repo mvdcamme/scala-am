@@ -1,7 +1,9 @@
 import backend.path_filtering.PartialRegexMatcher
 import backend.tree.Constraint
 
-case class AnalysisResult(partialMatcher: PartialRegexMatcher, containsErrorStates: Boolean)
+case class AnalysisResult(partialMatcher: PartialRegexMatcher, containsErrorStates: Boolean, containsUserErrorStates: Boolean) {
+  def shouldContinueTesting: Boolean = containsUserErrorStates
+}
 
 class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLauncher: AnalysisLauncher[PAbs]) {
 
@@ -17,7 +19,7 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
       // TODO to the backend and ask to invalidate that one?
       GraphDOTOutput.toFile(outputGraph.hasGraph.graph, outputGraph.hasGraph.halted)("rt_graph.dot")
       val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.hasGraph.graph)
-      val result = AnalysisResult(maybePartialMatcher.get, outputGraph.hasGraph.errorStates.nonEmpty)
+      val result = AnalysisResult(maybePartialMatcher.get, outputGraph.hasGraph.errorStates.nonEmpty, outputGraph.hasGraph.errorStates.exists(_.isUserErrorState))
       Some(result)
     case _ =>
       Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)

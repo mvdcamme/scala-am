@@ -101,7 +101,7 @@ object ScalaAMReporter {
        * cannot find any error states, no errors are reachable from this point in the execution tree, so we may
        * abort this concolic run.
        */
-      if (! analysisResult.containsErrorStates) {
+      if (! analysisResult.shouldContinueTesting) {
         abortConcolicIteration()
       }
     } else if (ConcolicRunTimeFlags.checkAnalysis) {
