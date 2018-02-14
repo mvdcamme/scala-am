@@ -461,10 +461,16 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
 
     if (ConcolicRunTimeFlags.checkAnalysis) {
       // Use initial static analysis to detect paths to errors
-      rtAnalysis.startInitialAnalysis(initialState, programName)
+      val initialAnalysisResult = rtAnalysis.startInitialAnalysis(initialState, programName)
+      if (initialAnalysisResult.shouldContinueTesting) {
+        loopConcolic(initialState, 1)
+      } else {
+        Logger.log("Concolic testing not started because initial analysis did not report any suitable error states", Logger.E)
+      }
+    } else {
+      loopConcolic(initialState, 1)
     }
 
-    loopConcolic(initialState, 1)
 
     ConcolicMachineOutputUnnecessary //TODO Don't care about the actual return-value
   }
