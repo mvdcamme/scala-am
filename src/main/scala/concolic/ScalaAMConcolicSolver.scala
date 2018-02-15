@@ -24,7 +24,7 @@ object ScalaAMConcolicSolver {
     * @return A copy of the given report, where the [[PartialRegexMatcher]] of the first constraint was replaced by
     *         the given [[PartialRegexMatcher]], if the first constraint didn't have a [[PartialRegexMatcher]] yet.
     */
-  private def patchInitialPartialMatcher(report: PathConstraint, toPatchWith: PartialRegexMatcher): PathConstraint = report match {
+  private def patchInitialPartialMatcher(report: PathConstraintWithMatchers, toPatchWith: PartialRegexMatcher): PathConstraintWithMatchers = report match {
     case Nil => Nil
     case (constraint, constraintTrue, None) :: rest =>
       /* If no PartialMatcher was included when adding this constraint, add it now. */

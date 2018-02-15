@@ -1,7 +1,6 @@
-import backend.path_filtering.PartialRegexMatcher
-import backend.tree.Constraint
+import backend.PathConstraint
 
 trait RTAnalysisStarter {
   def stepCount: Int
-  def startAnalysisFromCurrentState(thenBranchTaken: Boolean, pathConstraint: List[(Constraint, Boolean)]): AnalysisResult
+  def startAnalysisFromCurrentState(thenBranchTaken: Boolean, pathConstraint: PathConstraint): AnalysisResult
 }

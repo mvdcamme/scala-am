@@ -1,5 +1,5 @@
+import backend.PathConstraint
 import backend.path_filtering.PartialRegexMatcher
-import backend.tree.Constraint
 
 case class AnalysisResult(partialMatcher: PartialRegexMatcher, containsErrorStates: Boolean, containsUserErrorStates: Boolean) {
   def shouldContinueTesting: Boolean = containsUserErrorStates
@@ -58,7 +58,7 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
     */
   def startRunTimeAnalysis(state: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T],
                            thenBranchTaken: Boolean, stepCount: Int,
-                           pathConstraint: List[(Constraint, Boolean)]): AnalysisResult = {
+                           pathConstraint: PathConstraint): AnalysisResult = {
     ScalaAMReporter.disableConcolic()
     Logger.log("Starting run-time analysis", Logger.E)
     val currentAddresses: Set[HybridAddress.A] = state.addressesReachable

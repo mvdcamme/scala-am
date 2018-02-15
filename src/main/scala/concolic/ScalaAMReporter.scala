@@ -1,8 +1,9 @@
 import backend._
-import backend.expression._
 import backend.path_filtering.PartialRegexMatcher
 import backend.tree._
 import backend.tree.path._
+
+import backend._
 
 case object AbortConcolicIterationException extends Exception
 
@@ -14,9 +15,6 @@ object ScalaAMReporter {
 
 
   import scala.language.implicitConversions
-  implicit private def pathConstraintToTupleList(pathConstraint: PathConstraint): List[(Constraint, Boolean)] = {
-    pathConstraint.map(triple => (triple._1, triple._2))
-  }
   implicit private def pathToString(path: Path): String = {
     path.map({
       case ElseBranchTaken => "e"

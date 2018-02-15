@@ -1,8 +1,6 @@
 import java.io.{BufferedWriter, File, FileWriter}
 
-import ConcreteConcreteLattice.{L => ConcreteValue}
-import EdgeAnnotation.graphAnnotation
-import backend.tree.Constraint
+import backend.PathConstraint
 
 class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Timestamp] {
 
@@ -97,7 +95,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
   }
 
   def runStaticAnalysisGeneric(currentProgramState: PS, stepSwitched: Option[Int], toDotFile: Option[String],
-                               pathConstraint: List[(Constraint, Boolean)], isInitialAnalysis: Boolean): StaticAnalysisResult = {
+                               pathConstraint: PathConstraint, isInitialAnalysis: Boolean): StaticAnalysisResult = {
     wrapRunAnalysis(
       () => {
         val startState = convertStateAAM(aam, concSem, abstSem, currentProgramState, pathConstraint)
@@ -108,7 +106,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
   }
 
   def runStaticAnalysis(currentProgramState: PS, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
-                        pathConstraint: List[(Constraint, Boolean)]): StaticAnalysisResult = {
+                        pathConstraint: PathConstraint): StaticAnalysisResult = {
     val result = runStaticAnalysisGeneric(currentProgramState, stepSwitched, None, pathConstraint, false)
     result
   }

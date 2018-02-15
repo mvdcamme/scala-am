@@ -1,5 +1,5 @@
 import ConcreteConcreteLattice.{L => ConcreteValue}
-import backend.tree.Constraint
+import backend.PathConstraint
 
 trait ConvertableProgramState[Exp, Addr, Time] {
 
@@ -12,5 +12,5 @@ trait ConvertableProgramState[Exp, Addr, Time] {
   def convertState[AbstL: IsConvertableLattice](
       concSem: ConvertableSemantics[Exp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
       abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
-      initialKontAddress: KontAddr, pathConstraint: List[(Constraint, Boolean)]): Conversion[AbstL]
+      initialKontAddress: KontAddr, pathConstraint: PathConstraint): Conversion[AbstL]
 }

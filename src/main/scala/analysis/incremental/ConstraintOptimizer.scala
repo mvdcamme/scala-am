@@ -1,4 +1,4 @@
-import backend.PathConstraint
+import backend._
 import backend.expression._
 import backend.tree._
 
@@ -9,7 +9,7 @@ object ConstraintOptimizer {
     BranchConstraint(optimizedExp)
   }
 
-  def optimizeReport(report: PathConstraint): PathConstraint = {
+  def optimizeReport(report: PathConstraintWithMatchers): PathConstraintWithMatchers = {
     report.map({
       case (b: BranchConstraint, constraintWasTrue, maybePartialMatcher) =>
         /* We only optimize actual BranchConstraints */

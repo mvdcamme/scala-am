@@ -1,11 +1,11 @@
-import backend.{Path, PathConstraint}
+import backend._
 import backend.path_filtering.PartialRegexMatcher
 import backend.tree.Constraint
 
 class PathStorage {
 
   private var currentPath: Path = Nil
-  private var currentReport: PathConstraint = Nil
+  private var currentReport: PathConstraintWithMatchers = Nil
 
   def getCurrentPath: Path = currentPath.reverse /* Elements were added in reverse order, so reverse list now. */
 
@@ -31,7 +31,7 @@ class PathStorage {
     currentPath = addToPath(thenBranchTaken)
   }
 
-  def getCurrentReport: PathConstraint = currentReport.reverse /* Constraints were added in reverse order, so reverse list now. */
+  def getCurrentReport: PathConstraintWithMatchers = currentReport.reverse /* Constraints were added in reverse order, so reverse list now. */
 
   /**
     * Adds the given parameters as an element to the current path constraint, without actually replacing the current
@@ -41,7 +41,7 @@ class PathStorage {
     * @param maybePartialMatcher
     * @return
     */
-  def addToReport(constraint: Constraint, thenBranchTaken: Boolean, maybePartialMatcher: Option[PartialRegexMatcher]): PathConstraint = {
+  def addToReport(constraint: Constraint, thenBranchTaken: Boolean, maybePartialMatcher: Option[PartialRegexMatcher]): PathConstraintWithMatchers = {
     /* New constraints are added in reverse order, i.e., to the front, for performance reasons. */
     (constraint, thenBranchTaken, maybePartialMatcher) :: currentReport
   }
