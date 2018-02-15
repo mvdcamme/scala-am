@@ -471,6 +471,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
     } else {
       loopConcolic(initialState, 1)
     }
+    ScalaAMReporter.writeSymbolicTree("tree.dot")
 
 
     ConcolicMachineOutputUnnecessary //TODO Don't care about the actual return-value

@@ -137,4 +137,6 @@ object ScalaAMReporter {
       case (constraint, constraintTrue, _) => (constraint, constraintTrue)
     }).mkString("; ")}", Logger.U)
   }
+
+  def writeSymbolicTree(path: String): Unit = Reporter.writeSymbolicTree(path)
 }
