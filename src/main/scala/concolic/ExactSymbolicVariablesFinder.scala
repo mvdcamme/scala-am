@@ -32,12 +32,22 @@ object ExactSymbolicVariablesFinder {
       isExactSymExpressions(left, exactInputVariables) && isExactSymExpressions(right, exactInputVariables)
   }
 
-  private def filterExactInputVariables(report: List[(Constraint, Boolean)]): List[(ConcolicInput, Int)] = {
-    report.flatMap({
+  private def inputVariableAppearsMoreThanOnce(inputTuple: (ConcolicInput, Int), inputVars: List[(ConcolicInput, Int)]): Boolean = {
+    val (inputVar, value) = inputTuple
+    inputVars.exists(tuple => tuple._1 == inputVar && tuple._2 != value)
+  }
+
+  def filterExactInputVariables(pathConstraint: List[(Constraint, Boolean)]): List[(ConcolicInput, Int)] = {
+    val exactInputVars = pathConstraint.flatMap({
       /* Only consider the expression if the constraint was actually true */
       case (bc: BranchConstraint, true) => findExactInputVariables(bc.exp)
       case _ => Nil
     })
+    /*
+     * Remove any input tuples where the input variable appears more than once with a different value:
+     * e.g., in the case of [(i0 = 0, i0 = 1)]
+     */
+    exactInputVars.filter(! inputVariableAppearsMoreThanOnce(_, exactInputVars))
   }
 
   /**
