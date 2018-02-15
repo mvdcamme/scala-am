@@ -1,4 +1,5 @@
 import backend._
+import backend.expression._
 import backend.path_filtering.PartialRegexMatcher
 import backend.tree._
 import backend.tree.path._
@@ -11,7 +12,11 @@ object ScalaAMReporter {
 
   val pathStorage = new PathStorage
 
+
   import scala.language.implicitConversions
+  implicit private def pathConstraintToTupleList(pathConstraint: PathConstraint): List[(Constraint, Boolean)] = {
+    pathConstraint.map(triple => (triple._1, triple._2))
+  }
   implicit private def pathToString(path: Path): String = {
     path.map({
       case ElseBranchTaken => "e"
@@ -81,6 +86,9 @@ object ScalaAMReporter {
     }
 
     val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
+    lazy val constraintAddedPC = pathStorage.addToReport(optimizedConstraint, thenBranchTaken, None)
+    val inputVariableFinder = new InputVariableFinder
+    val containsInexactInputsVars = inputVariableFinder.pathConstraintContainsInexactInputVariables(constraintAddedPC)
     if (ConstraintOptimizer.isConstraintConstant(optimizedConstraint)) {
       /*
        * If the constraint is constant, don't bother adding it to the currentReport as it will always be either true or
@@ -88,8 +96,8 @@ object ScalaAMReporter {
        * via static analyses, which don't (or can't) check whether some condition is constant or not.
        */
       addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
-    } else if (ConcolicRunTimeFlags.useRunTimeAnalyses) { // Final non-constant BranchConstraint is evaluated at stepCount 565560; 1st iteration takes 571048 concrete steps
-      val constraintAddedPC = pathStorage.addToReport(optimizedConstraint, thenBranchTaken, None).map(triple => (triple._1, triple._2))
+    } else if (ConcolicRunTimeFlags.useRunTimeAnalyses && ! containsInexactInputsVars) { // Final non-constant BranchConstraint is evaluated at stepCount 565560; 1st iteration takes 571048 concrete steps
+
       val analysisResult = rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken, constraintAddedPC)
       /*
        * PartialMatcherStore's current matcher now refers to a matcher starting from *after* this constraint.
@@ -105,6 +113,9 @@ object ScalaAMReporter {
         abortConcolicIteration()
       }
     } else if (ConcolicRunTimeFlags.checkAnalysis) {
+      if (ConcolicRunTimeFlags.useRunTimeAnalyses && containsInexactInputsVars) {
+        Logger.log("SKIPPING RT ANALYSIS BECAUSE OF AN INEXACT INPUT VARIABLE", Logger.U)
+      }
       pathStorage.updateReport(optimizedConstraint, thenBranchTaken, None)
       val updatedMatcher = checkWithPartialMatcher
       updatePartialMatcher(updatedMatcher)
