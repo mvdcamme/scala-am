@@ -237,6 +237,108 @@ object ConcreteBooleanEfficient {
   }
 }
 
+class IntervalInteger(val maxRadius: Int) {
+  sealed trait I
+
+  case object Top extends I
+
+  sealed trait AsSet {
+    def toISet: ISet[Int]
+  }
+  case object Bottom extends I with AsSet {
+    def toISet = ISet.empty[Int]
+  }
+  case class Interval(lower: Int, upper: Int) extends I with AsSet {
+    def toISet = lower.to(upper).foldLeft(ISet.empty[Int])((iset, elem) => iset.insert(elem))
+  }
+  implicit val isMonoid = new Monoid[I] {
+    def zero: I = Bottom
+    def append(x: I, y: => I) = x match {
+      case Interval(xLower, xUpper) => y match {
+        case Interval(yLower, yUpper) =>
+          val newLower = if (xLower <= yLower) xLower else yLower
+          val newUpper = if (xUpper >= yUpper) xUpper else yUpper
+          Interval(newLower, newUpper)
+        case Bottom => x
+        case Top => y
+      }
+      case Bottom => y
+      case Top => x
+    }
+  }
+  private def radius(i: Interval): Int = {
+    Math.abs(i.upper - i.lower)
+  }
+  object I {
+    implicit val isInteger = new IntLattice[I] {
+      def name = s"IntervalInteger($maxRadius)"
+      override def shows(i: I): String = i match {
+        case Bottom => "⊥"
+        case Top => "Int"
+        case Interval(lower, upper) => s"[$lower, $upper]"
+      }
+      val bottom: I = Monoid[I].zero
+      val top: I = Top
+      def join(x: I, y: => I): I = promote(Monoid[I].append(x, y))
+      def subsumes(x: I, y: => I) = x match {
+        case Interval(xLower, xUpper) => y match {
+          case Interval(yLower, yUpper) => yLower >= xLower && yUpper <= xUpper
+          case Bottom => true
+          case Top => false
+        }
+        case Bottom => x == y
+        case Top => true
+      }
+      private def promote(x: I): I = {
+        x match {
+          case i: Interval if radius(i) >= maxRadius => Top
+          case _ => x
+        }
+      }
+      private def fold[L : LatticeElement](x: I, f: Int => L): L = x match {
+        case Bottom => Bottom.toISet.foldMap(f)
+        case i: Interval => i.toISet.foldMap(f)
+        case Top => LatticeElement[L].top
+      }
+      private def foldI(x: I, f: Int => I): I = x match {
+        case Bottom => Bottom.toISet.foldMap(f)(isMonoid)
+        case i: Interval => i.toISet.foldMap(f)(isMonoid)
+        case Top => Top
+      }
+      def singletonInt(x: Int) = Interval(x, x)
+      def inject(x: Int): I = promote(singletonInt(x))
+      def toReal[F : RealLattice](n: I): F = fold(n, n => RealLattice[F].inject(n))
+      def random(n: I): I = Top
+      def plus(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(n1 + n2)))
+      def minus(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(n1 - n2)))
+      def times(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(n1 * n2)))
+      def div[F : RealLattice](n1: I, n2: I): F = fold(n1, n1 => fold(n2, n2 => RealLattice[F].inject(n1 / n2.toDouble)))
+      def quotient(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(n1 / n2)))
+      def modulo(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(SchemeOps.modulo(n1, n2))))
+      def remainder(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(SchemeOps.remainder(n1, n2))))
+      def lt[B : BoolLattice](n1: I, n2: I): B = fold(n1, n1 => fold(n2, n2 => BoolLattice[B].inject(n1 < n2)))
+      def eql[B : BoolLattice](n1: I, n2: I): B = fold(n1, n1 => fold(n2, n2 => BoolLattice[B].inject(n1 == n2)))
+      def toChar[C : CharLattice](n: I): C = fold(n, n => CharLattice[C].inject(n.toChar))
+      def toString[S : StringLattice](n: I): S = fold(n, n => StringLattice[S].inject(n.toString))
+
+      def order(x: I, y: I): Ordering = (x, y) match {
+        case (Bottom, Bottom) => Ordering.EQ
+        case (Bottom, _) => Ordering.LT
+        case (_: Interval, Bottom) => Ordering.GT
+        case (x: Interval, y: Interval) => Order[ISet[Int]].order(x.toISet, y.toISet)
+        case (_: Interval, Top) => Ordering.LT
+        case (Top, _) => Ordering.GT
+        case (Top, Top) => Ordering.EQ
+      }
+      def cardinality(x: I): Cardinality = x match {
+        case i: Interval => CardinalityPrimitiveLikeNumber(Math.abs(radius(i)))
+        case Bottom => CardinalityPrimitiveLikeNumber(0)
+        case Top => CardinalityPrimitiveLikeInf()
+      }
+    }
+  }
+}
+
 class BoundedInteger(bound: Int) {
   sealed trait I
   case object Top extends I

@@ -652,10 +652,11 @@ Sym : SymbolLattice
 
 class PointsToLattice(counting: Boolean) extends SchemeLattice {
   import PointsToString._
-  import PointsToInteger._
+//  import PointsToInteger._
   import PointsToFloat._
   import PointsToChar._
-  val lattice = new MakeSchemeLattice[S, Concrete.B, I, F, C, Concrete.Sym](counting)
+  val intervalInt = new IntervalInteger(10)
+  val lattice = new MakeSchemeLattice[S, Concrete.B, intervalInt.I, F, C, Concrete.Sym](counting)
   type L = lattice.L
   val isSchemeLattice: IsConvertableLattice[lattice.L] = lattice.isSchemeLattice
   val latticeInfoProvider: LatticeInfoProvider[lattice.L] = lattice.latticeInfoProvider

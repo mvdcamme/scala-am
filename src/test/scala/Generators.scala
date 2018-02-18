@@ -89,3 +89,13 @@ object IntegerConstantPropagationGenerator extends ConstantPropagationGenerator[
 object DoubleConstantPropagationGenerator extends ConstantPropagationGenerator[Double](Generators.double)
 object CharConstantPropagationGenerator extends ConstantPropagationGenerator[Char](Generators.char)
 object SymbolConstantPropagationGenerator extends ConstantPropagationGenerator[String](Generators.sym)(Order[String], ConstantPropagation.L.symCP)
+
+//class IntervalIntGenerator(val l: IntervalInteger) extends LatticeGenerator[l.I] {
+//  val gen: Gen[Int] = Generators.int
+//  private val lat = l.I.isInteger
+//  def intervalgen: Gen[l.I] = for {x <- gen } yield lat.inject(x)
+//  def botgen: Gen[l.I] = lat.bottom
+//  def topgen: Gen[l.I] = lat.top
+//  def any: Gen[l.I] = Gen.oneOf(intervalgen, botgen, topgen)
+//  def le(ll: l.I): Gen[l.I] = if (ll == lat.top) { any } else if (ll == lat.bottom) { botgen } else { Gen.oneOf(ll, lat.bottom) }
+//}

@@ -386,3 +386,6 @@ class ConstantPropagationIntTest extends IntLatticeTest(IntegerConstantPropagati
 class ConstantPropagationRealTest extends RealLatticeTest(DoubleConstantPropagationGenerator)
 class ConstantPropagationCharTest extends CharLatticeTest(CharConstantPropagationGenerator)
 class ConstantPropagationSymbolTest extends SymbolLatticeTest(SymbolConstantPropagationGenerator)
+
+//object IntervalIntTestTest extends IntervalInteger(100)
+//class IntervalIntTest extends IntLatticeTest(new IntervalIntGenerator(IntervalIntTestTest))(IntervalIntTestTest.I.isInteger)
