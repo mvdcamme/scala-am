@@ -1,6 +1,5 @@
 import java.io.{BufferedWriter, File, FileWriter}
 
-import backend.tree.Constraint
 import backend.expression._
 import ConcreteConcreteLattice.{L => ConcreteValue}
 import backend.PathConstraint
@@ -32,6 +31,14 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
   }
 
   case object ConcolicMachineOutputUnnecessary extends ConcolicMachineOutput {
+    def finalValues = Set()
+    override def containsFinalValue(v: ConcreteValue) = false
+    def timedOut: Boolean = false
+    def numberOfStates: Int = 0
+    def time: Double = 0
+  }
+
+  case class ConcolicMachineOutputInputs(allInputs: List[List[(ConcolicInput, Int)]]) extends ConcolicMachineOutput {
     def finalValues = Set()
     override def containsFinalValue(v: ConcreteValue) = false
     def timedOut: Boolean = false
@@ -282,7 +289,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
     * in a file, and returns the set of final states reached
     */
   def concolicEval(programName: String, exp: SchemeExp, sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T],
-           graph: Boolean, timeout: Timeout): Output = {
+           graph: Boolean, timeout: Timeout): ConcolicMachineOutput = {
     def loop(state: State, start: Long, count: Int): ConcolicMachineOutput = {
 
       currentState = Some(state)
@@ -395,29 +402,10 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
           case ConcolicControlError(err) =>
             Left(ConcolicMachineErrorEncountered(err))
         }
-
         val stepped = step(control)
-
         stepped match {
-          case Left(output) =>
-//            analysisLauncher.end
-            output
-          case Right(StepSucceeded(succState, filters, actions)) =>
-            def convertFrameFun(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                                abstSem: ConvertableBaseSchemeSemantics[PAbs, HybridAddress.A, HybridTimestamp.T],
-                                convertValueFun: ConcreteValue => PAbs):
-            ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T] =>
-              ConvertableSchemeFrame[PAbs, HybridAddress.A, HybridTimestamp.T] = {
-              (frame: ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]) =>
-                concBaseSem.convertAbsInFrame[PAbs](
-                  frame,
-                  convertValueFun,
-                  convertEnv,
-                  abstSem)
-            }
-
-//            analysisLauncher.doConcreteStep(convertValue[PAbs], convertFrameFun, filters, stepCount)
-            loop(succState, start, count + 1)
+          case Left(output) => output
+          case Right(StepSucceeded(succState, filters, actions)) => loop(succState, start, count + 1)
         }
       }
 
@@ -428,7 +416,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
     }
 
     @scala.annotation.tailrec
-    def loopConcolic(initialState: State, nrOfRuns: Int): Unit = {
+    def loopConcolic(initialState: State, nrOfRuns: Int, allInputsUntilNow: List[List[(ConcolicInput, Int)]]): List[List[(ConcolicInput, Int)]] = {
 
       def finishUpLoop: Boolean = {
         Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.U)
@@ -454,27 +442,30 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
         case AbortConcolicIterationException => finishUpLoop
       }
       if (nrOfRuns < ConcolicRunTimeFlags.MAX_CONCOLIC_ITERATIONS && shouldContinue) {
-        loopConcolic(initialState, nrOfRuns + 1)
+        loopConcolic(initialState, nrOfRuns + 1, allInputsUntilNow :+ ScalaAMConcolicSolver.getInputs)
+      } else {
+        allInputsUntilNow
       }
     }
 
     val initialState = inject(exp, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
 
-    if (ConcolicRunTimeFlags.checkAnalysis) {
+    val output: ConcolicMachineOutput = if (ConcolicRunTimeFlags.checkAnalysis) {
       // Use initial static analysis to detect paths to errors
       val initialAnalysisResult = rtAnalysis.startInitialAnalysis(initialState, programName)
       if (initialAnalysisResult.shouldContinueTesting) {
-        loopConcolic(initialState, 1)
+        val allInputs = loopConcolic(initialState, 1, Nil)
+        ConcolicMachineOutputInputs(allInputs)
       } else {
         Logger.log("Concolic testing not started because initial analysis did not report any suitable error states", Logger.E)
+        ConcolicMachineOutputUnnecessary
       }
     } else {
-      loopConcolic(initialState, 1)
+      val allInputs = loopConcolic(initialState, 1, Nil)
+      ConcolicMachineOutputInputs(allInputs)
     }
     ScalaAMReporter.writeSymbolicTree("tree.dot")
-
-
-    ConcolicMachineOutputUnnecessary //TODO Don't care about the actual return-value
+    output
   }
 
   def printExecutionTimes[Abs: JoinLattice](benchmarks_results_file: String): Unit = {
