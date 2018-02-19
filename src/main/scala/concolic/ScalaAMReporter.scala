@@ -141,6 +141,6 @@ class ScalaAMReporter {
   }
 
   def writeSymbolicTree(path: String): Unit = {
-//    Reporter.writeSymbolicTree(path)
+    Reporter.writeSymbolicTree(path)
   }
 }
