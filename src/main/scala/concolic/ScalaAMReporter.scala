@@ -43,7 +43,7 @@ object ScalaAMReporter {
     doConcolic = false
   }
   def isConcolicEnabled: Boolean = doConcolic
-  def clear(isFirstClear: Boolean): Unit = {
+  def clear(): Unit = {
     Reporter.clear()
     InputVariableStore.reset()
     pathStorage.resetCurrentPath()
