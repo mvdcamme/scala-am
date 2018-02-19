@@ -11,14 +11,9 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
   private val errorPathDetector = new ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.aam.State](analysisLauncher.aam)
 
   private def handleAnalysisResult(outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State]): Option[AnalysisResult] = {
-    // TODO can't just pass the current partial matcher, because that one starts from some cached final state instead of the initial state
-    // TODO and the ENTIRE path is passed to the matcher (so including the part it has actually already matched).
-    // TODO Just passing the initial matcher would mean the current matcher wouldn't be used at all though.
-    // TODO Solution: when an AbortConcolicExecution-error is thrown, pass the path that was already created
-    // TODO to the backend and ask to invalidate that one?
-    GraphDOTOutput.toFile(outputGraph.hasGraph.graph, outputGraph.hasGraph.halted)("rt_graph.dot")
-    val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.hasGraph.graph)
-    val result = AnalysisResult(maybePartialMatcher.get, outputGraph.hasGraph.errorStates.nonEmpty, outputGraph.hasGraph.errorStates.exists(_.isUserErrorState))
+    GraphDOTOutput.toFile(outputGraph.graph, outputGraph.halted)("rt_graph.dot")
+    val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.graph)
+    val result = AnalysisResult(maybePartialMatcher.get, outputGraph.errorStates.nonEmpty, outputGraph.errorStates.exists(_.isUserErrorState))
     Some(result)
   }
 
@@ -29,7 +24,16 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
   }
 
   private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], thenBranchTaken: Boolean): AnalysisResult = {
-    val maybeAnalysisResult = handleAnalysisResult(result)
+    def removeIfBranchAnnotation: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State] = {
+      val graph = result.graph
+      val root = graph.getNode(0).get
+      val originalFirstEdges = graph.nodeEdges(root)
+      val updatedFirstEdges = originalFirstEdges.map({ case (_, state) => (EdgeAnnotation.dummyEdgeAnnotation[SchemeExp, Abs, HybridAddress.A], state) })
+      val updatedGraph = new Graph[analysisLauncher.aam.State, EdgeAnnotation[SchemeExp, Abs, HybridAddress.A], Set[analysisLauncher.aam.State]](graph.ids, graph.next, graph.nodes, graph.edges + (root -> updatedFirstEdges))
+      result.replaceGraph(updatedGraph)
+    }
+    val ifBranchAnnotationRemoved = removeIfBranchAnnotation
+    val maybeAnalysisResult = handleAnalysisResult(ifBranchAnnotationRemoved)
     //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
     //    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
     PartialMatcherStore.setCurrentMatcher(maybeAnalysisResult.get.partialMatcher)

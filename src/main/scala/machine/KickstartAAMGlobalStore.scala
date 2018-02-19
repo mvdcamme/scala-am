@@ -5,12 +5,11 @@ import scalaz.Scalaz._
   * AAM/AAC/P4F techniques combined in a single machine abstraction
   */
 class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
-    extends EvalKontMachine[Exp, Abs, Addr, Time] with ProducesStateGraph[Exp, Abs, Addr, Time] {
+    extends EvalKontMachine[Exp, Abs, Addr, Time] with KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
   def name = "AAMGlobalStore"
 
   type MachineState = State
   type InitialState = (State, GlobalStore, KontStore[KontAddr])
-  override type MachineOutput = AAMOutput
 
   case class GlobalStore(store: DeltaStore[Addr, Abs], delta: Map[Addr, Abs]) {
     def includeDelta(d: Option[Map[Addr, Abs]]): GlobalStore = d match {
@@ -120,9 +119,11 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
   type G = Graph[State, EdgeAnnotation[Exp, Abs, Addr], State.Context]
   case class AAMOutput(halted: Set[State], finalStore: Store[Addr, Abs], numberOfStates: Int, time: Double,
                        errorStates: Set[State], graph: G, timedOut: Boolean, stepSwitched: Option[Int])
-      extends Output with HasGraph[Exp, Abs, Addr, State] with HasFinalStores[Addr, Abs] {
+      extends Output with AnalysisOutputGraph[Exp, Abs, Addr, State] {
 
     override def toString = s"AAMOutput($numberOfStates states, ${time}s, $stepSwitched)"
+
+    def replaceGraph(newGraph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AnalysisOutputGraph[Exp, Abs, Addr, State] = this.copy(graph = newGraph)
 
     def finalValues = {
       val errorStates = halted.filter(_.control match {

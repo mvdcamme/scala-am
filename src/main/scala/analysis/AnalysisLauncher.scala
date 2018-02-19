@@ -1,7 +1,15 @@
 import ConcreteConcreteLattice.{L => ConcreteValue}
 import backend.PathConstraint
 
-case class AnalysisOutputGraph[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]](hasGraph: HasGraph[Exp, Abs, Addr, State] with HasFinalStores[Addr, Abs])
+trait AnalysisOutputGraph[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]] {
+  def halted: Set[State]
+  def errorStates: Set[State]
+  def graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]
+  def finalStores: Set[Store[Addr, Abs]]
+  def stepSwitched: Option[Int]
+  def toFile(path: String)(output: GraphOutput): Unit
+  def replaceGraph(graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AnalysisOutputGraph[Exp, Abs, Addr, State]
+}
 
 abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
 

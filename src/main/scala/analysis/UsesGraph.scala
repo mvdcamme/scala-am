@@ -115,7 +115,7 @@ case class EdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address
     actions: List[ActionReplay[Exp, Abs, Addr]])
 
 object EdgeAnnotation {
-  def dummyEdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address] =
+  def dummyEdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address]: EdgeAnnotation[Exp, Abs, Addr] =
     EdgeAnnotation[Exp, Abs, Addr](FilterAnnotations[Exp, Abs, Addr](Set(), Set()), Nil)
   def subsumptionEdge[Exp : Expression, Abs : IsSchemeLattice, Addr : Address]: EdgeAnnotation[Exp, Abs, Addr] = {
     assert(GlobalFlags.AAM_CHECK_SUBSUMES, "Should not be called if flag is turned off")

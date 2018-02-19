@@ -128,17 +128,6 @@ trait GraphPrinter[Graph] {
   def printGraph(graph: Graph, path: String): Unit
 }
 
-trait HasGraph[Exp, Abs, Addr, MachineState <: StateTrait[Exp, Abs, Addr, _]] {
-  def halted: Set[MachineState]
-  def errorStates: Set[MachineState]
-  def graph: Graph[MachineState, EdgeAnnotation[Exp, Abs, Addr], Set[MachineState]]
-}
-
-trait HasFinalStores[Addr, Abs] {
-  def finalStores: Set[Store[Addr, Abs]]
-  def stepSwitched: Option[Int]
-}
-
 trait StateTrait[Exp, Abs, Addr, Time] {
   def isErrorState: Boolean
   def isUserErrorState: Boolean
@@ -147,12 +136,7 @@ trait StateTrait[Exp, Abs, Addr, Time] {
 trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] extends AbstractMachine[Exp, Abs, Addr, Time] {
   type InitialState
   type MachineState <: StateTrait[Exp, Abs, Addr, _]
-  type MachineOutput <: Output with HasFinalStores[Addr, Abs]
 
   def kickstartEval(initialState: InitialState, sem: ConvertableSemantics[Exp, Abs, Addr, Time], stopEval: Option[MachineState => Boolean],
-    timeout: Timeout, stepSwitched: Option[Int]): MachineOutput
-}
-
-trait ProducesStateGraph[Exp, Abs, Addr, Time] extends KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
-  override type MachineOutput <: Output with HasGraph[Exp, Abs, Addr, MachineState] with HasFinalStores[Addr, Abs]
+    timeout: Timeout, stepSwitched: Option[Int]): AnalysisOutputGraph[Exp, Abs, Addr, MachineState]
 }

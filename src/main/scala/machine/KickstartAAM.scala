@@ -18,13 +18,12 @@
   */
 class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
     extends EvalKontMachine[Exp, Abs, Addr, Time]
-    with ProducesStateGraph[Exp, Abs, Addr, Time] {
+    with KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] {
 
   val sabs: IsSchemeLattice[Abs] = implicitly[IsSchemeLattice[Abs]]
 
   type MachineState = State
   override type InitialState = MachineState
-  override type MachineOutput = AAMOutput
 
   def name = "AAM"
 
@@ -222,7 +221,9 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
   case class AAMOutput(halted: Set[State], numberOfStates: Int, time: Double, errorStates: Set[State],
                        graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]], timedOut: Boolean,
                        stepSwitched: Option[Int])
-      extends Output with HasGraph[Exp, Abs, Addr, State] with HasFinalStores[Addr, Abs] {
+      extends Output with AnalysisOutputGraph[Exp, Abs, Addr, State] {
+
+    def replaceGraph(newGraph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AnalysisOutputGraph[Exp, Abs, Addr, State] = this.copy(graph = newGraph)
 
     /**
       * Returns the list of final values that can be reached

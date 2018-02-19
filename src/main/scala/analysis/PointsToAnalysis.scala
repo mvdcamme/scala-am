@@ -45,14 +45,14 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
     }
   }
 
-  def analyze[Machine <: ProducesStateGraph[Exp, L, Addr, Time]](toDot: Option[String], machine: Machine,
-                                                                 sem: ConvertableSemantics[Exp, L, Addr, Time])
-                                                                (startState: machine.InitialState, isInitial: Boolean,
-                                                                 stepSwitched: Option[Int]): AnalysisOutputGraph[Exp, L, Addr, machine.MachineState] = {
+  def analyze[Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](toDot: Option[String], machine: Machine,
+                                                                           sem: ConvertableSemantics[Exp, L, Addr, Time])
+                                                                          (startState: machine.InitialState, isInitial: Boolean,
+                                                                           stepSwitched: Option[Int]): AnalysisOutputGraph[Exp, L, Addr, machine.MachineState] = {
     Logger.log("Starting static points-to analysis", Logger.I)
     val result = machine.kickstartEval(startState, sem, None, Timeout.none, stepSwitched)
     toDot.foreach(result.toFile)
-    AnalysisOutputGraph[Exp, L, Addr, machine.MachineState](result)
+    result
   }
 }
 
@@ -118,8 +118,8 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
   def runInitialStaticAnalysis(currentProgramState: PS, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] =
     runStaticAnalysisGeneric(currentProgramState, None, Some("initial_graph.dot"), Nil, true) match {
       case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.MachineState] =>
-        GraphDOTOutput.toFile(result.hasGraph.graph, result.hasGraph.halted)("initial_graph.dot")
-        initializeAnalyses(result.hasGraph.graph, programName)
+        GraphDOTOutput.toFile(result.graph, result.halted)("initial_graph.dot")
+        initializeAnalyses(result.graph, programName)
         result
       case other => throw new Exception(s"Expected initial analysis to produce a graph, got $other instead")
     }
