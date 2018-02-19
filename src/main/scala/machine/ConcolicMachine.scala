@@ -14,13 +14,14 @@ object Reached {
   def empty[Addr : Address] = Reached[Addr](Set(), Set())
 }
 
-class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLauncher: AnalysisLauncher[PAbs], analysisFlags: AnalysisFlags)
-                                                                              (implicit unused1: IsSchemeLattice[ConcreteValue])
+class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analysisLauncher: AnalysisLauncher[PAbs], val analysisFlags: AnalysisFlags, val reporter: ScalaAMReporter)
+                                                                      (implicit unused1: IsSchemeLattice[ConcreteValue])
   extends EvalKontMachine[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] with RTAnalysisStarter {
 
   def name = "ConcolicMachine"
 
-  val rtAnalysis = new LaunchAnalyses[PAbs](analysisLauncher)
+  private val rtAnalysis = new LaunchAnalyses[PAbs](analysisLauncher, reporter)
+  private val semanticsConcolicHelper = new SemanticsConcolicHelper(this, reporter)
 
   private var currentState: Option[State] = None
 
@@ -324,7 +325,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
 
         def step(control: ConcolicControl): Either[ConcolicMachineOutput, StepSucceeded] = control match {
           case ConcolicControlEval(e, env, symEnv) =>
-            val edgeInfo = sem.stepConcolicEval(e, env, symEnv, store, t)
+            val edgeInfo = sem.stepConcolicEval(e, env, symEnv, store, t, semanticsConcolicHelper)
             handleFunctionCalled(edgeInfo)
             edgeInfo match {
               case EdgeInformation(ActionConcolicReachedValue(ActionReachedValue(v, store2, _), optionConcolicValue), actions, semanticsFilters) =>
@@ -364,7 +365,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
                 val originFrameCast = frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
                 val oldA = state.a
                 val a = frames.head.next
-                val edgeInfo = sem.stepConcolicKont(v, symbolicValue, frame, store, t)
+                val edgeInfo = sem.stepConcolicKont(v, symbolicValue, frame, store, t, semanticsConcolicHelper)
                 handleFunctionCalled(edgeInfo)
                 edgeInfo match {
                   case EdgeInformation(ActionConcolicReachedValue(ActionReachedValue(v, store2, _), optionConcolicValue), actions, semanticsFilters) =>
@@ -426,15 +427,15 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
 
       def finishUpLoop: Boolean = {
         Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.U)
-        ScalaAMReporter.printReports()
-        val shouldContinue = ScalaAMConcolicSolver.solve()
+        reporter.printReports()
+        val shouldContinue = reporter.solver.solve(reporter)
         shouldContinue
       }
 
-      ScalaAMReporter.enableConcolic()
-      Logger.log(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${ScalaAMConcolicSolver.getInputs}", Logger.U)
+      reporter.enableConcolic()
+      Logger.log(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${reporter.solver.getInputs}", Logger.U)
       stepCount = 0
-      ScalaAMReporter.clear()
+      reporter.clear()
       FunctionsCalledMetric.resetConcreteFunctionsCalled()
       val shouldContinue = try {
         val concolicIterationResult = loop(initialState, System.nanoTime, 0)
@@ -448,7 +449,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
         case AbortConcolicIterationException => finishUpLoop
       }
       if (nrOfRuns < ConcolicRunTimeFlags.MAX_CONCOLIC_ITERATIONS && shouldContinue) {
-        loopConcolic(initialState, nrOfRuns + 1, allInputsUntilNow :+ ScalaAMConcolicSolver.getInputs)
+        loopConcolic(initialState, nrOfRuns + 1, allInputsUntilNow :+ reporter.solver.getInputs)
       } else {
         allInputsUntilNow
       }
@@ -470,7 +471,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
       val allInputs = loopConcolic(initialState, 1, Nil)
       ConcolicMachineOutputInputs(allInputs)
     }
-    ScalaAMReporter.writeSymbolicTree("tree.dot")
+    reporter.writeSymbolicTree("tree.dot")
     output
   }
 

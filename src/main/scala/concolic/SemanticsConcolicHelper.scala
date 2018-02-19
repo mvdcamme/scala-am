@@ -1,19 +1,19 @@
 import backend.expression._
 import backend.tree._
 
-object SemanticsConcolicHelper {
+class SemanticsConcolicHelper(private val rtAnalysisStarter: RTAnalysisStarter, reporter: ScalaAMReporter) {
 
-  def handleIf(optConcolicExpression: Option[ConcolicExpression], thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter): Unit = {
-    ScalaAMReporter.pathStorage.updateCurrentPath(thenBranchTaken)
-    if (ScalaAMReporter.isConcolicEnabled) {
+  def handleIf(optConcolicExpression: Option[ConcolicExpression], thenBranchTaken: Boolean): Unit = {
+    reporter.pathStorage.updateCurrentPath(thenBranchTaken)
+    if (reporter.isConcolicEnabled) {
       optConcolicExpression match {
         case Some(b: BooleanConcolicExpression) =>
           val baseConstraint = BranchConstraint(b)
-          ScalaAMReporter.addBranchConstraint(baseConstraint, thenBranchTaken, rTAnalysisStarter)
+          reporter.addBranchConstraint(baseConstraint, thenBranchTaken, rtAnalysisStarter)
         case Some(_) =>
-          ScalaAMReporter.addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
+          reporter.addUnusableConstraint(thenBranchTaken, rtAnalysisStarter)
           Logger.log(s"Using a non-BooleanConcolicExpression in a branch constraint: $optConcolicExpression", Logger.E)
-        case None => ScalaAMReporter.addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
+        case None => reporter.addUnusableConstraint(thenBranchTaken, rtAnalysisStarter)
 
       }
     }

@@ -1,4 +1,3 @@
-import backend._
 import backend.path_filtering.PartialRegexMatcher
 import backend.tree._
 import backend.tree.path._
@@ -7,10 +6,13 @@ import backend._
 
 case object AbortConcolicIterationException extends Exception
 
-object ScalaAMReporter {
+class ScalaAMReporter {
+
 
   private var doConcolic: Boolean = false
 
+  val solver = new ScalaAMConcolicSolver
+  val inputVariableStore = new InputVariableStore(solver)
   val pathStorage = new PathStorage
 
 
@@ -45,7 +47,7 @@ object ScalaAMReporter {
   def isConcolicEnabled: Boolean = doConcolic
   def clear(): Unit = {
     Reporter.clear()
-    InputVariableStore.reset()
+    inputVariableStore.reset()
     pathStorage.resetCurrentPath()
     pathStorage.resetCurrentReport()
     GlobalSymbolicStore.reset()
@@ -138,5 +140,7 @@ object ScalaAMReporter {
     }).mkString("; ")}", Logger.U)
   }
 
-  def writeSymbolicTree(path: String): Unit = Reporter.writeSymbolicTree(path)
+  def writeSymbolicTree(path: String): Unit = {
+//    Reporter.writeSymbolicTree(path)
+  }
 }

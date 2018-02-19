@@ -5,7 +5,8 @@ case class AnalysisResult(partialMatcher: PartialRegexMatcher, containsErrorStat
   def shouldContinueTesting: Boolean = containsUserErrorStates
 }
 
-class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLauncher: AnalysisLauncher[Abs]) {
+class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLauncher: AnalysisLauncher[Abs],
+                                                                     reporter: ScalaAMReporter) {
 
   private val errorPathDetector = new ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.aam.State](analysisLauncher.aam)
 
@@ -40,7 +41,7 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
      * the start of the execution of the program) is matched with a matcher that only takes into account the constraints
      * encountered _from the current point in the program on_.
      */
-    ScalaAMReporter.pathStorage.resetCurrentPath()
+    reporter.pathStorage.resetCurrentPath()
     maybeAnalysisResult.get
   }
 
@@ -51,23 +52,23 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
     */
   def startRunTimeAnalysis(state: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T],
                            thenBranchTaken: Boolean, stepCount: Int, pathConstraint: PathConstraint): AnalysisResult = {
-    ScalaAMReporter.disableConcolic()
+    reporter.disableConcolic()
     Logger.log("Starting run-time analysis", Logger.E)
     val currentAddresses: Set[HybridAddress.A] = state.addressesReachable
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
     val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
     val analysisResult = analysisLauncher.runStaticAnalysis(state, Some(stepCount), convertedCurrentAddresses, pathConstraint)
     val result = handleRunTimeAnalysisResult(analysisResult, thenBranchTaken)
-    ScalaAMReporter.enableConcolic()
+    reporter.enableConcolic()
     result
   }
 
   def startInitialAnalysis(initialState: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T],
                            programName: String): AnalysisResult = {
-    ScalaAMReporter.disableConcolic()
+    reporter.disableConcolic()
     val analysisResult = analysisLauncher.runInitialStaticAnalysis(initialState, programName)
     val result = handleInitialAnalysisResult(analysisResult)
-    ScalaAMReporter.enableConcolic()
+    reporter.enableConcolic()
     result
   }
 

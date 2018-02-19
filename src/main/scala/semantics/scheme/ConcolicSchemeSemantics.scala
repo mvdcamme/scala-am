@@ -268,11 +268,8 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
                  t)
   }
 
-  def stepConcolicEval(e: SchemeExp,
-                       env: Environment[Addr],
-                       symEnv: SymbolicEnvironment,
-                       store: Store[Addr, ConcreteValue],
-                       t: Time): EdgeInformation[SchemeExp, ConcreteValue, Addr] = e match { // Cases in stepEval shouldn't generate any splits in abstract graph
+  def stepConcolicEval(e: SchemeExp, env: Environment[Addr], symEnv: SymbolicEnvironment,
+                       store: Store[Addr, ConcreteValue], t: Time, concolicHelper: SemanticsConcolicHelper): EdgeInformation[SchemeExp, ConcreteValue, Addr] = e match { // Cases in stepEval shouldn't generate any splits in abstract graph
     case λ: SchemeLambda =>
       val action = ActionConcolicReachedValue(ActionReachedValue[SchemeExp, ConcreteValue, Addr](sabs.inject[SchemeExp, Addr]((λ, env), Some(symEnv)), store), None)
       val actionEdge = List(ActionCreateClosureT[SchemeExp, ConcreteValue, Addr](λ, Some(env)))
@@ -392,11 +389,9 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
       }
   }
 
-  def stepConcolicKont(v: ConcreteValue,
-                       concolicValue: Option[ConcolicExpression],
-                       frame: SchemeConcolicFrame[ConcreteValue, Addr, Time],
-                       store: Store[Addr, ConcreteValue],
-                       t: Time) = frame match {
+  def stepConcolicKont(v: ConcreteValue, concolicValue: Option[ConcolicExpression],
+                       frame: SchemeConcolicFrame[ConcreteValue, Addr, Time], store: Store[Addr, ConcreteValue],
+                       t: Time, concolicHelper: SemanticsConcolicHelper) = frame match {
       case frame: FrameConcolicFuncallOperator[ConcreteValue, Addr, Time] =>
         funcallArgs(v, concolicValue, frame, frame.fexp, frame.args, frame.env, frame.symEnv, store, t)
       case frame: FrameConcolicFuncallOperands[ConcreteValue, Addr, Time] =>
@@ -406,7 +401,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
         funcallArgs(frame.f, frame, frame.fexp, (frame.cur, v, concolicValue) :: frame.args,
                     frame.toeval, frame.env, frame.symEnv, store, t, v, concolicValue, frameGeneratorGenerator)
       case frame: FrameConcolicIf[ConcreteValue, Addr, Time] =>
-        SemanticsConcolicHelper.handleIf(concolicValue, sabs.isTrue(v), rTAnalysisStarter)
+        concolicHelper.handleIf(concolicValue, sabs.isTrue(v))
         conditional(v,
                     addEvalActionT(ActionConcolicEval(ActionEval(frame.cons, frame.env, store), frame.symEnv)),
                     addEvalActionT(ActionConcolicEval(ActionEval(frame.alt, frame.env, store), frame.symEnv)))

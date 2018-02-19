@@ -4,7 +4,7 @@ import backend.expression._
 import backend.tree.BranchConstraint
 
 /** This is where we define Scheme primitives */
-class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives[Addr, Abs] {
+class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice](val reporter: ScalaAMReporter = new ScalaAMReporter) extends Primitives[Addr, Abs] {
   import SchemeOps._
   val abs = implicitly[IsSchemeLattice[Abs]]
 
@@ -284,9 +284,9 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice] extends Primitives
   object Remainder extends Remainder
   class Random extends NoStoreOperation("random", Some(1)) {
     override def call[Exp: Expression](fexp: Exp, x: (Exp, Arg)): (MayFail[Abs], Option[ConcolicExpression]) = {
-      if (ScalaAMReporter.isConcolicEnabled) {
-        val value: MayFail[Abs] = if (ScalaAMReporter.isConcolicEnabled) {
-          val optInput: Option[Int] = InputVariableStore.getInput
+      if (reporter.isConcolicEnabled) {
+        val value: MayFail[Abs] = if (reporter.isConcolicEnabled) {
+          val optInput: Option[Int] = reporter.inputVariableStore.getInput
           optInput match {
             case Some(int) => MayFailSuccess(abs.inject(int))
             case None => callRandom(x._2._1)

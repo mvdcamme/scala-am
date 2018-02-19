@@ -3,7 +3,7 @@ import backend.expression.ConcolicInput
 import backend.path_filtering.PartialRegexMatcher
 import backend.solvers._
 
-object ScalaAMConcolicSolver {
+class ScalaAMConcolicSolver {
 
   private var latestInputs: List[(ConcolicInput, Int)] = Nil
 
@@ -32,9 +32,9 @@ object ScalaAMConcolicSolver {
     case list => list
   }
 
-  def solve(): Boolean = {
+  def solve(reporter: ScalaAMReporter): Boolean = {
     resetInputs()
-    val report = ScalaAMReporter.pathStorage.getCurrentReport
+    val report = reporter.pathStorage.getCurrentReport
     PartialMatcherStore.getInitial match {
       case Some(initialPartialMatcher) =>
         Reporter.addExploredPathWithPartialMatcher(report, initialPartialMatcher)
