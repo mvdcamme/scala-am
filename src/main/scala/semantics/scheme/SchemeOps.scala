@@ -51,7 +51,10 @@ object SchemeOps {
     1
     // TODO MV commented out to make random deterministic for concolic testing scala.math.abs(scala.util.Random.nextInt % n)
   }
-  def random(n: Double): Double = scala.math.abs(scala.util.Random.nextDouble % n)
+  def random(n: Double): Double = {
+    1
+    // TODO MV commented out to make random deterministic for concolic testing scala.math.abs(scala.util.Random.nextDouble % n)
+  }
 
   /** Round in Scheme and Scala are different. This implements the same behaviour as Scheme's round. */
   def round(n: Double): Double = {
