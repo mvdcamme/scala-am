@@ -86,13 +86,19 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisL
   case class ConcolicControlKont(v: ConcreteValue, concolicValue: Option[ConcolicExpression]) extends ConcolicControl
   case class ConcolicControlError(error: SemanticError) extends ConcolicControl
 
-  case class State(control: ConcolicControl,
-                   store: Store[HybridAddress.A, ConcreteValue],
-                   kstore: KontStore[KontAddr],
-                   a: KontAddr,
-                   t: HybridTimestamp.T)
+  case class State(control: ConcolicControl, store: Store[HybridAddress.A, ConcreteValue],
+                   kstore: KontStore[KontAddr], a: KontAddr, t: HybridTimestamp.T)
       extends ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
       with StateTrait[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] {
+
+    def isErrorState: Boolean = control match {
+      case _: ConcolicControlError => true
+      case _ => false
+    }
+    def isUserErrorState: Boolean = control match {
+      case ConcolicControlError(UserError(_, _)) => true
+      case _ => false
+    }
 
     def addressesReachable: Set[HybridAddress.A] = {
       store.toSet.map(_._1)

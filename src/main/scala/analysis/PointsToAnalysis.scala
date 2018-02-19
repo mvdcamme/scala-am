@@ -45,16 +45,12 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
     }
   }
 
-  def analyze[Machine <: ProducesStateGraph[Exp, L, Addr, Time]](
-      toDot: Option[String],
-      machine: Machine,
-      sem: ConvertableSemantics[Exp, L, Addr, Time],
-      relevantAddress: Addr => Boolean)(
-      startState: machine.InitialState,
-      isInitial: Boolean,
-      stepSwitched: Option[Int]): StaticAnalysisResult = {
+  def analyze[Machine <: ProducesStateGraph[Exp, L, Addr, Time]](toDot: Option[String], machine: Machine,
+                                                                 sem: ConvertableSemantics[Exp, L, Addr, Time])
+                                                                (startState: machine.InitialState, isInitial: Boolean,
+                                                                 stepSwitched: Option[Int]): AnalysisOutputGraph[Exp, L, Addr, machine.MachineState] = {
     Logger.log("Starting static points-to analysis", Logger.I)
-    val result = machine.kickstartEval(startState, isInitial, sem, None, Timeout.none, stepSwitched)
+    val result = machine.kickstartEval(startState, sem, None, Timeout.none, stepSwitched)
     toDot.foreach(result.toFile)
     AnalysisOutputGraph[Exp, L, Addr, machine.MachineState](result)
   }
@@ -95,18 +91,18 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
   }
 
   def runStaticAnalysisGeneric(currentProgramState: PS, stepSwitched: Option[Int], toDotFile: Option[String],
-                               pathConstraint: PathConstraint, isInitialAnalysis: Boolean): StaticAnalysisResult = {
+                               pathConstraint: PathConstraint, isInitialAnalysis: Boolean): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] = {
     wrapRunAnalysis(
       () => {
         val startState = convertStateAAM(aam, concSem, abstSem, currentProgramState, pathConstraint)
-        val result = pointsToAnalysis.analyze(toDotFile, aam, abstSem, (addr) => ! HybridAddress.isAddress.isPrimitive(addr))(startState, isInitialAnalysis, stepSwitched)
+        val result = pointsToAnalysis.analyze(toDotFile, aam, abstSem)(startState, isInitialAnalysis, stepSwitched)
         Logger.log(s"Static points-to analysis result is $result", Logger.U)
         result
       })
   }
 
   def runStaticAnalysis(currentProgramState: PS, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
-                        pathConstraint: PathConstraint): StaticAnalysisResult = {
+                        pathConstraint: PathConstraint): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] = {
     val result = runStaticAnalysisGeneric(currentProgramState, stepSwitched, None, pathConstraint, false)
     result
   }
@@ -119,7 +115,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
     new BufferedWriter(new FileWriter(new File(runTimeAnalysisMetricsOutputPath), false))
   }
 
-  def runInitialStaticAnalysis(currentProgramState: PS, programName: String): StaticAnalysisResult =
+  def runInitialStaticAnalysis(currentProgramState: PS, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] =
     runStaticAnalysisGeneric(currentProgramState, None, Some("initial_graph.dot"), Nil, true) match {
       case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.MachineState] =>
         GraphDOTOutput.toFile(result.hasGraph.graph, result.hasGraph.halted)("initial_graph.dot")

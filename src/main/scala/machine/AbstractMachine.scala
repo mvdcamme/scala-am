@@ -139,14 +139,17 @@ trait HasFinalStores[Addr, Abs] {
   def stepSwitched: Option[Int]
 }
 
-trait StateTrait[Exp, Abs, Addr, Time]
+trait StateTrait[Exp, Abs, Addr, Time] {
+  def isErrorState: Boolean
+  def isUserErrorState: Boolean
+}
 
 trait KickstartEvalEvalKontMachine[Exp, Abs, Addr, Time] extends AbstractMachine[Exp, Abs, Addr, Time] {
   type InitialState
   type MachineState <: StateTrait[Exp, Abs, Addr, _]
   type MachineOutput <: Output with HasFinalStores[Addr, Abs]
 
-  def kickstartEval(initialState: InitialState, includeFiltersFirstState: Boolean, sem: ConvertableSemantics[Exp, Abs, Addr, Time], stopEval: Option[MachineState => Boolean],
+  def kickstartEval(initialState: InitialState, sem: ConvertableSemantics[Exp, Abs, Addr, Time], stopEval: Option[MachineState => Boolean],
     timeout: Timeout, stepSwitched: Option[Int]): MachineOutput
 }
 

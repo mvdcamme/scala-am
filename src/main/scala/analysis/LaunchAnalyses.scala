@@ -5,37 +5,30 @@ case class AnalysisResult(partialMatcher: PartialRegexMatcher, containsErrorStat
   def shouldContinueTesting: Boolean = containsUserErrorStates
 }
 
-class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLauncher: AnalysisLauncher[PAbs]) {
+class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLauncher: AnalysisLauncher[Abs]) {
 
-  val errorPathDetector = new ErrorPathDetector[SchemeExp, PAbs, HybridAddress.A, HybridTimestamp.T](analysisLauncher.aam)
+  private val errorPathDetector = new ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.aam.State](analysisLauncher.aam)
 
-  private def handleAnalysisResult[Abs: IsSchemeLattice](errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
-                                                         result: StaticAnalysisResult): Option[AnalysisResult] = result match {
-    case outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, errorPathDetector.aam.State] =>
-      // TODO can't just pass the current partial matcher, because that one starts from some cached final state instead of the initial state
-      // TODO and the ENTIRE path is passed to the matcher (so including the part it has actually already matched).
-      // TODO Just passing the initial matcher would mean the current matcher wouldn't be used at all though.
-      // TODO Solution: when an AbortConcolicExecution-error is thrown, pass the path that was already created
-      // TODO to the backend and ask to invalidate that one?
-      GraphDOTOutput.toFile(outputGraph.hasGraph.graph, outputGraph.hasGraph.halted)("rt_graph.dot")
-      val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.hasGraph.graph)
-      val result = AnalysisResult(maybePartialMatcher.get, outputGraph.hasGraph.errorStates.nonEmpty, outputGraph.hasGraph.errorStates.exists(_.isUserErrorState))
-      Some(result)
-    case _ =>
-      Logger.log(s"### Concolic did not get expected graph, got $result instead", Logger.U)
-      None
+  private def handleAnalysisResult(outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State]): Option[AnalysisResult] = {
+    // TODO can't just pass the current partial matcher, because that one starts from some cached final state instead of the initial state
+    // TODO and the ENTIRE path is passed to the matcher (so including the part it has actually already matched).
+    // TODO Just passing the initial matcher would mean the current matcher wouldn't be used at all though.
+    // TODO Solution: when an AbortConcolicExecution-error is thrown, pass the path that was already created
+    // TODO to the backend and ask to invalidate that one?
+    GraphDOTOutput.toFile(outputGraph.hasGraph.graph, outputGraph.hasGraph.halted)("rt_graph.dot")
+    val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.hasGraph.graph)
+    val result = AnalysisResult(maybePartialMatcher.get, outputGraph.hasGraph.errorStates.nonEmpty, outputGraph.hasGraph.errorStates.exists(_.isUserErrorState))
+    Some(result)
   }
 
-  private def handleInitialAnalysisResult[Abs: IsSchemeLattice](errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
-                                                        result: StaticAnalysisResult): AnalysisResult = {
-    val maybeAnalysisResult = handleAnalysisResult[Abs](errorPathDetector, result)
+  private def handleInitialAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State]): AnalysisResult = {
+    val maybeAnalysisResult = handleAnalysisResult(result)
     PartialMatcherStore.setInitial(maybeAnalysisResult.get.partialMatcher)
     maybeAnalysisResult.get
   }
 
-  private def handleRunTimeAnalysisResult[Abs: IsSchemeLattice](errorPathDetector: ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
-    result: StaticAnalysisResult, thenBranchTaken: Boolean): AnalysisResult = {
-    val maybeAnalysisResult = handleAnalysisResult[Abs](errorPathDetector, result)
+  private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], thenBranchTaken: Boolean): AnalysisResult = {
+    val maybeAnalysisResult = handleAnalysisResult(result)
     //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
     //    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
     PartialMatcherStore.setCurrentMatcher(maybeAnalysisResult.get.partialMatcher)
@@ -57,15 +50,14 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
     * @param state
     */
   def startRunTimeAnalysis(state: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T],
-                           thenBranchTaken: Boolean, stepCount: Int,
-                           pathConstraint: PathConstraint): AnalysisResult = {
+                           thenBranchTaken: Boolean, stepCount: Int, pathConstraint: PathConstraint): AnalysisResult = {
     ScalaAMReporter.disableConcolic()
     Logger.log("Starting run-time analysis", Logger.E)
     val currentAddresses: Set[HybridAddress.A] = state.addressesReachable
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
     val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
     val analysisResult = analysisLauncher.runStaticAnalysis(state, Some(stepCount), convertedCurrentAddresses, pathConstraint)
-    val result = handleRunTimeAnalysisResult[PAbs](errorPathDetector, analysisResult, thenBranchTaken)
+    val result = handleRunTimeAnalysisResult(analysisResult, thenBranchTaken)
     ScalaAMReporter.enableConcolic()
     result
   }
@@ -74,7 +66,7 @@ class LaunchAnalyses[PAbs: IsConvertableLattice: LatticeInfoProvider](analysisLa
                            programName: String): AnalysisResult = {
     ScalaAMReporter.disableConcolic()
     val analysisResult = analysisLauncher.runInitialStaticAnalysis(initialState, programName)
-    val result = handleInitialAnalysisResult[PAbs](errorPathDetector, analysisResult)
+    val result = handleInitialAnalysisResult(analysisResult)
     ScalaAMReporter.enableConcolic()
     result
   }

@@ -1,6 +1,7 @@
 import ConcreteConcreteLattice.{L => ConcreteValue}
 import backend.PathConstraint
-import backend.tree.Constraint
+
+case class AnalysisOutputGraph[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]](hasGraph: HasGraph[Exp, Abs, Addr, State] with HasFinalStores[Addr, Abs])
 
 abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
 
@@ -34,10 +35,9 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
     result
   }
 
-  protected def wrapRunAnalysis(
-      runAnalysis: () => StaticAnalysisResult): StaticAnalysisResult = {
+  protected def wrapRunAnalysis(runAnalysis: () => AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] = {
     Logger.log("analyzing", Logger.I)
-    wrapAbstractEvaluation[StaticAnalysisResult](runAnalysis)
+    wrapAbstractEvaluation[AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]](runAnalysis)
   }
 
   /**
@@ -61,8 +61,8 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
     (aam.State(convertedControl, a, t), deltaStore, kstore)
   }
 
-  def runInitialStaticAnalysis(currentProgramState: PS, programName: String): StaticAnalysisResult
+  def runInitialStaticAnalysis(currentProgramState: PS, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
   def runStaticAnalysis(currentProgramState: PS, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
-                        pathConstraint: PathConstraint): StaticAnalysisResult
+                        pathConstraint: PathConstraint): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
 
 }
