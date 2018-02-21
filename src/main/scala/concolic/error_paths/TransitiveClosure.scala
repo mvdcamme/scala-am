@@ -6,7 +6,7 @@ import backend.path_filtering.PartialRegexMatcher
  * Computes the regular expressions that describe paths between specific nodes in a general, directed graph.
  * Technique is based on the transitive closure method.
  */
-class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boolean, annotToChar: A => Option[Char]) {
+class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boolean, annotToChar: A => Option[Char], stepCount: Option[Int], concolicRun: Int) {
 
   implicit val stateGraphNode: GraphNode[State, Unit] = new GraphNode[State, Unit] { }
   implicit val stateGraphAnnotation: GraphAnnotation[String, Unit] = new GraphAnnotation[String, Unit] { }
@@ -45,7 +45,7 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
 
       Automaton.setMinimization(1) // brzozowski
       automaton.minimize()
-      automaton.toDotFile("minimized_DFA.dot")
+      automaton.toDotFile(s"minimized_DFA_${concolicRun}_$stepCount.dot")
       
       val partialMatcher = new PartialRegexMatcher(automaton)
       Some(partialMatcher)

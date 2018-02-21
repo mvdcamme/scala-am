@@ -6,7 +6,7 @@ object PartialMatcherStore {
   def getInitial: Option[PartialRegexMatcher] = maybeInitialPartialMatcher
   def setInitial(partialMatcher: PartialRegexMatcher): Unit = {
     /* The initial error partial matcher should only be set once */
-    assert(maybeInitialPartialMatcher.isEmpty)
+//    assert(maybeInitialPartialMatcher.isEmpty)
     maybeInitialPartialMatcher = Some(partialMatcher)
     reset()
   }

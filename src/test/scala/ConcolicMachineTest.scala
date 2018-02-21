@@ -33,8 +33,8 @@ class ConcolicMachineTest extends FunSuite {
   }
 
   test("Make sure Connect-4 test explores the same inputs, in the same order. Assumes both initial and run-time analyses to have been disabled") {
-    assert(! ConcolicRunTimeFlags.checkAnalysis)
-    assert(! ConcolicRunTimeFlags.checkRunTimeAnalysis)
+//    assert(! ConcolicRunTimeFlags.checkAnalysis)
+//    assert(! ConcolicRunTimeFlags.checkRunTimeAnalysis)
     val output1 = runProgram(connect4Program)
     Reporter.deleteSymbolicTree()
     val output2 = runProgram(connect4Program)

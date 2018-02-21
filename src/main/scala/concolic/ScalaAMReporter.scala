@@ -54,32 +54,33 @@ class ScalaAMReporter {
     PartialMatcherStore.reset()
   }
 
+  private def abortConcolicIteration(): Unit = {
+    Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
+    throw AbortConcolicIterationException
+  }
+
+  /**
+    * Updates [[PartialMatcherStore]]'s current partial matcher and resets the current path of the pathStorage.
+    * @param updatedMatcher
+    */
+  private def updatePartialMatcher(updatedMatcher: PartialRegexMatcher): Unit = {
+    PartialMatcherStore.setCurrentMatcher(updatedMatcher)
+    /* We're using the incremental match for performance reasons, so the string should be reset if there is a match. */
+    pathStorage.resetCurrentPath()
+  }
+
+  private def checkWithPartialMatcher: PartialRegexMatcher = {
+    assert(PartialMatcherStore.getCurrent.isDefined)
+    val currentMatcher = PartialMatcherStore.getCurrent.get // TODO Debugging
+    val (result, partialMatcher) = testCurrentPath
+    if (!result) {
+      abortConcolicIteration()
+    }
+    updatePartialMatcher(partialMatcher)
+    partialMatcher
+  }
+
   def addBranchConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter): Unit = {
-
-    def abortConcolicIteration(): Unit = {
-      Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
-      throw AbortConcolicIterationException
-    }
-
-    /**
-      * Updates [[PartialMatcherStore]]'s current partial matcher and resets the current path of the pathStorage.
-      * @param updatedMatcher
-      */
-    def updatePartialMatcher(updatedMatcher: PartialRegexMatcher): Unit = {
-      PartialMatcherStore.setCurrentMatcher(updatedMatcher)
-      /* We're using the incremental match for performance reasons, so the string should be reset if there is a match. */
-      pathStorage.resetCurrentPath()
-    }
-
-    def checkWithPartialMatcher: PartialRegexMatcher = {
-      assert(PartialMatcherStore.getCurrent.isDefined)
-      val currentMatcher = PartialMatcherStore.getCurrent.get // TODO Debugging
-      val (result, partialMatcher) = testCurrentPath
-      if (!result) {
-        abortConcolicIteration()
-      }
-      partialMatcher
-    }
 
     if (!doConcolic) {
       return
@@ -99,6 +100,7 @@ class ScalaAMReporter {
     } else if (ConcolicRunTimeFlags.useRunTimeAnalyses && ! containsInexactInputsVars) { // Final non-constant BranchConstraint is evaluated at stepCount 565560; 1st iteration takes 571048 concrete steps
 
       val analysisResult = rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken, constraintAddedPC)
+      checkWithPartialMatcher
       /*
        * PartialMatcherStore's current matcher now refers to a matcher starting from *after* this constraint.
        * The current path is empty.
@@ -117,8 +119,7 @@ class ScalaAMReporter {
         Logger.log("SKIPPING RT ANALYSIS BECAUSE OF AN INEXACT INPUT VARIABLE", Logger.U)
       }
       pathStorage.updateReport(optimizedConstraint, thenBranchTaken, None)
-      val updatedMatcher = checkWithPartialMatcher
-      updatePartialMatcher(updatedMatcher)
+      checkWithPartialMatcher
     } else {
       /* Constraint is not constant and checkAnalysis is false */
       pathStorage.updateReport(optimizedConstraint, thenBranchTaken, None)
@@ -128,6 +129,9 @@ class ScalaAMReporter {
   def addUnusableConstraint(thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter): Unit = {
     if (doConcolic) {
       pathStorage.updateReport(UnusableConstraint, thenBranchTaken, None)
+      if (ConcolicRunTimeFlags.checkAnalysis) {
+        checkWithPartialMatcher
+      }
     }
   }
 

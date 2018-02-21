@@ -28,12 +28,12 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
     }
   }
 
-  def detectErrors(graph: RelevantGraph): Option[PartialRegexMatcher] = graph.getNode(0) match {
+  def detectErrors(graph: RelevantGraph, stepCount: Option[Int], concolicRun: Int): Option[PartialRegexMatcher] = graph.getNode(0) match {
     case None =>
       Logger.log("Graph is empty", Logger.U)
       None
     case Some(_) =>
-      val transitiveClosure = new TransitiveClosure(graph, (state: State) => state.isUserErrorState, annotToOptChar)
+      val transitiveClosure = new TransitiveClosure(graph, (state: State) => state.isUserErrorState, annotToOptChar, stepCount, concolicRun)
       val maybePartialMatcher = transitiveClosure.computePartialMatcher
       maybePartialMatcher
   }

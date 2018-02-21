@@ -1,5 +1,6 @@
 import backend.PathConstraint
 import backend.path_filtering.PartialRegexMatcher
+import backend.tree.path.{ElseBranchTaken, ThenBranchTaken}
 
 case class AnalysisResult(partialMatcher: PartialRegexMatcher, containsErrorStates: Boolean, containsUserErrorStates: Boolean) {
   def shouldContinueTesting: Boolean = containsUserErrorStates
@@ -10,30 +11,30 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
 
   private val errorPathDetector = new ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.aam.State](analysisLauncher.aam)
 
-  private def handleAnalysisResult(outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State]): Option[AnalysisResult] = {
-    GraphDOTOutput.toFile(outputGraph.graph, outputGraph.halted)("rt_graph.dot")
-    val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.graph)
+  private def handleAnalysisResult(outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], currentConcolicRun: Int): Option[AnalysisResult] = {
+    GraphDOTOutput.toFile(outputGraph.graph, outputGraph.halted)(s"rt_graph_${currentConcolicRun}_${outputGraph.stepSwitched}.dot")
+    val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.graph, outputGraph.stepSwitched, currentConcolicRun)
     val result = AnalysisResult(maybePartialMatcher.get, outputGraph.errorStates.nonEmpty, outputGraph.errorStates.exists(_.isUserErrorState))
     Some(result)
   }
 
   private def handleInitialAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State]): AnalysisResult = {
-    val maybeAnalysisResult = handleAnalysisResult(result)
+    val maybeAnalysisResult = handleAnalysisResult(result, -1)
     PartialMatcherStore.setInitial(maybeAnalysisResult.get.partialMatcher)
     maybeAnalysisResult.get
   }
 
-  private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], thenBranchTaken: Boolean): AnalysisResult = {
-    def removeIfBranchAnnotation: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State] = {
-      val graph = result.graph
-      val root = graph.getNode(0).get
-      val originalFirstEdges = graph.nodeEdges(root)
-      val updatedFirstEdges = originalFirstEdges.map({ case (_, state) => (EdgeAnnotation.dummyEdgeAnnotation[SchemeExp, Abs, HybridAddress.A], state) })
-      val updatedGraph = new Graph[analysisLauncher.aam.State, EdgeAnnotation[SchemeExp, Abs, HybridAddress.A], Set[analysisLauncher.aam.State]](graph.ids, graph.next, graph.nodes, graph.edges + (root -> updatedFirstEdges))
-      result.replaceGraph(updatedGraph)
-    }
-    val ifBranchAnnotationRemoved = removeIfBranchAnnotation
-    val maybeAnalysisResult = handleAnalysisResult(ifBranchAnnotationRemoved)
+  private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], thenBranchTaken: Boolean, currentConcolicRun: Int): AnalysisResult = {
+//    def removeIfBranchAnnotation: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State] = {
+//      val graph = result.graph
+//      val root = graph.getNode(0).get
+//      val originalFirstEdges = graph.nodeEdges(root)
+//      val updatedFirstEdges = originalFirstEdges.map({ case (_, state) => (EdgeAnnotation.dummyEdgeAnnotation[SchemeExp, Abs, HybridAddress.A], state) })
+//      val updatedGraph = new Graph[analysisLauncher.aam.State, EdgeAnnotation[SchemeExp, Abs, HybridAddress.A], Set[analysisLauncher.aam.State]](graph.ids, graph.next, graph.nodes, graph.edges + (root -> updatedFirstEdges))
+//      result.replaceGraph(updatedGraph)
+//    }
+//    val ifBranchAnnotationRemoved = removeIfBranchAnnotation
+    val maybeAnalysisResult = handleAnalysisResult(result, currentConcolicRun)
     //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
     //    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
     PartialMatcherStore.setCurrentMatcher(maybeAnalysisResult.get.partialMatcher)
@@ -46,6 +47,7 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
      * encountered _from the current point in the program on_.
      */
     reporter.pathStorage.resetCurrentPath()
+    reporter.pathStorage.updateCurrentPath(thenBranchTaken)
     maybeAnalysisResult.get
   }
 
@@ -55,14 +57,14 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
     * @param state
     */
   def startRunTimeAnalysis(state: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T],
-                           thenBranchTaken: Boolean, stepCount: Int, pathConstraint: PathConstraint): AnalysisResult = {
+                           thenBranchTaken: Boolean, stepCount: Int, pathConstraint: PathConstraint, currentConcolicRun: Int): AnalysisResult = {
     reporter.disableConcolic()
     Logger.log("Starting run-time analysis", Logger.E)
     val currentAddresses: Set[HybridAddress.A] = state.addressesReachable
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
     val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
     val analysisResult = analysisLauncher.runStaticAnalysis(state, Some(stepCount), convertedCurrentAddresses, pathConstraint)
-    val result = handleRunTimeAnalysisResult(analysisResult, thenBranchTaken)
+    val result = handleRunTimeAnalysisResult(analysisResult, thenBranchTaken, currentConcolicRun)
     reporter.enableConcolic()
     result
   }

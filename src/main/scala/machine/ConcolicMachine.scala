@@ -26,6 +26,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
   private var currentState: Option[State] = None
 
   var stepCount: Int = 0
+  var currentConcolicRun: Int = 0
 
   trait ConcolicMachineOutput extends Output {
     def toFile(path: String)(output: GraphOutput): Unit = println("Not generating graph for ConcreteMachine")
@@ -425,6 +426,8 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     @scala.annotation.tailrec
     def loopConcolic(initialState: State, nrOfRuns: Int, allInputsUntilNow: List[List[(ConcolicInput, Int)]]): List[List[(ConcolicInput, Int)]] = {
 
+      currentConcolicRun = nrOfRuns
+
       def finishUpLoop: Boolean = {
         Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.U)
         reporter.printReports()
@@ -484,7 +487,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
 
   def startAnalysisFromCurrentState(thenBranchTaken: Boolean, pathConstraint: PathConstraint): AnalysisResult = {
     assert(currentState.isDefined)
-    val analysisResult = rtAnalysis.startRunTimeAnalysis(currentState.get, thenBranchTaken, stepCount, pathConstraint)
+    val analysisResult = rtAnalysis.startRunTimeAnalysis(currentState.get, thenBranchTaken, stepCount, pathConstraint, currentConcolicRun)
     analysisResult
   }
 }

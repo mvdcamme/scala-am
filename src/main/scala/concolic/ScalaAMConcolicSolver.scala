@@ -32,15 +32,53 @@ class ScalaAMConcolicSolver {
     case list => list
   }
 
+  var count = 0
+
+  private sealed trait Solver {
+    def solve: ConcolicSolverResult
+  }
+  private class ActualSolver extends Solver {
+    def solve: ConcolicSolverResult = ConcolicSolver.solve
+  }
+  private class MockupSolver extends Solver {
+    private var mockupResults: List[NewInput] = List(
+      NewInput(Map(ConcolicInput(0) -> 1)),
+      NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 1)),
+      NewInput(Map(ConcolicInput(0) -> 2)),
+      NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 0, ConcolicInput(2) -> 1)))
+    def solve: ConcolicSolverResult = {
+      ConcolicSolver.solve
+      mockupResults.headOption match {
+        case Some(result) =>
+          mockupResults = mockupResults.tail
+          result
+        case None => SymbolicTreeFullyExplored
+      }
+    }
+  }
+
+  private val solver: Solver = new MockupSolver
+
   def solve(reporter: ScalaAMReporter): Boolean = {
+    count += 1
     resetInputs()
     val report = reporter.pathStorage.getCurrentReport
     PartialMatcherStore.getInitial match {
       case Some(initialPartialMatcher) =>
-        Reporter.addExploredPathWithPartialMatcher(report, initialPartialMatcher)
+        Reporter.getRoot
+        Reporter.writeSymbolicTree("tree.dot")
+        try {
+          Reporter.addExploredPathWithPartialMatcher(report, initialPartialMatcher)
+        } catch {
+          case exception: java.lang.AssertionError =>
+            println("CAUGHT")
+            throw exception
+        }
+
       case None => Reporter.addExploredPath(report)
     }
-    val result = ConcolicSolver.solve
+//    val result = ConcolicSolver.solve
+    val result = solver.solve
     result match {
       case NewInput(inputs) =>
         latestInputs = convertInputs(inputs)
