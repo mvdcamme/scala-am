@@ -54,17 +54,17 @@ class ConcolicMachineTest extends FunSuite with BeforeAndAfterEach {
     (castedOutput.allInputs, castedOutput.allPathConstraints)
   }
 
-  test("Make sure Connect-4 test explores the same inputs, in the same order, and generates the same path constraints," +
-       " in the same order. Assumes both initial and run-time analyses to have been disabled") {
-    val (allInputs1, allPathConstraints1) = runProgram(connect4Program, ConcolicRunTimeFlags(100, false, false))
-    Reporter.deleteSymbolicTree()
-    val (allInputs2, allPathConstraints2) = runProgram(connect4Program, ConcolicRunTimeFlags(100, false, false))
-    assert(allInputs1 == allInputs2)
-    assert(allPathConstraints1 == allPathConstraints2)
-  }
+//  test("Make sure Connect-4 test explores the same inputs, in the same order, and generates the same path constraints," +
+//       " in the same order. Assumes both initial and run-time analyses to have been disabled") {
+//    val (allInputs1, allPathConstraints1) = runProgram(connect4Program, ConcolicRunTimeFlags(100, false, false))
+//    Reporter.deleteSymbolicTree()
+//    val (allInputs2, allPathConstraints2) = runProgram(connect4Program, ConcolicRunTimeFlags(100, false, false))
+//    assert(allInputs1 == allInputs2)
+//    assert(allPathConstraints1 == allPathConstraints2)
+//  }
 
   test("Test whether path constraints are ") {
-    val (_, pathConstraints1) = runProgram(connect4Program, ConcolicRunTimeFlags(100, false, false))
+    val (_, pathConstraints1) = runProgram(connect4Program, ConcolicRunTimeFlags(100, true, true))
     val previousPathConstraints = readFile(connect4Folder + "path_constraints")
     assert(pathConstraints1.toString == previousPathConstraints)
   }

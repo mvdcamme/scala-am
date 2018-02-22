@@ -42,10 +42,16 @@ class ScalaAMConcolicSolver {
   }
   private class MockupSolver extends Solver {
     private var mockupResults: List[NewInput] = List(
-      NewInput(Map(ConcolicInput(0) -> 1)),
-      NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 1)),
-      NewInput(Map(ConcolicInput(0) -> 2)),
-      NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 0, ConcolicInput(2) -> 1)))
+      /* IT 2 */ NewInput(Map(ConcolicInput(0) -> 1)),
+      /* IT 3 */ NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 1)),
+      /* IT 4 */ NewInput(Map(ConcolicInput(0) -> 2)),
+      /* IT 5 */ NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 0, ConcolicInput(2) -> 1)),
+      /* IT 6 */ NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 2)),
+      /* IT 7 */ NewInput(Map(ConcolicInput(0) -> 1, ConcolicInput(1) -> 1)),
+      /* IT 8 */ NewInput(Map(ConcolicInput(0) -> 3)),
+      /* IT 9 */ NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 0, ConcolicInput(2) -> 1, ConcolicInput(3) -> 1)),
+      /* IT 5 */ NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 0, ConcolicInput(2) -> 2)),
+      /* IT 5 */ NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 1, ConcolicInput(2) -> 1)))
     def solve: ConcolicSolverResult = {
       ConcolicSolver.solve
       mockupResults.headOption match {
