@@ -2,7 +2,7 @@ import java.io.{BufferedWriter, File, FileWriter}
 
 import backend.expression._
 import ConcreteConcreteLattice.{L => ConcreteValue}
-import backend.PathConstraint
+import backend._
 import concolic.SymbolicEnvironment
 
 case class Reached[Addr : Address](addressesReachable: Set[Addr], preciseAddresses: Set[Addr]) {
@@ -14,7 +14,10 @@ object Reached {
   def empty[Addr : Address] = Reached[Addr](Set(), Set())
 }
 
-class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analysisLauncher: AnalysisLauncher[PAbs], val analysisFlags: AnalysisFlags, val reporter: ScalaAMReporter)
+class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analysisLauncher: AnalysisLauncher[PAbs],
+                                                                       val analysisFlags: AnalysisFlags,
+                                                                       val reporter: ScalaAMReporter,
+                                                                       val concolicFlags: ConcolicRunTimeFlags)
                                                                       (implicit unused1: IsSchemeLattice[ConcreteValue])
   extends EvalKontMachine[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] with RTAnalysisStarter {
 
@@ -40,7 +43,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     def time: Double = 0
   }
 
-  case class ConcolicMachineOutputInputs(allInputs: List[List[(ConcolicInput, Int)]]) extends ConcolicMachineOutput {
+  case class ConcolicMachineOutputNormal(allInputs: List[List[(ConcolicInput, Int)]], allPathConstraints: List[PathConstraint]) extends ConcolicMachineOutput {
     def finalValues = Set()
     override def containsFinalValue(v: ConcreteValue) = false
     def timedOut: Boolean = false
@@ -197,7 +200,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
          *
          *
          */
-        exactSymVariables.contains(variable) || !symEnv.contains(variable)
+        exactSymVariables.contains(variable) || ! concolic.containsVariable(variable, symEnv)
       }
 
       var preciseAddresses = exactSymVariables.map(env.lookup(_).get)
@@ -424,7 +427,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     }
 
     @scala.annotation.tailrec
-    def loopConcolic(initialState: State, nrOfRuns: Int, allInputsUntilNow: List[List[(ConcolicInput, Int)]]): List[List[(ConcolicInput, Int)]] = {
+    def loopConcolic(initialState: State, nrOfRuns: Int, allInputsUntilNow: List[List[(ConcolicInput, Int)]], allPathConstraints: List[PathConstraint]): ConcolicMachineOutputNormal = {
 
       currentConcolicRun = nrOfRuns
 
@@ -451,28 +454,28 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
       } catch {
         case AbortConcolicIterationException => finishUpLoop
       }
-      if (nrOfRuns < ConcolicRunTimeFlags.MAX_CONCOLIC_ITERATIONS && shouldContinue) {
-        loopConcolic(initialState, nrOfRuns + 1, allInputsUntilNow :+ reporter.solver.getInputs)
+      if (nrOfRuns < concolicFlags.maxNrIterations && shouldContinue) {
+        import scala.language.implicitConversions
+        loopConcolic(initialState, nrOfRuns + 1, allInputsUntilNow :+ reporter.solver.getInputs,
+                     allPathConstraints :+ pathConstraintWithMatchersToPathConstraint(reporter.pathStorage.getCurrentReport))
       } else {
-        allInputsUntilNow
+        ConcolicMachineOutputNormal(allInputsUntilNow, allPathConstraints)
       }
     }
 
     val initialState = inject(exp, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
 
-    val output: ConcolicMachineOutput = if (ConcolicRunTimeFlags.checkAnalysis) {
+    val output: ConcolicMachineOutput = if (concolicFlags.checkAnalysis) {
       // Use initial static analysis to detect paths to errors
       val initialAnalysisResult = rtAnalysis.startInitialAnalysis(initialState, programName)
       if (initialAnalysisResult.shouldContinueTesting) {
-        val allInputs = loopConcolic(initialState, 1, Nil)
-        ConcolicMachineOutputInputs(allInputs)
+        loopConcolic(initialState, 1, Nil, Nil)
       } else {
         Logger.log("Concolic testing not started because initial analysis did not report any suitable error states", Logger.E)
         ConcolicMachineOutputUnnecessary
       }
     } else {
-      val allInputs = loopConcolic(initialState, 1, Nil)
-      ConcolicMachineOutputInputs(allInputs)
+      loopConcolic(initialState, 1, Nil, Nil)
     }
     reporter.writeSymbolicTree("tree.dot")
     output

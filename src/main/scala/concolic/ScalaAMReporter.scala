@@ -6,7 +6,7 @@ import backend._
 
 case object AbortConcolicIterationException extends Exception
 
-class ScalaAMReporter {
+class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags) {
 
 
   private var doConcolic: Boolean = false
@@ -97,7 +97,7 @@ class ScalaAMReporter {
        * via static analyses, which don't (or can't) check whether some condition is constant or not.
        */
       addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
-    } else if (ConcolicRunTimeFlags.useRunTimeAnalyses && ! containsInexactInputsVars) { // Final non-constant BranchConstraint is evaluated at stepCount 565560; 1st iteration takes 571048 concrete steps
+    } else if (concolicFlags.useRunTimeAnalyses && ! containsInexactInputsVars) { // Final non-constant BranchConstraint is evaluated at stepCount 565560; 1st iteration takes 571048 concrete steps
 
       val analysisResult = rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken, constraintAddedPC)
       checkWithPartialMatcher
@@ -114,8 +114,8 @@ class ScalaAMReporter {
       if (! analysisResult.shouldContinueTesting) {
         abortConcolicIteration()
       }
-    } else if (ConcolicRunTimeFlags.checkAnalysis) {
-      if (ConcolicRunTimeFlags.useRunTimeAnalyses && containsInexactInputsVars) {
+    } else if (concolicFlags.checkAnalysis) {
+      if (concolicFlags.useRunTimeAnalyses && containsInexactInputsVars) {
         Logger.log("SKIPPING RT ANALYSIS BECAUSE OF AN INEXACT INPUT VARIABLE", Logger.U)
       }
       pathStorage.updateReport(optimizedConstraint, thenBranchTaken, None)
@@ -129,7 +129,7 @@ class ScalaAMReporter {
   def addUnusableConstraint(thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter): Unit = {
     if (doConcolic) {
       pathStorage.updateReport(UnusableConstraint, thenBranchTaken, None)
-      if (ConcolicRunTimeFlags.checkAnalysis) {
+      if (concolicFlags.checkAnalysis) {
         checkWithPartialMatcher
       }
     }

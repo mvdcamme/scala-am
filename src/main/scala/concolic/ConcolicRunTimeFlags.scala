@@ -1,10 +1,5 @@
-object ConcolicRunTimeFlags {
-
-  val MAX_CONCOLIC_ITERATIONS = 100
-
-  val checkAnalysis: Boolean = true
-  val checkRunTimeAnalysis: Boolean = true
-
+case class ConcolicRunTimeFlags(maxNrIterations: Int = 100,
+                                checkAnalysis: Boolean = true,
+                                checkRunTimeAnalysis: Boolean = true) {
   def useRunTimeAnalyses: Boolean = checkAnalysis && checkRunTimeAnalysis
-
 }

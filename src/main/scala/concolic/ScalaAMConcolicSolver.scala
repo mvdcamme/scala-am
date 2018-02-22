@@ -57,7 +57,7 @@ class ScalaAMConcolicSolver {
     }
   }
 
-  private val solver: Solver = new MockupSolver
+  private val solver: Solver = new ActualSolver
 
   def solve(reporter: ScalaAMReporter): Boolean = {
     count += 1

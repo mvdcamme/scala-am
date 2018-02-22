@@ -4,7 +4,7 @@ import backend.expression._
 import backend.tree.BranchConstraint
 
 /** This is where we define Scheme primitives */
-class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice](val reporter: ScalaAMReporter = new ScalaAMReporter) extends Primitives[Addr, Abs] {
+class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice](val reporter: ScalaAMReporter = new ScalaAMReporter(ConcolicRunTimeFlags())) extends Primitives[Addr, Abs] {
   import SchemeOps._
   val abs = implicitly[IsSchemeLattice[Abs]]
 
