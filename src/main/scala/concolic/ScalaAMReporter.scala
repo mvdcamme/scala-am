@@ -6,12 +6,12 @@ import backend._
 
 case object AbortConcolicIterationException extends Exception
 
-class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags) {
+class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags, solverInterface: SolverInterface = new BackendSolver) {
 
 
   private var doConcolic: Boolean = false
 
-  val solver = new ScalaAMConcolicSolver
+  val solver = new ScalaAMConcolicSolver(solverInterface)
   val inputVariableStore = new InputVariableStore(solver)
   val pathStorage = new PathStorage
 

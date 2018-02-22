@@ -20,7 +20,7 @@ class ConcolicMachineTest extends FunSuite with BeforeAndAfterEach {
   private val connect4Program = connect4Folder + "4-op-een-rij.rkt"
 
   private def makeConcolicMachineAndSemantics(flags: ConcolicRunTimeFlags): (ConcolicMachine[pointsToLattice.L], ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]) = {
-    val reporter = new ScalaAMReporter(flags)
+    val reporter = new ScalaAMReporter(flags, new MockupSolver)
     val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](reporter))
     val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](sem)(pointsToConvLattice, pointsToLatInfoProv, AnalysisFlags())
     val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, AnalysisFlags(), reporter, flags)
