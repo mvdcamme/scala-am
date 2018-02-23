@@ -11,9 +11,7 @@ trait AnalysisOutputGraph[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]
   def replaceGraph(graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AnalysisOutputGraph[Exp, Abs, Addr, State]
 }
 
-abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
-
-  protected val abstSem = new ConvertableSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, Abs])
+abstract class AnalysisLauncher[Abs: IsConvertableLattice](abstSem: ConvertableSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T]) {
 
   /* The concrete program state the static analysis gets as input. This state is then converted to an
    * abstract state and fed to the KickstartAAM. */
@@ -55,11 +53,11 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice] {
     * @param abstSem The semantics to be used during the analysis.
     * @param programState The program state to be converted.
     */
-  protected def convertStateAAM(aam: SpecAAM,
-                                concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                                abstSem: ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
-                                programState: PS, pathConstraint: PathConstraint): aam.InitialState = {
-    val (control, store, kstore, a, t) = programState.convertState[Abs](concSem, abstSem, HaltKontAddress, pathConstraint)
+  def convertStateAAM(aam: SpecAAM,
+                      concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
+                      abstSem: ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
+                      programState: PS, pathConstraint: PathConstraint): aam.InitialState = {
+    val (control, store, kstore, a, t) = programState.convertState[Abs](concSem, abstSem, pathConstraint)
     val deltaStore = aam.GlobalStore(DeltaStore[HybridAddress.A, Abs](store.toSet.toMap, Map()), Map())
     val convertedControl = control match {
       case ConvertedControlError(reason) => aam.ControlError(reason)

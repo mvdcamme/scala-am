@@ -699,7 +699,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice](val reporter: Scal
     }
   }
 
-  class CarCdrOperation(override val name: String) extends StoreOperation(name, Some(1)) {
+  case class CarCdrOperation(override val name: String) extends StoreOperation(name, Some(1)) {
     trait Spec
     case object Car extends Spec
     case object Cdr extends Spec

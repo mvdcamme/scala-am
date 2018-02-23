@@ -172,7 +172,8 @@ object Main {
           implicit val pointsToConvLattice: IsConvertableLattice[pointsToLattice.L] = pointsToLattice.isSchemeLattice
           implicit val pointsToLatInfoProv = pointsToLattice.latticeInfoProvider
           implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
-          val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](sem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
+          val abstSem = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, pointsToLattice.L])
+          val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](sem, abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
 
           val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, config.analysisFlags, reporter, concolicFlags)
           sem.rTAnalysisStarter = machine

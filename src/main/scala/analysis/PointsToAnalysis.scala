@@ -57,9 +57,10 @@ class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Tim
 }
 
 class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
-    concSem: ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T])
+    val concSem: ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
+    abstSem: ConvertableSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T])
     (implicit analysisFlags: AnalysisFlags)
-    extends AnalysisLauncher[Abs] {
+    extends AnalysisLauncher[Abs](abstSem) {
 
   val usesGraph = new UsesGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
   import usesGraph._

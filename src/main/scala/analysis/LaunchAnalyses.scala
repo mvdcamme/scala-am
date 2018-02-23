@@ -1,6 +1,5 @@
 import backend.PathConstraint
 import backend.path_filtering.PartialRegexMatcher
-import backend.tree.path.{ElseBranchTaken, ThenBranchTaken}
 
 case class AnalysisResult(partialMatcher: PartialRegexMatcher, containsErrorStates: Boolean, containsUserErrorStates: Boolean) {
   def shouldContinueTesting: Boolean = containsUserErrorStates
@@ -11,17 +10,16 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
 
   private val errorPathDetector = new ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.aam.State](analysisLauncher.aam)
 
-  private def handleAnalysisResult(outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], currentConcolicRun: Int): Option[AnalysisResult] = {
+  private def handleAnalysisResult(outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], currentConcolicRun: Int): AnalysisResult = {
     GraphDOTOutput.toFile(outputGraph.graph, outputGraph.halted)("rt_graph.dot")
     val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.graph, outputGraph.stepSwitched, currentConcolicRun)
-    val result = AnalysisResult(maybePartialMatcher.get, outputGraph.errorStates.nonEmpty, outputGraph.errorStates.exists(_.isUserErrorState))
-    Some(result)
+    AnalysisResult(maybePartialMatcher.get, outputGraph.errorStates.nonEmpty, outputGraph.errorStates.exists(_.isUserErrorState))
   }
 
   private def handleInitialAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State]): AnalysisResult = {
     val maybeAnalysisResult = handleAnalysisResult(result, -1)
-    PartialMatcherStore.setInitial(maybeAnalysisResult.get.partialMatcher)
-    maybeAnalysisResult.get
+    PartialMatcherStore.setInitial(maybeAnalysisResult.partialMatcher)
+    maybeAnalysisResult
   }
 
   private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], thenBranchTaken: Boolean, currentConcolicRun: Int): AnalysisResult = {
@@ -37,7 +35,7 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
     val maybeAnalysisResult = handleAnalysisResult(result, currentConcolicRun)
     //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
     //    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
-    PartialMatcherStore.setCurrentMatcher(maybeAnalysisResult.get.partialMatcher)
+    PartialMatcherStore.setCurrentMatcher(maybeAnalysisResult.partialMatcher)
     /*
      * A new partial matcher was generated using a run-time static analysis.
      * This matcher starts matching from a certain point _in the execution of the  program_ and hence skips the part
@@ -48,7 +46,7 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
      */
     reporter.pathStorage.resetCurrentPath()
     reporter.pathStorage.updateCurrentPath(thenBranchTaken)
-    maybeAnalysisResult.get
+    maybeAnalysisResult
   }
 
   /**

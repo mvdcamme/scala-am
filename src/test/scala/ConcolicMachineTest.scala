@@ -5,19 +5,7 @@ import backend.{PathConstraint, Reporter}
 import backend.expression.ConcolicInput
 import backend.solvers.{ConcolicSolver, ConcolicSolverResult, NewInput, SymbolicTreeFullyExplored}
 
-class ConcolicMachineTest extends FunSuite with BeforeAndAfterEach {
-
-  implicit val sabsCCLattice = ConcreteConcreteLattice.isSchemeLattice
-
-  val pointsToLattice = new PointsToLattice(false)
-  implicit val pointsToConvLattice: IsConvertableLattice[pointsToLattice.L] = pointsToLattice.isSchemeLattice
-  implicit val pointsToLatInfoProv = pointsToLattice.latticeInfoProvider
-  implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
-
-
-  private val PP1Program = "../scala-am misc/students_code/PP1-15-16-Fase1-1.rkt"
-  private val connect4Folder = "./testing resources/4-op-een-rij/"
-  private val connect4Program = connect4Folder + "4-op-een-rij.rkt"
+class ConcolicMachineTest extends FunSuite with BeforeAndAfterEach with UsesTestingResources with UsesPointsToLattice {
 
   private def pathConstraintsToString(allPathConstraints: List[PathConstraint]): String = {
     allPathConstraints.map(_.map(tuple => if (tuple._2) "t" else "e").mkString).mkString("\n")
@@ -69,15 +57,6 @@ class ConcolicMachineTest extends FunSuite with BeforeAndAfterEach {
         case None => SymbolicTreeFullyExplored
       }
     }
-  }
-
-  private def makeConcolicMachineAndSemantics(flags: ConcolicRunTimeFlags): (ConcolicMachine[pointsToLattice.L], ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]) = {
-    val reporter = new ScalaAMReporter(flags, new MockupSolver)
-    val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](reporter))
-    val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](sem)(pointsToConvLattice, pointsToLatInfoProv, AnalysisFlags())
-    val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, AnalysisFlags(), reporter, flags)
-    sem.rTAnalysisStarter = machine
-    (machine, sem)
   }
 
   private def runProgram(program: String, flags: ConcolicRunTimeFlags): (List[List[(ConcolicInput, Int)]], List[PathConstraint]) = {

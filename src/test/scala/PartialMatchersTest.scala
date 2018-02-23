@@ -1,21 +1,8 @@
-import org.scalatest.FunSuite
-import Util.runOnFile
-import backend.PathConstraint
-import backend.expression.ConcolicInput
+import org.scalatest.{FunSuite, PrivateMethodTester}
 import ConcreteConcreteLattice.{L => ConcreteValue}
 import backend.path_filtering.PartialRegexMatcher
 
-class PartialMatchersTest extends FunSuite {
-
-  implicit val sabsCCLattice = ConcreteConcreteLattice.isSchemeLattice
-
-  val pointsToLattice = new PointsToLattice(false)
-  implicit val pointsToConvLattice: IsConvertableLattice[pointsToLattice.L] = pointsToLattice.isSchemeLattice
-  implicit val pointsToLatInfoProv = pointsToLattice.latticeInfoProvider
-  implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
-
-  private val connect4Folder = "./testing resources/4-op-een-rij/"
-  private val connect4Program = connect4Folder + "4-op-een-rij.rkt"
+class PartialMatchersTest extends FunSuite with PrivateMethodTester with UsesTestingResources with UsesPointsToLattice {
 
   private def generateRandomPaths(nrOfPaths: Int, maxPathSize: Int): List[String] = {
     1.to(nrOfPaths).map(_ => {
@@ -30,37 +17,60 @@ class PartialMatchersTest extends FunSuite {
     randomPaths
   }
 
-  private def makeConcolicMachineAndSemantics(flags: ConcolicRunTimeFlags): (ConcolicMachine[pointsToLattice.L], ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]) = {
-    val reporter = new ScalaAMReporter(flags, new BackendSolver)
-    val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](reporter))
-    val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](sem)(pointsToConvLattice, pointsToLatInfoProv, AnalysisFlags())
-    val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, AnalysisFlags(), reporter, flags)
-    sem.rTAnalysisStarter = machine
-    (machine, sem)
-  }
-
-  private def performInitialAnalysis(program: String, flags: ConcolicRunTimeFlags): PartialRegexMatcher = {
-    val (machine, sem) = makeConcolicMachineAndSemantics(flags)
+  private def performInitialAnalysis(program: String): PartialRegexMatcher = {
+    val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
     val launchAnalyses = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
     val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
     val analysisResult = launchAnalyses.startInitialAnalysis(initialState, connect4Program)
     analysisResult.partialMatcher
   }
 
-  test("Empirically tests whether identical partial matchers are generated from the initial static analysis of Connect-4") {
-    val randomPaths = generateRandomPaths(1000, 1000)
-    val flags = ConcolicRunTimeFlags(100, true, true)
+  private def checkPartialMatchersEqual(pm1: PartialRegexMatcher, pm2: PartialRegexMatcher): Unit = {
+    val randomPaths = generateRandomPaths(2000, 2000)
+    randomPaths.foreach(path => {
+      val (result1, _) = pm1.incrementalMatch(path)
+      val (result2, _) = pm2.incrementalMatch(path)
+      assert(result1 == result2)
+    })
+  }
+
+  test("Sanity check: randomly generate strings, feed them twice to the same matcher and check if results are the same") {
+    Util.runOnFile(connect4Program, (program) => {
+      val pm = performInitialAnalysis(program)
+      checkPartialMatchersEqual(pm, pm)
+    })
+  }
+
+  test("Tests whether the same analysis output also results in identical partial matchers") {
     Util.runOnFile(connect4Program, program => {
-      var pm1 = performInitialAnalysis(program, flags)
-      var pm2 = performInitialAnalysis(program, flags)
-      randomPaths.foreach(path => {
-        println(path)
-        val (bool1, updatedPm1) = pm1.incrementalMatch(path)
-        val (bool2, updatedPm2) = pm2.incrementalMatch(path)
-        pm1 = updatedPm1
-        pm2 = updatedPm2
-        assert(bool1 == bool2)
-      })
+      val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
+      val launchAnalyses = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
+      val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
+      val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
+      val handleInitialAnalysisResultMethod = PrivateMethod[AnalysisResult]('handleInitialAnalysisResult)
+      val result1 = launchAnalyses.invokePrivate(handleInitialAnalysisResultMethod(analysisResult))
+      val result2 = launchAnalyses.invokePrivate(handleInitialAnalysisResultMethod(analysisResult))
+      checkPartialMatchersEqual(result1.partialMatcher, result2.partialMatcher)
+    })
+  }
+
+  test("More low-level test to verify that the same analysis output also results in identical partial matchers") {
+    Util.runOnFile(connect4Program, program => {
+      val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
+      val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
+      val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
+      val errorPathDetector = new ErrorPathDetector[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T, machine.analysisLauncher.aam.State](machine.analysisLauncher.aam)
+      val result1 = errorPathDetector.detectErrors(analysisResult.graph, analysisResult.stepSwitched, -1)
+      val result2 = errorPathDetector.detectErrors(analysisResult.graph, analysisResult.stepSwitched, -1)
+      checkPartialMatchersEqual(result1.get, result2.get)
+    })
+  }
+
+  test("Empirically tests whether identical partial matchers are generated from the initial static analysis of Connect-4") {
+    Util.runOnFile(connect4Program, program => {
+      val pm1 = performInitialAnalysis(program)
+      val pm2 = performInitialAnalysis(program)
+      checkPartialMatchersEqual(pm1, pm2)
     })
   }
 
@@ -71,9 +81,8 @@ class PartialMatchersTest extends FunSuite {
     assert(maybePreviousResults.isDefined)
     val previousPaths = maybePreviousPaths.get.split("\n").toList
     val previousResults = maybePreviousResults.get.split("").toList
-    val flags = ConcolicRunTimeFlags(100, true, true)
     Util.runOnFile(connect4Program, program => {
-      val pm = performInitialAnalysis(program, flags)
+      val pm = performInitialAnalysis(program)
       previousPaths.zip(previousResults).foreach(tuple => {
         val (previousPath, previousResultString) = tuple
         val previousResult = if (previousResultString == "T") true else false

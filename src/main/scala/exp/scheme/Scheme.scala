@@ -764,7 +764,7 @@ object SchemeRenamer {
   *     (f foo))
   * Which is semantically equivalent with respect to the end result
   */
-object SchemeDesugarer {
+class SchemeDesugarer {
 
   var id = 0
 
@@ -980,7 +980,7 @@ trait Scheme {
   /**
     * Replace defines in a program (a list of expressions) by a big letrec as a single expression
     */
-  def desugar(exps: List[SchemeExp]): SchemeExp = SchemeDesugarer.desugar(exps)
+  def desugar(exps: List[SchemeExp]): SchemeExp = new SchemeDesugarer().desugar(exps)
 
   /**
     * Parse a string representing a Scheme program

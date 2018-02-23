@@ -263,7 +263,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     private def converstateWithExactSymVariables[AbstL: IsConvertableLattice](
       concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
       abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
-      initialKontAddress: KontAddr, pathConstraint: PathConstraint): Conversion[AbstL] = {
+      pathConstraint: PathConstraint): Conversion[AbstL] = {
 
       val convertValueFun = convertValue[AbstL](abstSem.primitives) _
 
@@ -287,8 +287,8 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     def convertState[AbstL: IsConvertableLattice](
         concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
         abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
-        initialKontAddress: KontAddr, pathConstraint: PathConstraint): Conversion[AbstL] = {
-      converstateWithExactSymVariables(concSem, abstSem, initialKontAddress, pathConstraint)
+        pathConstraint: PathConstraint): Conversion[AbstL] = {
+      converstateWithExactSymVariables(concSem, abstSem, pathConstraint)
     }
   }
 
