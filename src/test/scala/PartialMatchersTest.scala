@@ -1,20 +1,42 @@
-import org.scalatest.{FunSuite, PrivateMethodTester}
+import org.scalatest.{BeforeAndAfterEach, FunSuite, PrivateMethodTester}
+import scala.util.Random
+
 import ConcreteConcreteLattice.{L => ConcreteValue}
 import backend.path_filtering.PartialRegexMatcher
 
-class PartialMatchersTest extends FunSuite with PrivateMethodTester with UsesTestingResources with UsesPointsToLattice {
+class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeAndAfterEach with UsesTestingResources with UsesPointsToLattice {
 
-  private def generateRandomPaths(nrOfPaths: Int, maxPathSize: Int): List[String] = {
+//  private var random = resetRandom
+//
+//  override def beforeEach(): Unit = {
+//    super.beforeEach()
+//    println("Random reset")
+//    random = resetRandom
+//  }
+
+  private def resetRandom: scala.util.Random = {
+    new scala.util.Random(421)
+  }
+
+  private def generateRandomPaths(nrOfPaths: Int, maxPathSize: Int, random: Random): List[String] = {
     1.to(nrOfPaths).map(_ => {
-      val randomSize: Int = scala.util.Random.nextInt(maxPathSize) + 1
-      1.to(randomSize).map(_ => if (scala.util.Random.nextInt(2) == 0) "t" else "e").mkString
+      val randomSize: Int = random.nextInt(maxPathSize) + 1
+      1.to(maxPathSize).map(_ => if (random.nextInt(2) == 0) "t" else "e").mkString
     }).toList
   }
 
-  private def writeRandomPaths(path: String, nrOfPaths: Int, maxPathSize: Int): List[String] = {
-    val randomPaths = generateRandomPaths(nrOfPaths, maxPathSize)
-    Util.withFileWriter(path)(writer => writer.write(randomPaths.mkString("\n")))
-    randomPaths
+  private def regenerateRandomPaths(): Unit = {
+    val randomPaths = generateRandomPaths(2000, 2000, resetRandom)
+    Util.withFileWriter(connect4Folder + "random_paths")(writer => writer.write(randomPaths.mkString("\n")))
+    Util.withFileWriter(connect4Folder + "random_paths_matched")(writer => {
+      Util.runOnFile(connect4Program, program => {
+        val pm = performInitialAnalysis(program)
+        randomPaths.foreach(path => {
+          val (result, _) = pm.incrementalMatch(path)
+          if (result) writer.append('T') else writer.append('F')
+        })
+      })
+    })
   }
 
   private def performInitialAnalysis(program: String): PartialRegexMatcher = {
@@ -26,7 +48,7 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with UsesTes
   }
 
   private def checkPartialMatchersEqual(pm1: PartialRegexMatcher, pm2: PartialRegexMatcher): Unit = {
-    val randomPaths = generateRandomPaths(2000, 2000)
+    val randomPaths = generateRandomPaths(2000, 2000, resetRandom)
     randomPaths.foreach(path => {
       val (result1, _) = pm1.incrementalMatch(path)
       val (result2, _) = pm2.incrementalMatch(path)
@@ -41,7 +63,7 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with UsesTes
     })
   }
 
-  test("Tests whether the same analysis output also results in identical partial matchers") {
+  test("1") { // ("Tests whether the same analysis output also results in identical partial matchers") {
     Util.runOnFile(connect4Program, program => {
       val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
       val launchAnalyses = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
@@ -54,7 +76,20 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with UsesTes
     })
   }
 
-  test("More low-level test to verify that the same analysis output also results in identical partial matchers") {
+  test("2") {
+    Util.runOnFile(connect4Program, program => {
+      val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
+      val launchAnalyses = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
+      val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
+      val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
+      val handleAnalysisResultMethod = PrivateMethod[AnalysisResult]('handleAnalysisResult)
+      val result1 = launchAnalyses.invokePrivate(handleAnalysisResultMethod(analysisResult, -1))
+      val result2 = launchAnalyses.invokePrivate(handleAnalysisResultMethod(analysisResult, -1))
+      checkPartialMatchersEqual(result1.partialMatcher, result2.partialMatcher)
+    })
+  }
+
+  test("3") { // ("More low-level test to verify that the same analysis output also results in identical partial matchers") {
     Util.runOnFile(connect4Program, program => {
       val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
       val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
@@ -86,12 +121,9 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with UsesTes
       previousPaths.zip(previousResults).foreach(tuple => {
         val (previousPath, previousResultString) = tuple
         val previousResult = if (previousResultString == "T") true else false
-        println(s"Previous path was: $previousPath")
-        println(s"With result $previousResult")
         val (currentResult, _) = pm.incrementalMatch(previousPath)
         assert(currentResult == previousResult)
       })
     })
   }
-
 }
