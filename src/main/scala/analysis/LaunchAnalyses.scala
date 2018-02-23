@@ -12,7 +12,7 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
   private val errorPathDetector = new ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.aam.State](analysisLauncher.aam)
 
   private def handleAnalysisResult(outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], currentConcolicRun: Int): Option[AnalysisResult] = {
-    GraphDOTOutput.toFile(outputGraph.graph, outputGraph.halted)(s"rt_graph_${currentConcolicRun}_${outputGraph.stepSwitched}.dot")
+    GraphDOTOutput.toFile(outputGraph.graph, outputGraph.halted)("rt_graph.dot")
     val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.graph, outputGraph.stepSwitched, currentConcolicRun)
     val result = AnalysisResult(maybePartialMatcher.get, outputGraph.errorStates.nonEmpty, outputGraph.errorStates.exists(_.isUserErrorState))
     Some(result)
