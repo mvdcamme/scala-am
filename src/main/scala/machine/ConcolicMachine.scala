@@ -292,6 +292,10 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     }
   }
 
+  def inject(exp: SchemeExp, env: Environment[HybridAddress.A], sto: Store[HybridAddress.A, ConcreteValue]): State = {
+    State(ConcolicControlEval(exp, env, concolic.initialSymEnv), sto, TimestampedKontStore[KontAddr](Map(), 0), HaltKontAddress, Timestamp[HybridTimestamp.T].initial(""))
+  }
+
   def eval(exp: SchemeExp, sem: Semantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
            graph: Boolean, timeout:Timeout): Output = ???
 
@@ -420,10 +424,6 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
         }
       }
 
-    }
-
-    def inject(exp: SchemeExp, env: Environment[HybridAddress.A], sto: Store[HybridAddress.A, ConcreteValue]): State = {
-      State(ConcolicControlEval(exp, env, concolic.initialSymEnv), sto, TimestampedKontStore[KontAddr](Map(), 0), HaltKontAddress, Timestamp[HybridTimestamp.T].initial(""))
     }
 
     @scala.annotation.tailrec
