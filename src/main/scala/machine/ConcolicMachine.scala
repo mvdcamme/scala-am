@@ -296,134 +296,124 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     State(ConcolicControlEval(exp, env, concolic.initialSymEnv), sto, TimestampedKontStore[KontAddr](Map(), 0), HaltKontAddress, Timestamp[HybridTimestamp.T].initial(""))
   }
 
+  case class StepSucceeded(state: State, filters: FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A],
+                           actionTs: List[ActionReplay[SchemeExp, ConcreteValue, HybridAddress.A]])
+
+  private def handleFunctionCalled(edgeInfo: EdgeInformation[SchemeExp, ConcreteValue, HybridAddress.A]): Unit = {
+    if (edgeInfo.actions.exists(_.marksFunctionCall)) {
+      FunctionsCalledMetric.incConcreteFunctionsCalled()
+    }
+  }
+
   def eval(exp: SchemeExp, sem: Semantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
            graph: Boolean, timeout:Timeout): Output = ???
+
+  def step(state: State, sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]): Either[ConcolicMachineOutput, StepSucceeded] = state.control match {
+    case ConcolicControlEval(e, env, symEnv) =>
+      val edgeInfo = sem.stepConcolicEval(e, env, symEnv, state.store, state.t, semanticsConcolicHelper)
+      handleFunctionCalled(edgeInfo)
+      edgeInfo match {
+        case EdgeInformation(ActionConcolicReachedValue(ActionReachedValue(v, store2, _), optionConcolicValue), actions, semanticsFilters) =>
+          val machineFilters = Set[MachineFilterAnnotation]()
+          Right(StepSucceeded(State(ConcolicControlKont(v, optionConcolicValue), store2, state.kstore, state.a, Timestamp[HybridTimestamp.T].tick(state.t)),
+            FilterAnnotations(machineFilters, semanticsFilters),
+            actions))
+        case EdgeInformation(ActionConcolicPush(ActionPush(frame, e, env, store2, _), _, symEnv), actions, semanticsFilters) =>
+          val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, state.t)
+          val kont = Kont(frame, state.a)
+          val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
+          Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, state.kstore.extend(next, kont), next, Timestamp[HybridTimestamp.T].tick(state.t)),
+            FilterAnnotations(machineFilters, semanticsFilters),
+            actions))
+        case EdgeInformation(ActionConcolicEval(ActionEval(e, env, store2, _), symEnv), actions, semanticsFilters) =>
+          val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
+          Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, state.kstore, state.a, Timestamp[HybridTimestamp.T].tick(state.t)),
+            FilterAnnotations(machineFilters, semanticsFilters),
+            actions))
+        case EdgeInformation(ActionConcolicStepIn(ActionStepIn(fexp, _, e, env, store2, _, _), symEnv), actions, semanticsFilters) =>
+          val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
+          Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, state.kstore, state.a, Timestamp[HybridTimestamp.T].tick(state.t, fexp)),
+            FilterAnnotations(machineFilters, semanticsFilters),
+            actions))
+        case EdgeInformation(ActionConcolicError(ActionError(err)), actions, semanticsFilters) =>
+          Left(ConcolicMachineErrorEncountered(err))
+      }
+
+    case ConcolicControlKont(v, symbolicValue) =>
+      /* pop a continuation */
+      if (state.a == HaltKontAddress) {
+        Left(ConcolicMachineOutputUnnecessary)
+      } else {
+        val frames = state.kstore.lookup(state.a)
+        if (frames.size == 1) {
+          val frame = frames.head.frame.asInstanceOf[SchemeConcolicFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
+          val originFrameCast = frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
+          val oldA = state.a
+          val a = frames.head.next
+          val edgeInfo = sem.stepConcolicKont(v, symbolicValue, frame, state.store, state.t, semanticsConcolicHelper)
+          handleFunctionCalled(edgeInfo)
+          edgeInfo match {
+            case EdgeInformation(ActionConcolicReachedValue(ActionReachedValue(v, store2, _), optionConcolicValue), actions, semanticsFilters) =>
+              val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
+                FrameFollowed[ConcreteValue](originFrameCast))
+              Right(StepSucceeded(State(ConcolicControlKont(v, optionConcolicValue), store2, state.kstore, a, Timestamp[HybridTimestamp.T].tick(state.t)),
+                FilterAnnotations(machineFilters, semanticsFilters),
+                actions))
+            case EdgeInformation(ActionConcolicPush(ActionPush(frame, e, env, store2, _), _, symEnv), actions, semanticsFilters) =>
+              val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, state.t)
+              val machineFilters = Set[MachineFilterAnnotation](
+                KontAddrPopped(oldA, a),
+                EvaluatingExpression(e),
+                FrameFollowed(originFrameCast))
+              Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, state.kstore.extend(next, Kont(frame, a)), next, Timestamp[HybridTimestamp.T].tick(state.t)),
+                FilterAnnotations(machineFilters, semanticsFilters),
+                actions))
+            case EdgeInformation(ActionConcolicEval(ActionEval(e, env, store2, _), symEnv), actions, semanticsFilters) =>
+              val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
+                EvaluatingExpression(e),
+                FrameFollowed[ConcreteValue](originFrameCast))
+              Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, state.kstore, a, Timestamp[HybridTimestamp.T].tick(state.t)),
+                FilterAnnotations(machineFilters, semanticsFilters),
+                actions))
+            case EdgeInformation(ActionConcolicStepIn(ActionStepIn(fexp, _, e, env, store2, _, _), symEnv), actions, semanticsFilters) =>
+              val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
+                EvaluatingExpression(e),
+                FrameFollowed[ConcreteValue](originFrameCast))
+              Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, state.kstore, a, Timestamp[HybridTimestamp.T].tick(state.t, fexp)),
+                FilterAnnotations(machineFilters, semanticsFilters),
+                actions))
+            case EdgeInformation(ActionConcolicError(ActionError(err)), actions, semanticsFilters) =>
+              Left(ConcolicMachineErrorEncountered(err))
+          }
+        } else {
+          Left(ConcolicMachineOutputUnnecessary)
+        }
+      }
+
+    case ConcolicControlError(err) =>
+      Left(ConcolicMachineErrorEncountered(err))
+  }
 
   /**
     * Performs the evaluation of an expression, possibly writing the output graph
     * in a file, and returns the set of final states reached
     */
   def concolicEval(programName: String, exp: SchemeExp, sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T],
-           graph: Boolean, timeout: Timeout): ConcolicMachineOutput = {
+                   graph: Boolean, timeout: Timeout): ConcolicMachineOutput = {
     def loop(state: State, start: Long, count: Int): ConcolicMachineOutput = {
-
       currentState = Some(state)
-
       Logger.log(s"stepCount: $stepCount", Logger.V)
       stepCount += 1
 
       if (timeout.reached) {
         ConcolicMachineOutputTimeout((System.nanoTime - start) / Math.pow(10, 9), count)
       } else {
-        val control = state.control
-        val store = state.store
-        val kstore = state.kstore
-        val a = state.a
-        val t = state.t
-
-        def handleFunctionCalled(edgeInfo: EdgeInformation[SchemeExp, ConcreteValue, HybridAddress.A]): Unit = {
-          if (edgeInfo.actions.exists(_.marksFunctionCall)) {
-            FunctionsCalledMetric.incConcreteFunctionsCalled()
-          }
-        }
-
-        case class StepSucceeded(state: State,
-                                 filters: FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A],
-                                 actionTs: List[ActionReplay[SchemeExp, ConcreteValue, HybridAddress.A]])
-
-        def step(control: ConcolicControl): Either[ConcolicMachineOutput, StepSucceeded] = control match {
-          case ConcolicControlEval(e, env, symEnv) =>
-            val edgeInfo = sem.stepConcolicEval(e, env, symEnv, store, t, semanticsConcolicHelper)
-            handleFunctionCalled(edgeInfo)
-            edgeInfo match {
-              case EdgeInformation(ActionConcolicReachedValue(ActionReachedValue(v, store2, _), optionConcolicValue), actions, semanticsFilters) =>
-                val machineFilters = Set[MachineFilterAnnotation]()
-                Right(StepSucceeded(State(ConcolicControlKont(v, optionConcolicValue), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
-                  FilterAnnotations(machineFilters, semanticsFilters),
-                  actions))
-                case EdgeInformation(ActionConcolicPush(ActionPush(frame, e, env, store2, _), _, symEnv), actions, semanticsFilters) =>
-                  val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
-                  val kont = Kont(frame, a)
-                  val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
-                  Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, kstore.extend(next, kont), next, Timestamp[HybridTimestamp.T].tick(t)),
-                                      FilterAnnotations(machineFilters, semanticsFilters),
-                                      actions))
-                case EdgeInformation(ActionConcolicEval(ActionEval(e, env, store2, _), symEnv), actions, semanticsFilters) =>
-                  val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
-                  Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
-                                      FilterAnnotations(machineFilters, semanticsFilters),
-                                      actions))
-                case EdgeInformation(ActionConcolicStepIn(ActionStepIn(fexp, _, e, env, store2, _, _), symEnv), actions, semanticsFilters) =>
-                  val machineFilters = Set[MachineFilterAnnotation](EvaluatingExpression(e))
-                  Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t, fexp)),
-                                      FilterAnnotations(machineFilters, semanticsFilters),
-                                      actions))
-                case EdgeInformation(ActionConcolicError(ActionError(err)), actions, semanticsFilters) =>
-                  Left(ConcolicMachineErrorEncountered(err))
-              }
-
-          case ConcolicControlKont(v, symbolicValue) =>
-            /* pop a continuation */
-            if (a == HaltKontAddress) {
-              Left(ConcolicMachineOutputUnnecessary)
-            } else {
-              val frames = kstore.lookup(a)
-              if (frames.size == 1) {
-                val frame = frames.head.frame.asInstanceOf[SchemeConcolicFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
-                val originFrameCast = frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
-                val oldA = state.a
-                val a = frames.head.next
-                val edgeInfo = sem.stepConcolicKont(v, symbolicValue, frame, store, t, semanticsConcolicHelper)
-                handleFunctionCalled(edgeInfo)
-                edgeInfo match {
-                  case EdgeInformation(ActionConcolicReachedValue(ActionReachedValue(v, store2, _), optionConcolicValue), actions, semanticsFilters) =>
-                    val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
-                      FrameFollowed[ConcreteValue](originFrameCast))
-                    Right(StepSucceeded(State(ConcolicControlKont(v, optionConcolicValue), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
-                      FilterAnnotations(machineFilters, semanticsFilters),
-                      actions))
-                  case EdgeInformation(ActionConcolicPush(ActionPush(frame, e, env, store2, _), _, symEnv), actions, semanticsFilters) =>
-                    val next = NormalKontAddress[SchemeExp, HybridTimestamp.T](e, t)
-                    val machineFilters = Set[MachineFilterAnnotation](//KontAddrPushed(next),
-                      KontAddrPopped(oldA, a),
-                      EvaluatingExpression(e),
-                      FrameFollowed(originFrameCast))
-                    Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, kstore.extend(next, Kont(frame, a)), next, Timestamp[HybridTimestamp.T].tick(t)),
-                      FilterAnnotations(machineFilters, semanticsFilters),
-                      actions))
-                  case EdgeInformation(ActionConcolicEval(ActionEval(e, env, store2, _), symEnv), actions, semanticsFilters) =>
-                    val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
-                      EvaluatingExpression(e),
-                      FrameFollowed[ConcreteValue](originFrameCast))
-                    Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t)),
-                      FilterAnnotations(machineFilters, semanticsFilters),
-                      actions))
-                  case EdgeInformation(ActionConcolicStepIn(ActionStepIn(fexp, _, e, env, store2, _, _), symEnv), actions, semanticsFilters) =>
-//                    GlobalSymbolicEnvironment.pushEnvironment()
-                    val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
-                      EvaluatingExpression(e),
-                      FrameFollowed[ConcreteValue](originFrameCast))
-                    Right(StepSucceeded(State(ConcolicControlEval(e, env, symEnv), store2, kstore, a, Timestamp[HybridTimestamp.T].tick(t, fexp)),
-                      FilterAnnotations(machineFilters, semanticsFilters),
-                      actions))
-                  case EdgeInformation(ActionConcolicError(ActionError(err)), actions, semanticsFilters) =>
-                    Left(ConcolicMachineErrorEncountered(err))
-                }
-              } else {
-                Left(ConcolicMachineOutputUnnecessary)
-              }
-            }
-
-          case ConcolicControlError(err) =>
-            Left(ConcolicMachineErrorEncountered(err))
-        }
-        val stepped = step(control)
+        val stepped = step(state, sem)
         stepped match {
           case Left(output) => output
           case Right(StepSucceeded(succState, filters, actions)) => loop(succState, start, count + 1)
         }
       }
-
     }
 
     @scala.annotation.tailrec

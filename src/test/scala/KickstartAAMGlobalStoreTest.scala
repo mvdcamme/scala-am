@@ -1,11 +1,33 @@
 import org.scalatest.{BeforeAndAfterEach, FunSuite, PrivateMethodTester}
 
-class KickstartAAMGlobalStoreTest extends FunSuite with PrivateMethodTester with BeforeAndAfterEach
-                                  with UsesTestingResources with UsesPointsToLattice {
+class KickstartAAMGlobalStoreTest extends FunSuite with PrivateMethodTester with BeforeAndAfterEach with TestCommon {
 
   override def beforeEach(): Unit = {
     super.beforeEach()
     HybridTimestamp.switchToAbstract()
+  }
+
+  test("Sanity check: test whether the graphs produced by analysing the Connect-4 program are equal") {
+    Util.runOnFile(connect4Program, program => {
+      val sem = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives)
+      val machine = new KickstartAAMGlobalStore[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T]
+      val parsedProgram = sem.parse(program)
+      val output1 = machine.eval(parsedProgram, sem, true, Timeout.none).asInstanceOf[machine.AAMOutput]
+      val output2 = machine.eval(parsedProgram, sem, true, Timeout.none).asInstanceOf[machine.AAMOutput]
+      assert(output1.graph.nodes == output2.graph.nodes)
+      assert(output1.graph.edges == output2.graph.edges)
+    })
+  }
+
+  test("Sanity check: test whether the graphs produced by two initial static analyses of the same program have the same nodes") {
+    Util.runOnFile(connect4Program, program => {
+      val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
+      val parsedProgram = sem.parse(program)
+      val output1 = machine.analysisLauncher.runInitialStaticAnalysis(machine.inject(parsedProgram, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial(sem.initialStore)), connect4Program)
+      val output2 = machine.analysisLauncher.runInitialStaticAnalysis(machine.inject(parsedProgram, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial(sem.initialStore)), connect4Program)
+      assert(output1.graph.nodes == output2.graph.nodes)
+      assert(output1.graph.edges == output2.graph.edges)
+    })
   }
 
   test("Test whether the abstracted initial ConcolicMachine's state equals an abstract initial state") {
@@ -25,33 +47,6 @@ class KickstartAAMGlobalStoreTest extends FunSuite with PrivateMethodTester with
       val abstractedConcInitState = concMachine.analysisLauncher.convertStateAAM(abstMachine, concSem, abstSem, concInitState, Nil)
 
       assert(abstInitState == abstractedConcInitState)
-    })
-  }
-
-  test("") {
-    val maybeContent = Util.fileContent(connect4Program)
-    assert(maybeContent.isDefined)
-    val content = maybeContent.get
-
-    val sem = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives)
-    val machine = new KickstartAAMGlobalStore[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T]
-    println("before")
-    val parsedProgram = sem.parse(content)
-    val output1 = machine.eval(parsedProgram, sem, true, Timeout.none).asInstanceOf[machine.AAMOutput]
-    println("mid")
-    val output2 = machine.eval(parsedProgram, sem, true, Timeout.none).asInstanceOf[machine.AAMOutput]
-    println("after")
-
-    assert(output1.graph.nodes == output2.graph.nodes)
-  }
-
-  test("Sanity check: test whether the graphs produced by two initial static analyses of the same program have the same nodes") {
-    Util.runOnFile(connect4Program, program => {
-      val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
-      val parsedProgram = sem.parse(program)
-      val output1 = machine.analysisLauncher.runInitialStaticAnalysis(machine.inject(parsedProgram, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial(sem.initialStore)), connect4Program)
-      val output2 = machine.analysisLauncher.runInitialStaticAnalysis(machine.inject(parsedProgram, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial(sem.initialStore)), connect4Program)
-      assert(output1.graph.nodes == output2.graph.nodes)
     })
   }
 

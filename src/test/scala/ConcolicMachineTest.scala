@@ -5,7 +5,7 @@ import backend.{PathConstraint, Reporter}
 import backend.expression.ConcolicInput
 import backend.solvers.{ConcolicSolver, ConcolicSolverResult, NewInput, SymbolicTreeFullyExplored}
 
-class ConcolicMachineTest extends FunSuite with BeforeAndAfterEach with UsesTestingResources with UsesPointsToLattice {
+class ConcolicMachineTest extends FunSuite with BeforeAndAfterEach with TestCommon {
 
   private def pathConstraintsToString(allPathConstraints: List[PathConstraint]): String = {
     allPathConstraints.map(_.map(tuple => if (tuple._2) "t" else "e").mkString).mkString("\n")

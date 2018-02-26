@@ -4,33 +4,21 @@ import scala.util.Random
 import ConcreteConcreteLattice.{L => ConcreteValue}
 import backend.path_filtering.PartialRegexMatcher
 
-class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeAndAfterEach with UsesTestingResources with UsesPointsToLattice {
+class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeAndAfterEach with TestCommon with TestsPartialMatchers {
 
   val (machine: ConcolicMachine[pointsToLattice.L], sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
 
   val (launchAnalyses: LaunchAnalyses[pointsToLattice.L],
-       initialState: machine.State,
-       analysisResult: AnalysisOutputGraph[SchemeExp, pointsToLattice.L, HybridAddress.A, machine.analysisLauncher.aam.State]) = Util.runOnFile(connect4Program, (program) => {
+  initialState: machine.State,
+  analysisResult: AnalysisOutputGraph[SchemeExp, pointsToLattice.L, HybridAddress.A, machine.analysisLauncher.aam.State]) = Util.runOnFile(connect4Program, (program) => {
     val launchAnalyses = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
     val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
     val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
     (launchAnalyses, initialState, analysisResult)
   })
 
-
-  private def resetRandom: scala.util.Random = {
-    new scala.util.Random(System.nanoTime())
-  }
-
-  private def generateRandomPaths(nrOfPaths: Int, maxPathSize: Int, random: Random): List[String] = {
-    1.to(nrOfPaths).map(_ => {
-      val randomSize: Int = random.nextInt(maxPathSize) + 1
-      1.to(maxPathSize).map(_ => if (random.nextInt(2) == 0) "t" else "e").mkString
-    }).toList
-  }
-
   private def regenerateRandomPaths(): Unit = {
-    val randomPaths = generateRandomPaths(2000, 2000, resetRandom)
+    val randomPaths = generateRandomPaths(2000, 2000)
     Util.withFileWriter(connect4Folder + "random_paths")(writer => writer.write(randomPaths.mkString("\n")))
     Util.withFileWriter(connect4Folder + "random_paths_matched")(writer => {
       Util.runOnFile(connect4Program, program => {
@@ -49,21 +37,6 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
     val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
     val analysisResult = launchAnalyses.startInitialAnalysis(initialState, connect4Program)
     analysisResult.partialMatcher
-  }
-
-  private def checkPartialMatchersEqual(pm1: PartialRegexMatcher, pm2: PartialRegexMatcher): Unit = {
-    val randomPaths1 = generateRandomPaths(2000, 2000, resetRandom)
-    randomPaths1.foreach(path => {
-      val (result1, _) = pm1.incrementalMatch(path)
-      val (result2, _) = pm2.incrementalMatch(path)
-      assert(result1 == result2)
-    })
-    val randomPaths2 = generateRandomPaths(2000, 2000, new scala.util.Random(System.nanoTime()))
-    randomPaths2.foreach(path => {
-      val (result1, _) = pm1.incrementalMatch(path)
-      val (result2, _) = pm2.incrementalMatch(path)
-      assert(result1 == result2)
-    })
   }
 
   test("Sanity check: randomly generate strings, feed them twice to the same matcher and check if results are the same") {
@@ -123,6 +96,40 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
         val (currentResult, _) = pm.incrementalMatch(previousPath)
         assert(currentResult == previousResult)
       })
+    })
+  }
+
+  private def loopUntilIfConditionEvaluated(state: machine.State, stepCount: Int): (machine.State, Int, Boolean) = machine.step(state, sem) match {
+    case Left(_) =>
+      assert(false, "Should not happen")
+      ???
+    case Right(succeeded) if succeeded.filters.semanticsFilters.contains(ElseBranchFilter) =>
+      (succeeded.state, stepCount, false)
+    case Right(succeeded) if succeeded.filters.semanticsFilters.contains(ThenBranchFilter) =>
+      (succeeded.state, stepCount, true)
+    case Right(succeeded) =>
+      loopUntilIfConditionEvaluated(succeeded.state, stepCount + 1)
+  }
+
+  test("Do 100 concrete steps, start two RT analyses from the same concrete state and check if their graphs are equal") {
+    Util.runOnFile(connect4Program, program => {
+      val initialState = machine.inject(sem.parse(program), Environment.initial(sem.initialEnv), Store.initial(sem.initialStore))
+      val state100 = 1.to(100).foldLeft(initialState)((state, _) => {
+        machine.step(state, sem) match {
+          case Left(_) =>
+            assert(false, "Should not happen")
+            ???
+          case Right(succeeded) =>
+            succeeded.state
+        }
+      })
+      /* Now start stepping from state100 until a state is reached where an if-condition has been evaluated. */
+      val (concreteState, stepCount, thenBranchTaken) = loopUntilIfConditionEvaluated(state100, 100)
+      val launchAnalysis1 = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
+      val output1 = launchAnalysis1.startRunTimeAnalysis(concreteState, thenBranchTaken, stepCount, machine.reporter.pathStorage.getCurrentReport, 1)
+      val launchAnalysis2 = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
+      val output2 = launchAnalysis2.startRunTimeAnalysis(concreteState, thenBranchTaken, stepCount, machine.reporter.pathStorage.getCurrentReport, 1)
+      checkPartialMatchersEqual(output1.partialMatcher, output2.partialMatcher)
     })
   }
 }

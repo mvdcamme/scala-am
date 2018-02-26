@@ -1,6 +1,6 @@
 import org.scalatest.FunSuite
 
-class AAMGlobalStoreTest extends FunSuite with UsesPointsToLattice with UsesTestingResources {
+class AAMGlobalStoreTest extends FunSuite with TestCommon {
 
   test("Sanity check") {
     val sem = new SchemeSemantics[pointsToLattice.L, ClassicalAddress.A, ZeroCFA.T](new SchemePrimitives)
