@@ -7,7 +7,7 @@ trait UsesPointsToLattice {
   val pointsToLattice = new PointsToLattice(false)
   implicit val pointsToConvLattice: IsConvertableLattice[pointsToLattice.L] = pointsToLattice.isSchemeLattice
   implicit val pointsToLatInfoProv: LatticeInfoProvider[pointsToLattice.L] = pointsToLattice.latticeInfoProvider
-  implicit val CCLatInfoProv: LatticeInfoProvider[ConcreteValue] = ConcreteConcreteLattice.latticeInfoProvider  
+  implicit val CCLatInfoProv: LatticeInfoProvider[ConcreteValue] = ConcreteConcreteLattice.latticeInfoProvider
 
   def makeConcolicMachineAndSemantics(flags: ConcolicRunTimeFlags,
                                       abstSem: ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T] = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives)):

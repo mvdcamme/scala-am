@@ -6,16 +6,20 @@ import backend.path_filtering.PartialRegexMatcher
 
 class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeAndAfterEach with UsesTestingResources with UsesPointsToLattice {
 
-//  private var random = resetRandom
-//
-//  override def beforeEach(): Unit = {
-//    super.beforeEach()
-//    println("Random reset")
-//    random = resetRandom
-//  }
+  val (machine: ConcolicMachine[pointsToLattice.L], sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
+
+  val (launchAnalyses: LaunchAnalyses[pointsToLattice.L],
+       initialState: machine.State,
+       analysisResult: AnalysisOutputGraph[SchemeExp, pointsToLattice.L, HybridAddress.A, machine.analysisLauncher.aam.State]) = Util.runOnFile(connect4Program, (program) => {
+    val launchAnalyses = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
+    val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
+    val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
+    (launchAnalyses, initialState, analysisResult)
+  })
+
 
   private def resetRandom: scala.util.Random = {
-    new scala.util.Random(421)
+    new scala.util.Random(System.nanoTime())
   }
 
   private def generateRandomPaths(nrOfPaths: Int, maxPathSize: Int, random: Random): List[String] = {
@@ -48,8 +52,14 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
   }
 
   private def checkPartialMatchersEqual(pm1: PartialRegexMatcher, pm2: PartialRegexMatcher): Unit = {
-    val randomPaths = generateRandomPaths(2000, 2000, resetRandom)
-    randomPaths.foreach(path => {
+    val randomPaths1 = generateRandomPaths(2000, 2000, resetRandom)
+    randomPaths1.foreach(path => {
+      val (result1, _) = pm1.incrementalMatch(path)
+      val (result2, _) = pm2.incrementalMatch(path)
+      assert(result1 == result2)
+    })
+    val randomPaths2 = generateRandomPaths(2000, 2000, new scala.util.Random(System.nanoTime()))
+    randomPaths2.foreach(path => {
       val (result1, _) = pm1.incrementalMatch(path)
       val (result2, _) = pm2.incrementalMatch(path)
       assert(result1 == result2)
@@ -63,12 +73,8 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
     })
   }
 
-  test("1") { // ("Tests whether the same analysis output also results in identical partial matchers") {
+  test("1 Check same PM from same analysis result") { // ("Tests whether the same analysis output also results in identical partial matchers") {
     Util.runOnFile(connect4Program, program => {
-      val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
-      val launchAnalyses = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
-      val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
-      val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
       val handleInitialAnalysisResultMethod = PrivateMethod[AnalysisResult]('handleInitialAnalysisResult)
       val result1 = launchAnalyses.invokePrivate(handleInitialAnalysisResultMethod(analysisResult))
       val result2 = launchAnalyses.invokePrivate(handleInitialAnalysisResultMethod(analysisResult))
@@ -76,12 +82,8 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
     })
   }
 
-  test("2") {
+  test("2 Check same PM from same analysis result") {
     Util.runOnFile(connect4Program, program => {
-      val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
-      val launchAnalyses = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
-      val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
-      val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
       val handleAnalysisResultMethod = PrivateMethod[AnalysisResult]('handleAnalysisResult)
       val result1 = launchAnalyses.invokePrivate(handleAnalysisResultMethod(analysisResult, -1))
       val result2 = launchAnalyses.invokePrivate(handleAnalysisResultMethod(analysisResult, -1))
@@ -89,11 +91,8 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
     })
   }
 
-  test("3") { // ("More low-level test to verify that the same analysis output also results in identical partial matchers") {
+  test("3 Check same PM from same analysis result") { // ("More low-level test to verify that the same analysis output also results in identical partial matchers") {
     Util.runOnFile(connect4Program, program => {
-      val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
-      val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
-      val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
       val errorPathDetector = new ErrorPathDetector[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T, machine.analysisLauncher.aam.State](machine.analysisLauncher.aam)
       val result1 = errorPathDetector.detectErrors(analysisResult.graph, analysisResult.stepSwitched, -1)
       val result2 = errorPathDetector.detectErrors(analysisResult.graph, analysisResult.stepSwitched, -1)
