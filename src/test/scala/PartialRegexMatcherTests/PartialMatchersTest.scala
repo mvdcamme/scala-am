@@ -1,16 +1,14 @@
-import org.scalatest.{BeforeAndAfterEach, FunSuite, PrivateMethodTester}
-import scala.util.Random
-
-import ConcreteConcreteLattice.{L => ConcreteValue}
 import backend.path_filtering.PartialRegexMatcher
+import org.scalatest.{BeforeAndAfterEach, FunSuite, PrivateMethodTester}
+import ConcreteConcreteLattice.{L => ConcreteValue}
 
 class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeAndAfterEach with TestCommon with TestsPartialMatchers {
 
   val (machine: ConcolicMachine[pointsToLattice.L], sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
 
   val (launchAnalyses: LaunchAnalyses[pointsToLattice.L],
-  initialState: machine.State,
-  analysisResult: AnalysisOutputGraph[SchemeExp, pointsToLattice.L, HybridAddress.A, machine.analysisLauncher.aam.State]) = Util.runOnFile(connect4Program, (program) => {
+       initialState: machine.State,
+       analysisResult: AnalysisOutputGraph[SchemeExp, pointsToLattice.L, HybridAddress.A, machine.analysisLauncher.aam.State]) = Util.runOnFile(connect4Program, (program) => {
     val launchAnalyses = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
     val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
     val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
@@ -46,31 +44,28 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
     })
   }
 
-  test("1 Check same PM from same analysis result") { // ("Tests whether the same analysis output also results in identical partial matchers") {
-    Util.runOnFile(connect4Program, program => {
-      val handleInitialAnalysisResultMethod = PrivateMethod[AnalysisResult]('handleInitialAnalysisResult)
-      val result1 = launchAnalyses.invokePrivate(handleInitialAnalysisResultMethod(analysisResult))
-      val result2 = launchAnalyses.invokePrivate(handleInitialAnalysisResultMethod(analysisResult))
-      checkPartialMatchersEqual(result1.partialMatcher, result2.partialMatcher)
-    })
+  test("1 Check same PM from same analysis result") {
+    val handleInitialAnalysisResultMethod = PrivateMethod[AnalysisResult]('handleInitialAnalysisResult)
+    val result1 = launchAnalyses.invokePrivate(handleInitialAnalysisResultMethod(analysisResult))
+    val result2 = launchAnalyses.invokePrivate(handleInitialAnalysisResultMethod(analysisResult))
+    checkPartialMatchersEqual(result1.partialMatcher, result2.partialMatcher)
+    checkPartialMatcherGraphsEqual(result1.partialMatcher, result2.partialMatcher)
   }
 
   test("2 Check same PM from same analysis result") {
-    Util.runOnFile(connect4Program, program => {
-      val handleAnalysisResultMethod = PrivateMethod[AnalysisResult]('handleAnalysisResult)
-      val result1 = launchAnalyses.invokePrivate(handleAnalysisResultMethod(analysisResult, -1))
-      val result2 = launchAnalyses.invokePrivate(handleAnalysisResultMethod(analysisResult, -1))
-      checkPartialMatchersEqual(result1.partialMatcher, result2.partialMatcher)
-    })
+    val handleAnalysisResultMethod = PrivateMethod[AnalysisResult]('handleAnalysisResult)
+    val result1 = launchAnalyses.invokePrivate(handleAnalysisResultMethod(analysisResult, -1))
+    val result2 = launchAnalyses.invokePrivate(handleAnalysisResultMethod(analysisResult, -1))
+    checkPartialMatchersEqual(result1.partialMatcher, result2.partialMatcher)
+    checkPartialMatcherGraphsEqual(result1.partialMatcher, result2.partialMatcher)
   }
 
-  test("3 Check same PM from same analysis result") { // ("More low-level test to verify that the same analysis output also results in identical partial matchers") {
-    Util.runOnFile(connect4Program, program => {
-      val errorPathDetector = new ErrorPathDetector[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T, machine.analysisLauncher.aam.State](machine.analysisLauncher.aam)
-      val result1 = errorPathDetector.detectErrors(analysisResult.graph, analysisResult.stepSwitched, -1)
-      val result2 = errorPathDetector.detectErrors(analysisResult.graph, analysisResult.stepSwitched, -1)
-      checkPartialMatchersEqual(result1.get, result2.get)
-    })
+  test("3 Check same PM from same analysis result") {
+    val errorPathDetector = new ErrorPathDetector[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T, machine.analysisLauncher.aam.State](machine.analysisLauncher.aam)
+    val result1 = errorPathDetector.detectErrors(analysisResult.graph, analysisResult.stepSwitched, -1)
+    val result2 = errorPathDetector.detectErrors(analysisResult.graph, analysisResult.stepSwitched, -1)
+    checkPartialMatchersEqual(result1.get, result2.get)
+    checkPartialMatcherGraphsEqual(result1.get, result2.get)
   }
 
   test("Empirically tests whether identical partial matchers are generated from the initial static analysis of Connect-4") {
