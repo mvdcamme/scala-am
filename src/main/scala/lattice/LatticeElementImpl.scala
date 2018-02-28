@@ -309,8 +309,19 @@ class IntervalInteger(val maxRadius: Int) {
       def inject(x: Int): I = promote(singletonInt(x))
       def toReal[F : RealLattice](n: I): F = fold(n, n => RealLattice[F].inject(n))
       def random(n: I): I = Top
-      def plus(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(n1 + n2)))
-      def minus(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(n1 - n2)))
+      def plus(n1: I, n2: I): I = promote((n1, n2) match {
+        case (Top, _) => Top
+        case (_, Top) => Top
+        case (Interval(n1Lower, n1Upper), Interval(n2Lower, n2Upper)) => Interval(n1Lower + n2Lower, n1Upper + n2Upper)
+        case _ => Bottom
+      })
+      def minus(n1: I, n2: I): I = n2 match {
+        case Top => Top
+        case Bottom => Bottom
+        case Interval(n2Lower, n2Upper) =>
+          assert(-n2Upper <= -n2Lower, n2)
+          plus(n1, Interval(-n2Upper, -n2Lower))
+      }
       def times(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(n1 * n2)))
       def div[F : RealLattice](n1: I, n2: I): F = fold(n1, n1 => fold(n2, n2 => RealLattice[F].inject(n1 / n2.toDouble)))
       def quotient(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(n1 / n2)))
