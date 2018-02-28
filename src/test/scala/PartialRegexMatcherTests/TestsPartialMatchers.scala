@@ -21,7 +21,6 @@ trait TestsPartialMatchers extends PrivateMethodTester {
     randomPaths.foreach(path => {
       val (result1, _) = pm1.incrementalMatch(path)
       val (result2, _) = pm2.incrementalMatch(path)
-      println(path)
       assert(result1 == result2)
     })
   }
@@ -56,7 +55,6 @@ trait TestsPartialMatchers extends PrivateMethodTester {
      */
     @scala.annotation.tailrec
     def loop(todo1: List[State], todo2: List[State], visited1: Set[State], visited2: Set[State]): Unit = {
-      println("here")
       (todo1.headOption, todo2.headOption) match {
         case (None, None) => /* Done, no mismatches found */
         case (None, Some(_)) => assert(false)

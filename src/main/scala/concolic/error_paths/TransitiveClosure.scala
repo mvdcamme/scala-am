@@ -38,10 +38,11 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
       val initial = new dk.brics.automaton.State()
       automaton.setInitialState(initial)
 
-      val epsilons = new java.util.HashSet[StatePair]()
-      convert(Set((root, initial)), Set(), epsilons)
-
-      automaton.addEpsilons(epsilons)
+      import scala.collection.JavaConverters._
+      val epsilons = convert(Set((root, initial)), Map(root -> initial), Map(initial -> root), Set(), Set[StatePair]())
+      /* Converting an immutable scala collection to a Java collection will result in UnsupportedOperationExceptions being thrown when an operation is performed upon the Java collection. */
+      val mutableEpsilons = collection.mutable.Set(epsilons.toSeq:_*)
+      automaton.addEpsilons(mutableEpsilons.asJava)
 
       Automaton.setMinimization(1) // brzozowski
       automaton.minimize()
@@ -53,40 +54,46 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
     }
   }
 
-  /**
-    * Loops over the graph reachable from the nodes in the todo-set, converts the corresponding edges to Transitions
-    * and adds these to the States.
-    * Also returns the set of all StatePairs that denote epsilon-transitions, i.e., the set of all pairs where one
-    * state can epsilon-transition to the other state.
-    */
+  /*
+   * the toNode-parameter isn't actually used here: it only serves for debugging purposes, i.e., to make sure there is
+   * a 1-to-1 mapping between nodes in the graph and automaton states.
+   */
   @scala.annotation.tailrec
-  private def convert(todo: Set[(N, State)], visited: Set[(N, State)], epsilons: java.util.HashSet[StatePair]): java.util.HashSet[StatePair] = todo.headOption match {
-    // S = state
-    case Some((state, _)) if visited.exists(_._1 == state) =>
-      convert(todo.tail, visited, epsilons)
-    case Some((state, ast)) =>
-      var newStates = Set[(N, State)]()
-
-      // Set[(Annotation, State)] ,node == state
-      graph.nodeEdges(state).foreach({
-        case (annot, node) =>
-          // new state for node
-          val newState = visited.find(_._1 == node).map(_._2).getOrElse(new State())
-          if (isErrorState(node)) {
-            newState.setAccept(true)
-          }
-
-          annotToChar(annot) match {
-            case None =>
-              // ast = bricbk state
-              epsilons.add(new StatePair(ast, newState))
-            case Some(char) =>
-              ast.addTransition(new Transition(char, newState))
-          }
-          // node = our state
-          newStates = newStates + ((node, newState))
-      })
-      convert(todo.tail ++ newStates, visited + ((state, ast): (N, State)), epsilons)
-    case None => epsilons
+  private def convert(todo: Set[(N, State)], toState: Map[N, State], toNode: Map[State, N], visited: Set[N], epsilons: Set[StatePair]): Set[StatePair] = {
+    todo.headOption match {
+      case None => epsilons
+      case Some((node, state)) if visited.contains(node) =>
+        assert(toState.contains(node))
+        assert(toNode.contains(state))
+        convert(todo.tail, toState, toNode, visited, epsilons)
+      case Some((node, state)) =>
+        state.setAccept(isErrorState(node))
+        val (newStates, newEpsilons, newToState, newToNode) = graph.nodeEdges(node).foldLeft((Set[(N, State)](), epsilons, toState, toNode))((acc, edge) => edge match {
+          case (annot, destNode) =>
+            val (destState, updatedToState) = acc._3.get(destNode) match {
+              case None =>
+                val newState = new State
+                (newState, acc._3 + (destNode -> newState))
+              case Some(existingState) => (existingState, acc._3)
+            }
+            val updatedToNode = acc._4.get(destState) match {
+              case None => acc._4 + (destState -> destNode)
+              case Some(aNode) =>
+                assert(aNode == destNode)
+                acc._4
+            }
+            destState.setAccept(isErrorState(destNode))
+            val newStates = acc._1 + ((destNode, destState))
+            annotToChar(annot) match {
+              case None =>
+                val statePair = new StatePair(state, destState)
+                (newStates, acc._2 + statePair, updatedToState, updatedToNode)
+              case Some(char) =>
+                state.addTransition(new Transition(char, destState))
+                (newStates, acc._2, updatedToState, updatedToNode)
+            }
+        })
+        convert(todo.tail ++ newStates, newToState, newToNode, visited + node, newEpsilons)
+    }
   }
 }
