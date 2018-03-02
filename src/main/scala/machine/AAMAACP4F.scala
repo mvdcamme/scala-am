@@ -63,7 +63,7 @@ class AAMAACP4F[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Time
         case ActionEval(e, env, store2, _) =>
           (acc._1 + State(ControlEval(e, env), a, Timestamp[Time].tick(t)), acc._2.includeDelta(store2.delta), acc._3)
         case ActionStepIn(fexp, _, e, env, store2, _, _) =>
-          (acc._1 + State(ControlEval(e, env), a, Timestamp[Time].tick(t)), acc._2.includeDelta(store2.delta), acc._3)
+          (acc._1 + State(ControlEval(e, env), a, Timestamp[Time].tick(t, fexp)), acc._2.includeDelta(store2.delta), acc._3)
         case ActionError(err) =>
           (acc._1 + State(ControlError(err), a, Timestamp[Time].tick(t)), acc._2, acc._3)
       })
