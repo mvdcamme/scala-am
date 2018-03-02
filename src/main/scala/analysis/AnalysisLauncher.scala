@@ -11,7 +11,7 @@ trait AnalysisOutputGraph[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]
   def replaceGraph(graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AnalysisOutputGraph[Exp, Abs, Addr, State]
 }
 
-abstract class AnalysisLauncher[Abs: IsConvertableLattice](abstSem: ConvertableSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T]) {
+abstract class AnalysisLauncher[Abs: IsConvertableLattice](abstSem: ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T]) {
 
   /* The concrete program state the static analysis gets as input. This state is then converted to an
    * abstract state and fed to the KickstartAAM. */
