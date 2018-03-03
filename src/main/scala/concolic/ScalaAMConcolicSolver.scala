@@ -57,7 +57,7 @@ class ScalaAMConcolicSolver(val solver: SolverInterface) {
             throw exception
         }
 
-      case None => Reporter.addExploredPath(report)
+      case None => Reporter.addExploredPath(pathConstraintWithMatchersToPathConstraint(report))
     }
 //    val result = ConcolicSolver.solve
     val result = solver.solve
