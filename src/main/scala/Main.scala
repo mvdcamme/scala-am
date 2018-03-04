@@ -177,7 +177,18 @@ object Main {
 
           val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, config.analysisFlags, reporter, concolicFlags)
           sem.rTAnalysisStarter = machine
-          runOnFile(config.file.get, program => machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined, Timeout.none))
+          runOnFile(config.file.get, program => {
+            machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined, Timeout.none)
+            val root1 = backend.Reporter.getRoot.get
+            backend.Reporter.deleteSymbolicTree()
+
+            val reporter2 = new ScalaAMReporter(ConcolicRunTimeFlags(100, false, false))
+            val sem2 = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](reporter2))
+            val machine2 = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, config.analysisFlags, reporter2, concolicFlags)
+            machine2.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem2.parse(program), sem2, config.dotfile.isDefined, Timeout.none)
+            val root2 = backend.Reporter.getRoot.get
+            println(s"difference is ${CompareSymbolicTrees.compareTrees(root1, root2)}")
+          })
           }
       })
     Profiler.print
