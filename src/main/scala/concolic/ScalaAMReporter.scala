@@ -100,12 +100,12 @@ class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags, solverInterface: 
     } else if (concolicFlags.useRunTimeAnalyses) { // Final non-constant BranchConstraint is evaluated at stepCount 565560; 1st iteration takes 571048 concrete steps
 
       val analysisResult = rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken, constraintAddedPC)
-      checkWithPartialMatcher
       /*
        * PartialMatcherStore's current matcher now refers to a matcher starting from *after* this constraint.
        * The current path is empty.
        */
       pathStorage.updateReport(optimizedConstraint, thenBranchTaken, Some(analysisResult.partialMatcher))
+      checkWithPartialMatcher
       /*
        * If the run-time analyis (which was started after having already evaluated the condition of the constraint)
        * cannot find any error states, no errors are reachable from this point in the execution tree, so we may
