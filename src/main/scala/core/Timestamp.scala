@@ -70,7 +70,7 @@ object HybridTimestamp extends TimestampWrapper {
     useConcrete = true
   }
 
-  val abstractT = KCFA(10)
+  val abstractT = ZeroCFA
   val concreteT = ConcreteTimestamp
 
   type AbstractT = abstractT.T
