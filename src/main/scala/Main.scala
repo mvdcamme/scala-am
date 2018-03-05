@@ -1,8 +1,9 @@
-import scala.io.StdIn
-import Util._
-import scala.util.{Try, Success, Failure}
+import java.util.concurrent.TimeUnit
 
-import ConcreteConcreteLattice.{ L => ConcreteValue }
+import Util._
+
+import scala.concurrent.duration
+import scala.concurrent.duration.FiniteDuration
 
 /**
  * Before looking at this, we recommend seeing how to use this framework. A
@@ -73,8 +74,8 @@ object Main {
   }
 
   def main(args: Array[String]) {
-    import scala.util.control.Breaks._
-    val concolicFlags = ConcolicRunTimeFlags()
+    def newTimeout = Timeout.start(new FiniteDuration(100, TimeUnit.SECONDS))
+    val concolicFlags = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), true, true)
     val reporter = new ScalaAMReporter(concolicFlags)
     Config.parser.parse(args, Config.Config()).foreach(config => {
       val lattice: SchemeLattice = config.lattice match {
@@ -166,26 +167,29 @@ object Main {
           if (N == 1) visitor.print
         case Config.Language.ConcolicScheme =>
           implicit val sabsCCLattice = ConcreteConcreteLattice.isSchemeLattice
-          val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](reporter))
 
           val pointsToLattice = new PointsToLattice(false)
           implicit val pointsToConvLattice: IsConvertableLattice[pointsToLattice.L] = pointsToLattice.isSchemeLattice
           implicit val pointsToLatInfoProv = pointsToLattice.latticeInfoProvider
           implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
           val abstSem = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, pointsToLattice.L])
-          val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](sem, abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
 
-          val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, config.analysisFlags, reporter, concolicFlags)
-          sem.rTAnalysisStarter = machine
           runOnFile(config.file.get, program => {
-            machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined, Timeout.none)
+            val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](reporter))
+            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](sem, abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
+            val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, config.analysisFlags, reporter, concolicFlags)
+            sem.rTAnalysisStarter = machine
+            machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined)
             val root1 = backend.Reporter.getRoot.get
             backend.Reporter.deleteSymbolicTree()
 
-            val reporter2 = new ScalaAMReporter(ConcolicRunTimeFlags(100, false, false))
+            val concolicFlags2 = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), false, false)
+            val reporter2 = new ScalaAMReporter(concolicFlags2)
             val sem2 = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](reporter2))
-            val machine2 = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, config.analysisFlags, reporter2, concolicFlags)
-            machine2.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem2.parse(program), sem2, config.dotfile.isDefined, Timeout.none)
+            val pointsToAnalysisLauncher2 = new PointsToAnalysisLauncher[pointsToLattice.L](sem2, abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
+            val machine2 = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher2, config.analysisFlags, reporter2, concolicFlags2)
+            sem2.rTAnalysisStarter = machine2
+            machine2.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem2.parse(program), sem2, config.dotfile.isDefined)
             val root2 = backend.Reporter.getRoot.get
             println(s"difference is ${CompareSymbolicTrees.compareTrees(root1, root2)}")
           })
