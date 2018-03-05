@@ -61,8 +61,8 @@ class ConcolicMachineTest extends FunSuite with BeforeAndAfterEach with TestComm
   private def runProgram(program: String, flags: ConcolicRunTimeFlags): (List[List[(ConcolicInput, Int)]], List[PathConstraint]) = {
     val (machine, sem) = makeConcolicMachineAndSemantics(flags)
     val output: machine.ConcolicMachineOutput = Util.runOnFile(program, program => machine.concolicEval(program, sem.parse(program), sem, false, Timeout.none))
-    assert(output.isInstanceOf[machine.ConcolicMachineOutputNoErrors])
-    val castedOutput = output.asInstanceOf[machine.ConcolicMachineOutputNoErrors]
+    assert(output.isInstanceOf[machine.ConcolicMachineOutputFinished])
+    val castedOutput = output.asInstanceOf[machine.ConcolicMachineOutputFinished]
     (castedOutput.allInputs, castedOutput.allPathConstraints)
   }
 

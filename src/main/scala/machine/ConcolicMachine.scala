@@ -32,38 +32,37 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
   var currentConcolicRun: Int = 0
 
   trait ConcolicMachineOutput extends Output {
-    def toFile(path: String)(output: GraphOutput): Unit = println("Not generating graph for ConcreteMachine")
+    def toFile(path: String)(output: GraphOutput): Unit = println("Not generating graph for ConcolicMachine")
+    def allInputs: List[List[(ConcolicInput, Int)]]
+    def allPathConstraints: List[PathConstraint]
   }
-
-  case object ConcolicMachineOutputUnnecessary extends ConcolicMachineOutput {
+  case class ConcolicMachineOutputFinished(allInputs: List[List[(ConcolicInput, Int)]], allPathConstraints: List[PathConstraint]) extends ConcolicMachineOutput {
     def finalValues = Set()
     override def containsFinalValue(v: ConcreteValue) = false
     def timedOut: Boolean = false
     def numberOfStates: Int = 0
     def time: Double = 0
   }
-
-  case class ConcolicMachineOutputNormal(allInputs: List[List[(ConcolicInput, Int)]], allPathConstraints: List[PathConstraint]) extends ConcolicMachineOutput {
+  case object ConcolicMachineTestingNotStarted extends ConcolicMachineOutput {
+    def allInputs: List[List[(ConcolicInput, Int)]] = Nil
+    def allPathConstraints: List[PathConstraint] = Nil
     def finalValues = Set()
-    override def containsFinalValue(v: ConcreteValue) = false
-    def timedOut: Boolean = false
     def numberOfStates: Int = 0
     def time: Double = 0
+    def timedOut = false
   }
-
-  case class ConcolicMachineErrorEncountered(err: SemanticError) extends ConcolicMachineOutput {
+  case class ConcolicMachineOutputTimeout(allInputs: List[List[(ConcolicInput, Int)]], allPathConstraints: List[PathConstraint]) extends ConcolicMachineOutput {
     def finalValues = Set()
     override def containsFinalValue(v: ConcreteValue) = false
-    def timedOut: Boolean = false
     def numberOfStates: Int = 0
     def time: Double = 0
-  }
-
-  case class ConcolicMachineOutputTimeout(time: Double, numberOfStates: Int) extends ConcolicMachineOutput {
-    def finalValues = Set()
-    override def containsFinalValue(v: ConcreteValue) = false
     def timedOut = true
   }
+
+  sealed trait ConcolicIterationOutput
+  case object ConcolicIterationNoErrors extends ConcolicIterationOutput
+  case object ConcolicIterationTimedOut extends ConcolicIterationOutput
+  case class ConcolicIterationErrorEncountered(err: SemanticError) extends ConcolicIterationOutput
 
   private def convertValue[AbstL: IsConvertableLattice](abstPrims: SchemePrimitives[HybridAddress.A, AbstL])
                                                        (value: ConcreteValue, makeValuePrecise: Boolean): AbstL = {
@@ -308,7 +307,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
   def eval(exp: SchemeExp, sem: Semantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
            graph: Boolean, timeout:Timeout): Output = ???
 
-  def step(state: State, sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]): Either[ConcolicMachineOutput, StepSucceeded] = state.control match {
+  def step(state: State, sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]): Either[ConcolicIterationOutput, StepSucceeded] = state.control match {
     case ConcolicControlEval(e, env, symEnv) =>
       val edgeInfo = sem.stepConcolicEval(e, env, symEnv, state.store, state.t, semanticsConcolicHelper)
       handleFunctionCalled(edgeInfo)
@@ -336,13 +335,13 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
             FilterAnnotations(machineFilters, semanticsFilters),
             actions))
         case EdgeInformation(ActionConcolicError(ActionError(err)), actions, semanticsFilters) =>
-          Left(ConcolicMachineErrorEncountered(err))
+          Left(ConcolicIterationErrorEncountered(err))
       }
 
     case ConcolicControlKont(v, symbolicValue) =>
       /* pop a continuation */
       if (state.a == HaltKontAddress) {
-        Left(ConcolicMachineOutputUnnecessary)
+        Left(ConcolicIterationNoErrors)
       } else {
         val frames = state.kstore.lookup(state.a)
         if (frames.size == 1) {
@@ -383,15 +382,14 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
                 FilterAnnotations(machineFilters, semanticsFilters),
                 actions))
             case EdgeInformation(ActionConcolicError(ActionError(err)), actions, semanticsFilters) =>
-              Left(ConcolicMachineErrorEncountered(err))
+              Left(ConcolicIterationErrorEncountered(err))
           }
         } else {
-          Left(ConcolicMachineOutputUnnecessary)
+          Left(ConcolicIterationNoErrors)
         }
       }
 
-    case ConcolicControlError(err) =>
-      Left(ConcolicMachineErrorEncountered(err))
+    case ConcolicControlError(err) => Left(ConcolicIterationErrorEncountered(err))
   }
 
   /**
@@ -400,13 +398,13 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     */
   def concolicEval(programName: String, exp: SchemeExp, sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T],
                    graph: Boolean, timeout: Timeout): ConcolicMachineOutput = {
-    def loop(state: State, start: Long, count: Int): ConcolicMachineOutput = {
+    def loop(state: State, start: Long, count: Int): ConcolicIterationOutput = {
       currentState = Some(state)
       Logger.log(s"stepCount: $stepCount", Logger.V)
       stepCount += 1
 
       if (timeout.reached) {
-        ConcolicMachineOutputTimeout((System.nanoTime - start) / Math.pow(10, 9), count)
+        ConcolicIterationTimedOut
       } else {
         val stepped = step(state, sem)
         stepped match {
@@ -417,44 +415,53 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     }
 
     @scala.annotation.tailrec
-    def loopConcolic(initialState: State, nrOfRuns: Int, allInputsUntilNow: List[List[(ConcolicInput, Int)]], allPathConstraints: List[PathConstraint]): ConcolicMachineOutputNormal = {
-
+    def loopConcolic(initialState: State, nrOfRuns: Int, allInputsUntilNow: List[List[(ConcolicInput, Int)]], allPathConstraints: List[PathConstraint]): ConcolicMachineOutput = {
       currentConcolicRun = nrOfRuns
-
       def finishUpLoop: Boolean = {
         Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.U)
         reporter.printReports()
         val shouldContinue = reporter.solver.solve(reporter)
         shouldContinue
       }
-
-      reporter.enableConcolic()
-      Logger.log(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${reporter.solver.getInputs}", Logger.U)
-      stepCount = 0
-      reporter.clear()
-      FunctionsCalledMetric.resetConcreteFunctionsCalled()
-      val shouldContinue = try {
-        val concolicIterationResult = loop(initialState, System.nanoTime, 0)
-        concolicIterationResult match {
-          case ConcolicMachineErrorEncountered(err) =>
-            Logger.log(s"ERROR DETECTED DURING CONCOLIC TESTING: $err", Logger.E)
-          case _ =>
-        }
-        finishUpLoop
-      } catch {
-        case AbortConcolicIterationException => finishUpLoop
+      def initLoop(): Unit = {
+        reporter.enableConcolic()
+        Logger.log(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${reporter.solver.getInputs}", Logger.U)
+        stepCount = 0
+        reporter.clear()
+        FunctionsCalledMetric.resetConcreteFunctionsCalled()
       }
-      if (nrOfRuns < concolicFlags.maxNrIterations && shouldContinue) {
-        import scala.language.implicitConversions
-        loopConcolic(initialState, nrOfRuns + 1, allInputsUntilNow :+ reporter.solver.getInputs,
-                     allPathConstraints :+ pathConstraintWithMatchersToPathConstraint(reporter.pathStorage.getCurrentReport))
+
+      if (timeout.reached) {
+        Logger.log("TIMEOUT REACHED", Logger.E)
+        ConcolicMachineOutputTimeout(allInputsUntilNow, allPathConstraints)
       } else {
-        ConcolicMachineOutputNormal(allInputsUntilNow, allPathConstraints)
+        initLoop()
+        val eitherOutputOrShouldContinue: Either[ConcolicMachineOutput, Boolean] = try {
+          val concolicIterationResult = loop(initialState, System.nanoTime, 0)
+          concolicIterationResult match {
+            case ConcolicIterationTimedOut => Left(ConcolicMachineOutputTimeout(allInputsUntilNow, allPathConstraints))
+            case ConcolicIterationErrorEncountered(err) =>
+              Logger.log(s"ERROR DETECTED DURING CONCOLIC TESTING: $err", Logger.E)
+              Right(finishUpLoop)
+            case _ => Right(finishUpLoop)
+          }
+        } catch {
+          case AbortConcolicIterationException => Right(finishUpLoop)
+        }
+        eitherOutputOrShouldContinue match {
+          case Left(output) => output
+          case Right(shouldContinue) =>
+            if (nrOfRuns < concolicFlags.maxNrIterations && shouldContinue) {
+              loopConcolic(initialState, nrOfRuns + 1, allInputsUntilNow :+ reporter.solver.getInputs,
+                           allPathConstraints :+ pathConstraintWithMatchersToPathConstraint(reporter.pathStorage.getCurrentReport))
+            } else {
+              ConcolicMachineOutputFinished(allInputsUntilNow, allPathConstraints)
+            }
+        }
       }
     }
 
     val initialState = inject(exp, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
-
     val output: ConcolicMachineOutput = if (concolicFlags.checkAnalysis) {
       // Use initial static analysis to detect paths to errors
       val initialAnalysisResult = rtAnalysis.startInitialAnalysis(initialState, programName)
@@ -462,7 +469,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
         loopConcolic(initialState, 1, Nil, Nil)
       } else {
         Logger.log("Concolic testing not started because initial analysis did not report any suitable error states", Logger.E)
-        ConcolicMachineOutputUnnecessary
+        ConcolicMachineTestingNotStarted
       }
     } else {
       loopConcolic(initialState, 1, Nil, Nil)
