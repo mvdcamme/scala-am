@@ -1,6 +1,8 @@
 import org.scalatest.{FunSuite, PrivateMethodTester}
-import ConcreteConcreteLattice.{L => ConcreteValue}
+
 import dk.brics.automaton.{State, StatePair, Transition}
+
+import ConcreteConcreteLattice.{L => ConcreteValue}
 
 class TransitiveClosureTest extends FunSuite with PrivateMethodTester with TestCommon {
 

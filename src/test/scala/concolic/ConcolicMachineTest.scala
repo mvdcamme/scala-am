@@ -1,9 +1,8 @@
 import org.scalatest.{BeforeAndAfterEach, FunSuite}
 
-import Util.runOnFile
-import backend.{PathConstraint, Reporter}
 import backend.expression.ConcolicInput
 import backend.solvers.{ConcolicSolver, ConcolicSolverResult, NewInput, SymbolicTreeFullyExplored}
+import backend.{PathConstraint, Reporter}
 
 class ConcolicMachineTest extends FunSuite with BeforeAndAfterEach with TestCommon {
 
@@ -61,9 +60,9 @@ class ConcolicMachineTest extends FunSuite with BeforeAndAfterEach with TestComm
 
   private def runProgram(program: String, flags: ConcolicRunTimeFlags): (List[List[(ConcolicInput, Int)]], List[PathConstraint]) = {
     val (machine, sem) = makeConcolicMachineAndSemantics(flags)
-    val output: machine.ConcolicMachineOutput = runOnFile(program, program => machine.concolicEval(program, sem.parse(program), sem, false, Timeout.none))
-    assert(output.isInstanceOf[machine.ConcolicMachineOutputNormal])
-    val castedOutput = output.asInstanceOf[machine.ConcolicMachineOutputNormal]
+    val output: machine.ConcolicMachineOutput = Util.runOnFile(program, program => machine.concolicEval(program, sem.parse(program), sem, false, Timeout.none))
+    assert(output.isInstanceOf[machine.ConcolicMachineOutputNoErrors])
+    val castedOutput = output.asInstanceOf[machine.ConcolicMachineOutputNoErrors]
     (castedOutput.allInputs, castedOutput.allPathConstraints)
   }
 
