@@ -1,7 +1,8 @@
+import javax.swing.InputVerifier
+
 import backend.path_filtering.PartialRegexMatcher
 import backend.tree._
 import backend.tree.path._
-
 import backend._
 
 case object AbortConcolicIterationException extends Exception
@@ -89,7 +90,7 @@ class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags, solverInterface: 
     val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
     lazy val constraintAddedPC = pathStorage.addToReport(optimizedConstraint, thenBranchTaken, None)
     val inputVariableFinder = new InputVariableFinder
-    val containsInexactInputsVars = inputVariableFinder.pathConstraintContainsInexactInputVariables(constraintAddedPC)
+    val (exactInputVars, inexactInputVars) = inputVariableFinder.findInputVariablesDefinitions(constraintAddedPC)
     if (ConstraintOptimizer.isConstraintConstant(optimizedConstraint)) {
       /*
        * If the constraint is constant, don't bother adding it to the currentReport as it will always be either true or
@@ -97,8 +98,8 @@ class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags, solverInterface: 
        * via static analyses, which don't (or can't) check whether some condition is constant or not.
        */
       addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
-    } else if (concolicFlags.useRunTimeAnalyses && ! containsInexactInputsVars) { // Final non-constant BranchConstraint is evaluated at stepCount 565560; 1st iteration takes 571048 concrete steps
-
+    } else if (concolicFlags.useRunTimeAnalyses && inexactInputVars.isEmpty) {
+      Logger.log(s"EXACT INPUT VARIABLES IN PATH ARE $exactInputVars", Logger.E)
       val analysisResult = rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken, constraintAddedPC)
       /*
        * PartialMatcherStore's current matcher now refers to a matcher starting from *after* this constraint.
@@ -115,7 +116,7 @@ class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags, solverInterface: 
         abortConcolicIteration()
       }
     } else if (concolicFlags.checkAnalysis) {
-      if (concolicFlags.useRunTimeAnalyses && containsInexactInputsVars) {
+      if (concolicFlags.useRunTimeAnalyses && inexactInputVars.nonEmpty) {
         Logger.log("SKIPPING RT ANALYSIS BECAUSE OF AN INEXACT INPUT VARIABLE", Logger.U)
       }
       pathStorage.updateReport(optimizedConstraint, thenBranchTaken, None)

@@ -23,6 +23,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
 
   def name = "ConcolicMachine"
 
+  private val analysisResultCache = new AnalysisResultCache
   private val rtAnalysis = new LaunchAnalyses[PAbs](analysisLauncher, reporter)
   private val semanticsConcolicHelper = new SemanticsConcolicHelper(this, reporter)
 
@@ -487,7 +488,14 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
 
   def startAnalysisFromCurrentState(thenBranchTaken: Boolean, pathConstraint: PathConstraint): AnalysisResult = {
     assert(currentState.isDefined)
-    val analysisResult = rtAnalysis.startRunTimeAnalysis(currentState.get, thenBranchTaken, stepCount, pathConstraint, currentConcolicRun)
-    analysisResult
+    analysisResultCache.getAnalysisResult(pathConstraint) match {
+      case Some(cachedResult) =>
+        Logger.log("Retrieving analysis result from cache", Logger.E)
+        cachedResult
+      case None =>
+        val analysisResult = rtAnalysis.startRunTimeAnalysis(currentState.get, thenBranchTaken, stepCount, pathConstraint, currentConcolicRun)
+        analysisResultCache.addAnalysisResult(pathConstraint, analysisResult)
+        analysisResult
+    }
   }
 }

@@ -1,6 +1,6 @@
 import backend.PathConstraint
 import backend.expression._
-import backend.tree.{BranchConstraint, Constraint}
+import backend.tree.BranchConstraint
 import concolic.SymbolicEnvironment
 
 object ExactSymbolicVariablesFinder {
