@@ -4,8 +4,8 @@ object CompareSymbolicTrees {
 
   private def countNodes(node: SymbolicNode): Int = node match {
     case EmptyNode => 1
-    case IllegalizedNode(_) => 1
-    case BranchSymbolicNode(_, _, _, thenBranch, elseBranch) => 1 + countNodes(thenBranch) + countNodes(elseBranch)
+    case IllegalizedNode(_) => 0
+    case BranchSymbolicNode(_, _, _, thenBranch, elseBranch) => countNodes(thenBranch) + countNodes(elseBranch)
   }
 
   /**
