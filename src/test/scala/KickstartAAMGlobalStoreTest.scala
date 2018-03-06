@@ -44,7 +44,9 @@ class KickstartAAMGlobalStoreTest extends FunSuite with PrivateMethodTester with
 
       val (concMachine, concSem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags(), abstSem)
       val concInitState = concMachine.inject(parsedProgram, Environment.initial(concSem.initialEnv), Store.initial(concSem.initialStore))
-      val abstractedConcInitState = concMachine.analysisLauncher.convertStateAAM(abstMachine, concSem, abstSem, concInitState, Nil)
+
+      val stateConverter = new StateConverter[pointsToLattice.L](abstMachine, concSem, abstSem)
+      val abstractedConcInitState = stateConverter.convertStateAAM(concInitState, Nil)
 
       assert(abstInitState == abstractedConcInitState)
     })

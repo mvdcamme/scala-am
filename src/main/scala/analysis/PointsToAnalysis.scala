@@ -2,65 +2,11 @@ import java.io.{BufferedWriter, File, FileWriter}
 
 import backend.PathConstraint
 
-class PointsToAnalysis[Exp: Expression, L: JoinLattice, Addr: Address, Time: Timestamp] {
-
-  private def joinStores[Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](machine: Machine)(stores: Set[Store[Addr, L]]): Set[(Addr, L)] = {
-    val joinedStore = stores.foldLeft(DeltaStore(Map(), Map()): Store[Addr, L]) {
-      case (joinedStore, store) => joinedStore.join(store)
-    }
-    joinedStore.toSet
-  }
-
-  case class MetricsToWrite(max: Int, median: Double, average: Double, sum: Int, nrOfTops: Int)
-
-  private def calculateMetrics(result: List[(Addr, Option[Int])]): MetricsToWrite = {
-    val integerValues = result.flatMap(_._2)
-    val numberValues = integerValues.map(_.toDouble).sortWith(_ < _)
-    val length = numberValues.length
-    if (length == 0) {
-      MetricsToWrite(0, 0, 0, 0, 0)
-    } else {
-      val max = integerValues.max
-      val sum = integerValues.sum
-      val median = if (length % 2 == 0) {
-        (numberValues((length / 2) - 1) + numberValues(length / 2)) / 2
-      } else {
-        numberValues(length / 2)
-      }
-      val average = numberValues.sum / length
-      val nrOfTops = result.map(_._2).count(_.isEmpty)
-      MetricsToWrite(max, median, average, sum, nrOfTops)
-    }
-  }
-
-  private def possiblyWriteMetrics(stepSwitched: Int,
-                                   metrics: MetricsToWrite): Unit = {
-    val output =
-      s"$stepSwitched;${metrics.max};${metrics.median};${metrics.average};${metrics.sum};${metrics.nrOfTops}"
-    if (GlobalFlags.ANALYSIS_RESULTS_OUTPUT.isDefined) {
-      val file = new File(GlobalFlags.ANALYSIS_RESULTS_OUTPUT.get)
-      val bw = new BufferedWriter(new FileWriter(file, true))
-      bw.write(output ++ "\n")
-      bw.close()
-    }
-  }
-
-  def analyze[Machine <: KickstartEvalEvalKontMachine[Exp, L, Addr, Time]](toDot: Option[String], machine: Machine,
-                                                                           sem: ConvertableSemantics[Exp, L, Addr, Time])
-                                                                          (startState: machine.InitialState, isInitial: Boolean,
-                                                                           stepSwitched: Option[Int]): AnalysisOutputGraph[Exp, L, Addr, machine.MachineState] = {
-    Logger.log("Starting static points-to analysis", Logger.I)
-    val result = machine.kickstartEval(startState, sem, None, Timeout.none, stepSwitched)
-    toDot.foreach(result.toFile)
-    result
-  }
-}
-
 class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
-    val concSem: ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
+    concSem: ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
     abstSem: ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T])
     (implicit analysisFlags: AnalysisFlags)
-    extends AnalysisLauncher[Abs](abstSem) {
+    extends AnalysisLauncher[Abs](concSem, abstSem) {
 
   val usesGraph = new UsesGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
   import usesGraph._
@@ -69,7 +15,6 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[LatticeInfoProvider[Abs]]
 
-  val pointsToAnalysis = new PointsToAnalysis[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
   val countFunCallsMetricsComputer = new CountFunCalls[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.State]
 //  val countNonConstantsMetricsComputer = new CountNonConstants[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.State](lip.pointsTo)
 
@@ -91,20 +36,28 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
     })
   }
 
-  def runStaticAnalysisGeneric(currentProgramState: PS, stepSwitched: Option[Int], toDotFile: Option[String],
+  def analyze(toDot: Option[String], sem: ConvertableSemantics[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
+              startState: aam.InitialState, isInitial: Boolean, stepSwitched: Option[Int]): aam.AAMOutput = {
+    Logger.log("Starting static points-to analysis", Logger.I)
+    val result = aam.kickstartEval(startState, sem, None, Timeout.none, stepSwitched)
+    toDot.foreach(result.toFile)
+    result
+  }
+
+  def runStaticAnalysisGeneric(startState: stateConverter.aam.InitialState, stepSwitched: Option[Int], toDotFile: Option[String],
                                pathConstraint: PathConstraint, isInitialAnalysis: Boolean): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] = {
     wrapRunAnalysis(
       () => {
-        val startState = convertStateAAM(aam, concSem, abstSem, currentProgramState, pathConstraint)
-        val result = pointsToAnalysis.analyze(toDotFile, aam, abstSem)(startState, isInitialAnalysis, stepSwitched)
+        val result = analyze(toDotFile, abstSem, startState.asInstanceOf[aam.InitialState], isInitialAnalysis, stepSwitched)
         Logger.log(s"Static points-to analysis result is $result", Logger.U)
-        result
+        /* The .asInstanceOf isn't actually required (the code also compiles without the cast), but Intellij seems unable to correctly infer the type */
+        result.asInstanceOf[AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]]
       })
   }
 
-  def runStaticAnalysis(currentProgramState: PS, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
+  def runStaticAnalysis(initialAbstractState: stateConverter.aam.InitialState, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
                         pathConstraint: PathConstraint): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] = {
-    val result = runStaticAnalysisGeneric(currentProgramState, stepSwitched, None, pathConstraint, false)
+    val result = runStaticAnalysisGeneric(initialAbstractState, stepSwitched, None, pathConstraint, false)
     result
   }
 
@@ -116,8 +69,8 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
     new BufferedWriter(new FileWriter(new File(runTimeAnalysisMetricsOutputPath), false))
   }
 
-  def runInitialStaticAnalysis(currentProgramState: PS, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] =
-    runStaticAnalysisGeneric(currentProgramState, None, Some("initial_graph.dot"), Nil, true) match {
+  def runInitialStaticAnalysis(initialAbstractState: stateConverter.aam.InitialState, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] =
+    runStaticAnalysisGeneric(initialAbstractState, None, Some("initial_graph.dot"), Nil, true) match {
       case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.MachineState] =>
         GraphDOTOutput.toFile(result.graph, result.halted)("initial_graph.dot")
         initializeAnalyses(result.graph, programName)

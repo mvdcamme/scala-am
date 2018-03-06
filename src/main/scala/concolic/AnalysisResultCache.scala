@@ -1,10 +1,8 @@
-import backend.PathConstraint
-
-class AnalysisResultCache {
-  private var cache: Map[PathConstraint, AnalysisResult] = Map()
-  def addAnalysisResult(path: PathConstraint, result: AnalysisResult): Unit = {
-    cache += path -> result
+class AnalysisResultCache[State] {
+  private var cache: Map[State, AnalysisResult] = Map()
+  def addAnalysisResult(abstractedState: State, result: AnalysisResult): Unit = {
+    cache += abstractedState -> result
   }
-  def getAnalysisResult(path: PathConstraint): Option[AnalysisResult] = cache.get(path)
+  def getAnalysisResult(abstractedState: State): Option[AnalysisResult] = cache.get(abstractedState)
 
 }

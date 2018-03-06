@@ -49,6 +49,8 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
     maybeAnalysisResult
   }
 
+  private val analysisResultCache = new AnalysisResultCache[analysisLauncher.stateConverter.aam.InitialState]
+
   /**
     * If an if-expression has just been encountered (and a corresponding branch node has been made), launch a
     * rum-time static analysis and use the results to further prune the symbolic tree.
@@ -61,10 +63,19 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
     val currentAddresses: Set[HybridAddress.A] = state.addressesReachable
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
     val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
-    val analysisResult = analysisLauncher.runStaticAnalysis(state, Some(stepCount), convertedCurrentAddresses, pathConstraint)
-    val result = handleRunTimeAnalysisResult(analysisResult, thenBranchTaken, currentConcolicRun)
+    val convertedState = analysisLauncher.stateConverter.convertStateAAM(state, pathConstraint)
+    val analysisResult = analysisResultCache.getAnalysisResult(convertedState) match {
+      case Some(cachedAnalysisResult) =>
+        Logger.log("Retrieving analysis result from cache", Logger.E)
+        cachedAnalysisResult
+      case None =>
+        val result = analysisLauncher.runStaticAnalysis(state, Some(stepCount), convertedCurrentAddresses, pathConstraint)
+        val analysisResult = handleRunTimeAnalysisResult(result, thenBranchTaken, currentConcolicRun)
+        analysisResultCache.addAnalysisResult(convertedState, analysisResult)
+        analysisResult
+    }
     reporter.enableConcolic()
-    result
+    analysisResult
   }
 
   def startInitialAnalysis(initialState: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T],

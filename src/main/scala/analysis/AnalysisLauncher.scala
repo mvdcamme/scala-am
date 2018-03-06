@@ -11,7 +11,9 @@ trait AnalysisOutputGraph[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]
   def replaceGraph(graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AnalysisOutputGraph[Exp, Abs, Addr, State]
 }
 
-abstract class AnalysisLauncher[Abs: IsConvertableLattice](abstSem: ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T]) {
+abstract class AnalysisLauncher[Abs: IsConvertableLattice](
+  val concSem: ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
+  val abstSem: ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T]) {
 
   /* The concrete program state the static analysis gets as input. This state is then converted to an
    * abstract state and fed to the KickstartAAM. */
@@ -23,6 +25,7 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice](abstSem: ConvertableB
   type SpecEnv = Environment[HybridAddress.A]
 
   val aam: SpecAAM = new SpecAAM()
+  val stateConverter: StateConverter[Abs] = new StateConverter[Abs](aam, concSem, abstSem)
 
   protected def switchToAbstract(): Unit = {
     Logger.log("HybridMachine switching to abstract", Logger.I)
@@ -46,29 +49,15 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice](abstSem: ConvertableB
     wrapAbstractEvaluation[AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]](runAnalysis)
   }
 
-  /**
-    * Converts the given state to a new state corresponding to the state employed by the given KickstartAAM.
-    * @param aam The KickstartAAM for which a new, converted, state must be generated.
-    * @param concSem The semantics currently being used.
-    * @param abstSem The semantics to be used during the analysis.
-    * @param programState The program state to be converted.
-    */
-  def convertStateAAM(aam: SpecAAM,
-                      concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                      abstSem: ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T],
-                      programState: PS, pathConstraint: PathConstraint): aam.InitialState = {
-    val (control, store, kstore, a, t) = programState.convertState[Abs](concSem, abstSem, pathConstraint)
-    val deltaStore = aam.GlobalStore(DeltaStore[HybridAddress.A, Abs](store.toSet.toMap, Map()), Map())
-    val convertedControl = control match {
-      case ConvertedControlError(reason) => aam.ControlError(reason)
-      case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
-      case ConvertedControlKont(v) => aam.ControlKont(v)
-    }
-    (aam.State(convertedControl, a, t), deltaStore, kstore)
+  def runInitialStaticAnalysis(initialAbstractState: stateConverter.aam.InitialState, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
+  def runInitialStaticAnalysis(currentProgramState: PS, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] = {
+    runInitialStaticAnalysis(stateConverter.convertStateAAM(currentProgramState, Nil), programName)
   }
-
-  def runInitialStaticAnalysis(currentProgramState: PS, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
-  def runStaticAnalysis(currentProgramState: PS, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
+  def runStaticAnalysis(initialAbstractState: stateConverter.aam.InitialState, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
                         pathConstraint: PathConstraint): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
+  def runStaticAnalysis(state: PS, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
+                        pathConstraint: PathConstraint): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] = {
+    runStaticAnalysis(stateConverter.convertStateAAM(state, pathConstraint), stepSwitched, addressesUsed, pathConstraint)
+  }
 
 }
