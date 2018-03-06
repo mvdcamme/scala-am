@@ -74,7 +74,7 @@ object Main {
   }
 
   def main(args: Array[String]) {
-    def newTimeout = Timeout.start(new FiniteDuration(100, TimeUnit.SECONDS))
+    def newTimeout = Timeout.start(new FiniteDuration(200, TimeUnit.SECONDS))
     val concolicFlags = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), true, true)
     val reporter = new ScalaAMReporter(concolicFlags)
     Config.parser.parse(args, Config.Config()).foreach(config => {
@@ -191,7 +191,10 @@ object Main {
             sem2.rTAnalysisStarter = machine2
             machine2.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem2.parse(program), sem2, config.dotfile.isDefined)
             val root2 = backend.Reporter.getRoot.get
-            println(s"difference is ${CompareSymbolicTrees.compareTrees(root1, root2)}")
+            println(s"Comparison: ${CompareSymbolicTrees.countUniqueIllegalizedPaths(root1, root2)} illegalized nodes in second tree vs first tree")
+            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root1, root2)} non-illegalized nodes in second tree vs first tree")
+            println(s"Comparison: ${CompareSymbolicTrees.countUniqueIllegalizedPaths(root2, root1)} illegalized nodes in first tree vs second tree")
+            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root2, root1)} illegalized nodes in first tree vs second tree")
           })
           }
       })
