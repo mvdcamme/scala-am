@@ -35,17 +35,6 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
     val maybeAnalysisResult = handleAnalysisResult(result, currentConcolicRun)
     //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
     //    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
-    PartialMatcherStore.setCurrentMatcher(maybeAnalysisResult.partialMatcher)
-    /*
-     * A new partial matcher was generated using a run-time static analysis.
-     * This matcher starts matching from a certain point _in the execution of the  program_ and hence skips the part
-     * of the path that comes before this point.
-     * The path should therefore be reset, otherwise the path (which includes every constraint encountered since
-     * the start of the execution of the program) is matched with a matcher that only takes into account the constraints
-     * encountered _from the current point in the program on_.
-     */
-    reporter.pathStorage.resetCurrentPath()
-    reporter.pathStorage.updateCurrentPath(thenBranchTaken)
     maybeAnalysisResult
   }
 
@@ -74,6 +63,17 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
         analysisResultCache.addAnalysisResult(convertedState, analysisResult)
         analysisResult
     }
+    PartialMatcherStore.setCurrentMatcher(analysisResult.partialMatcher)
+    /*
+     * A new partial matcher was generated using a run-time static analysis.
+     * This matcher starts matching from a certain point _in the execution of the  program_ and hence skips the part
+     * of the path that comes before this point.
+     * The path should therefore be reset, otherwise the path (which includes every constraint encountered since
+     * the start of the execution of the program) is matched with a matcher that only takes into account the constraints
+     * encountered _from the current point in the program on_.
+     */
+    reporter.pathStorage.resetCurrentPath()
+    reporter.pathStorage.updateCurrentPath(thenBranchTaken)
     reporter.enableConcolic()
     analysisResult
   }
