@@ -22,19 +22,8 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
     maybeAnalysisResult
   }
 
-  private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], thenBranchTaken: Boolean, currentConcolicRun: Int): AnalysisResult = {
-//    def removeIfBranchAnnotation: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State] = {
-//      val graph = result.graph
-//      val root = graph.getNode(0).get
-//      val originalFirstEdges = graph.nodeEdges(root)
-//      val updatedFirstEdges = originalFirstEdges.map({ case (_, state) => (EdgeAnnotation.dummyEdgeAnnotation[SchemeExp, Abs, HybridAddress.A], state) })
-//      val updatedGraph = new Graph[analysisLauncher.aam.State, EdgeAnnotation[SchemeExp, Abs, HybridAddress.A], Set[analysisLauncher.aam.State]](graph.ids, graph.next, graph.nodes, graph.edges + (root -> updatedFirstEdges))
-//      result.replaceGraph(updatedGraph)
-//    }
-//    val ifBranchAnnotationRemoved = removeIfBranchAnnotation
+  private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], currentConcolicRun: Int): AnalysisResult = {
     val maybeAnalysisResult = handleAnalysisResult(result, currentConcolicRun)
-    //    val initialErrorPathsNotStartingWithPrefix = InitialErrorPaths.get.get.filterNot(_.startsWith(prefixErrorPath))
-    //    val newInitialErrorPaths = initialErrorPathsNotStartingWithPrefix ++ automaton.map(prefixErrorPath ++ _)
     maybeAnalysisResult
   }
 
@@ -47,8 +36,8 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
     */
   def startRunTimeAnalysis(state: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T],
                            thenBranchTaken: Boolean, stepCount: Int, pathConstraint: PathConstraint, currentConcolicRun: Int): AnalysisResult = {
-    reporter.disableConcolic()
     Logger.log("Starting run-time analysis", Logger.E)
+    reporter.disableConcolic()
     val currentAddresses: Set[HybridAddress.A] = state.addressesReachable
     val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
     val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
@@ -59,10 +48,11 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
         cachedAnalysisResult
       case None =>
         val result = analysisLauncher.runStaticAnalysis(state, Some(stepCount), convertedCurrentAddresses, pathConstraint)
-        val analysisResult = handleRunTimeAnalysisResult(result, thenBranchTaken, currentConcolicRun)
+        val analysisResult = handleRunTimeAnalysisResult(result, currentConcolicRun)
         analysisResultCache.addAnalysisResult(convertedState, analysisResult)
         analysisResult
     }
+    reporter.enableConcolic()
     PartialMatcherStore.setCurrentMatcher(analysisResult.partialMatcher)
     /*
      * A new partial matcher was generated using a run-time static analysis.
@@ -74,7 +64,6 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
      */
     reporter.pathStorage.resetCurrentPath()
     reporter.pathStorage.updateCurrentPath(thenBranchTaken)
-    reporter.enableConcolic()
     analysisResult
   }
 

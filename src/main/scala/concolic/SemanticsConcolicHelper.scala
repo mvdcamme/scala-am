@@ -4,8 +4,8 @@ import backend.tree._
 class SemanticsConcolicHelper(private val rtAnalysisStarter: RTAnalysisStarter, reporter: ScalaAMReporter) {
 
   def handleIf(optConcolicExpression: Option[ConcolicExpression], thenBranchTaken: Boolean): Unit = {
-    reporter.pathStorage.updateCurrentPath(thenBranchTaken)
     if (reporter.isConcolicEnabled) {
+      reporter.pathStorage.updateCurrentPath(thenBranchTaken)
       optConcolicExpression match {
         case Some(b: BooleanConcolicExpression) =>
           val baseConstraint = BranchConstraint(b)
