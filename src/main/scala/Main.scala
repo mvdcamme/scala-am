@@ -1,6 +1,7 @@
 import java.util.concurrent.TimeUnit
 
 import Util._
+import backend.tree.EmptyNode
 
 import scala.concurrent.duration
 import scala.concurrent.duration.FiniteDuration
@@ -180,7 +181,7 @@ object Main {
             val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, config.analysisFlags, reporter, concolicFlags)
             sem.rTAnalysisStarter = machine
             machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined)
-            val root1 = backend.Reporter.getRoot.get
+            val root1 = backend.Reporter.getRoot.getOrElse(EmptyNode)
             backend.Reporter.deleteSymbolicTree()
 
             val concolicFlags2 = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), false, false)
@@ -190,11 +191,11 @@ object Main {
             val machine2 = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher2, config.analysisFlags, reporter2, concolicFlags2)
             sem2.rTAnalysisStarter = machine2
             machine2.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem2.parse(program), sem2, config.dotfile.isDefined)
-            val root2 = backend.Reporter.getRoot.get
-            println(s"Comparison: ${CompareSymbolicTrees.countUniqueIllegalizedPaths(root1, root2)} illegalized nodes in second tree vs first tree")
-            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root1, root2)} non-illegalized nodes in second tree vs first tree")
-            println(s"Comparison: ${CompareSymbolicTrees.countUniqueIllegalizedPaths(root2, root1)} illegalized nodes in first tree vs second tree")
-            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root2, root1)} illegalized nodes in first tree vs second tree")
+            val root2 = backend.Reporter.getRoot.getOrElse(EmptyNode)
+            println(s"Comparison: ${CompareSymbolicTrees.countUniqueIllegalizedPaths(root1, root2)} illegalized paths in second tree vs first tree")
+            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root1, root2)} non-illegalized paths in second tree vs first tree")
+            println(s"Comparison: ${CompareSymbolicTrees.countUniqueIllegalizedPaths(root2, root1)} illegalized paths in first tree vs second tree")
+            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root2, root1)} illegalized paths in first tree vs second tree")
           })
           }
       })
@@ -203,7 +204,7 @@ object Main {
 }
 
 object ScalaAM {
-  /** Simply run a program and return the result. Compute the graph is @param graph is true. */
+  /** Simply run a program and return the result. Compute the graph if @param graph is true. */
   def run[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp](machine: AbstractMachine[Exp, Abs, Addr, Time], sem: Semantics[Exp, Abs, Addr, Time])(program: String, graph: Boolean = true, timeout: Option[Long] = None): AbstractMachine[Exp, Abs, Addr, Time]#Output = {
     val result = machine.eval(sem.parse(program), sem, graph, Timeout.start(timeout))
     if (result.timedOut) println(s"${scala.io.AnsiColor.RED}Timeout was reached${scala.io.AnsiColor.RESET}")

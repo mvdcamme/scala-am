@@ -16,6 +16,7 @@ class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address,
     * @return
     */
   private def annotToOptChar(annot: EdgeAnnotation[Exp, Abs, Addr]): Option[Char] = {
+    assert(annot.filters.semanticsFilters.count(_ == ElseBranchFilter) + annot.filters.semanticsFilters.count(_ == ThenBranchFilter) <= 1)
     val (elseBranch, thenBranch) = (annot.filters.semanticsFilters.contains(ElseBranchFilter), annot.filters.semanticsFilters.contains(ThenBranchFilter))
     /* Edge cannot indicate that both the else- and the then-branch have been taken. */
     assert(! (elseBranch && thenBranch), "Should not happen")

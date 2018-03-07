@@ -1,5 +1,3 @@
-import javax.swing.InputVerifier
-
 import backend.path_filtering.PartialRegexMatcher
 import backend.tree._
 import backend.tree.path._
@@ -56,7 +54,7 @@ class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags, solverInterface: 
   }
 
   private def abortConcolicIteration(): Unit = {
-    Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.U)
+    Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.E)
     throw AbortConcolicIterationException
   }
 
@@ -115,6 +113,7 @@ class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags, solverInterface: 
       if (! analysisResult.shouldContinueTesting) {
         abortConcolicIteration()
       }
+      Logger.log("Continuing Testing", Logger.E)
     } else if (concolicFlags.checkAnalysis) {
       if (concolicFlags.useRunTimeAnalyses && inexactInputVars.nonEmpty) {
         Logger.log("SKIPPING RT ANALYSIS BECAUSE OF AN INEXACT INPUT VARIABLE", Logger.U)

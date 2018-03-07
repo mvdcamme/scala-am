@@ -59,7 +59,6 @@ class ScalaAMConcolicSolver(val solver: SolverInterface) {
 
       case None => Reporter.addExploredPath(pathConstraintWithMatchersToPathConstraint(report))
     }
-//    val result = ConcolicSolver.solve
     val result = solver.solve
     result match {
       case NewInput(inputs) =>
