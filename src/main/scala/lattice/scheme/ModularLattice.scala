@@ -349,7 +349,7 @@ Sym : SymbolLattice
           case (Symbol(s1), Symbol(s2)) => Bool(SymbolLattice[Sym].eql(s1, s2))
           case (Nil, Nil) => True
           case (Prim(_), Prim(_)) => Bool(BoolLattice[B].inject(x == y))
-          case (Closure(_, _), Closure(_, _)) => Bool(BoolLattice[B].inject(x == y))
+          case (Closure(_, _), Closure(_, _)) => Bool(BoolLattice[B].top)
           case (Cons(_, _), Cons(_, _)) => Bool(BoolLattice[B].inject(x == y))
           case (VectorAddress(_), VectorAddress(_)) => Bool(BoolLattice[B].inject(x == y))
           case _ => False
