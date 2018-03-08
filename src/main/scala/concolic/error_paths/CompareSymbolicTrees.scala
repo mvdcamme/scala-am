@@ -22,9 +22,13 @@ object CompareSymbolicTrees {
        * If the then/else-branch of node1 was taken, but the corresponding branch of node2 was not taken, 0 nodes
        * should be counted because there are no nodes in the corresponding branch of node2 that are hidden under
        * illegalized nodes in node1.
+       * If the then/else-branch of node1 was not taken, but was proven to be illegal, and the corresponding branch
+       * of node2 was taken, count the paths in that branch of node2.
        */
-      (if (thenBranchTaken1 && thenBranchTaken2) countUniqueIllegalizedPaths(thenBranch1, thenBranch2) else 0) +
-      (if (elseBranchTaken1 && elseBranchTaken2) countUniqueIllegalizedPaths(elseBranch1, elseBranch2) else 0)
+      (if (thenBranchTaken1 && thenBranchTaken2) countUniqueIllegalizedPaths(thenBranch1, thenBranch2)
+       else if (thenBranchTaken2 && thenBranch1.isInstanceOf[IllegalizedNode]) countPaths(thenBranch2) else 0) +
+      (if (elseBranchTaken1 && elseBranchTaken2) countUniqueIllegalizedPaths(elseBranch1, elseBranch2)
+       else if (elseBranchTaken2 && elseBranch1.isInstanceOf[IllegalizedNode]) countPaths(elseBranch2) else 0)
     case (_: BranchSymbolicNode, EmptyNode) => 0
     case (_: BranchSymbolicNode, IllegalizedNode(_)) => 0
     case (EmptyNode, _: BranchSymbolicNode) => 0
@@ -49,9 +53,9 @@ object CompareSymbolicTrees {
        * in that branch of node2 definitely don't appear in node1 and should hence be counted.
        */
       (if (thenBranchTaken1 && thenBranchTaken2) countUniqueNonIllegalizedPaths(thenBranch1, thenBranch2)
-       else if (thenBranchTaken2) countPaths(thenBranch2) else 0) +
+       else if (thenBranchTaken2 && ! thenBranch1.isInstanceOf[IllegalizedNode]) countPaths(thenBranch2) else 0) +
       (if (elseBranchTaken1 && elseBranchTaken2) countUniqueNonIllegalizedPaths(elseBranch1, elseBranch2)
-       else if (elseBranchTaken2) countPaths(elseBranch2) else 0)
+       else if (elseBranchTaken2 && ! elseBranch1.isInstanceOf[IllegalizedNode]) countPaths(elseBranch2) else 0)
     case (_: BranchSymbolicNode, EmptyNode) => 0
     case (_: BranchSymbolicNode, IllegalizedNode(_)) => 0
     case (EmptyNode, bsn: BranchSymbolicNode) => countPaths(bsn)

@@ -14,13 +14,21 @@ class CompareSymbolicTreesTest extends FunSuite {
     }
   }
 
+  private def constructOneLegalPath(height: Int): SymbolicNode = {
+    if (height == 0) {
+      EmptyNode
+    } else {
+      BranchSymbolicNode(dummyConstraint, true, false, constructOneLegalPath(height - 1), IllegalizedNode(EmptyNode))
+    }
+  }
+
   test("Empty tree vs. tree of height N, with N <= 10") {
     val empty = EmptyNode
     1.to(10).foreach(N => {
       val otherRoot = constructTree(N)
       assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(empty, otherRoot) == 0)
       assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(empty, otherRoot) == Math.pow(2, N))
-      /* The first tree does not contain any paths/nodes that do not also appear in the first tree. */
+      /* The first tree does not contain any paths/nodes that do not also appear in the second tree. */
       assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(otherRoot, empty) == 0)
       assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(otherRoot, empty) == 0)
     })
@@ -33,7 +41,7 @@ class CompareSymbolicTreesTest extends FunSuite {
     val otherRoot = BranchSymbolicNode(dummyConstraint, true, true, rootTB, rootEB)
     assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(illegalizedRoot, otherRoot) == 4)
     assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(illegalizedRoot, otherRoot) == 0)
-    /* The first tree does not contain any paths/nodes that do not also appear in the first tree. */
+    /* The first tree does not contain any paths/nodes that do not also appear in the second tree. */
     assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(otherRoot, illegalizedRoot) == 0)
     assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(otherRoot, illegalizedRoot) == 0)
   }
@@ -44,7 +52,7 @@ class CompareSymbolicTreesTest extends FunSuite {
       val otherRoot = constructTree(N)
       assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(illegalizedNode, otherRoot) == Math.pow(2, N))
       assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(illegalizedNode, otherRoot) == 0)
-      /* The first tree does not contain any paths/nodes that do not also appear in the first tree. */
+      /* The first tree does not contain any paths/nodes that do not also appear in the second tree. */
       assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(otherRoot, illegalizedNode) == 0)
       assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(otherRoot, illegalizedNode) == 0)
     })
@@ -57,7 +65,7 @@ class CompareSymbolicTreesTest extends FunSuite {
     val root2 = constructTree(5)
     assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(updatedRoot1, root2) == 8)
     assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(updatedRoot1, root2) == 0)
-    /* The first tree does not contain any paths/nodes that do not also appear in the first tree. */
+    /* The first tree does not contain any paths/nodes that do not also appear in the second tree. */
     assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(root2, updatedRoot1) == 0)
     assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root2, updatedRoot1) == 0)
   }
@@ -134,6 +142,19 @@ class CompareSymbolicTreesTest extends FunSuite {
       /* If N == 3, the grand-grandchild-node of root2 was already an EmptyNode. Hence, no actual paths were removed */
       val value = if (N == 3) Math.pow(2, N - 2) else Math.pow(2, N - 3) + Math.pow(2, N - 2)
       assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(updatedRoot2, updatedRoot1) == value)
+    })
+  }
+
+  test("Only one legal (= only one visited) path vs. full tree") {
+    1.to(10).foreach(N => {
+      val root1 = constructOneLegalPath(N)
+      val root2 = constructTree(N)
+      /* Only one path is legal: total illegal paths = total paths - 1 */
+      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(root1, root2) == Math.pow(2, N) - 1)
+      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root1, root2) == 0)
+
+      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(root2, root1) == 0)
+      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root2, root1) == 0)
     })
   }
 
