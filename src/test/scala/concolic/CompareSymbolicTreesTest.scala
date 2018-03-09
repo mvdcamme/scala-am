@@ -8,82 +8,80 @@ class CompareSymbolicTreesTest extends FunSuite {
 
   private def constructTree(height: Int): SymbolicNode = {
     if (height == 0) {
-      EmptyNode
+      RegularLeafNode
     } else {
-      BranchSymbolicNode(dummyConstraint, true, true, constructTree(height - 1), constructTree(height - 1))
+      BranchSymbolicNode(dummyConstraint, constructTree(height - 1), constructTree(height - 1))
     }
   }
 
   private def constructOneLegalPath(height: Int): SymbolicNode = {
     if (height == 0) {
-      EmptyNode
+      RegularLeafNode
     } else {
-      BranchSymbolicNode(dummyConstraint, true, false, constructOneLegalPath(height - 1), IllegalizedNode(EmptyNode))
+      BranchSymbolicNode(dummyConstraint, constructOneLegalPath(height - 1), SafeNode(UnexploredNode))
     }
   }
 
   test("Empty tree vs. tree of height N, with N <= 10") {
-    val empty = EmptyNode
+    val empty = RegularLeafNode
     1.to(10).foreach(N => {
       val otherRoot = constructTree(N)
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(empty, otherRoot) == 0)
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(empty, otherRoot) == Math.pow(2, N))
+      assert(CompareSymbolicTrees.countUniqueSafePaths(empty, otherRoot) == 0)
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(empty, otherRoot) == Math.pow(2, N))
       /* The first tree does not contain any paths/nodes that do not also appear in the second tree. */
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(otherRoot, empty) == 0)
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(otherRoot, empty) == 0)
+      assert(CompareSymbolicTrees.countUniqueSafePaths(otherRoot, empty) == 0)
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(otherRoot, empty) == 0)
     })
   }
 
   test("Illegalized root vs. tree of height 2") {
-    val illegalizedRoot = IllegalizedNode(EmptyNode)
-    val rootEB = BranchSymbolicNode(dummyConstraint, true, true, EmptyNode, EmptyNode)
-    val rootTB = BranchSymbolicNode(dummyConstraint, true, true, EmptyNode, EmptyNode)
-    val otherRoot = BranchSymbolicNode(dummyConstraint, true, true, rootTB, rootEB)
-    assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(illegalizedRoot, otherRoot) == 4)
-    assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(illegalizedRoot, otherRoot) == 0)
+    val illegalizedRoot = SafeNode(UnexploredNode)
+    val rootEB = BranchSymbolicNode(dummyConstraint, RegularLeafNode, RegularLeafNode)
+    val rootTB = BranchSymbolicNode(dummyConstraint, RegularLeafNode, RegularLeafNode)
+    val otherRoot = BranchSymbolicNode(dummyConstraint, rootTB, rootEB)
+    assert(CompareSymbolicTrees.countUniqueSafePaths(illegalizedRoot, otherRoot) == 4)
+    assert(CompareSymbolicTrees.countUniqueNonSafePaths(illegalizedRoot, otherRoot) == 0)
     /* The first tree does not contain any paths/nodes that do not also appear in the second tree. */
-    assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(otherRoot, illegalizedRoot) == 0)
-    assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(otherRoot, illegalizedRoot) == 0)
+    assert(CompareSymbolicTrees.countUniqueSafePaths(otherRoot, illegalizedRoot) == 0)
+    assert(CompareSymbolicTrees.countUniqueNonSafePaths(otherRoot, illegalizedRoot) == 0)
   }
 
   test("Illegalized root vs. trees of height N, with N <= 10") {
-    val illegalizedNode = IllegalizedNode(EmptyNode)
+    val illegalizedNode = SafeNode(UnexploredNode)
     1.to(10).foreach(N => {
       val otherRoot = constructTree(N)
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(illegalizedNode, otherRoot) == Math.pow(2, N))
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(illegalizedNode, otherRoot) == 0)
+      assert(CompareSymbolicTrees.countUniqueSafePaths(illegalizedNode, otherRoot) == Math.pow(2, N))
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(illegalizedNode, otherRoot) == 0)
       /* The first tree does not contain any paths/nodes that do not also appear in the second tree. */
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(otherRoot, illegalizedNode) == 0)
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(otherRoot, illegalizedNode) == 0)
+      assert(CompareSymbolicTrees.countUniqueSafePaths(otherRoot, illegalizedNode) == 0)
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(otherRoot, illegalizedNode) == 0)
     })
   }
 
   test("Illegalize an intermediate node in the tree") {
     val root1 = constructTree(5).asInstanceOf[BranchSymbolicNode]
     /* Illegalize a grandchild-node of root1 */
-    val updatedRoot1 = root1.copy(thenBranch = root1.thenBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = IllegalizedNode(EmptyNode)))
+    val updatedRoot1 = root1.copy(thenBranch = root1.thenBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = SafeNode(UnexploredNode)))
     val root2 = constructTree(5)
-    assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(updatedRoot1, root2) == 8)
-    assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(updatedRoot1, root2) == 0)
+    assert(CompareSymbolicTrees.countUniqueSafePaths(updatedRoot1, root2) == 8)
+    assert(CompareSymbolicTrees.countUniqueNonSafePaths(updatedRoot1, root2) == 0)
     /* The first tree does not contain any paths/nodes that do not also appear in the second tree. */
-    assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(root2, updatedRoot1) == 0)
-    assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root2, updatedRoot1) == 0)
+    assert(CompareSymbolicTrees.countUniqueSafePaths(root2, updatedRoot1) == 0)
+    assert(CompareSymbolicTrees.countUniqueNonSafePaths(root2, updatedRoot1) == 0)
   }
 
   test("Compare an incomplete tree vs. a complete tree of height N, with 2 <= N <= 10") {
     2.to(10).foreach(N => {
       val root1 = constructTree(N).asInstanceOf[BranchSymbolicNode]
       /* Remove a grandchild-node of root1 */
-      val updatedRoot1 = root1.copy(thenBranch = root1.thenBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = EmptyNode))
+      val updatedRoot1 = root1.copy(thenBranch = root1.thenBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = UnexploredNode))
       val root2 = constructTree(N)
       /* The grandchild-node the root of the first tree was removed: the subtree belonging to this node has height N - 2 */
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(updatedRoot1, root2) == 0)
-      /* If N == 2, the grandchild-node of root1 was already an EmptyNode. Hence, no actual paths were removed */
-      val value = if (N == 2) 0 else Math.pow(2, N - 2)
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(updatedRoot1, root2) == value)
+      assert(CompareSymbolicTrees.countUniqueSafePaths(updatedRoot1, root2) == 0)
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(updatedRoot1, root2) == Math.pow(2, N - 2))
       /* The first tree does not contain any paths/nodes that do not also appear in the first tree. */
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(root2, updatedRoot1) == 0)
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root2, updatedRoot1) == 0)
+      assert(CompareSymbolicTrees.countUniqueSafePaths(root2, updatedRoot1) == 0)
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(root2, updatedRoot1) == 0)
     })
   }
 
@@ -91,17 +89,16 @@ class CompareSymbolicTreesTest extends FunSuite {
     3.to(10).foreach(N => {
       val root1 = constructTree(N).asInstanceOf[BranchSymbolicNode]
       /* Remove a grandchild-node of root1 */
-      val updatedRoot1 = root1.copy(thenBranch = root1.thenBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = EmptyNode))
+      val updatedRoot1 = root1.copy(thenBranch = root1.thenBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = UnexploredNode))
       val root2 = constructTree(N).asInstanceOf[BranchSymbolicNode]
-      val updatedRoot2 = root2.copy(thenBranch = root2.thenBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = root2.thenBranch.asInstanceOf[BranchSymbolicNode].elseBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = EmptyNode)))
+      val updatedRoot2 = root2.copy(thenBranch = root2.thenBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = root2.thenBranch.asInstanceOf[BranchSymbolicNode].elseBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = UnexploredNode)))
       /* The grandchild-node of the root of the first tree was removed: the subtree belonging to this node has height N - 2 */
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(updatedRoot1, updatedRoot2) == 0)
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(updatedRoot1, updatedRoot2) == Math.pow(2, N - 2))
+      assert(CompareSymbolicTrees.countUniqueSafePaths(updatedRoot1, updatedRoot2) == 0)
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(updatedRoot1, updatedRoot2) == Math.pow(2, N - 2))
       /* The grand-grandchild node of the root of the second tree was removed: the subtree belonging to this node has height N - 3 */
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(updatedRoot2, updatedRoot1) == 0)
-      /* If N == 3, the grand-grandchild-node of root2 was already an EmptyNode. Hence, no actual paths were removed */
+      assert(CompareSymbolicTrees.countUniqueSafePaths(updatedRoot2, updatedRoot1) == 0)
       val value = if (N == 3) 0 else Math.pow(2, N - 3)
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(updatedRoot2, updatedRoot1) == value)
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(updatedRoot2, updatedRoot1) == Math.pow(2, N - 3))
     })
   }
 
@@ -109,19 +106,17 @@ class CompareSymbolicTreesTest extends FunSuite {
     3.to(10).foreach(N => {
       val root1 = constructTree(N).asInstanceOf[BranchSymbolicNode]
       /* Remove a grandchild-node of root1 */
-      val tempRoot1 = root1.copy(thenBranch = root1.thenBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = EmptyNode))
-      val updatedRoot1 = tempRoot1.copy(elseBranch = tempRoot1.elseBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = EmptyNode))
+      val tempRoot1 = root1.copy(thenBranch = root1.thenBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = UnexploredNode))
+      val updatedRoot1 = tempRoot1.copy(elseBranch = tempRoot1.elseBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = UnexploredNode))
       val root2 = constructTree(N).asInstanceOf[BranchSymbolicNode]
-      val tempRoot2 = root2.copy(thenBranch = root2.thenBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = root2.thenBranch.asInstanceOf[BranchSymbolicNode].elseBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = EmptyNode)))
-      val updatedRoot2 = tempRoot2.copy(thenBranch = tempRoot2.thenBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = tempRoot2.thenBranch.asInstanceOf[BranchSymbolicNode].elseBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = EmptyNode)))
+      val tempRoot2 = root2.copy(thenBranch = root2.thenBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = root2.thenBranch.asInstanceOf[BranchSymbolicNode].elseBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = UnexploredNode)))
+      val updatedRoot2 = tempRoot2.copy(thenBranch = tempRoot2.thenBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = tempRoot2.thenBranch.asInstanceOf[BranchSymbolicNode].elseBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = UnexploredNode)))
       /* Two grandchild-nodes of the root of the first tree were removed: the subtrees belonging to these nodes each have height N - 2 */
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(updatedRoot1, updatedRoot2) == 0)
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(updatedRoot1, updatedRoot2) == 2 * Math.pow(2, N - 2))
+      assert(CompareSymbolicTrees.countUniqueSafePaths(updatedRoot1, updatedRoot2) == 0)
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(updatedRoot1, updatedRoot2) == 2 * Math.pow(2, N - 2))
       /* Two grand-grandchild nodes of the root of the second tree were removed: the subtrees belonging to these nodes each have height N - 3 */
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(updatedRoot2, updatedRoot1) == 0)
-      /* If N == 3, the grand-grandchild-node of root2 was already an EmptyNode. Hence, no actual paths were removed */
-      val value = if (N == 3) 0 else 2 * Math.pow(2, N - 3)
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(updatedRoot2, updatedRoot1) == value)
+      assert(CompareSymbolicTrees.countUniqueSafePaths(updatedRoot2, updatedRoot1) == 0)
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(updatedRoot2, updatedRoot1) == 2 * Math.pow(2, N - 3))
     })
   }
 
@@ -129,19 +124,17 @@ class CompareSymbolicTreesTest extends FunSuite {
     3.to(10).foreach(N => {
       val root1 = constructTree(N).asInstanceOf[BranchSymbolicNode]
       /* Remove a grandchild-node of root1 */
-      val tempRoot1 = root1.copy(thenBranch = root1.thenBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = EmptyNode))
-      val updatedRoot1 = tempRoot1.copy(elseBranch = tempRoot1.elseBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = EmptyNode))
+      val tempRoot1 = root1.copy(thenBranch = root1.thenBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = UnexploredNode))
+      val updatedRoot1 = tempRoot1.copy(elseBranch = tempRoot1.elseBranch.asInstanceOf[BranchSymbolicNode].copy(thenBranch = UnexploredNode))
       val root2 = constructTree(N).asInstanceOf[BranchSymbolicNode]
-      val tempRoot2 = root2.copy(thenBranch = root2.thenBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = root2.thenBranch.asInstanceOf[BranchSymbolicNode].elseBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = EmptyNode)))
-      val updatedRoot2 = tempRoot2.copy(elseBranch = tempRoot2.elseBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = EmptyNode))
+      val tempRoot2 = root2.copy(thenBranch = root2.thenBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = root2.thenBranch.asInstanceOf[BranchSymbolicNode].elseBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = UnexploredNode)))
+      val updatedRoot2 = tempRoot2.copy(elseBranch = tempRoot2.elseBranch.asInstanceOf[BranchSymbolicNode].copy(elseBranch = UnexploredNode))
       /* Two grandchild-nodes of the root of the first tree were removed: the subtrees belonging to these nodes each have height N - 2 */
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(updatedRoot1, updatedRoot2) == 0)
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(updatedRoot1, updatedRoot2) == 2 * Math.pow(2, N - 2))
+      assert(CompareSymbolicTrees.countUniqueSafePaths(updatedRoot1, updatedRoot2) == 0)
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(updatedRoot1, updatedRoot2) == 2 * Math.pow(2, N - 2))
       /* Two grand-grandchild nodes of the root of the second tree were removed: the subtrees belonging to these nodes each have height N - 3 */
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(updatedRoot2, updatedRoot1) == 0)
-      /* If N == 3, the grand-grandchild-node of root2 was already an EmptyNode. Hence, no actual paths were removed */
-      val value = if (N == 3) Math.pow(2, N - 2) else Math.pow(2, N - 3) + Math.pow(2, N - 2)
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(updatedRoot2, updatedRoot1) == value)
+      assert(CompareSymbolicTrees.countUniqueSafePaths(updatedRoot2, updatedRoot1) == 0)
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(updatedRoot2, updatedRoot1) == Math.pow(2, N - 3) + Math.pow(2, N - 2))
     })
   }
 
@@ -150,11 +143,11 @@ class CompareSymbolicTreesTest extends FunSuite {
       val root1 = constructOneLegalPath(N)
       val root2 = constructTree(N)
       /* Only one path is legal: total illegal paths = total paths - 1 */
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(root1, root2) == Math.pow(2, N) - 1)
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root1, root2) == 0)
+      assert(CompareSymbolicTrees.countUniqueSafePaths(root1, root2) == Math.pow(2, N) - 1)
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(root1, root2) == 0)
 
-      assert(CompareSymbolicTrees.countUniqueIllegalizedPaths(root2, root1) == 0)
-      assert(CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root2, root1) == 0)
+      assert(CompareSymbolicTrees.countUniqueSafePaths(root2, root1) == 0)
+      assert(CompareSymbolicTrees.countUniqueNonSafePaths(root2, root1) == 0)
     })
   }
 

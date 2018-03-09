@@ -1,7 +1,7 @@
 import java.util.concurrent.TimeUnit
 
 import Util._
-import backend.tree.EmptyNode
+import backend.tree.UnexploredNode
 
 import scala.concurrent.duration
 import scala.concurrent.duration.FiniteDuration
@@ -181,8 +181,11 @@ object Main {
             val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, config.analysisFlags, reporter, concolicFlags)
             sem.rTAnalysisStarter = machine
             machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined)
-            val root1 = backend.Reporter.getRoot.getOrElse(EmptyNode)
+            val root1 = backend.Reporter.getRoot.getOrElse(UnexploredNode)
             backend.Reporter.deleteSymbolicTree()
+
+            Logger.log("####### SWITCHING TO BASELINE ######", Logger.E)
+
 
             val concolicFlags2 = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), false, false)
             val reporter2 = new ScalaAMReporter(concolicFlags2)
@@ -191,11 +194,11 @@ object Main {
             val machine2 = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher2, config.analysisFlags, reporter2, concolicFlags2)
             sem2.rTAnalysisStarter = machine2
             machine2.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem2.parse(program), sem2, config.dotfile.isDefined)
-            val root2 = backend.Reporter.getRoot.getOrElse(EmptyNode)
-            println(s"Comparison: ${CompareSymbolicTrees.countUniqueIllegalizedPaths(root1, root2)} illegalized paths in second tree vs first tree")
-            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root1, root2)} non-illegalized paths in second tree vs first tree")
-            println(s"Comparison: ${CompareSymbolicTrees.countUniqueIllegalizedPaths(root2, root1)} illegalized paths in first tree vs second tree")
-            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonIllegalizedPaths(root2, root1)} illegalized paths in first tree vs second tree")
+            val root2 = backend.Reporter.getRoot.getOrElse(UnexploredNode)
+            println(s"Comparison: ${CompareSymbolicTrees.countUniqueSafePaths(root1, root2)} illegalized paths in second tree vs first tree")
+            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonSafePaths(root1, root2)} non-illegalized paths in second tree vs first tree")
+            println(s"Comparison: ${CompareSymbolicTrees.countUniqueSafePaths(root2, root1)} illegalized paths in first tree vs second tree")
+            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonSafePaths(root2, root1)} illegalized paths in first tree vs second tree")
           })
           }
       })

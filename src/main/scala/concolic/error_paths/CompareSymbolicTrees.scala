@@ -2,11 +2,16 @@ import backend.tree._
 
 object CompareSymbolicTrees {
 
+  def isLeafNode(node: SymbolicNode): Boolean = node match {
+    case RegularLeafNode | UnsatisfiableNode | UnexploredNode => true
+    case _: BranchSymbolicNode | _: SafeNode => false
+  }
+
   private def countPaths(node: SymbolicNode): Int = node match {
-    case EmptyNode => 1
-    case IllegalizedNode(_) => 0
-    case BranchSymbolicNode(_, thenBranchTaken, elseBranchTaken, thenBranch, elseBranch) =>
-      (if (thenBranchTaken) countPaths(thenBranch) else 0) + (if (elseBranchTaken) countPaths(elseBranch) else 0)
+    case _ if isLeafNode(node) => 1
+    case SafeNode(_) => 0
+    case b@BranchSymbolicNode(_, thenBranch, elseBranch) =>
+      (if (b.thenBranchTaken) countPaths(thenBranch) else 0) + (if (b.elseBranchTaken) countPaths(elseBranch) else 0)
   }
 
   /**
@@ -15,28 +20,26 @@ object CompareSymbolicTrees {
     * @param node2
     * @return
     */
-  def countUniqueIllegalizedPaths(node1: SymbolicNode, node2: SymbolicNode): Int = (node1, node2) match {
-    case (BranchSymbolicNode(_, thenBranchTaken1, elseBranchTaken1, thenBranch1, elseBranch1),
-          BranchSymbolicNode(_, thenBranchTaken2, elseBranchTaken2, thenBranch2, elseBranch2)) =>
+  def countUniqueSafePaths(node1: SymbolicNode, node2: SymbolicNode): Int = (node1, node2) match {
+    case (b1@BranchSymbolicNode(_, thenBranch1, elseBranch1),
+          b2@BranchSymbolicNode(_, thenBranch2, elseBranch2)) =>
       /*
        * If the then/else-branch of node1 was taken, but the corresponding branch of node2 was not taken, 0 nodes
        * should be counted because there are no nodes in the corresponding branch of node2 that are hidden under
-       * illegalized nodes in node1.
-       * If the then/else-branch of node1 was not taken, but was proven to be illegal, and the corresponding branch
+       * safe nodes in node1.
+       * If the then/else-branch of node1 was not taken, but was proven to be safe, and the corresponding branch
        * of node2 was taken, count the paths in that branch of node2.
        */
-      (if (thenBranchTaken1 && thenBranchTaken2) countUniqueIllegalizedPaths(thenBranch1, thenBranch2)
-       else if (thenBranchTaken2 && thenBranch1.isInstanceOf[IllegalizedNode]) countPaths(thenBranch2) else 0) +
-      (if (elseBranchTaken1 && elseBranchTaken2) countUniqueIllegalizedPaths(elseBranch1, elseBranch2)
-       else if (elseBranchTaken2 && elseBranch1.isInstanceOf[IllegalizedNode]) countPaths(elseBranch2) else 0)
-    case (_: BranchSymbolicNode, EmptyNode) => 0
-    case (_: BranchSymbolicNode, IllegalizedNode(_)) => 0
-    case (EmptyNode, _: BranchSymbolicNode) => 0
-    case (EmptyNode, EmptyNode) => 0
-    case (EmptyNode, IllegalizedNode(_)) => 0
-    case (IllegalizedNode(_), bsn: BranchSymbolicNode) => countPaths(bsn)
-    case (IllegalizedNode(_), EmptyNode) => 1
-    case (IllegalizedNode(_), IllegalizedNode(_)) => 0
+      (if (b1.thenBranchTaken && b2.thenBranchTaken) countUniqueSafePaths(thenBranch1, thenBranch2)
+       else if (b2.thenBranchTaken && thenBranch1.isInstanceOf[SafeNode]) countPaths(thenBranch2) else 0) +
+      (if (b1.elseBranchTaken && b2.elseBranchTaken) countUniqueSafePaths(elseBranch1, elseBranch2)
+       else if (b2.elseBranchTaken && elseBranch1.isInstanceOf[SafeNode]) countPaths(elseBranch2) else 0)
+    case (_: BranchSymbolicNode, _: SafeNode) => 0
+    case (_: BranchSymbolicNode, _) if isLeafNode(node2) => 0
+    case (SafeNode(_), bsn: BranchSymbolicNode) => countPaths(bsn)
+    case (SafeNode(_), SafeNode(_)) => 0
+    case (SafeNode(_), _) if isLeafNode(node2) => 1
+    case _ if isLeafNode(node1)  => 0
   }
 
   /**
@@ -45,25 +48,25 @@ object CompareSymbolicTrees {
     * @param node2
     * @return
     */
-  def countUniqueNonIllegalizedPaths(node1: SymbolicNode, node2: SymbolicNode): Int = (node1, node2) match {
-    case (BranchSymbolicNode(_, thenBranchTaken1, elseBranchTaken1, thenBranch1, elseBranch1),
-          BranchSymbolicNode(_, thenBranchTaken2, elseBranchTaken2, thenBranch2, elseBranch2)) =>
+  def countUniqueNonSafePaths(node1: SymbolicNode, node2: SymbolicNode): Int = (node1, node2) match {
+    case (b1@BranchSymbolicNode(_, thenBranch1, elseBranch1),
+          b2@BranchSymbolicNode(_, thenBranch2, elseBranch2)) =>
       /*
        * If the then/else-branch of node2 was taken, but the corresponding branch of node1 was not taken, the paths
        * in that branch of node2 definitely don't appear in node1 and should hence be counted.
        */
-      (if (thenBranchTaken1 && thenBranchTaken2) countUniqueNonIllegalizedPaths(thenBranch1, thenBranch2)
-       else if (thenBranchTaken2 && ! thenBranch1.isInstanceOf[IllegalizedNode]) countPaths(thenBranch2) else 0) +
-      (if (elseBranchTaken1 && elseBranchTaken2) countUniqueNonIllegalizedPaths(elseBranch1, elseBranch2)
-       else if (elseBranchTaken2 && ! elseBranch1.isInstanceOf[IllegalizedNode]) countPaths(elseBranch2) else 0)
-    case (_: BranchSymbolicNode, EmptyNode) => 0
-    case (_: BranchSymbolicNode, IllegalizedNode(_)) => 0
-    case (EmptyNode, bsn: BranchSymbolicNode) => countPaths(bsn)
-    case (EmptyNode, EmptyNode) => 0
-    case (EmptyNode, IllegalizedNode(_)) => 0
-    case (IllegalizedNode(_), _: BranchSymbolicNode) => 0
-    case (IllegalizedNode(_), EmptyNode) => 0
-    case (IllegalizedNode(_), IllegalizedNode(_)) => 0
+      (if (b1.thenBranchTaken && b2.thenBranchTaken) countUniqueNonSafePaths(thenBranch1, thenBranch2)
+       else if (b2.thenBranchTaken && ! thenBranch1.isInstanceOf[SafeNode]) countPaths(thenBranch2) else 0) +
+      (if (b1.elseBranchTaken && b2.elseBranchTaken) countUniqueNonSafePaths(elseBranch1, elseBranch2)
+       else if (b2.elseBranchTaken && ! elseBranch1.isInstanceOf[SafeNode]) countPaths(elseBranch2) else 0)
+    case (_: BranchSymbolicNode, _: SafeNode) => 0
+    case (_: BranchSymbolicNode, _) if isLeafNode(node2) => 0
+    case (SafeNode(_), _: BranchSymbolicNode) => 0
+    case (SafeNode(_), SafeNode(_)) => 0
+    case (SafeNode(_), _) if isLeafNode(node2) => 0
+    case (_, bsn: BranchSymbolicNode) if isLeafNode(node1) => countPaths(bsn)
+    case (_, SafeNode(_)) if isLeafNode(node1) => 0
+    case _ if isLeafNode(node1) && isLeafNode(node2) => 0
   }
 
 }
