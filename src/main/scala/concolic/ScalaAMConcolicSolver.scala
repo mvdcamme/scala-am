@@ -3,6 +3,53 @@ import backend.expression.ConcolicInput
 import backend.path_filtering.PartialRegexMatcher
 import backend.solvers._
 import backend.tree._
+import backend.tree.search_strategy.{BreadthFirstSearch, SearchStrategy, TreePath}
+import dk.brics.automaton.State
+import backend._
+import backend.path_filtering.PartialRegexMatcher
+import backend.tree.BranchSymbolicNode
+
+class MostErrorsReachableSearch extends SearchStrategy[PMSymbolicNode] {
+
+  import scala.language.implicitConversions
+  implicit private def pmNodeToNode(pmNode: PMBranchSymbolicNode): BranchSymbolicNode = pmNode.toSymbolicNode
+
+  def countReachableErrors(partialRegexMatcher: PartialRegexMatcher): Int = {
+    @scala.annotation.tailrec
+    def loop(todo: Set[State], visited: Set[State], currentCount: Int): Int = todo.headOption match {
+      case None => currentCount
+      case Some(head) if visited.contains(head) => loop(todo.tail, visited, currentCount)
+      case Some(head) =>
+        val destStates = scala.collection.JavaConverters.asScalaSet(head.getTransitions).map(_.getDest)
+        val updatedCount = if (head.isAccept) currentCount + 1 else currentCount
+        loop(todo.tail ++ destStates, visited + head, updatedCount)
+    }
+    loop(Set(partialRegexMatcher.lastState), Set(), 0)
+  }
+
+  def findAllUnexploredNodes(b: PMBranchSymbolicNode, treePath: TreePath): Set[(TreePath, Int)] = {
+    if (! (b.thenBranchTaken && b.elseBranchTaken)) {
+      Set((treePath, countReachableErrors(b.pm)))
+    } else {
+      (b.thenBranch, b.elseBranch) match {
+        case (thenBranch: PMBranchSymbolicNode, elseBranch: PMBranchSymbolicNode) =>
+          findAllUnexploredNodes(thenBranch, treePath.addThenBranch(thenBranch)) ++ findAllUnexploredNodes(elseBranch, treePath.addElseBranch(elseBranch))
+        case (thenBranch: PMBranchSymbolicNode, _) => findAllUnexploredNodes(thenBranch, treePath.addThenBranch(thenBranch))
+        case (_, elseBranch: PMBranchSymbolicNode) => findAllUnexploredNodes(elseBranch, treePath.addThenBranch(elseBranch))
+        case (_, _) => Set()
+      }
+    }
+  }
+
+  def findFirstUnexploredNode(symbolicNode: PMSymbolicNode): Option[TreePath] = symbolicNode match {
+    case PMRegularLeafNode | PMSafeNode(_) | PMUnexploredNode | PMUnsatisfiableNode => None
+    case b: PMBranchSymbolicNode =>
+      val allResults = findAllUnexploredNodes(b, TreePath(Nil, Nil))
+      Logger.log(s"All results are $allResults", Logger.E)
+      allResults.filter(_._1.length > 0).toList.sortWith((t1, t2) => t1._2 > t2._2).headOption.map(_._1)
+  }
+
+}
 
 class ScalaAMConcolicSolver(val useAnalysis: Boolean) {
 
@@ -41,9 +88,9 @@ class ScalaAMConcolicSolver(val useAnalysis: Boolean) {
 
   var count = 0
 
-  def solve[SymbolicNodeUsed : SymbolicNodeViewer](root: SymbolicNodeUsed): ConcolicSolverResult = {
+  def solve[SymbolicNodeUsed : SymbolicNodeViewer](root: SymbolicNodeUsed, searchStrategy: SearchStrategy[SymbolicNodeUsed]): ConcolicSolverResult = {
     val backendSolver = new ConcolicSolver[SymbolicNodeUsed]
-    backendSolver.solve(root)
+    backendSolver.solve(root, searchStrategy)
   }
 
   def solve(pathConstraint: PathConstraintWithMatchers): Boolean = {
@@ -60,7 +107,7 @@ class ScalaAMConcolicSolver(val useAnalysis: Boolean) {
       reporter.writeSymbolicTree("tree.dot")
       try {
         reporter.addExploredPath(pathConstraint)
-        solve(reporter.getRoot.get)
+        solve(reporter.getRoot.get, new MostErrorsReachableSearch)
       } catch {
         case exception: java.lang.AssertionError =>
           println("CAUGHT")
@@ -69,7 +116,7 @@ class ScalaAMConcolicSolver(val useAnalysis: Boolean) {
     } else {
       val castedBackendReporter = backendReporter.asInstanceOf[Reporter[SymbolicNode, PathConstraint]]
       castedBackendReporter.addExploredPath(pathConstraintWithMatchersToPathConstraint(pathConstraint))
-      solve(castedBackendReporter.getRoot.get)
+      solve(castedBackendReporter.getRoot.get, new BreadthFirstSearch[SymbolicNode])
     }
     result match {
       case NewInput(inputs) =>
