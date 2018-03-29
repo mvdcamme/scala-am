@@ -44,7 +44,11 @@ class MostErrorsReachableSearch extends SearchStrategy[PMSymbolicNode] {
   def findFirstUnexploredNode(symbolicNode: PMSymbolicNode): Option[TreePath] = symbolicNode match {
     case PMRegularLeafNode | PMSafeNode(_) | PMUnexploredNode | PMUnsatisfiableNode => None
     case b: PMBranchSymbolicNode =>
-      val allResults = findAllUnexploredNodes(b, TreePath(Nil, Nil))
+      val initTree: TreePath = TreePath.init(b) match {
+        case Left(left) => left
+        case Right(right) => right
+      }
+      val allResults = findAllUnexploredNodes(b, initTree)
       Logger.log(s"All results are $allResults", Logger.E)
       allResults.filter(_._1.length > 0).toList.sortWith((t1, t2) => t1._2 > t2._2).headOption.map(_._1)
   }
