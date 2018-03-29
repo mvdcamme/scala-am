@@ -412,7 +412,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
       def finishUpLoop: Boolean = {
         Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.U)
         reporter.printReports()
-        val shouldContinue = reporter.solver.solve(reporter)
+        val shouldContinue = reporter.solver.solve(reporter.pathStorage.getCurrentReport)
         shouldContinue
       }
       def initLoop(): Unit = {

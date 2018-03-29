@@ -11,9 +11,6 @@ class UsesGraph[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, State <
 
 }
 
-/*
- * TODO add type paremeters to FilterAnnotations
- */
 case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Address](
     machineFilters: Set[MachineFilterAnnotation],
     semanticsFilters: Set[SemanticsFilterAnnotation]) {
@@ -54,32 +51,6 @@ case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Addr
     }
   }
 
-  /*
-   * Parameter type of exists and map functions are erased during compilation, causing the compiler to complain
-   * about double definitions of the exists and map functions.
-   * Solution: http://stackoverflow.com/questions/3307427/scala-double-definition-2-methods-have-the-same-type-erasure
-   */
-
-//  case class MBool(b: Boolean)
-//  case class SBool(b: Boolean)
-//  case class FBool(b: Boolean)
-//  implicit private def mb(b: Boolean): MBool =
-//    MBool(b)
-//  implicit private def sb(b: Boolean): SBool =
-//    SBool(b)
-//  implicit private def fb(b: Boolean): FBool =
-//    FBool(b)
-
-//  case class MachineFilterExists(pred: MachineFilterAnnotation => Boolean)
-//  case class SemanticsFilterExists(pred: SemanticsFilterAnnotation => Boolean)
-//  case class FilterExists(pred: FilterAnnotation => Boolean)
-//  implicit private def mfe(pred: MachineFilterAnnotation => Boolean): MachineFilterExists =
-//    MachineFilterExists(pred)
-//  implicit private def sfe(pred: SemanticsFilterAnnotation => Boolean): SemanticsFilterExists =
-//    SemanticsFilterExists(pred)
-//  implicit private def fe(pred: FilterAnnotation => Boolean): FilterExists =
-//    FilterExists(pred)
-
   def machineExists(pred: MachineFilterAnnotation => Boolean)
             (implicit d: DummyImplicit): Boolean =
     machineFilters.exists(pred)
@@ -89,10 +60,6 @@ case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Addr
     val allFilters = machineFilters ++ semanticsFilters
     allFilters.exists(pred)
   }
-
-//  def exists(pred: FilterExists)
-//            (implicit d: DummyImplicit): Boolean =
-//    machineFilters.exists(pred.pred) || semanticsFilters.exists(pred.pred)
 
   case class MachineFilterFunction(function: MachineFilterAnnotation => MachineFilterAnnotation)
   case class SemanticsFilterFunction(function: SemanticsFilterAnnotation => SemanticsFilterAnnotation)

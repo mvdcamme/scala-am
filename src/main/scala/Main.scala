@@ -186,8 +186,10 @@ object Main {
 
             Logger.log("####### SWITCHING TO BASELINE ######", Logger.E)
 
-
             val concolicFlags2 = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), false, false)
+            val solver = new ScalaAMConcolicSolver(concolicFlags2.checkAnalysis)
+            val inputVariableStore = new InputVariableStore(solver)
+            val pathStorage = new PathStorage
             val reporter2 = new ScalaAMReporter(concolicFlags2)
             val sem2 = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](reporter2))
             val pointsToAnalysisLauncher2 = new PointsToAnalysisLauncher[pointsToLattice.L](sem2, abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)

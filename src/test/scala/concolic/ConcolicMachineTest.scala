@@ -1,7 +1,7 @@
 import org.scalatest.{BeforeAndAfterEach, FunSuite}
-
 import backend.expression.ConcolicInput
-import backend.solvers.{ConcolicSolver, ConcolicSolverResult, NewInput, SymbolicTreeFullyExplored}
+import backend.solvers._
+import backend.tree.SymbolicNodeViewer
 import backend.{PathConstraint, Reporter}
 
 class ConcolicMachineTest extends FunSuite with BeforeAndAfterEach with TestCommon {
@@ -33,29 +33,6 @@ class ConcolicMachineTest extends FunSuite with BeforeAndAfterEach with TestComm
     while (line != null)
     br.close()
     sb.mkString
-  }
-
-  class MockupSolver extends SolverInterface {
-    private var mockupResults: List[NewInput] = List(
-      /* IT 2 */  NewInput(Map(ConcolicInput(0) -> 1)),
-      /* IT 3 */  NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 1)),
-      /* IT 4 */  NewInput(Map(ConcolicInput(0) -> 2)))
-//      /* IT 5 */  NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 0, ConcolicInput(2) -> 1)),
-//      /* IT 6 */  NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 2)))
-//      /* IT 7 */  NewInput(Map(ConcolicInput(0) -> 1, ConcolicInput(1) -> 1)),
-//      /* IT 8 */  NewInput(Map(ConcolicInput(0) -> 3)))
-//      /* IT 9 */  NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 0, ConcolicInput(2) -> 1, ConcolicInput(3) -> 1)),
-//      /* IT 10 */ NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 0, ConcolicInput(2) -> 2)))
-//      /* IT 11 */  NewInput(Map(ConcolicInput(0) -> 0, ConcolicInput(1) -> 1, ConcolicInput(2) -> 1)))
-    def solve: ConcolicSolverResult = {
-      ConcolicSolver.solve
-      mockupResults.headOption match {
-        case Some(result) =>
-          mockupResults = mockupResults.tail
-          result
-        case None => SymbolicTreeFullyExplored
-      }
-    }
   }
 
   private def runProgram(program: String, flags: ConcolicRunTimeFlags): (List[List[(ConcolicInput, Int)]], List[PathConstraint]) = {

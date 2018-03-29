@@ -24,7 +24,7 @@ trait UsesPointsToLattice {
   def makeConcolicMachineAndSemantics(flags: ConcolicRunTimeFlags,
     abstSem: ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T] = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives)):
   (ConcolicMachine[pointsToLattice.L], ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]) = {
-    val reporter = new ScalaAMReporter(flags, new BackendSolver)
+    val reporter = new ScalaAMReporter(flags)
     val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](reporter))
     val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](sem, abstSem)(pointsToConvLattice, pointsToLatInfoProv, AnalysisFlags())
     val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, AnalysisFlags(), reporter, flags)

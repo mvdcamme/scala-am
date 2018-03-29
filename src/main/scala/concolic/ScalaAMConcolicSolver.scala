@@ -2,15 +2,15 @@ import backend._
 import backend.expression.ConcolicInput
 import backend.path_filtering.PartialRegexMatcher
 import backend.solvers._
+import backend.tree._
 
-trait SolverInterface {
-  def solve: ConcolicSolverResult
-}
-class BackendSolver extends SolverInterface {
-  def solve: ConcolicSolverResult = ConcolicSolver.solve
-}
+class ScalaAMConcolicSolver(val useAnalysis: Boolean) {
 
-class ScalaAMConcolicSolver(val solver: SolverInterface) {
+  var backendReporter: Reporter[_, _] = if (useAnalysis) {
+    null /* TODO Refactor this for the love of god */
+  } else {
+    Reporter
+  }
 
   private var latestInputs: List[(ConcolicInput, Int)] = Nil
 
@@ -41,25 +41,36 @@ class ScalaAMConcolicSolver(val solver: SolverInterface) {
 
   var count = 0
 
-  def solve(reporter: ScalaAMReporter): Boolean = {
+  def solve[SymbolicNodeUsed : SymbolicNodeViewer](root: SymbolicNodeUsed): ConcolicSolverResult = {
+    val backendSolver = new ConcolicSolver[SymbolicNodeUsed]
+    backendSolver.solve(root)
+  }
+
+  def solve(pathConstraint: PathConstraintWithMatchers): Boolean = {
     count += 1
     resetInputs()
-    val report = reporter.pathStorage.getCurrentReport
-    PartialMatcherStore.getInitial match {
-      case Some(initialPartialMatcher) =>
-        Reporter.getRoot
-        Reporter.writeSymbolicTree("tree.dot")
-        try {
-          Reporter.addExploredPathWithPartialMatcher(report, initialPartialMatcher)
-        } catch {
-          case exception: java.lang.AssertionError =>
-            println("CAUGHT")
-            throw exception
-        }
-
-      case None => Reporter.addExploredPath(pathConstraintWithMatchersToPathConstraint(report))
+    val result: ConcolicSolverResult = if (useAnalysis) {
+      val initialPartialMatcher = PartialMatcherStore.getInitial.get
+      val reporter: Reporter[PMSymbolicNode, PathConstraintWithMatchers] = if (backendReporter == null) {
+        new PartialMatcherReporter(initialPartialMatcher)
+      } else {
+        backendReporter
+      }.asInstanceOf[Reporter[PMSymbolicNode, PathConstraintWithMatchers]]
+      backendReporter = reporter
+      reporter.writeSymbolicTree("tree.dot")
+      try {
+        reporter.addExploredPath(pathConstraint)
+        solve(reporter.getRoot.get)
+      } catch {
+        case exception: java.lang.AssertionError =>
+          println("CAUGHT")
+          throw exception
+      }
+    } else {
+      val castedBackendReporter = backendReporter.asInstanceOf[Reporter[SymbolicNode, PathConstraint]]
+      castedBackendReporter.addExploredPath(pathConstraintWithMatchersToPathConstraint(pathConstraint))
+      solve(castedBackendReporter.getRoot.get)
     }
-    val result = solver.solve
     result match {
       case NewInput(inputs) =>
         latestInputs = convertInputs(inputs)
