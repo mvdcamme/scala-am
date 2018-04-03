@@ -1,6 +1,6 @@
 import backend.expression._
 
-class InputVariableStore(val solver: ScalaAMConcolicSolver) {
+class InputVariableStore(val hasInputs: HasInputs) {
 
   type Key = (SchemeExp, Int)
 
@@ -8,7 +8,7 @@ class InputVariableStore(val solver: ScalaAMConcolicSolver) {
   private var randomConsStore: List[ConcolicAddress] = Nil
 
   def reset(): Unit = {
-    inputs = solver.getInputs
+    inputs = hasInputs.getInputs
     randomConsStore = Nil
   }
 

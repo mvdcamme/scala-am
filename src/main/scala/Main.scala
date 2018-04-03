@@ -187,9 +187,6 @@ object Main {
             Logger.log("####### SWITCHING TO BASELINE ######", Logger.E)
 
             val concolicFlags2 = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), false, false)
-            val solver = new ScalaAMConcolicSolver(concolicFlags2.checkAnalysis)
-            val inputVariableStore = new InputVariableStore(solver)
-            val pathStorage = new PathStorage
             val reporter2 = new ScalaAMReporter(concolicFlags2)
             val sem2 = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](reporter2))
             val pointsToAnalysisLauncher2 = new PointsToAnalysisLauncher[pointsToLattice.L](sem2, abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
@@ -236,7 +233,7 @@ object ScalaAM {
       implicit val isSchemeLattice: IsSchemeLattice[concreteLattice.L] = concreteLattice.isSchemeLattice
       val output = run[SchemeExp, concreteLattice.L, ClassicalAddress.A, ConcreteTimestamp.T](
         new ConcreteMachine[SchemeExp, concreteLattice.L, ClassicalAddress.A, ConcreteTimestamp.T],
-        new SchemeSemantics[concreteLattice.L, ClassicalAddress.A, ConcreteTimestamp.T](new SchemePrimitives[ClassicalAddress.A, concreteLattice.L](new ScalaAMReporter(ConcolicRunTimeFlags()))))(program, false, timeout)
+        new SchemeSemantics[concreteLattice.L, ClassicalAddress.A, ConcreteTimestamp.T](new SchemePrimitives[ClassicalAddress.A, concreteLattice.L]))(program, false, timeout)
       assert(output.finalValues.size <= 1)
       output.finalValues.headOption
     }
@@ -247,7 +244,7 @@ object ScalaAM {
       implicit val isSchemeLattice: IsSchemeLattice[cpLattice.L] = cpLattice.isSchemeLattice
       val output = run[SchemeExp, cpLattice.L, ClassicalAddress.A, ZeroCFA.T](
         new AAM[SchemeExp, cpLattice.L, ClassicalAddress.A, ZeroCFA.T],
-        new SchemeSemantics[cpLattice.L, ClassicalAddress.A, ZeroCFA.T](new SchemePrimitives[ClassicalAddress.A, cpLattice.L](new ScalaAMReporter(ConcolicRunTimeFlags()))))(program, false, timeout)
+        new SchemeSemantics[cpLattice.L, ClassicalAddress.A, ZeroCFA.T](new SchemePrimitives[ClassicalAddress.A, cpLattice.L]))(program, false, timeout)
       output.finalValues
     }
   }
@@ -257,7 +254,7 @@ object ScalaAM {
       implicit val isSchemeLattice: IsSchemeLattice[typeLattice.L] = typeLattice.isSchemeLattice
       val output = run[SchemeExp, typeLattice.L, ClassicalAddress.A, ZeroCFA.T](
         new AAM[SchemeExp, typeLattice.L, ClassicalAddress.A, ZeroCFA.T],
-        new SchemeSemantics[typeLattice.L, ClassicalAddress.A, ZeroCFA.T](new SchemePrimitives[ClassicalAddress.A, typeLattice.L](new ScalaAMReporter(ConcolicRunTimeFlags()))))(program, false, timeout)
+        new SchemeSemantics[typeLattice.L, ClassicalAddress.A, ZeroCFA.T](new SchemePrimitives[ClassicalAddress.A, typeLattice.L]))(program, false, timeout)
       output.finalValues
     }
   }

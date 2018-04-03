@@ -1,6 +1,4 @@
-import backend._
 import backend.expression.ConcolicInput
-import backend.path_filtering.PartialRegexMatcher
 import backend.solvers._
 import backend.tree._
 import backend.tree.search_strategy.{BreadthFirstSearch, SearchStrategy, TreePath}
@@ -52,27 +50,51 @@ class MostErrorsReachableSearch extends SearchStrategy[PMSymbolicNode] {
       Logger.log(s"All results are $allResults", Logger.E)
       allResults.filter(_._1.length > 0).toList.sortWith((t1, t2) => t1._2 > t2._2).headOption.map(_._1)
   }
-
 }
 
-class ScalaAMConcolicSolver(val useAnalysis: Boolean) {
+trait HasInputs {
+  def getInputs: List[(ConcolicInput, Int)]
+}
 
-  var backendReporter: Reporter[_, _] = if (useAnalysis) {
-    null /* TODO Refactor this for the love of god */
-  } else {
-    Reporter
-  }
+abstract class ScalaAMConcolicSolver extends HasInputs {
 
-  private var latestInputs: List[(ConcolicInput, Int)] = Nil
+  protected var latestInputs: List[(ConcolicInput, Int)] = Nil
 
-  private def resetInputs(): Unit = {
+  protected def resetInputs(): Unit = {
     latestInputs = Nil
   }
   def getInputs: List[(ConcolicInput, Int)] = latestInputs
 
-  private def convertInputs(inputs: Map[ConcolicInput, Int]) = {
+  protected def convertInputs(inputs: Map[ConcolicInput, Int]): List[(ConcolicInput, Int)] = {
     inputs.toList.sortBy(_._1.id)
   }
+
+  def solve(pathConstraint: PathConstraintWithMatchers): Boolean
+}
+
+class RegularConcolicSolver extends ScalaAMConcolicSolver {
+
+  val backendReporter: Reporter[SymbolicNode, PathConstraint] = Reporter
+
+  def solve(pathConstraint: PathConstraintWithMatchers): Boolean = {
+    backendReporter.writeSymbolicTree("tree.dot")
+    resetInputs()
+    val castedBackendReporter = backendReporter.asInstanceOf[Reporter[SymbolicNode, PathConstraint]]
+    castedBackendReporter.addExploredPath(pathConstraint)
+    val result = new ConcolicSolver[SymbolicNode].solve(castedBackendReporter.getRoot.get, new BreadthFirstSearch[SymbolicNode])
+    result match {
+      case NewInput(inputs) =>
+        latestInputs = convertInputs(inputs)
+        true
+      case SymbolicTreeFullyExplored => false
+    }
+  }
+
+}
+
+class PartialMatcherConcolicSolver extends ScalaAMConcolicSolver {
+
+  val backendReporter: Reporter[PMSymbolicNode, PathConstraintWithMatchers] = new PartialMatcherReporter
 
   /**
     * If no [[PartialRegexMatcher]] was defined for the first constraint, adds the given [[PartialRegexMatcher]]
@@ -90,38 +112,13 @@ class ScalaAMConcolicSolver(val useAnalysis: Boolean) {
     case list => list
   }
 
-  var count = 0
-
-  def solve[SymbolicNodeUsed : SymbolicNodeViewer](root: SymbolicNodeUsed, searchStrategy: SearchStrategy[SymbolicNodeUsed]): ConcolicSolverResult = {
-    val backendSolver = new ConcolicSolver[SymbolicNodeUsed]
-    backendSolver.solve(root, searchStrategy)
-  }
-
   def solve(pathConstraint: PathConstraintWithMatchers): Boolean = {
-    count += 1
+    backendReporter.writeSymbolicTree("tree.dot")
     resetInputs()
-    val result: ConcolicSolverResult = if (useAnalysis) {
-      val initialPartialMatcher = PartialMatcherStore.getInitial.get
-      val reporter: Reporter[PMSymbolicNode, PathConstraintWithMatchers] = if (backendReporter == null) {
-        new PartialMatcherReporter(initialPartialMatcher)
-      } else {
-        backendReporter
-      }.asInstanceOf[Reporter[PMSymbolicNode, PathConstraintWithMatchers]]
-      backendReporter = reporter
-      reporter.writeSymbolicTree("tree.dot")
-      try {
-        reporter.addExploredPath(pathConstraint)
-        solve(reporter.getRoot.get, new MostErrorsReachableSearch)
-      } catch {
-        case exception: java.lang.AssertionError =>
-          println("CAUGHT")
-          throw exception
-      }
-    } else {
-      val castedBackendReporter = backendReporter.asInstanceOf[Reporter[SymbolicNode, PathConstraint]]
-      castedBackendReporter.addExploredPath(pathConstraintWithMatchersToPathConstraint(pathConstraint))
-      solve(castedBackendReporter.getRoot.get, new BreadthFirstSearch[SymbolicNode])
-    }
+    val initialPartialMatcher = PartialMatcherStore.getInitial.get
+    val patchedPathConstraint = patchInitialPartialMatcher(pathConstraint, initialPartialMatcher)
+    backendReporter.addExploredPath(patchedPathConstraint)
+    val result = new ConcolicSolver[PMSymbolicNode].solve(backendReporter.getRoot.get, new MostErrorsReachableSearch)
     result match {
       case NewInput(inputs) =>
         latestInputs = convertInputs(inputs)
