@@ -10,7 +10,7 @@ class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags) {
 
   private var doConcolic: Boolean = false
 
-  val solver: ScalaAMConcolicSolver = if (concolicFlags.checkAnalysis) new RegularConcolicSolver else new PartialMatcherConcolicSolver
+  val solver: ScalaAMSolver = if (concolicFlags.checkAnalysis) new RegularScalaAMSolver else new PartialMatcherSolver
   val inputVariableStore = new InputVariableStore(solver)
   val pathStorage = new PathStorage
 
