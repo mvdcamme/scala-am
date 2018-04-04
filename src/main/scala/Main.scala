@@ -76,7 +76,7 @@ object Main {
 
   def main(args: Array[String]) {
     def newTimeout = Timeout.start(new FiniteDuration(200, TimeUnit.SECONDS))
-    val concolicFlags = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), true, true)
+    val concolicFlags = ConcolicRunTimeFlags(ConcolicMaxIterations(1000), true, true)
     val reporter = new ScalaAMReporter(concolicFlags)
     Config.parser.parse(args, Config.Config()).foreach(config => {
       val lattice: SchemeLattice = config.lattice match {

@@ -390,7 +390,8 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     * in a file, and returns the set of final states reached
     */
   def concolicEval(programName: String, exp: SchemeExp, sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T], graph: Boolean): ConcolicMachineOutput = {
-    def loop(state: State, start: Long, count: Int, nrOfRuns: Int): ConcolicIterationOutput = {
+    @scala.annotation.tailrec
+    def loopOneIteration(state: State, start: Long, count: Int, nrOfRuns: Int): ConcolicIterationOutput = {
       currentState = Some(state)
       Logger.log(s"stepCount: $stepCount", Logger.V)
       stepCount += 1
@@ -401,7 +402,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
         val stepped = step(state, sem)
         stepped match {
           case Left(output) => output
-          case Right(StepSucceeded(succState, filters, actions)) => loop(succState, start, count + 1, nrOfRuns)
+          case Right(StepSucceeded(succState, filters, actions)) => loopOneIteration(succState, start, count + 1, nrOfRuns)
         }
       }
     }
@@ -428,7 +429,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
       } else {
         initLoop()
         val eitherOutputOrShouldContinue: Either[ConcolicMachineOutput, Boolean] = try {
-          val concolicIterationResult = loop(initialState, System.nanoTime, 0, nrOfRuns)
+          val concolicIterationResult = loopOneIteration(initialState, System.nanoTime, 0, nrOfRuns)
           concolicIterationResult match {
             case ConcolicIterationTimedOut => Left(ConcolicMachineOutputFinished(allInputsUntilNow, allPathConstraints))
             case ConcolicIterationErrorEncountered(err) =>

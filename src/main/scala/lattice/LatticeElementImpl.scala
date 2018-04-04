@@ -237,20 +237,167 @@ object ConcreteBooleanEfficient {
   }
 }
 
-class IntervalInteger(val maxRadius: Int) {
-  sealed trait I
+class IntervalInteger(val constants: Set[Int]) {
 
-  case object Top extends I
+  trait IntRepresentation {
+    def <(other: IntRepresentation): Boolean
+    def <=(other: IntRepresentation): Boolean
+    def >(other: IntRepresentation): Boolean
+    def >=(other: IntRepresentation): Boolean
 
-  sealed trait AsSet {
-    def toISet: ISet[Int]
+    def +(other: IntRepresentation): IntRepresentation
+    def -(other: IntRepresentation): IntRepresentation
+    def unary_-(): IntRepresentation
+    def *(other: IntRepresentation): IntRepresentation
+
+    def isInfinite: Boolean
   }
-  case object Bottom extends I with AsSet {
-    def toISet = ISet.empty[Int]
+  case object PositiveInfinity extends IntRepresentation {
+    override def toString: String = "+∞"
+
+    def <(other: IntRepresentation): Boolean = false
+    def <=(other: IntRepresentation): Boolean = other match {
+      case PositiveInfinity => true
+      case _ => false
+    }
+    def >(other: IntRepresentation): Boolean = other match {
+      case PositiveInfinity => false
+      case _ => true
+    }
+    def >=(other: IntRepresentation): Boolean = true
+
+    def +(other: IntRepresentation): IntRepresentation = other match {
+      case NegativeInfinity => throw new Exception("Should not happen")
+      case _ => PositiveInfinity
+    }
+    def -(other: IntRepresentation): IntRepresentation = other match {
+      case NegativeInfinity =>throw new Exception("Should not happen")
+      case _ => PositiveInfinity
+    }
+    def unary_-(): IntRepresentation = NegativeInfinity
+    def *(other: IntRepresentation): IntRepresentation = other match {
+      case PositiveInfinity => PositiveInfinity
+      case NegativeInfinity => NegativeInfinity
+      case RegularInt(0) => PositiveInfinity /* TODO Should actually be NaN... */
+      case RegularInt(i) => if (i > 0) PositiveInfinity else NegativeInfinity
+    }
+
+    def isInfinite: Boolean = true
   }
-  case class Interval(lower: Int, upper: Int) extends I with AsSet {
-    def toISet = lower.to(upper).foldLeft(ISet.empty[Int])((iset, elem) => iset.insert(elem))
+  case object NegativeInfinity extends IntRepresentation {
+    override def toString: String = "-∞"
+
+    def <(other: IntRepresentation): Boolean = other match {
+      case NegativeInfinity => false
+      case _ => true
+    }
+    def <=(other: IntRepresentation): Boolean = true
+    def >(other: IntRepresentation): Boolean = false
+    def >=(other: IntRepresentation): Boolean = other match {
+      case NegativeInfinity => true
+      case _ => false
+    }
+
+    def +(other: IntRepresentation): IntRepresentation = other match {
+      case PositiveInfinity => throw new Exception("Should not happen")
+      case _ => NegativeInfinity
+    }
+    def -(other: IntRepresentation): IntRepresentation = other match {
+      case PositiveInfinity =>throw new Exception("Should not happen")
+      case _ => NegativeInfinity
+    }
+    def unary_-(): IntRepresentation = PositiveInfinity
+    def *(other: IntRepresentation): IntRepresentation = other match {
+      case PositiveInfinity => NegativeInfinity
+      case NegativeInfinity => PositiveInfinity
+      case RegularInt(0) => NegativeInfinity /* TODO Should actually be NaN... */
+      case RegularInt(i) => if (i > 0) NegativeInfinity else PositiveInfinity
+    }
+
+    def isInfinite: Boolean = true
   }
+  case class RegularInt(i: Int) extends IntRepresentation {
+    override def toString: String = s"$i"
+
+    def <(other: IntRepresentation): Boolean = other match {
+      case NegativeInfinity => false
+      case PositiveInfinity => true
+      case RegularInt(j) => i < j
+    }
+    def <=(other: IntRepresentation): Boolean = other match {
+      case NegativeInfinity => false
+      case PositiveInfinity => true
+      case RegularInt(j) => i <= j
+    }
+    def >(other: IntRepresentation): Boolean = other match {
+      case NegativeInfinity => true
+      case PositiveInfinity => false
+      case RegularInt(j) => i > j
+    }
+    def >=(other: IntRepresentation): Boolean = other match {
+      case NegativeInfinity => true
+      case PositiveInfinity => false
+      case RegularInt(j) => i >= j
+    }
+
+    def +(other: IntRepresentation): IntRepresentation = other match {
+      case NegativeInfinity => NegativeInfinity
+      case PositiveInfinity => PositiveInfinity
+      case RegularInt(j) => RegularInt(i + j)
+    }
+    def -(other: IntRepresentation): IntRepresentation = other match {
+      case NegativeInfinity => NegativeInfinity
+      case PositiveInfinity => PositiveInfinity
+      case RegularInt(j) => RegularInt(i - j)
+    }
+    def unary_-(): IntRepresentation = RegularInt(-i)
+    def *(other: IntRepresentation): IntRepresentation = other match {
+      case PositiveInfinity => if (i == 0) PositiveInfinity else if (i > 0) PositiveInfinity else NegativeInfinity
+      case NegativeInfinity => if (i == 0) NegativeInfinity else if (i > 0) NegativeInfinity else PositiveInfinity
+      case RegularInt(j) => RegularInt(i * j)
+    }
+
+    def isInfinite: Boolean = false
+  }
+
+  private val absoluteLowerBound: IntRepresentation = NegativeInfinity
+  private val absoluteUpperBound: IntRepresentation = PositiveInfinity
+
+  val intRepresentationsConsts: Set[IntRepresentation] = Set(absoluteLowerBound, absoluteUpperBound) ++ constants.map(RegularInt)
+
+  sealed trait I {
+    def isInfinite: Boolean
+  }
+
+  case object Bottom extends I {
+    override def toString: String = "⊥"
+    def isInfinite: Boolean = false
+  }
+  case class Interval(lower: IntRepresentation, upper: IntRepresentation) extends I {
+    override def toString: String = s"[$lower,$upper]"
+    def isInfinite: Boolean = lower.isInfinite || upper.isInfinite
+  }
+
+  private def findMaxSmaller(a: IntRepresentation): IntRepresentation = intRepresentationsConsts.foldLeft(absoluteLowerBound)((acc, const) => {
+    if (const > acc && const <= a)
+      const
+    else
+      acc
+  })
+  private def findMinLarger(b: IntRepresentation): IntRepresentation = intRepresentationsConsts.foldLeft(absoluteUpperBound)((acc, const) => {
+    if (const < acc && const >= b)
+      const
+    else
+      acc
+  })
+  protected def widen(value: I): I = value match {
+    case Bottom => Bottom
+    case Interval(lower, upper) =>
+      val widenedLower = findMaxSmaller(lower)
+      val widenedUpper = findMinLarger(upper)
+      Interval(widenedLower, widenedUpper)
+  }
+
   implicit val isMonoid = new Monoid[I] {
     def zero: I = Bottom
     def append(x: I, y: => I) = x match {
@@ -260,92 +407,93 @@ class IntervalInteger(val maxRadius: Int) {
           val newUpper = if (xUpper >= yUpper) xUpper else yUpper
           Interval(newLower, newUpper)
         case Bottom => x
-        case Top => y
       }
       case Bottom => y
-      case Top => x
     }
-  }
-  private def radius(i: Interval): Int = {
-    Math.abs(i.upper - i.lower)
   }
   object I {
     implicit val isInteger = new IntLattice[I] {
-      def name = s"IntervalInteger($maxRadius)"
+      def name = "IntervalInteger"
       override def shows(i: I): String = i match {
         case Bottom => "⊥"
-        case Top => "Int"
         case Interval(lower, upper) => s"[$lower, $upper]"
       }
       val bottom: I = Monoid[I].zero
-      val top: I = Top
-      def join(x: I, y: => I): I = promote(Monoid[I].append(x, y))
+      val top: I = Interval(absoluteLowerBound, absoluteUpperBound)
+      def join(x: I, y: => I): I = widen(Monoid[I].append(x, y))
       def subsumes(x: I, y: => I) = x match {
         case Interval(xLower, xUpper) => y match {
           case Interval(yLower, yUpper) => yLower >= xLower && yUpper <= xUpper
           case Bottom => true
-          case Top => false
         }
         case Bottom => x == y
-        case Top => true
       }
-      private def promote(x: I): I = {
-        x match {
-          case i: Interval if radius(i) >= maxRadius => Top
-          case _ => x
-        }
-      }
-      private def fold[L : LatticeElement](x: I, f: Int => L): L = x match {
-        case Bottom => Bottom.toISet.foldMap(f)
-        case i: Interval => i.toISet.foldMap(f)
-        case Top => LatticeElement[L].top
-      }
-      private def foldI(x: I, f: Int => I): I = x match {
-        case Bottom => Bottom.toISet.foldMap(f)(isMonoid)
-        case i: Interval => i.toISet.foldMap(f)(isMonoid)
-        case Top => Top
-      }
-      def singletonInt(x: Int) = Interval(x, x)
-      def inject(x: Int): I = promote(singletonInt(x))
-      def toReal[F : RealLattice](n: I): F = fold(n, n => RealLattice[F].inject(n))
-      def random(n: I): I = Top
-      def plus(n1: I, n2: I): I = promote((n1, n2) match {
-        case (Top, _) => Top
-        case (_, Top) => Top
-        case (Interval(n1Lower, n1Upper), Interval(n2Lower, n2Upper)) => Interval(n1Lower + n2Lower, n1Upper + n2Upper)
-        case _ => Bottom
-      })
-      def minus(n1: I, n2: I): I = n2 match {
-        case Top => Top
-        case Bottom => Bottom
-        case Interval(n2Lower, n2Upper) =>
-          assert(-n2Upper <= -n2Lower, n2)
-          plus(n1, Interval(-n2Upper, -n2Lower))
-      }
-      def times(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(n1 * n2)))
-      def div[F : RealLattice](n1: I, n2: I): F = fold(n1, n1 => fold(n2, n2 => RealLattice[F].inject(n1 / n2.toDouble)))
-      def quotient(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(n1 / n2)))
-      def modulo(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(SchemeOps.modulo(n1, n2))))
-      def remainder(n1: I, n2: I): I = foldI(n1, n1 => foldI(n2, n2 => inject(SchemeOps.remainder(n1, n2))))
-      def lt[B : BoolLattice](n1: I, n2: I): B = fold(n1, n1 => fold(n2, n2 => BoolLattice[B].inject(n1 < n2)))
-      def eql[B : BoolLattice](n1: I, n2: I): B = fold(n1, n1 => fold(n2, n2 => BoolLattice[B].inject(n1 == n2)))
-      def toChar[C : CharLattice](n: I): C = fold(n, n => CharLattice[C].inject(n.toChar))
-      def toString[S : StringLattice](n: I): S = fold(n, n => StringLattice[S].inject(n.toString))
 
       def order(x: I, y: I): Ordering = (x, y) match {
         case (Bottom, Bottom) => Ordering.EQ
         case (Bottom, _) => Ordering.LT
         case (_: Interval, Bottom) => Ordering.GT
-        case (x: Interval, y: Interval) => Order[ISet[Int]].order(x.toISet, y.toISet)
-        case (_: Interval, Top) => Ordering.LT
-        case (Top, _) => Ordering.GT
-        case (Top, Top) => Ordering.EQ
+        case (x@Interval(xLower, xUpper), y@Interval(yLower, yUpper)) =>
+          if (x == y) Ordering.EQ
+          else if (xLower <= yLower && xUpper <= yUpper) Ordering.LT
+          else if (xLower >= yLower && xUpper >= yUpper) Ordering.GT
+          else Ordering.EQ
       }
       def cardinality(x: I): Cardinality = x match {
-        case i: Interval => CardinalityPrimitiveLikeNumber(Math.abs(radius(i)))
+        case Interval(RegularInt(lower), RegularInt(upper)) => CardinalityPrimitiveLikeNumber(Math.abs(upper - lower))
+        case Interval(_, _) => CardinalityPrimitiveLikeInf()
         case Bottom => CardinalityPrimitiveLikeNumber(0)
-        case Top => CardinalityPrimitiveLikeInf()
       }
+
+      implicit val ordering: Order[IntRepresentation] = new Order[IntRepresentation] {
+        def order(x: IntRepresentation, y: IntRepresentation): Ordering = {
+          if (x == y) Ordering.EQ
+          else if (x < y) Ordering.LT
+          else Ordering.GT
+        }
+      }
+
+      def singletonInt(x: Int) = Interval(RegularInt(x), RegularInt(x))
+      def inject(x: Int): I = widen(singletonInt(x))
+      def toReal[F : RealLattice](n: I): F = RealLattice[F].top
+      def random(n: I): I = top
+      def plus(n1: I, n2: I): I = widen((n1, n2) match {
+        case (Interval(n1Lower, n1Upper), Interval(n2Lower, n2Upper)) => Interval(n1Lower + n2Lower, n1Upper + n2Upper)
+        case _ => Bottom
+      })
+      def minus(n1: I, n2: I): I = widen((n1, n2) match {
+        case (Bottom, _) | (_, Bottom) => Bottom
+        case (Interval(n1Lower, n1Upper), Interval(n2Lower, n2Upper)) =>
+          assert(-n2Upper <= -n2Lower, n2)
+          Interval(n1Lower - n2Upper, n1Upper - n2Lower)
+      })
+      def times(n1: I, n2: I): I = widen((n1, n2) match {
+        case (Bottom, _) | (_, Bottom) => Bottom
+        case (Interval(n1Lower, n1Upper), Interval(n2Lower, n2Upper)) =>
+          val lower = Order[IntRepresentation].min(Order[IntRepresentation].min(Order[IntRepresentation].min(n1Lower * n2Lower, n1Lower * n2Upper), n1Upper * n2Lower), n1Upper * n2Upper)
+          val upper = Order[IntRepresentation].max(Order[IntRepresentation].max(Order[IntRepresentation].max(n1Lower * n2Lower, n1Lower * n2Upper), n1Upper * n2Lower), n1Upper * n2Upper)
+          Interval(lower, upper)
+      })
+      def div[F : RealLattice](n1: I, n2: I): F = RealLattice[F].top
+      def quotient(n1: I, n2: I): I = ???
+      def modulo(n1: I, n2: I): I = ???
+      def remainder(n1: I, n2: I): I = ???
+      def lt[B : BoolLattice](n1: I, n2: I): B = (n1, n2) match {
+        case (Bottom, _) | (_, Bottom) => BoolLattice[B].bottom
+        case (i1: Interval, i2: Interval) =>
+          val isSmaller = BoolLattice[B].inject(i1.lower < i2.upper)
+          val isNotSmaller = BoolLattice[B].inject(i1.upper > i2.lower)
+          BoolLattice[B].join(isSmaller, isNotSmaller)
+      }
+      def eql[B : BoolLattice](n1: I, n2: I): B = (n1, n2) match {
+        case (Bottom, _) | (_, Bottom) => BoolLattice[B].bottom
+        case (i1: Interval, i2: Interval) =>
+          val intervalsOverlap = BoolLattice[B].inject(i1.lower <= i2.upper && i2.lower <= i1.upper) /* If there is an overlap, the value might be equal */
+          val intervalsNotEqual = BoolLattice[B].inject(i1 != i2) /* If the two intervals are not exactly the same, they can be inequal */
+          BoolLattice[B].join(intervalsOverlap, intervalsNotEqual)
+      }
+      def toChar[C : CharLattice](n: I): C = ???
+      def toString[S : StringLattice](n: I): S = ???
     }
   }
 }
