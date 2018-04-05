@@ -352,8 +352,7 @@ class IntervalInteger(val constants: Set[Int]) {
     }
     def unary_-(): IntRepresentation = RegularInt(-i)
     def *(other: IntRepresentation): IntRepresentation = other match {
-      case PositiveInfinity => if (i == 0) PositiveInfinity else if (i > 0) PositiveInfinity else NegativeInfinity
-      case NegativeInfinity => if (i == 0) NegativeInfinity else if (i > 0) NegativeInfinity else PositiveInfinity
+      case PositiveInfinity | NegativeInfinity => if (i == 0) other else if (i > 0) other else -other
       case RegularInt(j) => RegularInt(i * j)
     }
 
@@ -475,25 +474,33 @@ class IntervalInteger(val constants: Set[Int]) {
           Interval(lower, upper)
       })
       def div[F : RealLattice](n1: I, n2: I): F = RealLattice[F].top
-      def quotient(n1: I, n2: I): I = ???
-      def modulo(n1: I, n2: I): I = ???
-      def remainder(n1: I, n2: I): I = ???
+      def quotient(n1: I, n2: I): I = top
+      def modulo(n1: I, n2: I): I = top
+      def remainder(n1: I, n2: I): I = top
       def lt[B : BoolLattice](n1: I, n2: I): B = (n1, n2) match {
         case (Bottom, _) | (_, Bottom) => BoolLattice[B].bottom
         case (i1: Interval, i2: Interval) =>
           val isSmaller = BoolLattice[B].inject(i1.lower < i2.upper)
-          val isNotSmaller = BoolLattice[B].inject(i1.upper > i2.lower)
-          BoolLattice[B].join(isSmaller, isNotSmaller)
+          val isNotSmaller = BoolLattice[B].inject(i1.upper >= i2.lower)
+          BoolLattice[B].join(isSmaller,  BoolLattice[B].not(isNotSmaller))
       }
       def eql[B : BoolLattice](n1: I, n2: I): B = (n1, n2) match {
         case (Bottom, _) | (_, Bottom) => BoolLattice[B].bottom
         case (i1: Interval, i2: Interval) =>
           val intervalsOverlap = BoolLattice[B].inject(i1.lower <= i2.upper && i2.lower <= i1.upper) /* If there is an overlap, the value might be equal */
-          val intervalsNotEqual = BoolLattice[B].inject(i1 != i2) /* If the two intervals are not exactly the same, they can be inequal */
-          BoolLattice[B].join(intervalsOverlap, intervalsNotEqual)
+          val intervalsNonEqual = BoolLattice[B].inject(i1 != i2) /* If the two intervals are not exactly the same, they can be inequal */
+          BoolLattice[B].join(intervalsOverlap,  BoolLattice[B].not(intervalsNonEqual))
       }
-      def toChar[C : CharLattice](n: I): C = ???
-      def toString[S : StringLattice](n: I): S = ???
+      def toChar[C : CharLattice](n: I): C = n match {
+        case Bottom => CharLattice[C].bottom
+        case Interval(RegularInt(lower), RegularInt(upper)) if lower == upper => CharLattice[C].inject(lower.toChar)
+        case _ => CharLattice[C].top
+      }
+      def toString[S : StringLattice](n: I): S = n match {
+        case Bottom => StringLattice[S].bottom
+        case Interval(RegularInt(lower), RegularInt(upper)) if lower == upper => StringLattice[S].inject(lower.toString)
+        case _ => StringLattice[S].top
+      }
     }
   }
 }
