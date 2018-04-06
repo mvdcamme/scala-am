@@ -7,13 +7,11 @@ case object AbortConcolicIterationException extends Exception
 
 class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags) {
 
-
   private var doConcolic: Boolean = false
 
-  val solver: ScalaAMSolver = if (concolicFlags.checkAnalysis) new RegularScalaAMSolver else new PartialMatcherSolver
+  val solver: ScalaAMSolver = if (concolicFlags.checkAnalysis) new PartialMatcherSolver else new RegularScalaAMSolver
   val inputVariableStore = new InputVariableStore(solver)
   val pathStorage = new PathStorage
-
 
   import scala.language.implicitConversions
   implicit private def pathToString(path: Path): String = {
