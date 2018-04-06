@@ -7,6 +7,9 @@ class RegularScalaAMSolver extends ScalaAMSolver {
 
   val backendReporter: Reporter[SymbolicNode, PathConstraint] = Reporter
 
+  def getRoot: SymbolicNode = backendReporter.getRoot.get
+  def deleteSymbolicTree(): Unit = backendReporter.deleteSymbolicTree()
+
   def solve(pathConstraint: PathConstraintWithMatchers): Boolean = {
     backendReporter.writeSymbolicTree("tree.dot")
     resetInputs()

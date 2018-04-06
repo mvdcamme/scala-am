@@ -181,8 +181,8 @@ object Main {
             val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, config.analysisFlags, reporter, concolicFlags)
             sem.rTAnalysisStarter = machine
             machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined)
-            val root1 = backend.Reporter.getRoot.getOrElse(UnexploredNode)
-            backend.Reporter.deleteSymbolicTree()
+            val root1 = reporter.solver.getRoot
+            reporter.solver.deleteSymbolicTree()
 
             Logger.log("####### SWITCHING TO BASELINE ######", Logger.E)
 
@@ -193,14 +193,14 @@ object Main {
             val machine2 = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher2, config.analysisFlags, reporter2, concolicFlags2)
             sem2.rTAnalysisStarter = machine2
             machine2.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem2.parse(program), sem2, config.dotfile.isDefined)
-            val root2 = backend.Reporter.getRoot.getOrElse(UnexploredNode)
+            val root2 = reporter2.solver.getRoot
             println(s"Comparison: ${CompareSymbolicTrees.countUniqueSafePaths(root1, root2)} illegalized paths in second tree vs first tree")
             println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonSafePaths(root1, root2)} non-illegalized paths in second tree vs first tree")
             println(s"Comparison: ${CompareSymbolicTrees.countUniqueSafePaths(root2, root1)} illegalized paths in first tree vs second tree")
             println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonSafePaths(root2, root1)} illegalized paths in first tree vs second tree")
           })
-          }
-      })
+      }
+    })
     Profiler.print
   }
 }

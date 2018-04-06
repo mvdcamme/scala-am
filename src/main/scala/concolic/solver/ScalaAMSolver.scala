@@ -1,7 +1,7 @@
 import backend._
 import backend.expression.ConcolicInput
 import backend.solvers.{ConcolicSolver, ConcolicSolverResult}
-import backend.tree.SymbolicNodeViewer
+import backend.tree._
 import backend.tree.search_strategy._
 
 trait HasInputs {
@@ -16,6 +16,8 @@ abstract class ScalaAMSolver extends HasInputs {
     latestInputs = Nil
   }
   def getInputs: List[(ConcolicInput, Int)] = latestInputs
+  def getRoot: SymbolicNode
+  def deleteSymbolicTree(): Unit
 
   protected def convertInputs(inputs: Map[ConcolicInput, Int]): List[(ConcolicInput, Int)] = {
     inputs.toList.sortBy(_._1.id)
