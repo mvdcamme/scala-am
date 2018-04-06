@@ -10,8 +10,10 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
 
   private val errorPathDetector = new ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.aam.State](analysisLauncher.aam)
 
+  private val analysisResultCache = new AnalysisResultCache[analysisLauncher.stateConverter.aam.InitialState]
+
   private def handleAnalysisResult(outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], currentConcolicRun: Int): AnalysisResult = {
-    GraphDOTOutput.toFile(outputGraph.graph, outputGraph.halted)("rt_graph.dot")
+//    GraphDOTOutput.toFile(outputGraph.graph, outputGraph.halted)("rt_graph.dot")
     val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.graph, outputGraph.stepSwitched, currentConcolicRun)
     AnalysisResult(maybePartialMatcher.get, outputGraph.errorStates.nonEmpty, outputGraph.errorStates.exists(_.isUserErrorState))
   }
@@ -22,12 +24,12 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
     maybeAnalysisResult
   }
 
-  private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], currentConcolicRun: Int): AnalysisResult = {
+  private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], convertedState: analysisLauncher.stateConverter.aam.InitialState, currentConcolicRun: Int): AnalysisResult = {
     val maybeAnalysisResult = handleAnalysisResult(result, currentConcolicRun)
+    analysisResultCache.addAnalysisResult(convertedState, maybeAnalysisResult)
+    GlobalSymbolicStore.resetSetExpanded()
     maybeAnalysisResult
   }
-
-  private val analysisResultCache = new AnalysisResultCache[analysisLauncher.stateConverter.aam.InitialState]
 
   /**
     * If an if-expression has just been encountered (and a corresponding branch node has been made), launch a
@@ -48,8 +50,7 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
         cachedAnalysisResult
       case None =>
         val result = analysisLauncher.runStaticAnalysis(state, Some(stepCount), convertedCurrentAddresses, pathConstraint)
-        val analysisResult = handleRunTimeAnalysisResult(result, currentConcolicRun)
-        analysisResultCache.addAnalysisResult(convertedState, analysisResult)
+        val analysisResult = handleRunTimeAnalysisResult(result, convertedState, currentConcolicRun)
         analysisResult
     }
     reporter.enableConcolic()
