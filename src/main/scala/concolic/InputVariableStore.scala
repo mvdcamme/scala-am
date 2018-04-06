@@ -1,14 +1,23 @@
 import backend.expression._
 
-class InputVariableStore(val hasInputs: HasInputs) {
+class InputVariableStore {
+
+  private var doConcolic: Boolean = false
+  def enableConcolic(): Unit = {
+    doConcolic = true
+  }
+  def disableConcolic(): Unit = {
+    doConcolic = false
+  }
+  def isConcolicEnabled: Boolean = doConcolic
 
   type Key = (SchemeExp, Int)
 
   private var inputs: List[(ConcolicInput, Int)] = Nil
   private var randomConsStore: List[ConcolicAddress] = Nil
 
-  def reset(): Unit = {
-    inputs = hasInputs.getInputs
+  def reset(newInputs: List[(ConcolicInput, Int)]): Unit = {
+    inputs = newInputs
     randomConsStore = Nil
   }
 

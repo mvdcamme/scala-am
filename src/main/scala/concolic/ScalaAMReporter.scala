@@ -1,17 +1,111 @@
+import backend._
+import backend.expression.ConcolicInput
 import backend.path_filtering.PartialRegexMatcher
 import backend.tree._
 import backend.tree.path._
-import backend._
+
+import abstract_state_heuristic.AbstractStatePCElement
 
 case object AbortConcolicIterationException extends Exception
 
-class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags) {
+trait ScalaAMReporter[PCElement] {
+  val pathStorage = new PathStorage[PCElement]
 
-  private var doConcolic: Boolean = false
+  def concolicFlags: ConcolicRunTimeFlags
+  def solver: ScalaAMSolver[PCElement]
+  def inputVariableStore: InputVariableStore
+  def clear(newInputs: List[(ConcolicInput, Int)]): Unit
 
-  val solver: ScalaAMSolver = if (concolicFlags.checkAnalysis) new PartialMatcherSolver else new RegularScalaAMSolver
-  val inputVariableStore = new InputVariableStore(solver)
-  val pathStorage = new PathStorage
+  def addBranchConstraint[RTInitialState](constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter[RTInitialState]): Unit
+  def addUnusableConstraint(thenBranchTaken: Boolean): Unit
+
+  def printReports(): Unit
+  def writeSymbolicTree(path: String): Unit
+}
+
+abstract class BaseScalaAMReporter[PCElement](val concolicFlags: ConcolicRunTimeFlags, val solver: ScalaAMSolver[PCElement], val inputVariableStore: InputVariableStore) extends ScalaAMReporter[PCElement] {
+
+  def clear(newInputs: List[(ConcolicInput, Int)]): Unit = {
+    inputVariableStore.reset(newInputs)
+    pathStorage.resetCurrentPath()
+    pathStorage.resetCurrentReport()
+    GlobalSymbolicStore.reset()
+    solver.clearBackendReporter()
+  }
+}
+
+class RegularScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVariableStore: InputVariableStore) extends BaseScalaAMReporter[RegularPCElement](concolicFlags, new RegularScalaAMSolver, inputVariableStore) {
+
+  def printReports(): Unit = {
+    Logger.log(s"Reporter recorded path: ${pathStorage.getCurrentReport.filter({
+      case (_: BranchConstraint, _) => true
+      case _ => false
+    }).map({
+      case (constraint, constraintTrue) => (constraint, constraintTrue)
+    }).mkString("; ")}", Logger.U)
+  }
+
+  def writeSymbolicTree(path: String): Unit = {
+    Reporter.writeSymbolicTree(path)
+  }
+
+  def addBranchConstraint[RTInitialState](constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter[RTInitialState]): Unit = {
+    val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
+    if (ConstraintOptimizer.isConstraintConstant(optimizedConstraint)) {
+      /*
+       * If the constraint is constant, don't bother adding it to the currentReport as it will always be either true or
+       * false anyway. The currentPath should still be updated, because this path is compared with the path computed
+       * via static analyses, which don't (or can't) check whether some condition is constant or not.
+       */
+      addUnusableConstraint(thenBranchTaken)
+    } else {
+      pathStorage.updateReport(optimizedConstraint, thenBranchTaken)
+    }
+  }
+
+  def addUnusableConstraint(thenBranchTaken: Boolean): Unit = {
+    pathStorage.updateReport((UnusableConstraint, thenBranchTaken))
+  }
+}
+
+class AbstractStateScalaAMReporter[State](concolicFlags: ConcolicRunTimeFlags, inputVariableStore: InputVariableStore) extends BaseScalaAMReporter[AbstractStatePCElement[State]](concolicFlags, new AbstractStateSolver[State], inputVariableStore) {
+
+  def printReports(): Unit = {
+    Logger.log(s"Reporter recorded path: ${pathStorage.getCurrentReport.filter({
+      case (_: BranchConstraint, _, _) => true
+      case _ => false
+    }).map({
+      case (constraint, constraintTrue, _) => (constraint, constraintTrue)
+    }).mkString("; ")}", Logger.U)
+  }
+
+  def writeSymbolicTree(path: String): Unit = {
+    Reporter.writeSymbolicTree(path)
+  }
+
+  def addBranchConstraint[RTInitialState](constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter[RTInitialState]): Unit = {
+    val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
+    if (ConstraintOptimizer.isConstraintConstant(optimizedConstraint)) {
+      /*
+       * If the constraint is constant, don't bother adding it to the currentReport as it will always be either true or
+       * false anyway. The currentPath should still be updated, because this path is compared with the path computed
+       * via static analyses, which don't (or can't) check whether some condition is constant or not.
+       */
+      addUnusableConstraint(thenBranchTaken)
+    } else {
+      val constraintAddedPC = pathStorage.addToReport((optimizedConstraint, thenBranchTaken, None))
+      val abstractedState = rTAnalysisStarter.abstractCurrentState(constraintAddedPC.map(triple => (triple._1, triple._2))).asInstanceOf[State]
+      pathStorage.updateReport((optimizedConstraint, thenBranchTaken, Some(abstractedState)))
+    }
+  }
+
+  def addUnusableConstraint(thenBranchTaken: Boolean): Unit = {
+    pathStorage.updateReport(UnusableConstraint, thenBranchTaken, None)
+  }
+
+}
+
+class PartialMatcherScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, solver: PartialMatcherSolver, inputVariableStore: InputVariableStore) extends BaseScalaAMReporter[PartialMatcherPCElement](concolicFlags, solver, inputVariableStore) {
 
   import scala.language.implicitConversions
   implicit private def pathToString(path: Path): String = {
@@ -35,19 +129,8 @@ class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags) {
     isErrorViaElse && isErrorViaThen
   }
 
-  def enableConcolic(): Unit = {
-    doConcolic = true
-  }
-  def disableConcolic(): Unit = {
-    doConcolic = false
-  }
-  def isConcolicEnabled: Boolean = doConcolic
-  def clear(): Unit = {
-    Reporter.clear()
-    inputVariableStore.reset()
-    pathStorage.resetCurrentPath()
-    pathStorage.resetCurrentReport()
-    GlobalSymbolicStore.reset()
+  override def clear(newInputs: List[(ConcolicInput, Int)]): Unit = {
+    super.clear(newInputs)
     PartialMatcherStore.reset()
   }
 
@@ -77,14 +160,10 @@ class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags) {
     partialMatcher
   }
 
-  def addBranchConstraint(constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter): Unit = {
-
-    if (!doConcolic) {
-      return
-    }
+  def addBranchConstraint[RTInitialState](constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter[RTInitialState]): Unit = {
 
     val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
-    lazy val constraintAddedPC = pathStorage.addToReport(optimizedConstraint, thenBranchTaken, None)
+    lazy val constraintAddedPC = pathStorage.addToReport((optimizedConstraint, thenBranchTaken, None))
     val inputVariableFinder = new InputVariableFinder
     val (exactInputVars, inexactInputVars) = inputVariableFinder.findInputVariablesDefinitions(constraintAddedPC)
     if (ConstraintOptimizer.isConstraintConstant(optimizedConstraint)) {
@@ -93,8 +172,8 @@ class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags) {
        * false anyway. The currentPath should still be updated, because this path is compared with the path computed
        * via static analyses, which don't (or can't) check whether some condition is constant or not.
        */
-      addUnusableConstraint(thenBranchTaken, rTAnalysisStarter)
-    } else if (concolicFlags.useRunTimeAnalyses && inexactInputVars.isEmpty) {
+      addUnusableConstraint(thenBranchTaken)
+    } else if (inexactInputVars.isEmpty) {
       Logger.log(s"EXACT INPUT VARIABLES IN PATH ARE $exactInputVars", Logger.E)
       val analysisResult = rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken, constraintAddedPC)
       /*
@@ -112,24 +191,19 @@ class ScalaAMReporter(val concolicFlags: ConcolicRunTimeFlags) {
         abortConcolicIteration()
       }
       Logger.log("Continuing Testing", Logger.E)
-    } else if (concolicFlags.checkAnalysis) {
+    } else {
       if (concolicFlags.useRunTimeAnalyses && inexactInputVars.nonEmpty) {
         Logger.log("SKIPPING RT ANALYSIS BECAUSE OF AN INEXACT INPUT VARIABLE", Logger.U)
       }
       pathStorage.updateReport(optimizedConstraint, thenBranchTaken, None)
       checkWithPartialMatcher
-    } else {
-      /* Constraint is not constant and checkAnalysis is false */
-      pathStorage.updateReport(optimizedConstraint, thenBranchTaken, None)
     }
   }
 
-  def addUnusableConstraint(thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter): Unit = {
-    if (doConcolic) {
-      pathStorage.updateReport(UnusableConstraint, thenBranchTaken, None)
-      if (concolicFlags.checkAnalysis) {
-        checkWithPartialMatcher
-      }
+  def addUnusableConstraint(thenBranchTaken: Boolean): Unit = {
+    pathStorage.updateReport(UnusableConstraint, thenBranchTaken, None)
+    if (concolicFlags.checkAnalysis) {
+      checkWithPartialMatcher
     }
   }
 

@@ -4,12 +4,13 @@ import backend.solvers._
 import backend.tree._
 import backend.tree.search_strategy.BreadthFirstSearch
 
-class PartialMatcherSolver extends ScalaAMSolver {
+class PartialMatcherSolver extends ScalaAMSolver[PartialMatcherPCElement] {
 
   val backendReporter: Reporter[PMSymbolicNode, PathConstraintWithMatchers] = new PartialMatcherReporter
 
   def getRoot: SymbolicNode = backendReporter.symbolicNodeViewer.asSymbolicNode(backendReporter.getRoot.get)
   def deleteSymbolicTree(): Unit = backendReporter.deleteSymbolicTree()
+  def clearBackendReporter(): Unit = backendReporter.clear()
 
   /**
     * If no [[PartialRegexMatcher]] was defined for the first constraint, adds the given [[PartialRegexMatcher]]

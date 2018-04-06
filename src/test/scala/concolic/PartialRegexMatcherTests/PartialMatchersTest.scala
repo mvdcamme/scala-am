@@ -1,15 +1,16 @@
 import backend.path_filtering.PartialRegexMatcher
 import org.scalatest.{BeforeAndAfterEach, FunSuite, PrivateMethodTester}
 import ConcreteConcreteLattice.{L => ConcreteValue}
+import backend.{PathConstraint, RegularPCElement}
 
 class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeAndAfterEach with TestCommon with TestsPartialMatchers {
 
-  val (machine: ConcolicMachine[pointsToLattice.L], sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
+  val (machine: ConcolicMachine[pointsToLattice.L, RegularPCElement, _], sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, RegularPCElement]) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
 
-  val (launchAnalyses: LaunchAnalyses[pointsToLattice.L],
+  val (launchAnalyses: LaunchAnalyses[pointsToLattice.L, RegularPCElement],
        initialState: machine.State,
        analysisResult: AnalysisOutputGraph[SchemeExp, pointsToLattice.L, HybridAddress.A, machine.analysisLauncher.aam.State]) = Util.runOnFile(connect4Program, (program) => {
-    val launchAnalyses = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
+    val launchAnalyses = new LaunchAnalyses[pointsToLattice.L, RegularPCElement](machine.analysisLauncher, machine.reporter)
     val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
     val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
     (launchAnalyses, initialState, analysisResult)
@@ -31,7 +32,7 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
 
   private def performInitialAnalysis(program: String): PartialRegexMatcher = {
     val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
-    val launchAnalyses = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
+    val launchAnalyses = new LaunchAnalyses[pointsToLattice.L, RegularPCElement](machine.analysisLauncher, machine.reporter)
     val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
     val analysisResult = launchAnalyses.startInitialAnalysis(initialState, connect4Program)
     analysisResult.partialMatcher
@@ -87,7 +88,7 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
       val pm = performInitialAnalysis(program)
       previousPaths.zip(previousResults).foreach(tuple => {
         val (previousPath, previousResultString) = tuple
-        val previousResult = if (previousResultString == "T") true else false
+        val previousResult = previousResultString == "T"
         val (currentResult, _) = pm.incrementalMatch(previousPath)
         assert(currentResult == previousResult)
       })
@@ -120,9 +121,9 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
       })
       /* Now start stepping from state100 until a state is reached where an if-condition has been evaluated. */
       val (concreteState, stepCount, thenBranchTaken) = loopUntilIfConditionEvaluated(state100, 100)
-      val launchAnalysis1 = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
+      val launchAnalysis1 = new LaunchAnalyses[pointsToLattice.L, RegularPCElement](machine.analysisLauncher, machine.reporter)
       val output1 = launchAnalysis1.startRunTimeAnalysis(concreteState, thenBranchTaken, stepCount, machine.reporter.pathStorage.getCurrentReport, 1)
-      val launchAnalysis2 = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
+      val launchAnalysis2 = new LaunchAnalyses[pointsToLattice.L, RegularPCElement](machine.analysisLauncher, machine.reporter)
       val output2 = launchAnalysis2.startRunTimeAnalysis(concreteState, thenBranchTaken, stepCount, machine.reporter.pathStorage.getCurrentReport, 1)
       checkPartialMatchersEqual(output1.partialMatcher, output2.partialMatcher)
     })

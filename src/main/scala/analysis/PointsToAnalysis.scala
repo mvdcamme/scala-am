@@ -3,10 +3,9 @@ import java.io.{BufferedWriter, File, FileWriter}
 import backend.PathConstraint
 
 class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
-    concSem: ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
     abstSem: ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T])
     (implicit analysisFlags: AnalysisFlags)
-    extends AnalysisLauncher[Abs](concSem, abstSem) {
+    extends AnalysisLauncher[Abs](abstSem) {
 
   val usesGraph = new UsesGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
   import usesGraph._

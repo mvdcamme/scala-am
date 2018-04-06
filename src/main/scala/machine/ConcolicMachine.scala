@@ -14,17 +14,18 @@ object Reached {
   def empty[Addr : Address] = Reached[Addr](Set(), Set())
 }
 
-class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analysisLauncher: AnalysisLauncher[PAbs],
-                                                                       val analysisFlags: AnalysisFlags,
-                                                                       val reporter: ScalaAMReporter,
-                                                                       val concolicFlags: ConcolicRunTimeFlags)
-                                                                      (implicit unused1: IsSchemeLattice[ConcreteValue])
-  extends EvalKontMachine[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] with RTAnalysisStarter {
+class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElementUsed, RTAnalysisInitialState](
+  val analysisLauncher: AnalysisLauncher[PAbs],
+  val analysisFlags: AnalysisFlags,
+  val reporter: ScalaAMReporter[PCElementUsed],
+  val concolicFlags: ConcolicRunTimeFlags)
+ (implicit unused1: IsSchemeLattice[ConcreteValue])
+  extends EvalKontMachine[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] with RTAnalysisStarter[RTAnalysisInitialState] {
 
   def name = "ConcolicMachine"
 
-  private val rtAnalysis = new LaunchAnalyses[PAbs](analysisLauncher, reporter)
-  private val semanticsConcolicHelper = new SemanticsConcolicHelper(this, reporter)
+  private val rtAnalysis = new LaunchAnalyses[PAbs, PCElementUsed](analysisLauncher, reporter)
+  private val semanticsConcolicHelper = new SemanticsConcolicHelper[PCElementUsed, RTAnalysisInitialState](this, reporter)
 
   private var currentState: Option[State] = None
 
@@ -34,9 +35,9 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
   trait ConcolicMachineOutput extends Output {
     def toFile(path: String)(output: GraphOutput): Unit = println("Not generating graph for ConcolicMachine")
     def allInputs: List[List[(ConcolicInput, Int)]]
-    def allPathConstraints: List[PathConstraint]
+    def allPathConstraints: List[PathConstraintWith[PCElementUsed]]
   }
-  case class ConcolicMachineOutputFinished(allInputs: List[List[(ConcolicInput, Int)]], allPathConstraints: List[PathConstraint]) extends ConcolicMachineOutput {
+  case class ConcolicMachineOutputFinished(allInputs: List[List[(ConcolicInput, Int)]], allPathConstraints: List[PathConstraintWith[PCElementUsed]]) extends ConcolicMachineOutput {
     def finalValues = Set()
     override def containsFinalValue(v: ConcreteValue) = false
     def timedOut: Boolean = false
@@ -45,7 +46,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
   }
   case object ConcolicMachineTestingNotStarted extends ConcolicMachineOutput {
     def allInputs: List[List[(ConcolicInput, Int)]] = Nil
-    def allPathConstraints: List[PathConstraint] = Nil
+    def allPathConstraints: List[PathConstraintWith[PCElementUsed]] = Nil
     def finalValues = Set()
     def numberOfStates: Int = 0
     def time: Double = 0
@@ -132,7 +133,6 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
 
     private def convertKStore[AbstL: IsConvertableLattice](
         kontStore: KontStore[KontAddr], initialAddress: KontAddr, convertValue: ConcreteValue => AbstL,
-        concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
         abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T]): KontStore[KontAddr] = {
       @scala.annotation.tailrec
       def loop(address: KontAddr, convertedKStore: KontStore[KontAddr]): KontStore[KontAddr] = {
@@ -145,9 +145,8 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
           val next = konts.head.next
           val convertedNext = convertKontAddr(next)
           val frame = konts.head.frame
-          val convertedFrame = concBaseSem.convertAbsInFrame[AbstL](
-            frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]],
-            convertValue, convertEnv, abstSem)
+          val castedFrame = frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
+          val convertedFrame = castedFrame.convert[AbstL](convertValue, convertEnv, abstSem)
           val newConvertedKStore = convertedKStore.extend(convertedAddress, Kont(convertedFrame, convertedNext))
           loop(next, newConvertedKStore)
         }
@@ -157,25 +156,22 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
 
     private var reached = Set[HybridAddress.A]()
 
-    private def reachesValue(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                             sto: Store[HybridAddress.A, ConcreteValue], pathConstraint: PathConstraint)
+    private def reachesValue(sto: Store[HybridAddress.A, ConcreteValue], pathConstraint: PathConstraint)
                             (value: ConcreteValue): Reached[HybridAddress.A] =
-      ConcreteConcreteLattice.latticeInfoProvider.reaches[HybridAddress.A](value, reachesEnvironment(concBaseSem, sto, pathConstraint), reachesAddress(concBaseSem, sto, pathConstraint))
+      ConcreteConcreteLattice.latticeInfoProvider.reaches[HybridAddress.A](value, reachesEnvironment(sto, pathConstraint), reachesAddress(sto, pathConstraint))
 
-    private def reachesAddress(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                               sto: Store[HybridAddress.A, ConcreteValue], pathConstraint: PathConstraint)
+    private def reachesAddress(sto: Store[HybridAddress.A, ConcreteValue], pathConstraint: PathConstraint)
                               (address: HybridAddress.A): Reached[HybridAddress.A] = {
       if (! reached.contains(address)) {
         reached = reached + address
-        val lookedUp = sto.lookup(address).map(reachesValue(concBaseSem, sto, pathConstraint)).getOrElse(Reached.empty[HybridAddress.A])
+        val lookedUp = sto.lookup(address).map(reachesValue(sto, pathConstraint)).getOrElse(Reached.empty[HybridAddress.A])
         Reached(Set(address) ++ lookedUp.addressesReachable, lookedUp.preciseAddresses)
       } else {
         Reached.empty[HybridAddress.A]
       }
     }
 
-    private def reachesEnvironment(concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                                   sto: Store[HybridAddress.A, ConcreteValue], pathConstraint: PathConstraint)
+    private def reachesEnvironment(sto: Store[HybridAddress.A, ConcreteValue], pathConstraint: PathConstraint)
                                   (env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment): Reached[HybridAddress.A] = {
 
       val exactSymVariables = ExactSymbolicVariablesFinder.findExactSymbolicVariables(env, symEnv, pathConstraint)
@@ -199,7 +195,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
 
       var reached: Set[HybridAddress.A] = Set()
       env.forall((tuple) => {
-        val reachedResult = reachesAddress(concBaseSem, sto, pathConstraint)(tuple._2)
+        val reachedResult = reachesAddress(sto, pathConstraint)(tuple._2)
         reached = (reached + tuple._2) ++ reachedResult.addressesReachable
         preciseAddresses ++= reachedResult.preciseAddresses
         true
@@ -207,42 +203,36 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
       Reached(reached, preciseAddresses)
     }
 
-    private def reachesKontAddr[KAddr <: KontAddr](concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                                                   sto: Store[HybridAddress.A, ConcreteValue], kstore: KontStore[KAddr],
+    private def reachesKontAddr[KAddr <: KontAddr](sto: Store[HybridAddress.A, ConcreteValue], kstore: KontStore[KAddr],
                                                    ka: KAddr, pathConstraint: PathConstraint): Reached[HybridAddress.A] = {
-      kstore.lookup(ka).foldLeft[Reached[HybridAddress.A]](Reached.empty[HybridAddress.A])((acc, kont) =>
-          acc ++ concBaseSem.frameReaches(
-            kont.frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]],
-            reachesValue(concBaseSem, sto, pathConstraint),
-            reachesEnvironment(concBaseSem, sto, pathConstraint),
-            reachesAddress(concBaseSem, sto, pathConstraint)) ++ reachesKontAddr(concBaseSem, sto, kstore, kont.next, pathConstraint))
+      kstore.lookup(ka).foldLeft[Reached[HybridAddress.A]](Reached.empty[HybridAddress.A])((acc, kont) => {
+        val castedFrame = kont.frame.asInstanceOf[ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
+        acc ++ castedFrame.reaches(reachesValue(sto, pathConstraint), reachesEnvironment(sto, pathConstraint), reachesAddress(sto, pathConstraint)) ++ reachesKontAddr(sto, kstore, kont.next, pathConstraint)
+      })
     }
 
-    private def reachesControl[KAddr <: KontAddr](concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                                                  sto: Store[HybridAddress.A, ConcreteValue],
+    private def reachesControl[KAddr <: KontAddr](sto: Store[HybridAddress.A, ConcreteValue],
                                                   kstore: KontStore[KAddr], control: ConcolicControl,
                                                   pathConstraint: PathConstraint): Reached[HybridAddress.A] =
       control match {
         case ConcolicControlEval(_, env, symEnv) =>
-          reachesEnvironment(concBaseSem, sto, pathConstraint)(env, symEnv)
+          reachesEnvironment(sto, pathConstraint)(env, symEnv)
         case ConcolicControlKont(value, _) =>
-          reachesValue(concBaseSem, sto, pathConstraint)(value)
+          reachesValue(sto, pathConstraint)(value)
         case ConcolicControlError(_) => Reached.empty[HybridAddress.A]
       }
 
-    private def reachesStoreAddresses[KAddr <: KontAddr](concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                                                         sto: Store[HybridAddress.A, ConcreteValue],
+    private def reachesStoreAddresses[KAddr <: KontAddr](sto: Store[HybridAddress.A, ConcreteValue],
                                                          control: ConcolicControl, kstore: KontStore[KAddr],
                                                          ka: KAddr, pathConstraint: PathConstraint): Reached[HybridAddress.A] = {
-      reachesControl[KAddr](concBaseSem, sto, kstore, control, pathConstraint) ++ reachesKontAddr[KAddr](concBaseSem, sto, kstore, ka, pathConstraint)
+      reachesControl[KAddr](sto, kstore, control, pathConstraint) ++ reachesKontAddr[KAddr](sto, kstore, ka, pathConstraint)
     }
 
     private def garbageCollectStore[KAddr <: KontAddr]
-                                   (concBaseSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
-                                    store: Store[HybridAddress.A, ConcreteValue], control: ConcolicControl, kstore: KontStore[KAddr],
+                                   (store: Store[HybridAddress.A, ConcreteValue], control: ConcolicControl, kstore: KontStore[KAddr],
                                     ka: KAddr, pathConstraint: PathConstraint): (Store[HybridAddress.A, ConcreteValue], Set[HybridAddress.A]) = {
       reached = Set()
-      val result: Reached[HybridAddress.A] = reachesStoreAddresses[KAddr](concBaseSem, store, control, kstore, ka, pathConstraint)
+      val result: Reached[HybridAddress.A] = reachesStoreAddresses[KAddr](store, control, kstore, ka, pathConstraint)
       val gcedStore = store.gc(result.addressesReachable)
       (gcedStore, result.preciseAddresses)
     }
@@ -253,7 +243,6 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     }
 
     private def converstateWithExactSymVariables[AbstL: IsConvertableLattice](
-      concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
       abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
       pathConstraint: PathConstraint): Conversion[AbstL] = {
 
@@ -266,10 +255,10 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
           ConvertedControlKont[SchemeExp, AbstL, HybridAddress.A](convertValueFun(v, false))
       }
 
-      val (gcedStore, preciseVariablesAddresses) = garbageCollectStore(concSem, store, control, kstore, a, pathConstraint)
+      val (gcedStore, preciseVariablesAddresses) = garbageCollectStore(store, control, kstore, a, pathConstraint)
       val convertedStore = convertStoreWithExactSymVariables(gcedStore, convertValueFun, preciseVariablesAddresses)
 
-      val convertedKStore = convertKStore[AbstL](kstore, a, convertValueFun(_, false), concSem, abstSem)
+      val convertedKStore = convertKStore[AbstL](kstore, a, convertValueFun(_, false), abstSem)
       val convertedA = convertKontAddr(a)
       val newT = DefaultHybridTimestampConverter.convertTimestamp(t)
       (convertedControl, convertedStore, convertedKStore, convertedA, newT)
@@ -277,10 +266,9 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     }
 
     def convertState[AbstL: IsConvertableLattice](
-        concSem: ConvertableSemantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
         abstSem: ConvertableBaseSchemeSemantics[AbstL, HybridAddress.A, HybridTimestamp.T],
         pathConstraint: PathConstraint): Conversion[AbstL] = {
-      converstateWithExactSymVariables(concSem, abstSem, pathConstraint)
+      converstateWithExactSymVariables(abstSem, pathConstraint)
     }
   }
 
@@ -300,9 +288,9 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
   def eval(exp: SchemeExp, sem: Semantics[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T],
            graph: Boolean, timeout:Timeout): Output = ???
 
-  def step(state: State, sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]): Either[ConcolicIterationOutput, StepSucceeded] = state.control match {
+  def step(state: State, sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, PCElementUsed]): Either[ConcolicIterationOutput, StepSucceeded] = state.control match {
     case ConcolicControlEval(e, env, symEnv) =>
-      val edgeInfo = sem.stepConcolicEval(e, env, symEnv, state.store, state.t, semanticsConcolicHelper)
+      val edgeInfo = sem.stepConcolicEval(e, env, symEnv, state.store, state.t)
       handleFunctionCalled(edgeInfo)
       edgeInfo match {
         case EdgeInformation(ActionConcolicReachedValue(ActionReachedValue(v, store2, _), optionConcolicValue), actions, semanticsFilters) =>
@@ -389,7 +377,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     * Performs the evaluation of an expression, possibly writing the output graph
     * in a file, and returns the set of final states reached
     */
-  def concolicEval(programName: String, exp: SchemeExp, sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T], graph: Boolean): ConcolicMachineOutput = {
+  def concolicEval(programName: String, exp: SchemeExp, sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, PCElementUsed], graph: Boolean): ConcolicMachineOutput = {
     @scala.annotation.tailrec
     def loopOneIteration(state: State, start: Long, count: Int, nrOfRuns: Int): ConcolicIterationOutput = {
       currentState = Some(state)
@@ -408,7 +396,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     }
 
     @scala.annotation.tailrec
-    def loopConcolic(initialState: State, nrOfRuns: Int, allInputsUntilNow: List[List[(ConcolicInput, Int)]], allPathConstraints: List[PathConstraint]): ConcolicMachineOutput = {
+    def loopConcolic(initialState: State, nrOfRuns: Int, allInputsUntilNow: List[List[(ConcolicInput, Int)]], allPathConstraints: List[PathConstraintWith[PCElementUsed]]): ConcolicMachineOutput = {
       currentConcolicRun = nrOfRuns
       def finishUpLoop: Boolean = {
         Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.U)
@@ -417,10 +405,10 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
         shouldContinue
       }
       def initLoop(): Unit = {
-        reporter.enableConcolic()
+        reporter.inputVariableStore.enableConcolic()
         Logger.log(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${reporter.solver.getInputs}", Logger.U)
         stepCount = 0
-        reporter.clear()
+        reporter.clear(reporter.solver.getInputs)
         FunctionsCalledMetric.resetConcreteFunctionsCalled()
       }
 
@@ -445,7 +433,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
           case Right(shouldContinue) =>
             if (! concolicFlags.endCondition.shouldStop(nrOfRuns) && shouldContinue) {
               loopConcolic(initialState, nrOfRuns + 1, allInputsUntilNow :+ reporter.solver.getInputs,
-                           allPathConstraints :+ pathConstraintWithMatchersToPathConstraint(reporter.pathStorage.getCurrentReport))
+                           allPathConstraints :+ reporter.pathStorage.getCurrentReport)
             } else {
               ConcolicMachineOutputFinished(allInputsUntilNow, allPathConstraints)
             }
@@ -475,6 +463,10 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider](val analy
     val bw = new BufferedWriter(new FileWriter(file, true))
     bw.write(s"${GlobalFlags.CURRENT_PROGRAM}: ${Stopwatch.time}\n")
     bw.close()
+  }
+
+  def abstractCurrentState(pathConstraint: PathConstraint): RTAnalysisInitialState = {
+    analysisLauncher.stateConverter.convertStateAAM(currentState.get, pathConstraint).asInstanceOf[RTAnalysisInitialState]
   }
 
   def startAnalysisFromCurrentState(thenBranchTaken: Boolean, pathConstraint: PathConstraint): AnalysisResult = {

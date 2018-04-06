@@ -4,7 +4,7 @@ import backend.expression._
 import backend.tree.BranchConstraint
 
 /** This is where we define Scheme primitives */
-class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice](val reporter: ScalaAMReporter = new ScalaAMReporter(ConcolicRunTimeFlags())) extends Primitives[Addr, Abs] {
+class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice](val maybeInputVariableStore: Option[InputVariableStore]) extends Primitives[Addr, Abs] {
   import SchemeOps._
   val abs = implicitly[IsSchemeLattice[Abs]]
 
@@ -284,15 +284,13 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice](val reporter: Scal
   object Remainder extends Remainder
   class Random extends NoStoreOperation("random", Some(1)) {
     override def call[Exp: Expression](fexp: Exp, x: (Exp, Arg)): (MayFail[Abs], Option[ConcolicExpression]) = {
-      if (reporter.isConcolicEnabled) {
-        val value: MayFail[Abs] = if (reporter.isConcolicEnabled) {
-          val optInput: Option[Int] = reporter.inputVariableStore.getInput
+      if (maybeInputVariableStore.isDefined && maybeInputVariableStore.get.isConcolicEnabled) {
+        val value: MayFail[Abs] = {
+          val optInput: Option[Int] = maybeInputVariableStore.get.getInput
           optInput match {
             case Some(int) => MayFailSuccess(abs.inject(int))
             case None => callRandom(x._2._1)
           }
-        } else {
-          callRandom(x._2._1)
         }
         (value, symbolicCall(fexp.asInstanceOf[SchemeExp]))
       } else {

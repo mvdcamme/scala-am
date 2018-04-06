@@ -12,7 +12,6 @@ trait AnalysisOutputGraph[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]
 }
 
 abstract class AnalysisLauncher[Abs: IsConvertableLattice](
-  val concSem: ConvertableSemantics[SchemeExp, ConcreteConcreteLattice.L, HybridAddress.A, HybridTimestamp.T],
   val abstSem: ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T]) {
 
   /* The concrete program state the static analysis gets as input. This state is then converted to an
@@ -25,7 +24,7 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice](
   type SpecEnv = Environment[HybridAddress.A]
 
   val aam: SpecAAM = new SpecAAM()
-  val stateConverter: StateConverter[Abs] = new StateConverter[Abs](aam, concSem, abstSem)
+  val stateConverter: StateConverter[Abs] = new StateConverter[Abs](aam, abstSem)
 
   protected def switchToAbstract(): Unit = {
     Logger.log("HybridMachine switching to abstract", Logger.I)

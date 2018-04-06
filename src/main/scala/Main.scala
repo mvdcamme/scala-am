@@ -1,10 +1,10 @@
 import java.util.concurrent.TimeUnit
 
 import Util._
-import backend.tree.UnexploredNode
 
-import scala.concurrent.duration
 import scala.concurrent.duration.FiniteDuration
+import backend.RegularPCElement
+import abstract_state_heuristic.AbstractStatePCElement
 
 /**
  * Before looking at this, we recommend seeing how to use this framework. A
@@ -77,7 +77,6 @@ object Main {
   def main(args: Array[String]) {
     def newTimeout = Timeout.start(new FiniteDuration(200, TimeUnit.SECONDS))
     val concolicFlags = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), true, true)
-    val reporter = new ScalaAMReporter(concolicFlags)
     Config.parser.parse(args, Config.Config()).foreach(config => {
       val lattice: SchemeLattice = config.lattice match {
           case Config.Lattice.Concrete => new MakeSchemeLattice[Concrete.S, Concrete.B, Concrete.I, Concrete.F, Concrete.C, Concrete.Sym](config.counting)
@@ -107,7 +106,7 @@ object Main {
             case Config.Machine.Free => new AAMAACP4F[SchemeExp, lattice.L, address.A, time.T](P4FKAlloc)
           }
 
-          val sem = new SchemeSemantics[lattice.L, address.A, time.T](new SchemePrimitives[address.A, lattice.L](reporter))
+          val sem = new SchemeSemantics[lattice.L, address.A, time.T](new SchemePrimitives[address.A, lattice.L](None))
 
           replOrFile(config.file, program => run(machine, sem)(program, config.dotfile, config.jsonfile, config.timeout.map(_.toNanos), config.inspect))
         case Config.Language.CScheme =>
@@ -158,7 +157,7 @@ object Main {
           }
 
           val visitor = new RecordActorVisitor[SchemeExp, alattice.L, address.A]
-          val sem = new ASchemeSemanticsWithVisitorAndOptimization[alattice.L, address.A, time.T, ContextSensitiveTID](new SchemePrimitives[address.A, alattice.L](reporter), visitor)
+          val sem = new ASchemeSemanticsWithVisitorAndOptimization[alattice.L, address.A, time.T, ContextSensitiveTID](new SchemePrimitives[address.A, alattice.L](None), visitor)
           val N = 1
           val warmup = if (N > 1) 2 else 0 // 2 runs that are ignored to warm up
         val (states, times) = (1 to N+warmup).map(i =>
@@ -173,13 +172,14 @@ object Main {
           implicit val pointsToConvLattice: IsConvertableLattice[pointsToLattice.L] = pointsToLattice.isSchemeLattice
           implicit val pointsToLatInfoProv = pointsToLattice.latticeInfoProvider
           implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
-          val abstSem = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, pointsToLattice.L])
 
           runOnFile(config.file.get, program => {
-            val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](reporter))
-            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](sem, abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
-            val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, config.analysisFlags, reporter, concolicFlags)
-            sem.rTAnalysisStarter = machine
+            val abstSem = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, pointsToLattice.L](None))
+            val inputVariableStore = new InputVariableStore
+            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
+            val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, AbstractStatePCElement[pointsToAnalysisLauncher.aam.InitialState]](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](Some(inputVariableStore)))
+            val reporter = new AbstractStateScalaAMReporter[pointsToAnalysisLauncher.aam.InitialState](concolicFlags, inputVariableStore)
+            val machine = new ConcolicMachine[pointsToLattice.L, AbstractStatePCElement[pointsToAnalysisLauncher.aam.InitialState], pointsToAnalysisLauncher.aam.InitialState](pointsToAnalysisLauncher, config.analysisFlags, reporter, concolicFlags)
             machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined)
             val root1 = reporter.solver.getRoot
             reporter.solver.deleteSymbolicTree()
@@ -187,11 +187,11 @@ object Main {
             Logger.log("####### SWITCHING TO BASELINE ######", Logger.E)
 
             val concolicFlags2 = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), false, false)
-            val reporter2 = new ScalaAMReporter(concolicFlags2)
-            val sem2 = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](reporter2))
-            val pointsToAnalysisLauncher2 = new PointsToAnalysisLauncher[pointsToLattice.L](sem2, abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
-            val machine2 = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher2, config.analysisFlags, reporter2, concolicFlags2)
-            sem2.rTAnalysisStarter = machine2
+            val inputVariableStore2 = new InputVariableStore
+            val reporter2 = new RegularScalaAMReporter(concolicFlags2, inputVariableStore2)
+            val sem2 = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, RegularPCElement](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](Some(inputVariableStore2)))
+            val pointsToAnalysisLauncher2 = new PointsToAnalysisLauncher[pointsToLattice.L](abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
+            val machine2 = new ConcolicMachine[pointsToLattice.L, RegularPCElement, pointsToAnalysisLauncher.aam.InitialState](pointsToAnalysisLauncher2, config.analysisFlags, reporter2, concolicFlags2)
             machine2.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem2.parse(program), sem2, config.dotfile.isDefined)
             val root2 = reporter2.solver.getRoot
             println(s"Comparison: ${CompareSymbolicTrees.countUniqueSafePaths(root1, root2)} illegalized paths in second tree vs first tree")
@@ -233,7 +233,7 @@ object ScalaAM {
       implicit val isSchemeLattice: IsSchemeLattice[concreteLattice.L] = concreteLattice.isSchemeLattice
       val output = run[SchemeExp, concreteLattice.L, ClassicalAddress.A, ConcreteTimestamp.T](
         new ConcreteMachine[SchemeExp, concreteLattice.L, ClassicalAddress.A, ConcreteTimestamp.T],
-        new SchemeSemantics[concreteLattice.L, ClassicalAddress.A, ConcreteTimestamp.T](new SchemePrimitives[ClassicalAddress.A, concreteLattice.L]))(program, false, timeout)
+        new SchemeSemantics[concreteLattice.L, ClassicalAddress.A, ConcreteTimestamp.T](new SchemePrimitives[ClassicalAddress.A, concreteLattice.L](None)))(program, false, timeout)
       assert(output.finalValues.size <= 1)
       output.finalValues.headOption
     }
@@ -244,7 +244,7 @@ object ScalaAM {
       implicit val isSchemeLattice: IsSchemeLattice[cpLattice.L] = cpLattice.isSchemeLattice
       val output = run[SchemeExp, cpLattice.L, ClassicalAddress.A, ZeroCFA.T](
         new AAM[SchemeExp, cpLattice.L, ClassicalAddress.A, ZeroCFA.T],
-        new SchemeSemantics[cpLattice.L, ClassicalAddress.A, ZeroCFA.T](new SchemePrimitives[ClassicalAddress.A, cpLattice.L]))(program, false, timeout)
+        new SchemeSemantics[cpLattice.L, ClassicalAddress.A, ZeroCFA.T](new SchemePrimitives[ClassicalAddress.A, cpLattice.L](None)))(program, false, timeout)
       output.finalValues
     }
   }
@@ -254,7 +254,7 @@ object ScalaAM {
       implicit val isSchemeLattice: IsSchemeLattice[typeLattice.L] = typeLattice.isSchemeLattice
       val output = run[SchemeExp, typeLattice.L, ClassicalAddress.A, ZeroCFA.T](
         new AAM[SchemeExp, typeLattice.L, ClassicalAddress.A, ZeroCFA.T],
-        new SchemeSemantics[typeLattice.L, ClassicalAddress.A, ZeroCFA.T](new SchemePrimitives[ClassicalAddress.A, typeLattice.L]))(program, false, timeout)
+        new SchemeSemantics[typeLattice.L, ClassicalAddress.A, ZeroCFA.T](new SchemePrimitives[ClassicalAddress.A, typeLattice.L](None)))(program, false, timeout)
       output.finalValues
     }
   }

@@ -6,13 +6,11 @@ import concolic.SymbolicEnvironment
 /**
   * Basic Scheme semantics, without any optimization
   */
-class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitives: Primitives[Addr, ConcreteValue])
+class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp, PCElementUsed](val primitives: Primitives[Addr, ConcreteValue])
   extends ConvertableSemantics[SchemeExp, ConcreteValue, Addr, Time]()(Expression[SchemeExp], ConcreteConcreteLattice.isSchemeLattice, Address[Addr], Timestamp[Time]) {
 
   implicit val abs: JoinLattice[ConcreteValue] = ConcreteConcreteLattice.isSchemeLattice
   implicit def sabs: IsSchemeLattice[ConcreteValue] = ConcreteConcreteLattice.isSchemeLattice
-
-  var rTAnalysisStarter: RTAnalysisStarter = _
 
   override def stepEval(e: SchemeExp,
     env: Environment[Addr],
@@ -269,7 +267,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
   }
 
   def stepConcolicEval(e: SchemeExp, env: Environment[Addr], symEnv: SymbolicEnvironment,
-                       store: Store[Addr, ConcreteValue], t: Time, concolicHelper: SemanticsConcolicHelper): EdgeInformation[SchemeExp, ConcreteValue, Addr] = e match { // Cases in stepEval shouldn't generate any splits in abstract graph
+                       store: Store[Addr, ConcreteValue], t: Time): EdgeInformation[SchemeExp, ConcreteValue, Addr] = e match { // Cases in stepEval shouldn't generate any splits in abstract graph
     case λ: SchemeLambda =>
       val action = ActionConcolicReachedValue(ActionReachedValue[SchemeExp, ConcreteValue, Addr](sabs.inject[SchemeExp, Addr]((λ, env), Some(symEnv)), store), None)
       val actionEdge = List(ActionCreateClosureT[SchemeExp, ConcreteValue, Addr](λ, Some(env)))
@@ -389,9 +387,9 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp](val primitiv
       }
   }
 
-  def stepConcolicKont(v: ConcreteValue, concolicValue: Option[ConcolicExpression],
+  def stepConcolicKont[RTInitialState](v: ConcreteValue, concolicValue: Option[ConcolicExpression],
                        frame: SchemeConcolicFrame[ConcreteValue, Addr, Time], store: Store[Addr, ConcreteValue],
-                       t: Time, concolicHelper: SemanticsConcolicHelper) = frame match {
+                       t: Time, concolicHelper: SemanticsConcolicHelper[PCElementUsed, RTInitialState]) = frame match {
       case frame: FrameConcolicFuncallOperator[ConcreteValue, Addr, Time] =>
         funcallArgs(v, concolicValue, frame, frame.fexp, frame.args, frame.env, frame.symEnv, store, t)
       case frame: FrameConcolicFuncallOperands[ConcreteValue, Addr, Time] =>

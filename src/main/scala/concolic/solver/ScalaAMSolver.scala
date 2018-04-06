@@ -1,6 +1,6 @@
-import backend._
+import backend.PathConstraintWith
 import backend.expression.ConcolicInput
-import backend.solvers.{ConcolicSolver, ConcolicSolverResult}
+import backend.solvers._
 import backend.tree._
 import backend.tree.search_strategy._
 
@@ -8,7 +8,7 @@ trait HasInputs {
   def getInputs: List[(ConcolicInput, Int)]
 }
 
-abstract class ScalaAMSolver extends HasInputs {
+abstract class ScalaAMSolver[PCElement] extends HasInputs {
 
   protected var latestInputs: List[(ConcolicInput, Int)] = Nil
 
@@ -18,6 +18,7 @@ abstract class ScalaAMSolver extends HasInputs {
   def getInputs: List[(ConcolicInput, Int)] = latestInputs
   def getRoot: SymbolicNode
   def deleteSymbolicTree(): Unit
+  def clearBackendReporter(): Unit
 
   protected def convertInputs(inputs: Map[ConcolicInput, Int]): List[(ConcolicInput, Int)] = {
     inputs.toList.sortBy(_._1.id)
@@ -28,5 +29,5 @@ abstract class ScalaAMSolver extends HasInputs {
     backendSolver.solve(root, searchStrategy)
   }
 
-  def solve(pathConstraint: PathConstraintWithMatchers): Boolean
+  def solve(pathConstraint: PathConstraintWith[PCElement]): Boolean
 }

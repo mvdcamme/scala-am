@@ -9,7 +9,7 @@ class KickstartAAMGlobalStoreTest extends FunSuite with PrivateMethodTester with
 
   test("Sanity check: test whether the graphs produced by analysing the Connect-4 program are equal") {
     Util.runOnFile(connect4Program, program => {
-      val sem = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives)
+      val sem = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives(None))
       val machine = new KickstartAAMGlobalStore[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T]
       val parsedProgram = sem.parse(program)
       val output1 = machine.eval(parsedProgram, sem, true, Timeout.none).asInstanceOf[machine.AAMOutput]
@@ -34,7 +34,7 @@ class KickstartAAMGlobalStoreTest extends FunSuite with PrivateMethodTester with
     Util.runOnFile(connect4Program, (program) => {
 
       HybridTimestamp.switchToAbstract()
-      val schemePrimitives = new SchemePrimitives[HybridAddress.A, pointsToLattice.L]
+      val schemePrimitives = new SchemePrimitives[HybridAddress.A, pointsToLattice.L](None)
       val abstSem = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](schemePrimitives)
       val abstMachine = new KickstartAAMGlobalStore[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T]
       val parsedProgram = abstSem.parse(program)
@@ -45,7 +45,7 @@ class KickstartAAMGlobalStoreTest extends FunSuite with PrivateMethodTester with
       val (concMachine, concSem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags(), abstSem)
       val concInitState = concMachine.inject(parsedProgram, Environment.initial(concSem.initialEnv), Store.initial(concSem.initialStore))
 
-      val stateConverter = new StateConverter[pointsToLattice.L](abstMachine, concSem, abstSem)
+      val stateConverter = new StateConverter[pointsToLattice.L](abstMachine, abstSem)
       val abstractedConcInitState = stateConverter.convertStateAAM(concInitState, Nil)
 
       assert(abstInitState == abstractedConcInitState)

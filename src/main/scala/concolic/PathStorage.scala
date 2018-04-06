@@ -2,10 +2,10 @@ import backend._
 import backend.path_filtering.PartialRegexMatcher
 import backend.tree.Constraint
 
-class PathStorage {
+class PathStorage[PCElement] {
 
   private var currentPath: Path = Nil
-  private var currentReport: PathConstraintWithMatchers = Nil
+  private var currentReport: PathConstraintWith[PCElement] = Nil
 
   def getCurrentPath: Path = currentPath.reverse /* Elements were added in reverse order, so reverse list now. */
 
@@ -31,19 +31,16 @@ class PathStorage {
     currentPath = addToPath(thenBranchTaken)
   }
 
-  def getCurrentReport: PathConstraintWithMatchers = currentReport.reverse /* Constraints were added in reverse order, so reverse list now. */
+  def getCurrentReport: List[PCElement] = currentReport.reverse /* Constraints were added in reverse order, so reverse list now. */
 
   /**
     * Adds the given parameters as an element to the current path constraint, without actually replacing the current
     * path constraint.
-    * @param constraint
-    * @param thenBranchTaken
-    * @param maybePartialMatcher
     * @return
     */
-  def addToReport(constraint: Constraint, thenBranchTaken: Boolean, maybePartialMatcher: Option[PartialRegexMatcher]): PathConstraintWithMatchers = {
+  def addToReport(element: PCElement): List[PCElement] = {
     /* New constraints are added in reverse order, i.e., to the front, for performance reasons. */
-    (constraint, thenBranchTaken, maybePartialMatcher) :: currentReport
+    element :: currentReport
   }
   def resetCurrentReport(): Unit = {
     currentReport = Nil
@@ -51,14 +48,12 @@ class PathStorage {
 
   /**
     * Destructively adds the given parameters as an element to the current path constraint.
-    * @param constraint
-    * @param thenBranchTaken
     */
-  def updateReport(constraint: Constraint, thenBranchTaken: Boolean, maybePartialMatcher: Option[PartialRegexMatcher]): Unit = {
+  def updateReport(element: PCElement): Unit = {
 
     /* If a new partial matcher was constructed before executing the condition, the matcher is included in the triple.
      * NOTE: this partial matcher starts at a state corresponding to AFTER the branch. */
-    currentReport = addToReport(constraint, thenBranchTaken, maybePartialMatcher)
+    currentReport = addToReport(element)
   }
 
 }

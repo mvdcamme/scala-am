@@ -483,31 +483,31 @@ abstract class Tests[Exp : Expression, Addr : Address, Time : Timestamp](val lat
 
 abstract class AAMPrimitiveTests[Addr : Address, Time : Timestamp](override val lattice: SchemeLattice)
     extends Tests[SchemeExp, Addr, Time](lattice) {
-  val sem = new SchemeSemantics[lattice.L, Addr, Time](new SchemePrimitives[Addr, lattice.L])
+  val sem = new SchemeSemantics[lattice.L, Addr, Time](new SchemePrimitives[Addr, lattice.L](None))
   val machine = new AAM[SchemeExp, lattice.L, Addr, Time]
 }
 
 abstract class AAMGlobalStorePrimitiveTests[Addr : Address, Time : Timestamp](override val lattice: SchemeLattice)
     extends Tests[SchemeExp, Addr, Time](lattice) {
-  val sem = new SchemeSemantics[lattice.L, Addr, Time](new SchemePrimitives[Addr, lattice.L])
+  val sem = new SchemeSemantics[lattice.L, Addr, Time](new SchemePrimitives[Addr, lattice.L](None))
   val machine = new AAMAACP4F[SchemeExp, lattice.L, Addr, Time](AAMKAlloc)
 }
 
 abstract class AACPrimitiveTests[Addr : Address, Time : Timestamp](override val lattice: SchemeLattice)
     extends Tests[SchemeExp, Addr, Time](lattice) {
-  val sem = new SchemeSemantics[lattice.L, Addr, Time](new SchemePrimitives[Addr, lattice.L])
+  val sem = new SchemeSemantics[lattice.L, Addr, Time](new SchemePrimitives[Addr, lattice.L](None))
   val machine = new AAMAACP4F[SchemeExp, lattice.L, Addr, Time](AACKAlloc)
 }
 
 abstract class FreePrimitiveTests[Addr : Address, Time : Timestamp](override val lattice: SchemeLattice)
     extends Tests[SchemeExp, Addr, Time](lattice) {
-  val sem = new SchemeSemantics[lattice.L, Addr, Time](new SchemePrimitives[Addr, lattice.L])
+  val sem = new SchemeSemantics[lattice.L, Addr, Time](new SchemePrimitives[Addr, lattice.L](None))
   val machine = new AAMAACP4F[SchemeExp, lattice.L, Addr, Time](P4FKAlloc)
 }
 
 abstract class ConcreteMachinePrimitiveTests(override val lattice: SchemeLattice)
     extends Tests[SchemeExp, ClassicalAddress.A, ConcreteTimestamp.T](lattice) {
-  val sem = new SchemeSemantics[lattice.L, ClassicalAddress.A, ConcreteTimestamp.T](new SchemePrimitives[ClassicalAddress.A, lattice.L])
+  val sem = new SchemeSemantics[lattice.L, ClassicalAddress.A, ConcreteTimestamp.T](new SchemePrimitives[ClassicalAddress.A, lattice.L](None))
   val machine = new ConcreteMachine[SchemeExp, lattice.L, ClassicalAddress.A, ConcreteTimestamp.T]
 }
 

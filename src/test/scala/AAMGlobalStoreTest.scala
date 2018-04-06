@@ -3,7 +3,7 @@ import org.scalatest.FunSuite
 class AAMGlobalStoreTest extends FunSuite with TestCommon {
 
   test("Sanity check") {
-    val sem = new SchemeSemantics[pointsToLattice.L, ClassicalAddress.A, ZeroCFA.T](new SchemePrimitives)
+    val sem = new SchemeSemantics[pointsToLattice.L, ClassicalAddress.A, ZeroCFA.T](new SchemePrimitives(None))
     val machine = new AAMAACP4F[SchemeExp, pointsToLattice.L, ClassicalAddress.A, ZeroCFA.T](AAMKAlloc)
     Util.runOnFile(connect4Program, (program) => {
       val parsedProgram = sem.parse(program)

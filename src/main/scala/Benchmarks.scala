@@ -53,7 +53,7 @@ abstract class Benchmarks(dir: String, inputs: Iterable[MachineConfig], classify
         case Config.Machine.Free => new AAMAACP4F[SchemeExp, lattice.L, address.A, time.T](P4FKAlloc)
       }
 
-      val sem = new SchemeSemantics[lattice.L, address.A, time.T](new SchemePrimitives[address.A, lattice.L])
+      val sem = new SchemeSemantics[lattice.L, address.A, time.T](new SchemePrimitives[address.A, lattice.L](None))
 
       fileContent(s"$dir/${config.program}.scm") match {
         case Some(program) if program.size > 0 =>

@@ -1,21 +1,20 @@
 import org.scalatest.{FunSuite, PrivateMethodTester}
-
 import dk.brics.automaton.{State, StatePair, Transition}
-
 import ConcreteConcreteLattice.{L => ConcreteValue}
+import backend.{PathConstraint, RegularPCElement}
 
 class TransitiveClosureTest extends FunSuite with PrivateMethodTester with TestCommon {
 
-  val (machine: ConcolicMachine[pointsToLattice.L], sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
+  val (machine: ConcolicMachine[pointsToLattice.L, RegularPCElement, _], sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, RegularPCElement]) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
 
   type N = machine.analysisLauncher.aam.State
   type A = EdgeAnnotation[SchemeExp, pointsToLattice.L, HybridAddress.A]
   type G = Graph[N, A, Set[N]]
 
-  val (launchAnalyses: LaunchAnalyses[pointsToLattice.L],
+  val (launchAnalyses: LaunchAnalyses[pointsToLattice.L, RegularPCElement],
   initialState: machine.State,
   analysisResult: AnalysisOutputGraph[SchemeExp, pointsToLattice.L, HybridAddress.A, N]) = Util.runOnFile(connect4Program, (program) => {
-    val launchAnalyses = new LaunchAnalyses[pointsToLattice.L](machine.analysisLauncher, machine.reporter)
+    val launchAnalyses = new LaunchAnalyses[pointsToLattice.L, RegularPCElement](machine.analysisLauncher, machine.reporter)
     val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
     val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
     (launchAnalyses, initialState, analysisResult)

@@ -117,7 +117,7 @@ class TaintLattice[Abs : IsSchemeLattice] extends SchemeLattice {
 case class TaintError(sources: Set[Position], sink: Position) extends SemanticError
 
 /* We need to extend the language with primitives representing sources, sinks, and sanitizers */
-class TSchemePrimitives[Addr : Address, Abs : IsTaintLattice] extends SchemePrimitives[Addr, Abs] {
+class TSchemePrimitives[Addr : Address, Abs : IsTaintLattice] extends SchemePrimitives[Addr, Abs](None) {
   object Taint extends Primitive[Addr, Abs] {
     val name = "taint"
     def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Arg)], store: Store[Addr, Abs], t: Time) = args match {

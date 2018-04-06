@@ -1,3 +1,4 @@
+import backend.RegularPCElement
 import ConcreteConcreteLattice.{L => ConcreteValue}
 
 trait UsesTestingResources {
@@ -22,13 +23,12 @@ trait UsesPointsToLattice {
   implicit val CCLatInfoProv: LatticeInfoProvider[ConcreteValue] = ConcreteConcreteLattice.latticeInfoProvider
 
   def makeConcolicMachineAndSemantics(flags: ConcolicRunTimeFlags,
-    abstSem: ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T] = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives)):
-  (ConcolicMachine[pointsToLattice.L], ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T]) = {
-    val reporter = new ScalaAMReporter(flags)
-    val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](reporter))
-    val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](sem, abstSem)(pointsToConvLattice, pointsToLatInfoProv, AnalysisFlags())
-    val machine = new ConcolicMachine[pointsToLattice.L](pointsToAnalysisLauncher, AnalysisFlags(), reporter, flags)
-    sem.rTAnalysisStarter = machine
+    abstSem: ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T] = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives(None))):
+  (ConcolicMachine[pointsToLattice.L, RegularPCElement, _], ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, RegularPCElement]) = {
+    val reporter = new RegularScalaAMReporter(flags, new InputVariableStore)
+    val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, RegularPCElement](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](Some(reporter.inputVariableStore)))
+    val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](abstSem)(pointsToConvLattice, pointsToLatInfoProv, AnalysisFlags())
+    val machine = new ConcolicMachine[pointsToLattice.L, RegularPCElement, pointsToAnalysisLauncher.stateConverter.aam.InitialState](pointsToAnalysisLauncher, AnalysisFlags(), reporter, flags)
     (machine, sem)
   }
 

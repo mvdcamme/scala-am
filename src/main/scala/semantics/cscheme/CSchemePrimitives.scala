@@ -1,7 +1,7 @@
 import scalaz._
 import scalaz.Scalaz._
 
-class CSchemePrimitives[Addr : Address, Abs : IsCSchemeLattice] extends SchemePrimitives[Addr, Abs] {
+class CSchemePrimitives[Addr : Address, Abs : IsCSchemeLattice] extends SchemePrimitives[Addr, Abs](None) {
   object NewLock extends Primitive[Addr, Abs] {
     val name = "new-lock"
     def call[Exp : Expression, Time : Timestamp](fexp: Exp, args: List[(Exp, Arg)], store: Store[Addr, Abs], t: Time) = args match {
