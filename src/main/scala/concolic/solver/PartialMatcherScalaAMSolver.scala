@@ -33,7 +33,7 @@ class PartialMatcherSolver extends ScalaAMSolver {
     val initialPartialMatcher = PartialMatcherStore.getInitial.get
     val patchedPathConstraint = patchInitialPartialMatcher(pathConstraint, initialPartialMatcher)
     backendReporter.addExploredPath(patchedPathConstraint)
-    val result = solveViaBackend(backendReporter.getRoot.get, new MostErrorsReachableSearch)
+    val result = solveViaBackend(backendReporter.getRoot.get, new BreadthFirstSearch[PMSymbolicNode])
     result match {
       case NewInput(inputs) =>
         latestInputs = convertInputs(inputs)
