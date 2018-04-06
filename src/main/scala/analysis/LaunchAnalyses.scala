@@ -27,7 +27,6 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider](analysisLau
   private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], convertedState: analysisLauncher.stateConverter.aam.InitialState, currentConcolicRun: Int): AnalysisResult = {
     val maybeAnalysisResult = handleAnalysisResult(result, currentConcolicRun)
     analysisResultCache.addAnalysisResult(convertedState, maybeAnalysisResult)
-    GlobalSymbolicStore.resetSetExpanded()
     maybeAnalysisResult
   }
 
