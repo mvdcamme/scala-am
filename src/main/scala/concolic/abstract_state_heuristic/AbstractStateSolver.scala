@@ -17,7 +17,7 @@ class AbstractStateSolver[State] extends ScalaAMSolver[AbstractStatePCElement[St
     reporter.writeSymbolicTree("tree.dot")
     resetInputs()
     reporter.addExploredPath(pathConstraint)
-    val result = solveViaBackend(reporter.getRoot.get, new BreadthFirstSearch[AbstractStateSymbolicNode[State]])
+    val result = solveViaBackend(reporter.getRoot.get, new AbstractStateSearch[State])
     result match {
       case NewInput(inputs) =>
         latestInputs = convertInputs(inputs)
