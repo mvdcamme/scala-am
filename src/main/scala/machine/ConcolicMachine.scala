@@ -17,7 +17,7 @@ object Reached {
 class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElementUsed, RTAnalysisInitialState](
   val analysisLauncher: AnalysisLauncher[PAbs],
   val analysisFlags: AnalysisFlags,
-  val reporter: ScalaAMReporter[PCElementUsed],
+  val reporter: ScalaAMReporter[PCElementUsed, RTAnalysisInitialState],
   val concolicFlags: ConcolicRunTimeFlags)
  (implicit unused1: IsSchemeLattice[ConcreteValue])
   extends EvalKontMachine[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] with RTAnalysisStarter[RTAnalysisInitialState] {

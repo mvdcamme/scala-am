@@ -1,7 +1,7 @@
 import backend.path_filtering.PartialRegexMatcher
 import org.scalatest.{BeforeAndAfterEach, FunSuite, PrivateMethodTester}
 import ConcreteConcreteLattice.{L => ConcreteValue}
-import backend.{PathConstraint, RegularPCElement}
+import backend.RegularPCElement
 
 class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeAndAfterEach with TestCommon with TestsPartialMatchers {
 

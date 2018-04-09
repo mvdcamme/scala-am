@@ -8,11 +8,11 @@ import abstract_state_heuristic.AbstractStatePCElement
 
 case object AbortConcolicIterationException extends Exception
 
-trait ScalaAMReporter[PCElement] {
+trait ScalaAMReporter[PCElement, NodeExtraInfo] {
   val pathStorage = new PathStorage[PCElement]
 
   def concolicFlags: ConcolicRunTimeFlags
-  def solver: ScalaAMSolver[PCElement]
+  def solver: ScalaAMSolver[PCElement, NodeExtraInfo]
   def inputVariableStore: InputVariableStore
   def clear(newInputs: List[(ConcolicInput, Int)]): Unit
 
@@ -23,7 +23,7 @@ trait ScalaAMReporter[PCElement] {
   def writeSymbolicTree(path: String): Unit
 }
 
-abstract class BaseScalaAMReporter[PCElement](val concolicFlags: ConcolicRunTimeFlags, val solver: ScalaAMSolver[PCElement], val inputVariableStore: InputVariableStore) extends ScalaAMReporter[PCElement] {
+abstract class BaseScalaAMReporter[PCElement, NodeExtraInfo](val concolicFlags: ConcolicRunTimeFlags, val solver: ScalaAMSolver[PCElement, NodeExtraInfo], val inputVariableStore: InputVariableStore) extends ScalaAMReporter[PCElement, NodeExtraInfo] {
 
   def clear(newInputs: List[(ConcolicInput, Int)]): Unit = {
     inputVariableStore.reset(newInputs)
@@ -34,7 +34,7 @@ abstract class BaseScalaAMReporter[PCElement](val concolicFlags: ConcolicRunTime
   }
 }
 
-class RegularScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVariableStore: InputVariableStore) extends BaseScalaAMReporter[RegularPCElement](concolicFlags, new RegularScalaAMSolver, inputVariableStore) {
+class RegularScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVariableStore: InputVariableStore) extends BaseScalaAMReporter[RegularPCElement, Unit](concolicFlags, new RegularScalaAMSolver, inputVariableStore) {
 
   def printReports(): Unit = {
     Logger.log(s"Reporter recorded path: ${pathStorage.getCurrentReport.filter({
@@ -68,7 +68,7 @@ class RegularScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVariableS
   }
 }
 
-class AbstractStateScalaAMReporter[State](concolicFlags: ConcolicRunTimeFlags, inputVariableStore: InputVariableStore) extends BaseScalaAMReporter[AbstractStatePCElement[State]](concolicFlags, new AbstractStateSolver[State], inputVariableStore) {
+class AbstractStateScalaAMReporter[State](concolicFlags: ConcolicRunTimeFlags, inputVariableStore: InputVariableStore) extends BaseScalaAMReporter[AbstractStatePCElement[State], State](concolicFlags, new AbstractStateSolver[State], inputVariableStore) {
 
   def printReports(): Unit = {
     Logger.log(s"Reporter recorded path: ${pathStorage.getCurrentReport.filter({
@@ -105,7 +105,7 @@ class AbstractStateScalaAMReporter[State](concolicFlags: ConcolicRunTimeFlags, i
 
 }
 
-class PartialMatcherScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, solver: PartialMatcherSolver, inputVariableStore: InputVariableStore) extends BaseScalaAMReporter[PartialMatcherPCElement](concolicFlags, solver, inputVariableStore) {
+class PartialMatcherScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, solver: PartialMatcherSolver, inputVariableStore: InputVariableStore) extends BaseScalaAMReporter[PartialMatcherPCElement, PartialRegexMatcher](concolicFlags, solver, inputVariableStore) {
 
   import scala.language.implicitConversions
   implicit private def pathToString(path: Path): String = {

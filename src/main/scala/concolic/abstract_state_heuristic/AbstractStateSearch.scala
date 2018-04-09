@@ -1,6 +1,6 @@
 import scala.collection.immutable.Queue
 
-import backend.tree.BranchConstraint
+import backend.tree._
 import backend.tree.search_strategy.{BreadthFirstSearch, SearchStrategy}
 
 import abstract_state_heuristic._
@@ -10,9 +10,9 @@ import abstract_state_heuristic._
   * @param original The original expressions recorded by the Reporter
   * @param seen     Nodes in which the else-branch were taken are negated to represent the path actually taken during execution
   */
-case class TreePath[State](original: List[AbstractStateBranchSymbolicNode[State]], seen: List[BranchConstraint]) {
+case class TreePath[State](original: List[BranchSymbolicNode[State]], seen: List[BranchConstraint]) {
   def length: Int = original.length
-  def last: (AbstractStateBranchSymbolicNode[State], BranchConstraint) = {
+  def last: (BranchSymbolicNode[State], BranchConstraint) = {
     (original.last, seen.last)
   }
 
@@ -21,27 +21,27 @@ case class TreePath[State](original: List[AbstractStateBranchSymbolicNode[State]
   }
 
   // Same as addStatement or addThenBranch basically
-  def :+(node: AbstractStateBranchSymbolicNode[State]): TreePath[State] = {
+  def :+(node: BranchSymbolicNode[State]): TreePath[State] = {
     TreePath(original :+ node, seen :+ node.branch)
   }
 
-  def addNegatedNode(node: AbstractStateBranchSymbolicNode[State]): TreePath[State] = {
+  def addNegatedNode(node: BranchSymbolicNode[State]): TreePath[State] = {
     TreePath(original :+ node, seen :+ node.branch.negate)
   }
 
-  def addThenBranch(node: AbstractStateBranchSymbolicNode[State]): TreePath[State] = {
+  def addThenBranch(node: BranchSymbolicNode[State]): TreePath[State] = {
     TreePath(original :+ node, seen :+ node.branch)
   }
 
-  def addElseBranch(node: AbstractStateBranchSymbolicNode[State]): TreePath[State] = {
+  def addElseBranch(node: BranchSymbolicNode[State]): TreePath[State] = {
     TreePath(original :+ node, seen.init :+ seen.last.negate :+ node.branch)
   }
 
-  def toBackendTreePath: backend.tree.search_strategy.TreePath = backend.tree.search_strategy.TreePath(original.map(_.toSymbolicNode), seen)
+  def toBackendTreePath: backend.tree.search_strategy.TreePath[State] = backend.tree.search_strategy.TreePath(original, seen)
 }
 
 object TreePath {
-  def init[State](b: AbstractStateBranchSymbolicNode[State]): Either[TreePath[State], TreePath[State]] = {
+  def init[State](b: BranchSymbolicNode[State]): Either[TreePath[State], TreePath[State]] = {
     if (!b.thenBranchTaken || !b.elseBranchTaken) {
       // This node has not been fully explored yet, so return this node as an unexplored path
       Left(TreePath(List(b), List(if (b.elseBranchTaken) b.branch.negate else b.branch)))
@@ -53,12 +53,12 @@ object TreePath {
   }
 }
 
-class AbstractStateSearch[State] extends SearchStrategy[AbstractStateSymbolicNode[State]] {
+class AbstractStateSearch[State] extends SearchStrategy[State] {
 
-  private def countAbstractStates(symbolicNode: AbstractStateSymbolicNode[State]): Map[State, Int] = {
-    def loop(currentNode: AbstractStateSymbolicNode[State], acc: Map[State, Int]): Map[State, Int] = currentNode match {
-      case AbstractStateRegularLeafNode() | AbstractStateSafeNode(_) | AbstractStateUnexploredNode() | AbstractStateUnsatisfiableNode() => acc
-      case AbstractStateBranchSymbolicNode(_, trueBranch, elseBranch, state) =>
+  private def countAbstractStates(symbolicNode: SymbolicNode[State]): Map[State, Int] = {
+    def loop(currentNode: SymbolicNode[State], acc: Map[State, Int]): Map[State, Int] = currentNode match {
+      case RegularLeafNode() | SafeNode(_) | UnexploredNode() | UnsatisfiableNode() => acc
+      case BranchSymbolicNode(_, trueBranch, elseBranch, state) =>
         val updatedAcc = acc.updated(state, acc.getOrElse(state, 0) + 1)
         val updatedAcc2 = loop(trueBranch, updatedAcc)
         loop(elseBranch, updatedAcc2)
@@ -73,8 +73,8 @@ class AbstractStateSearch[State] extends SearchStrategy[AbstractStateSymbolicNod
       val tailQueue = queue.tail
       val latestNode = path.last
       latestNode._1 match {
-        case b: AbstractStateBranchSymbolicNode[State] =>
-          if ((!b.thenBranchTaken || !b.elseBranchTaken) && countedAbstractStates.getOrElse(b.state, 0) == 1) {
+        case b: BranchSymbolicNode[State] =>
+          if ((!b.thenBranchTaken || !b.elseBranchTaken) && countedAbstractStates.getOrElse(b.extraInfo, 0) == 1) {
             Some(path)
           } else {
             // Both branches have already been explored, so continue looking through both branches to find an unexplored node
@@ -83,11 +83,11 @@ class AbstractStateSearch[State] extends SearchStrategy[AbstractStateSymbolicNod
             // Only add child-branches if they are a BranchSymbolicNode
             val newQueue: Queue[TreePath[State]] = (b.thenBranch, b.elseBranch) match {
               // Negate branches
-              case (thenBranch: AbstractStateBranchSymbolicNode[State], elseBranch: AbstractStateBranchSymbolicNode[State]) =>
+              case (thenBranch: BranchSymbolicNode[State], elseBranch: BranchSymbolicNode[State]) =>
                 tailQueue :+ path.addThenBranch(thenBranch) :+ path.addElseBranch(elseBranch)
-              case (thenBranch: AbstractStateBranchSymbolicNode[State], _) =>
+              case (thenBranch: BranchSymbolicNode[State], _) =>
                 tailQueue :+ path.addThenBranch(thenBranch)
-              case (_, elseBranch: AbstractStateBranchSymbolicNode[State]) =>
+              case (_, elseBranch: BranchSymbolicNode[State]) =>
                 tailQueue :+ path.addElseBranch(elseBranch)
               case (_, _) =>
                 tailQueue
@@ -97,12 +97,14 @@ class AbstractStateSearch[State] extends SearchStrategy[AbstractStateSymbolicNod
       }
   }
 
-  def findFirstUnexploredNode(symbolicNode: AbstractStateSymbolicNode[State]): Option[backend.tree.search_strategy.TreePath] = {
+  def findFirstUnexploredNode(symbolicNode: SymbolicNode[State]): Option[backend.tree.search_strategy.TreePath[State]] = {
     val countedAbstractStates = countAbstractStates(symbolicNode)
-    if (countedAbstractStates.exists(_._2 == 1)) {
+    val nrOfUniqueAbstractStates = countedAbstractStates.count(_._2 == 1)
+    Logger.log(s"Tree has $nrOfUniqueAbstractStates unique abstract states", Logger.E)
+    if (nrOfUniqueAbstractStates >= 1) {
 
       symbolicNode match {
-        case b: AbstractStateBranchSymbolicNode[State] =>
+        case b: BranchSymbolicNode[State] =>
           val initialTreePath = TreePath.init[State](b)
           initialTreePath match {
             case Left(left) =>
@@ -113,12 +115,12 @@ class AbstractStateSearch[State] extends SearchStrategy[AbstractStateSymbolicNod
               val result = loop(queue, countedAbstractStates)
               result.map(_.toBackendTreePath)
           }
-        case AbstractStateRegularLeafNode() | AbstractStateSafeNode(_) | AbstractStateUnexploredNode() | AbstractStateUnsatisfiableNode() => None
+        case RegularLeafNode() | SafeNode(_) | UnexploredNode() | UnsatisfiableNode() => None
       }
 
     } else {
       Logger.log("No unique abstract state reachable, so switching to BFS", Logger.E)
-      new BreadthFirstSearch[AbstractStateSymbolicNode[State]].findFirstUnexploredNode(symbolicNode)
+      new BreadthFirstSearch[State].findFirstUnexploredNode(symbolicNode)
     }
   }
 

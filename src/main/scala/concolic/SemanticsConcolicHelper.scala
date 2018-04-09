@@ -1,7 +1,7 @@
 import backend.expression._
 import backend.tree._
 
-class SemanticsConcolicHelper[PCElementUsed, RTInitialState](private val rtAnalysisStarter: RTAnalysisStarter[RTInitialState], reporter: ScalaAMReporter[PCElementUsed]) {
+class SemanticsConcolicHelper[PCElementUsed, RTInitialState](private val rtAnalysisStarter: RTAnalysisStarter[RTInitialState], reporter: ScalaAMReporter[PCElementUsed, _]) {
 
   def handleIf(optConcolicExpression: Option[ConcolicExpression], thenBranchTaken: Boolean): Unit = {
     reporter.pathStorage.updateCurrentPath(thenBranchTaken)

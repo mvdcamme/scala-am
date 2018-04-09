@@ -7,7 +7,7 @@ case class AnalysisResult(partialMatcher: PartialRegexMatcher, containsErrorStat
 
 class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider, PCElementUsed](
   val analysisLauncher: AnalysisLauncher[Abs],
-  val reporter: ScalaAMReporter[PCElementUsed]) {
+  val reporter: ScalaAMReporter[PCElementUsed, _]) {
 
   private val errorPathDetector = new ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.aam.State](analysisLauncher.aam)
 

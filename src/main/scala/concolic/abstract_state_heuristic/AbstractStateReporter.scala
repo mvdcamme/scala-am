@@ -1,64 +1,18 @@
 import backend.BaseReporter
-import backend.expression.ConcolicIdGenerator
-import backend.tree.{BranchConstraint, UnusableConstraint}
+import backend.tree._
 
 import abstract_state_heuristic._
 
-class AbstractStateReporter[State] extends BaseReporter[AbstractStateSymbolicNode[State], PathConstraintWithState[State]] {
+class AbstractStateReporter[State] extends BaseReporter[State, PathConstraintWithState[State]] {
 
-  protected var optRoot: Option[AbstractStateSymbolicNode[State]] = None
+  protected var optRoot: Option[SymbolicNode[State]] = None
 
-  def getRoot: Option[AbstractStateSymbolicNode[State]] = optRoot
+  def getRoot: Option[SymbolicNode[State]] = optRoot
   /**
     * Completely removes the symbolic tree that was already explored.
     */
   def deleteSymbolicTree(): Unit = {
     optRoot = None
-  }
-
-  def clear(): Unit = {
-    ConcolicIdGenerator.resetId()
-  }
-
-  sealed trait SetChild {
-    def parent: AbstractStateBranchSymbolicNode[State]
-    def constraintWasTrue: Boolean
-    def setChild(child: AbstractStateSymbolicNode[State]): Unit
-    def setSafeChild(): Unit
-    def setNoChild(): Unit = {
-      setChild(AbstractStateRegularLeafNode[State]())
-    }
-  }
-  case class SetChildElseBranch(parent: AbstractStateBranchSymbolicNode[State]) extends SetChild {
-    def constraintWasTrue: Boolean = false
-    def setChild(child: AbstractStateSymbolicNode[State]): Unit = {
-      parent.setElseBranch(child)
-    }
-    def setSafeChild(): Unit = {
-      assert(parent.elseBranch == AbstractStateUnexploredNode() || parent.elseBranch.isInstanceOf[AbstractStateSafeNode[State]], parent.elseBranch)
-      setChild(AbstractStateSafeNode(parent.elseBranch))
-    }
-  }
-  case class SetChildThenBranch(parent: AbstractStateBranchSymbolicNode[State]) extends SetChild {
-    def constraintWasTrue: Boolean = true
-    def setChild(child: AbstractStateSymbolicNode[State]): Unit = {
-      parent.setThenBranch(child)
-    }
-    def setSafeChild(): Unit = {
-      assert(parent.thenBranch == AbstractStateUnexploredNode() || parent.thenBranch.isInstanceOf[AbstractStateSafeNode[State]], parent.thenBranch)
-      setChild(AbstractStateSafeNode(parent.thenBranch))
-    }
-  }
-  def nodeToSetChild(node: AbstractStateBranchSymbolicNode[State], constraintWasTrue: Boolean): SetChild = {
-    if (constraintWasTrue) {
-      SetChildThenBranch(node)
-    } else {
-      SetChildElseBranch(node)
-    }
-  }
-
-  protected def branchConstraintToAbstractStateNode(constraint: BranchConstraint, state: State): AbstractStateBranchSymbolicNode[State] = {
-    AbstractStateBranchSymbolicNode[State](constraint, AbstractStateUnexploredNode[State](), AbstractStateUnexploredNode[State](), state)
   }
 
   /**
@@ -88,10 +42,10 @@ class AbstractStateReporter[State] extends BaseReporter[AbstractStateSymbolicNod
       case _: BranchConstraint => true
       case _ => false
     })) {
-      println(s"PATHCONSTRAINT ONLY CONTAINS UNUSABLE CONSTRAINTS")
+      println("PATHCONSTRAINT ONLY CONTAINS UNUSABLE CONSTRAINTS")
       return
-    } else if (optRoot.exists({ case AbstractStateSafeNode(_) => true; case _ => false })) {
-      println(s"SYMBOLIC TREE ROOT IS A SAFE NODE")
+    } else if (optRoot.exists({ case SafeNode(_) => true; case _ => false })) {
+      println("SYMBOLIC TREE ROOT IS A SAFE NODE")
       return
     }
 
@@ -102,32 +56,32 @@ class AbstractStateReporter[State] extends BaseReporter[AbstractStateSymbolicNod
     val (_, (headConstraint, headWasTrue, headState), remainder) = findFirstBranchConstraint(constraints).get
 
     // Make sure root exists.
-    optRoot = Some(optRoot.getOrElse({ branchConstraintToAbstractStateNode(headConstraint, headState) }))
+    optRoot = Some(optRoot.getOrElse({ branchConstraintToNode(headConstraint, headState) }))
 
     @scala.annotation.tailrec
-    def loop(currentConstraints: PathConstraintWithState[State], setChild: SetChild): Unit = currentConstraints.headOption match {
+    def loop(currentConstraints: PathConstraintWithState[State], setChild: SetChild[State]): Unit = currentConstraints.headOption match {
       case Some((constraint: BranchConstraint, currentConstraintWasTrue, state: State)) =>
-        lazy val newNode = branchConstraintToAbstractStateNode(constraint, state)
+        lazy val newNode: SymbolicNode[State] = branchConstraintToNode(constraint, state)
         val childNode = if (setChild.constraintWasTrue) {
           setChild.parent.thenBranch
         } else {
           setChild.parent.elseBranch
         }
-        val node = if (childNode == AbstractStateUnexploredNode[State]()) newNode else childNode
+        val node = if (childNode == UnexploredNode[State]()) newNode else childNode
         setChild.setChild(node)
 
         node match {
-          case node: AbstractStateBranchSymbolicNode[State] =>
+          case node: BranchSymbolicNode[State] =>
             val setChild = nodeToSetChild(node, currentConstraintWasTrue)
             loop(currentConstraints.tail, setChild)
-          case AbstractStateSafeNode(_) => /* Stop expansion of the symbolic tree */
-          case AbstractStateRegularLeafNode() | AbstractStateUnexploredNode() | AbstractStateUnsatisfiableNode() => throw new Exception("Should not happen: node should not be an UnexploredNode")
+          case SafeNode(_) => /* Stop expansion of the symbolic tree */
+          case RegularLeafNode() | UnexploredNode() | UnsatisfiableNode() => throw new Exception("Should not happen: node should not be an UnexploredNode")
         }
       case Some((UnusableConstraint, _, _)) => loop(currentConstraints.tail, setChild)
       case None => setChild.setNoChild()
     }
 
-    val setChildOfRoot = nodeToSetChild(optRoot.get.asInstanceOf[AbstractStateBranchSymbolicNode[State]], headWasTrue)
+    val setChildOfRoot = nodeToSetChild(optRoot.get.asInstanceOf[BranchSymbolicNode[State]], headWasTrue)
     loop(remainder, setChildOfRoot)
   }
 }

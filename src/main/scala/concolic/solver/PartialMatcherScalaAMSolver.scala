@@ -4,11 +4,11 @@ import backend.solvers._
 import backend.tree._
 import backend.tree.search_strategy.BreadthFirstSearch
 
-class PartialMatcherSolver extends ScalaAMSolver[PartialMatcherPCElement] {
+class PartialMatcherSolver extends ScalaAMSolver[PartialMatcherPCElement, PartialRegexMatcher] {
 
-  val backendReporter: Reporter[PMSymbolicNode, PathConstraintWithMatchers] = new PartialMatcherReporter
+  val backendReporter: Reporter[PartialRegexMatcher, PathConstraintWithMatchers] = new PartialMatcherReporter
 
-  def getRoot: SymbolicNode = backendReporter.symbolicNodeViewer.asSymbolicNode(backendReporter.getRoot.get)
+  def getRoot: SymbolicNode[PartialRegexMatcher] = backendReporter.getRoot.get
   def deleteSymbolicTree(): Unit = backendReporter.deleteSymbolicTree()
   def clearBackendReporter(): Unit = backendReporter.clear()
 
@@ -34,7 +34,7 @@ class PartialMatcherSolver extends ScalaAMSolver[PartialMatcherPCElement] {
     val initialPartialMatcher = PartialMatcherStore.getInitial.get
     val patchedPathConstraint = patchInitialPartialMatcher(pathConstraint, initialPartialMatcher)
     backendReporter.addExploredPath(patchedPathConstraint)
-    val result = solveViaBackend(backendReporter.getRoot.get, new BreadthFirstSearch[PMSymbolicNode])
+    val result = solveViaBackend(backendReporter.getRoot.get, new BreadthFirstSearch[PartialRegexMatcher])
     result match {
       case NewInput(inputs) =>
         latestInputs = convertInputs(inputs)

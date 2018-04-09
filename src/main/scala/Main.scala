@@ -191,7 +191,7 @@ object Main {
             val reporter2 = new RegularScalaAMReporter(concolicFlags2, inputVariableStore2)
             val sem2 = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, RegularPCElement](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](Some(inputVariableStore2)))
             val pointsToAnalysisLauncher2 = new PointsToAnalysisLauncher[pointsToLattice.L](abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
-            val machine2 = new ConcolicMachine[pointsToLattice.L, RegularPCElement, pointsToAnalysisLauncher.aam.InitialState](pointsToAnalysisLauncher2, config.analysisFlags, reporter2, concolicFlags2)
+            val machine2 = new ConcolicMachine[pointsToLattice.L, RegularPCElement, Unit](pointsToAnalysisLauncher2, config.analysisFlags, reporter2, concolicFlags2)
             machine2.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem2.parse(program), sem2, config.dotfile.isDefined)
             val root2 = reporter2.solver.getRoot
             println(s"Comparison: ${CompareSymbolicTrees.countUniqueSafePaths(root1, root2)} illegalized paths in second tree vs first tree")

@@ -5,11 +5,11 @@ import backend.tree.search_strategy.BreadthFirstSearch
 
 import abstract_state_heuristic._
 
-class AbstractStateSolver[State] extends ScalaAMSolver[AbstractStatePCElement[State]] {
+class AbstractStateSolver[State] extends ScalaAMSolver[AbstractStatePCElement[State], State] {
 
-  val reporter: Reporter[AbstractStateSymbolicNode[State], PathConstraintWithState[State]] = new AbstractStateReporter[State]
+  val reporter: Reporter[State, PathConstraintWithState[State]] = new AbstractStateReporter[State]
 
-  def getRoot: SymbolicNode = reporter.symbolicNodeViewer.asSymbolicNode(reporter.getRoot.get)
+  def getRoot: SymbolicNode[State] = reporter.getRoot.get
   def deleteSymbolicTree(): Unit = reporter.deleteSymbolicTree()
   def clearBackendReporter(): Unit = reporter.clear()
 

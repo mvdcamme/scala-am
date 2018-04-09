@@ -8,7 +8,7 @@ trait HasInputs {
   def getInputs: List[(ConcolicInput, Int)]
 }
 
-abstract class ScalaAMSolver[PCElement] extends HasInputs {
+abstract class ScalaAMSolver[PCElement, NodeExtraInfo] extends HasInputs {
 
   protected var latestInputs: List[(ConcolicInput, Int)] = Nil
 
@@ -16,7 +16,7 @@ abstract class ScalaAMSolver[PCElement] extends HasInputs {
     latestInputs = Nil
   }
   def getInputs: List[(ConcolicInput, Int)] = latestInputs
-  def getRoot: SymbolicNode
+  def getRoot: SymbolicNode[NodeExtraInfo]
   def deleteSymbolicTree(): Unit
   def clearBackendReporter(): Unit
 
@@ -24,8 +24,8 @@ abstract class ScalaAMSolver[PCElement] extends HasInputs {
     inputs.toList.sortBy(_._1.id)
   }
 
-  protected def solveViaBackend[SymbolicNodeUsed : SymbolicNodeViewer](root: SymbolicNodeUsed, searchStrategy: SearchStrategy[SymbolicNodeUsed]): ConcolicSolverResult = {
-    val backendSolver = new ConcolicSolver[SymbolicNodeUsed]
+  protected def solveViaBackend(root: SymbolicNode[NodeExtraInfo], searchStrategy: SearchStrategy[NodeExtraInfo]): ConcolicSolverResult = {
+    val backendSolver = new ConcolicSolver[NodeExtraInfo]
     backendSolver.solve(root, searchStrategy)
   }
 

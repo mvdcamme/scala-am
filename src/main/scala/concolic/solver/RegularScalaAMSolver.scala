@@ -3,20 +3,19 @@ import backend.solvers._
 import backend.tree.SymbolicNode
 import backend.tree.search_strategy.BreadthFirstSearch
 
-class RegularScalaAMSolver extends ScalaAMSolver[RegularPCElement] {
+class RegularScalaAMSolver extends ScalaAMSolver[RegularPCElement, Unit] {
 
-  val backendReporter: Reporter[SymbolicNode, PathConstraint] = Reporter
+  val backendReporter: Reporter[Unit, PathConstraint] = Reporter
 
-  def getRoot: SymbolicNode = backendReporter.getRoot.get
+  def getRoot: SymbolicNode[Unit] = backendReporter.getRoot.get
   def deleteSymbolicTree(): Unit = backendReporter.deleteSymbolicTree()
   def clearBackendReporter(): Unit = backendReporter.clear()
 
   def solve(pathConstraint: PathConstraint): Boolean = {
     backendReporter.writeSymbolicTree("tree.dot")
     resetInputs()
-    val castedBackendReporter = backendReporter.asInstanceOf[Reporter[SymbolicNode, PathConstraint]]
-    castedBackendReporter.addExploredPath(pathConstraint)
-    val result = solveViaBackend(castedBackendReporter.getRoot.get, new BreadthFirstSearch[SymbolicNode])
+    backendReporter.addExploredPath(pathConstraint)
+    val result = solveViaBackend(backendReporter.getRoot.get, new BreadthFirstSearch[Unit])
     result match {
       case NewInput(inputs) =>
         latestInputs = convertInputs(inputs)

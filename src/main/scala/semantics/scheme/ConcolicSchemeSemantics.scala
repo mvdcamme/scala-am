@@ -387,9 +387,9 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp, PCElementUse
       }
   }
 
-  def stepConcolicKont[RTInitialState](v: ConcreteValue, concolicValue: Option[ConcolicExpression],
+  def stepConcolicKont(v: ConcreteValue, concolicValue: Option[ConcolicExpression],
                        frame: SchemeConcolicFrame[ConcreteValue, Addr, Time], store: Store[Addr, ConcreteValue],
-                       t: Time, concolicHelper: SemanticsConcolicHelper[PCElementUsed, RTInitialState]) = frame match {
+                       t: Time, concolicHelper: SemanticsConcolicHelper[PCElementUsed, _]) = frame match {
       case frame: FrameConcolicFuncallOperator[ConcreteValue, Addr, Time] =>
         funcallArgs(v, concolicValue, frame, frame.fexp, frame.args, frame.env, frame.symEnv, store, t)
       case frame: FrameConcolicFuncallOperands[ConcreteValue, Addr, Time] =>

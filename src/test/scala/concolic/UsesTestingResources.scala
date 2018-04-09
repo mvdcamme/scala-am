@@ -1,5 +1,6 @@
 import backend.RegularPCElement
 import ConcreteConcreteLattice.{L => ConcreteValue}
+import abstract_state_heuristic.AbstractStatePCElement
 
 trait UsesTestingResources {
 
@@ -25,9 +26,10 @@ trait UsesPointsToLattice {
   def makeConcolicMachineAndSemantics(flags: ConcolicRunTimeFlags,
     abstSem: ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T] = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives(None))):
   (ConcolicMachine[pointsToLattice.L, RegularPCElement, _], ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, RegularPCElement]) = {
-    val reporter = new RegularScalaAMReporter(flags, new InputVariableStore)
-    val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, RegularPCElement](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](Some(reporter.inputVariableStore)))
+    val inputVariableStore = new InputVariableStore
+    val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, RegularPCElement](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](Some(inputVariableStore)))
     val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](abstSem)(pointsToConvLattice, pointsToLatInfoProv, AnalysisFlags())
+    val reporter: ScalaAMReporter[RegularPCElement, pointsToAnalysisLauncher.stateConverter.aam.InitialState] = ??? // TODO
     val machine = new ConcolicMachine[pointsToLattice.L, RegularPCElement, pointsToAnalysisLauncher.stateConverter.aam.InitialState](pointsToAnalysisLauncher, AnalysisFlags(), reporter, flags)
     (machine, sem)
   }
