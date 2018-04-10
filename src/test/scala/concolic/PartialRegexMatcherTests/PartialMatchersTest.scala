@@ -62,7 +62,7 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
   }
 
   test("3 Check same PM from same analysis result") {
-    val errorPathDetector = new ErrorPathDetector[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T, machine.analysisLauncher.aam.State](machine.analysisLauncher.aam)
+    val errorPathDetector = new ErrorPathDetector[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T, machine.analysisLauncher.aam.State]
     val result1 = errorPathDetector.detectErrors(analysisResult.graph, analysisResult.stepSwitched, -1)
     val result2 = errorPathDetector.detectErrors(analysisResult.graph, analysisResult.stepSwitched, -1)
     checkPartialMatchersEqual(result1.get, result2.get)

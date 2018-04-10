@@ -105,7 +105,7 @@ class AbstractStateScalaAMReporter[State](concolicFlags: ConcolicRunTimeFlags, i
 
 }
 
-class PartialMatcherScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, solver: PartialMatcherSolver, inputVariableStore: InputVariableStore) extends BaseScalaAMReporter[PartialMatcherPCElement, PartialRegexMatcher](concolicFlags, solver, inputVariableStore) {
+class PartialMatcherScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVariableStore: InputVariableStore) extends BaseScalaAMReporter[PartialMatcherPCElement, PartialRegexMatcher](concolicFlags, new PartialMatcherSolver, inputVariableStore) {
 
   import scala.language.implicitConversions
   implicit private def pathToString(path: Path): String = {

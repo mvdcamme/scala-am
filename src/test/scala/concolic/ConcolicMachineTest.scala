@@ -1,7 +1,5 @@
 import org.scalatest.{BeforeAndAfterEach, FunSuite}
 import backend.expression.ConcolicInput
-import backend.solvers._
-import backend.tree.SymbolicNodeViewer
 import backend.{PathConstraint, Reporter}
 
 class ConcolicMachineTest extends FunSuite with BeforeAndAfterEach with TestCommon {

@@ -1,7 +1,6 @@
 import backend.path_filtering.PartialRegexMatcher
 
-class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp, State <: StateTrait[Exp, Abs, Addr, Time]]
-  (val aam: KickstartAAMGlobalStore[Exp, Abs, Addr, Time]) {
+class ErrorPathDetector[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, Time : Timestamp, State <: StateTrait[Exp, Abs, Addr, Time]] {
 
   type RelevantGraph =  Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]
 

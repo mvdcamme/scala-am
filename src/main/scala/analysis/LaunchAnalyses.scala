@@ -9,12 +9,12 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider, PCElementUs
   val analysisLauncher: AnalysisLauncher[Abs],
   val reporter: ScalaAMReporter[PCElementUsed, _]) {
 
-  private val errorPathDetector = new ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.aam.State](analysisLauncher.aam)
+  private val errorPathDetector = new ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.aam.State]
 
   private val analysisResultCache = new AnalysisResultCache[analysisLauncher.stateConverter.aam.InitialState]
 
   private def handleAnalysisResult(outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], currentConcolicRun: Int): AnalysisResult = {
-//    GraphDOTOutput.toFile(outputGraph.graph, outputGraph.halted)("rt_graph.dot")
+    GraphDOTOutput.toFile(outputGraph.graph, outputGraph.halted)("rt_graph.dot")
     val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.graph, outputGraph.stepSwitched, currentConcolicRun)
     AnalysisResult(maybePartialMatcher.get, outputGraph.errorStates.nonEmpty, outputGraph.errorStates.exists(_.isUserErrorState))
   }

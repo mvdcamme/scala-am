@@ -14,18 +14,18 @@ object Reached {
   def empty[Addr : Address] = Reached[Addr](Set(), Set())
 }
 
-class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElementUsed, RTAnalysisInitialState](
+class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElementUsed, NodeExtraInfo](
   val analysisLauncher: AnalysisLauncher[PAbs],
   val analysisFlags: AnalysisFlags,
-  val reporter: ScalaAMReporter[PCElementUsed, RTAnalysisInitialState],
+  val reporter: ScalaAMReporter[PCElementUsed, NodeExtraInfo],
   val concolicFlags: ConcolicRunTimeFlags)
  (implicit unused1: IsSchemeLattice[ConcreteValue])
-  extends EvalKontMachine[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] with RTAnalysisStarter[RTAnalysisInitialState] {
+  extends EvalKontMachine[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] with RTAnalysisStarter[NodeExtraInfo] {
 
   def name = "ConcolicMachine"
 
   private val rtAnalysis = new LaunchAnalyses[PAbs, PCElementUsed](analysisLauncher, reporter)
-  private val semanticsConcolicHelper = new SemanticsConcolicHelper[PCElementUsed, RTAnalysisInitialState](this, reporter)
+  private val semanticsConcolicHelper = new SemanticsConcolicHelper[PCElementUsed, NodeExtraInfo](this, reporter)
 
   private var currentState: Option[State] = None
 
@@ -465,8 +465,8 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
     bw.close()
   }
 
-  def abstractCurrentState(pathConstraint: PathConstraint): RTAnalysisInitialState = {
-    analysisLauncher.stateConverter.convertStateAAM(currentState.get, pathConstraint).asInstanceOf[RTAnalysisInitialState]
+  def abstractCurrentState(pathConstraint: PathConstraint): NodeExtraInfo = {
+    analysisLauncher.stateConverter.convertStateAAM(currentState.get, pathConstraint).asInstanceOf[NodeExtraInfo]
   }
 
   def startAnalysisFromCurrentState(thenBranchTaken: Boolean, pathConstraint: PathConstraint): AnalysisResult = {
