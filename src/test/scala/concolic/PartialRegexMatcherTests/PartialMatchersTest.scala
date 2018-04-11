@@ -9,7 +9,7 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
 
   val (launchAnalyses: LaunchAnalyses[pointsToLattice.L, RegularPCElement],
        initialState: machine.State,
-       analysisResult: AnalysisOutputGraph[SchemeExp, pointsToLattice.L, HybridAddress.A, machine.analysisLauncher.aam.State]) = Util.runOnFile(connect4Program, (program) => {
+       analysisResult: AnalysisOutputGraph[SchemeExp, pointsToLattice.L, HybridAddress.A, machine.analysisLauncher.SpecState]) = Util.runOnFile(connect4Program, (program) => {
     val launchAnalyses = new LaunchAnalyses[pointsToLattice.L, RegularPCElement](machine.analysisLauncher, machine.reporter)
     val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
     val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
@@ -62,7 +62,7 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
   }
 
   test("3 Check same PM from same analysis result") {
-    val errorPathDetector = new ErrorPathDetector[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T, machine.analysisLauncher.aam.State]
+    val errorPathDetector = new ErrorPathDetector[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T, machine.analysisLauncher.SpecState]
     val result1 = errorPathDetector.detectErrors(analysisResult.graph, analysisResult.stepSwitched, -1)
     val result2 = errorPathDetector.detectErrors(analysisResult.graph, analysisResult.stepSwitched, -1)
     checkPartialMatchersEqual(result1.get, result2.get)

@@ -37,12 +37,12 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
     * continuation store, and an address representing where the current
     * continuation lives.
     */
-  case class State(control: Control, store: Store[Addr, Abs], kstore: KontStore[KontAddr], a: KontAddr, t: Time)
+  case class State(control: Control[Exp, Abs, Addr], store: Store[Addr, Abs], kstore: KontStore[KontAddr], a: KontAddr, t: Time)
     extends StateTrait[Exp, Abs, Addr, Time] {
     override def toString = control.toString
 
     def isErrorState: Boolean = control match {
-      case _: ControlError => true
+      case _: ControlError[Exp, Abs, Addr] => true
       case _ => false
     }
     def isUserErrorState: Boolean = control match {
@@ -196,9 +196,9 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
     implicit val graphNode = new GraphNode[State, Set[State]] {
       override def label(s: State) = s.toString
       override def color(s: State) = if (s.halted) { Colors.Yellow } else { s.control match {
-        case _: ControlEval => Colors.Green
-        case _: ControlKont => Colors.Pink
-        case _: ControlError => Colors.Red
+        case _: ControlEval[Exp, Abs, Addr] => Colors.Green
+        case _: ControlKont[Exp, Abs, Addr] => Colors.Pink
+        case _: ControlError[Exp, Abs, Addr] => Colors.Red
       }}
 
       import org.json4s._
@@ -230,7 +230,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       */
     def finalValues = {
       val errorStates = halted.filter(_.control match {
-        case _: ControlError => true
+        case _: ControlError[Exp, Abs, Addr] => true
         case _ => false
       })
       if (errorStates.isEmpty) {
@@ -556,8 +556,8 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
         })
         Set(noEdgeFilters(state.copy(control = ControlKont(a.v), store = newStore)))
       case a: ActionSetAddressR[Exp, Abs, Addr] =>
-        assert(state.control.isInstanceOf[ControlKont])
-        val value = state.control.asInstanceOf[ControlKont].v
+        assert(state.control.isInstanceOf[ControlKont[Exp, Abs, Addr]])
+        val value = state.control.asInstanceOf[ControlKont[Exp, Abs, Addr]].v
         Set(noEdgeFilters(state.copy(store = state.store.update(a.adress, value))))
       case ActionTimeTickR() =>
         Set(noEdgeFilters(state.copy(t = Timestamp[Time].tick(state.t))))

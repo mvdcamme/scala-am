@@ -1,13 +1,15 @@
 import org.scalatest.{FunSuite, PrivateMethodTester}
-import dk.brics.automaton.{State, StatePair, Transition}
+
+import dk.brics.automaton.{State => AutomState, StatePair, Transition}
+
 import ConcreteConcreteLattice.{L => ConcreteValue}
-import backend.{PathConstraint, RegularPCElement}
+import backend.RegularPCElement
 
 class TransitiveClosureTest extends FunSuite with PrivateMethodTester with TestCommon {
 
   val (machine: ConcolicMachine[pointsToLattice.L, RegularPCElement, _], sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, RegularPCElement]) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
 
-  type N = machine.analysisLauncher.aam.State
+  type N = machine.analysisLauncher.SpecState
   type A = EdgeAnnotation[SchemeExp, pointsToLattice.L, HybridAddress.A]
   type G = Graph[N, A, Set[N]]
 
@@ -29,8 +31,8 @@ class TransitiveClosureTest extends FunSuite with PrivateMethodTester with TestC
     val convertMethod = PrivateMethod[java.util.HashSet[StatePair]]('convert)
     val epsilons1 = new java.util.HashSet[StatePair]()
     val epsilons2 = new java.util.HashSet[StatePair]()
-    tc1.invokePrivate(convertMethod(Set((root, new dk.brics.automaton.State())), Set(), epsilons1))
-    tc2.invokePrivate(convertMethod(Set((root, new dk.brics.automaton.State())), Set(), epsilons2))
+    tc1.invokePrivate(convertMethod(Set((root, new AutomState())), Set(), epsilons1))
+    tc2.invokePrivate(convertMethod(Set((root, new AutomState())), Set(), epsilons2))
     assert(epsilons1.size == epsilons2.size)
   }
 
@@ -52,7 +54,7 @@ class TransitiveClosureTest extends FunSuite with PrivateMethodTester with TestC
   private class Converter(graph: G, annotToChar: A => Option[Char], isErrorState: N => Boolean) {
 
     @scala.annotation.tailrec
-    final def convert(todo: Set[(N, State)], toState: Map[N, State], toNode: Map[State, N], visited: Set[N], epsilons: Set[StatePair]): (Map[N, State], Map[State, N], Set[StatePair]) = {
+    final def convert(todo: Set[(N, AutomState)], toState: Map[N, AutomState], toNode: Map[AutomState, N], visited: Set[N], epsilons: Set[StatePair]): (Map[N, AutomState], Map[AutomState, N], Set[StatePair]) = {
       todo.headOption match {
         case None => (toState, toNode, epsilons)
         case Some((node, state)) if visited.contains(node) =>
@@ -61,11 +63,11 @@ class TransitiveClosureTest extends FunSuite with PrivateMethodTester with TestC
           convert(todo.tail, toState, toNode, visited, epsilons)
         case Some((node, state)) =>
           state.setAccept(isErrorState(node))
-          val (newStates, newEpsilons, newToState, newToNode) = graph.nodeEdges(node).foldLeft((Set[(N, State)](), epsilons, toState, toNode))((acc, edge) => edge match {
+          val (newStates, newEpsilons, newToState, newToNode) = graph.nodeEdges(node).foldLeft((Set[(N, AutomState)](), epsilons, toState, toNode))((acc, edge) => edge match {
             case (annot, destNode) =>
               val (destState, updatedToState) = acc._3.get(destNode) match {
                 case None =>
-                  val newState = new State
+                  val newState = new AutomState
                   (newState, acc._3 + (destNode -> newState))
                 case Some(existingState) => (existingState, acc._3)
               }
@@ -92,7 +94,7 @@ class TransitiveClosureTest extends FunSuite with PrivateMethodTester with TestC
 
   }
 
-  private def automatonEpsilonsToGraphEpsilons(epsilons: Set[StatePair], toNode: Map[State, N]): Set[(N, N)] = {
+  private def automatonEpsilonsToGraphEpsilons(epsilons: Set[StatePair], toNode: Map[AutomState, N]): Set[(N, N)] = {
     epsilons.map(statePair => {
       val maybeNode1 = toNode.get(statePair.getFirstState)
       val maybeNode2 = toNode.get(statePair.getSecondState)
@@ -105,9 +107,9 @@ class TransitiveClosureTest extends FunSuite with PrivateMethodTester with TestC
   test("More thorough check whether the convert method produces same results") {
     val root = analysisResult.graph.getNode(0).get
     val converter = new Converter(analysisResult.graph, annotToOptChar, _.isUserErrorState)
-    val state1 = new dk.brics.automaton.State()
+    val state1 = new AutomState()
     val (toState1, toNode1, epsilons1) = converter.convert(Set((root, state1)), Map(root -> state1), Map(state1 -> root), Set(), Set[StatePair]())
-    val state2 = new dk.brics.automaton.State()
+    val state2 = new AutomState()
     val (toState2, toNode2, epsilons2) = converter.convert(Set((root, state2)), Map(root -> state2), Map(state2 -> root), Set(), Set[StatePair]())
     assert(toState1.size == toState2.size)
     assert(toNode1.size == toNode2.size)

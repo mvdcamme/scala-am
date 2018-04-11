@@ -16,7 +16,7 @@ class AAMAACP4F[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Time
   case class AAMKontAddress(e2: Exp, t: Time) extends KontAddr {
     override def toString = s"AAM($e2)"
   }
-  case class AACKontAddress(e2: Exp, env2: Environment[Addr], control: Control, store: Store[Addr, Abs], t: Time) extends KontAddr {
+  case class AACKontAddress(e2: Exp, env2: Environment[Addr], control: Control[Exp, Abs, Addr], store: Store[Addr, Abs], t: Time) extends KontAddr {
     override def toString = s"AAC($e2)"
   }
   case class P4FKontAddress(e2: Exp, env2: Environment[Addr], t: Time) extends KontAddr {
@@ -50,7 +50,7 @@ class AAMAACP4F[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Time
     def key(st: State) = st.a
   }
 
-  case class State(control: Control, a: KontAddr, t: Time) {
+  case class State(control: Control[Exp, Abs, Addr], a: KontAddr, t: Time) {
     override def toString = control.toString
     def subsumes(that: State): Boolean = control.subsumes(that.control) && a == that.a && t == that.t
 
@@ -103,9 +103,9 @@ class AAMAACP4F[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Time
     implicit val graphNode = new GraphNode[State, Context] {
       override def label(s: State) = s.toString.take(40)
       override def color(s: State, halted: Context) = if (halted.contains(s)) { Colors.Yellow } else { s.control match {
-        case _: ControlEval => Colors.Green
-        case _: ControlKont => Colors.Pink
-        case _: ControlError => Colors.Red
+        case _: ControlEval[Exp, Abs, Addr] => Colors.Green
+        case _: ControlKont[Exp, Abs, Addr] => Colors.Pink
+        case _: ControlError[Exp, Abs, Addr] => Colors.Red
       }}
     }
   }

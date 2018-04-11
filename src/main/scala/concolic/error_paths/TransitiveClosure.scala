@@ -1,4 +1,5 @@
 import dk.brics.automaton._
+import dk.brics.automaton.{State => AutomState}
 
 import backend.path_filtering.PartialRegexMatcher
 
@@ -8,7 +9,7 @@ import backend.path_filtering.PartialRegexMatcher
  */
 class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boolean, annotToChar: A => Option[Char], stepCount: Option[Int], concolicRun: Int) {
 
-  implicit val stateGraphNode: GraphNode[State, Unit] = new GraphNode[State, Unit] { }
+  implicit val stateGraphNode: GraphNode[N, Unit] = new GraphNode[N, Unit] { }
   implicit val stateGraphAnnotation: GraphAnnotation[String, Unit] = new GraphAnnotation[String, Unit] { }
 
   private case class AutomatonToDot(automaton: Automaton) {
@@ -35,7 +36,7 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
 
     if (annots.nonEmpty)  {
       val automaton = new Automaton()
-      val initial = new dk.brics.automaton.State()
+      val initial = new AutomState
       automaton.setInitialState(initial)
 
       import scala.collection.JavaConverters._
@@ -59,7 +60,7 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
    * a 1-to-1 mapping between nodes in the graph and automaton states.
    */
   @scala.annotation.tailrec
-  private def convert(todo: Set[(N, State)], toState: Map[N, State], toNode: Map[State, N], visited: Set[N], epsilons: Set[StatePair]): Set[StatePair] = {
+  private def convert(todo: Set[(N, AutomState)], toState: Map[N, AutomState], toNode: Map[AutomState, N], visited: Set[N], epsilons: Set[StatePair]): Set[StatePair] = {
     todo.headOption match {
       case None => epsilons
       case Some((node, state)) if visited.contains(node) =>
@@ -68,11 +69,11 @@ class TransitiveClosure[N, A, C](graph: Graph[N, A, C], isErrorState: N => Boole
         convert(todo.tail, toState, toNode, visited, epsilons)
       case Some((node, state)) =>
         state.setAccept(isErrorState(node))
-        val (newStates, newEpsilons, newToState, newToNode) = graph.nodeEdges(node).foldLeft((Set[(N, State)](), epsilons, toState, toNode))((acc, edge) => edge match {
+        val (newStates, newEpsilons, newToState, newToNode) = graph.nodeEdges(node).foldLeft((Set[(N, AutomState)](), epsilons, toState, toNode))((acc, edge) => edge match {
           case (annot, destNode) =>
             val (destState, updatedToState) = acc._3.get(destNode) match {
               case None =>
-                val newState = new State
+                val newState = new AutomState
                 (newState, acc._3 + (destNode -> newState))
               case Some(existingState) => (existingState, acc._3)
             }

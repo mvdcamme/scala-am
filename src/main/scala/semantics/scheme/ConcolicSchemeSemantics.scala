@@ -30,14 +30,6 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp, PCElementUse
       addPushActionR(ActionConcolicPush[SchemeExp, ConcreteValue, Addr](ActionPush[SchemeExp, ConcreteValue, Addr](frame, exp, env, store), frame, symEnv))
   }
 
-  def convertAbsInFrame[OtherAbs: IsConvertableLattice](
-      frame: ConvertableSchemeFrame[ConcreteValue, Addr, Time],
-      convertValue: (ConcreteValue) => OtherAbs,
-      convertEnv: (Environment[Addr]) => Environment[Addr],
-      abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time])
-    : ConvertableSchemeFrame[OtherAbs, Addr, Time] =
-    frame.convert(convertValue, convertEnv, abstSem)
-
   def frameReaches(frame: ConvertableSchemeFrame[ConcreteValue, Addr, Time],
                    valueReaches: ConcreteValue => Reached[Addr],
                    envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
@@ -153,15 +145,13 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp, PCElementUse
                             store: Store[Addr, ConcreteValue],
                             t: Time,
                             currentValue: ConcreteValue,
-                            optConcolicValue: Option[ConcolicExpression],
-                            frameGeneratorGenerator: (SchemeExp, List[SchemeExp]) => FrameGenerator[ConcreteValue]): EdgeInformation[SchemeExp, ConcreteValue, Addr] =
+                            optConcolicValue: Option[ConcolicExpression]): EdgeInformation[SchemeExp, ConcreteValue, Addr] =
     toeval match {
       case Nil =>
         evalCall(f, fexp, args.reverse, store, t)
       case e :: rest =>
-        val frameGenerator = frameGeneratorGenerator(e, rest)
-        val actionGenerator = (frame: SchemeConcolicFrame[ConcreteValue, Addr, Time]) => ActionConcolicPush(ActionPush(frame, e, env, store), frame, symEnv)
-        addPushDataActionT(currentValue, optConcolicValue, currentFrame, frameGenerator, actionGenerator)
+        val frame = FrameConcolicFuncallOperands(f, fexp, e, args, rest, env, symEnv)
+        simpleAction(ActionConcolicPush(ActionPush(frame, e, env, store), frame, symEnv))
     }
 
   case class PlaceOperatorFuncallOperandsConcolicFrameGenerator(fexp: SchemeExp,
@@ -187,21 +177,6 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp, PCElementUse
     def apply(value: ConcreteValue, optConcolicValue: Option[ConcolicExpression], other: Frame): SchemeConcolicFrame[ConcreteValue, Addr, Time] = other match {
       case other: FrameConcolicLet[ConcreteValue, Addr, Time] =>
         FrameConcolicLet(variable, (frameVariable, value, optConcolicValue) :: other.bindings, toeval, body, env, symEnv)
-    }
-  }
-
-  case class PlaceOperandFuncallOperandsConcolicFrameGenerator(f: ConcreteValue,
-                                                               fexp: SchemeExp,
-                                                               e: SchemeExp,
-                                                               cur: SchemeExp,
-                                                               args: List[(SchemeExp, ConcreteValue, Option[ConcolicExpression])],
-                                                               rest: List[SchemeExp],
-                                                               env: Environment[Addr],
-                                                               symEnv: SymbolicEnvironment)
-    extends FrameGenerator[ConcreteValue] {
-    def apply(value: ConcreteValue, optConcolicValue: Option[ConcolicExpression], other: Frame): SchemeConcolicFrame[ConcreteValue, Addr, Time] = other match {
-      case other: FrameConcolicFuncallOperands[ConcreteValue, Addr, Time] =>
-        FrameConcolicFuncallOperands(f, fexp, e, (cur, value, optConcolicValue) :: other.args, rest, env, symEnv)
     }
   }
 
@@ -321,25 +296,21 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp, PCElementUse
       addPushActionR(ActionConcolicPush(ActionPush(frame, exp, env, store), frame, symEnv))
     case SchemeBegin(body, _) =>
       evalBody(body, env, symEnv, store)
-    case SchemeCond(Nil, _) => ???
-//      simpleAction(ActionError[SchemeExp, ConcreteValue, Addr](NotSupported("cond without clauses")))
-    case SchemeCond((cond, cons) :: clauses, _) => ???
-//      addPushActionR(ActionPush(FrameConcolicCond(cons, clauses, env, symEnv), cond, env, store))
+    case SchemeCond(Nil, _) =>
+      throw new Exception("TODO: cond not handled by semantics (desugared to if)")
+    case SchemeCond((cond, cons) :: clauses, _) =>
+      throw new Exception("TODO: cond not handled by semantics (desugared to if)")
     case SchemeCase(key, clauses, default, _) =>
       val frame = FrameConcolicCase(clauses, default, env, symEnv)
       addPushActionR(ActionConcolicPush(ActionPush(frame, key, env, store), frame, symEnv))
-    case SchemeAnd(Nil, _) => ???
-//      val valueTrue = sabs.inject(true)
-//      noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](valueTrue, Some(ConcolicBool(true)), store),
-//                     List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](valueTrue)))
-    case SchemeAnd(exp :: exps, _) => ???
-//      addPushActionR(ActionPush(FrameConcolicAnd(exps, Nil, env, symEnv), exp, env, store))
-    case SchemeOr(Nil, _) => ???
-//      val valueFalse = sabs.inject(false)
-//      noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](valueFalse, None, store),
-//                     List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](valueFalse)))
-    case SchemeOr(exp :: exps, _) => ???
-//      addPushActionR(ActionPush(FrameConcolicOr(exps, env, symEnv), exp, env, store))
+    case SchemeAnd(Nil, _) =>
+      throw new Exception("TODO: and not handled by semantics (desugared to if)")
+    case SchemeAnd(exp :: exps, _) =>
+      throw new Exception("TODO: and not handled by semantics (desugared to if)")
+    case SchemeOr(Nil, _) =>
+      throw new Exception("TODO: or not handled by semantics (desugared to if)")
+    case SchemeOr(exp :: exps, _) =>
+      throw new Exception("TODO: or not handled by semantics (desugared to if)")
     case SchemeDefineVariable(name, exp, _) =>
       val frame = FrameConcolicDefine(name, env, symEnv)
       addPushActionR(ActionConcolicPush(ActionPush(frame, exp, env, store), frame, symEnv))
@@ -393,11 +364,8 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp, PCElementUse
       case frame: FrameConcolicFuncallOperator[ConcreteValue, Addr, Time] =>
         funcallArgs(v, concolicValue, frame, frame.fexp, frame.args, frame.env, frame.symEnv, store, t)
       case frame: FrameConcolicFuncallOperands[ConcreteValue, Addr, Time] =>
-        val frameGeneratorGenerator =
-          (e: SchemeExp, rest: List[SchemeExp]) =>
-            PlaceOperandFuncallOperandsConcolicFrameGenerator(frame.f, frame.fexp, e, frame.cur, frame.args, rest, frame.env, frame.symEnv)
         funcallArgs(frame.f, frame, frame.fexp, (frame.cur, v, concolicValue) :: frame.args,
-                    frame.toeval, frame.env, frame.symEnv, store, t, v, concolicValue, frameGeneratorGenerator)
+                    frame.toeval, frame.env, frame.symEnv, store, t, v, concolicValue)
       case frame: FrameConcolicIf[ConcreteValue, Addr, Time] =>
         concolicHelper.handleIf(concolicValue, sabs.isTrue(v))
         conditional(v,
@@ -464,23 +432,8 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp, PCElementUse
           case None => simpleAction(ActionConcolicError(ActionError[SchemeExp, ConcreteValue, Addr](UnboundVariable(frame.variable))))
         }
       case frame: FrameConcolicBegin[ConcreteValue, Addr, Time] => evalBody(frame.rest, frame.env, frame.symEnv, store)
-      case frame: FrameConcolicCond[ConcreteValue, Addr, Time] => ???
-//        SemanticsConcolicHelper.handleIf(concolicValue, sabs.isTrue(v), rTAnalysisStarter)
-//        val falseValue = sabs.inject(false)
-//        conditional(v,
-//                    if (frame.cons.isEmpty) {
-//                      noEdgeInfos(ActionConcolicReachedValue(ActionReachedValue[SchemeExp, ConcreteValue, Addr](v, store), concolicValue),
-//                                  List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](v)))
-//                    } else {
-//                      evalBody(frame.cons, frame.env, frame.symEnv, store)
-//                    },
-//                    frame.clauses match {
-//                      case Nil =>
-//                        noEdgeInfos(ActionConcolicReachedValue(ActionReachedValue[SchemeExp, ConcreteValue, Addr](falseValue, store), Some(ConcolicBool(false))),
-//                                    List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](falseValue)))
-//                      case (exp, cons2) :: rest =>
-//                        addPushActionR(ActionPush(FrameConcolicCond(cons2, rest, frame.env, frame.symEnv), exp, frame.env, store))
-//                    })
+      case frame: FrameConcolicCond[ConcreteValue, Addr, Time] =>
+        throw new Exception("TODO: cond not handled by semantics (desugared to if)")
       case frame: FrameConcolicCase[ConcreteValue, Addr, Time] =>
         val fromClauses = frame.clauses.flatMap({
           case (values, body) =>
@@ -500,8 +453,10 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp, PCElementUse
         } else {
           evalBody(frame.default, frame.env, frame.symEnv, store)
         }
-      case frame: FrameAnd[ConcreteValue, Addr, Time] => ???
-      case frame: FrameOr[ConcreteValue, Addr, Time] => ???
+      case frame: FrameAnd[ConcreteValue, Addr, Time] =>
+        throw new Exception("TODO: and not handled by semantics (desugared to if)")
+      case frame: FrameOr[ConcreteValue, Addr, Time] =>
+        throw new Exception("TODO: or not handled by semantics (desugared to if)")
       case frame: FrameConcolicDefine[ConcreteValue, Addr, Time] =>
         throw new Exception("TODO: define not handled (no global environment)")
     }

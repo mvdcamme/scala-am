@@ -76,8 +76,8 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
     }
   }
 
-  trait ConcolicControl extends Control {
-    override def subsumes(that: Control): Boolean = false
+  trait ConcolicControl extends Control[SchemeExp, ConcreteValue, HybridAddress.A] {
+    override def subsumes(that: Control[SchemeExp, ConcreteValue, HybridAddress.A]): Boolean = false
   }
 
   case class ConcolicControlEval(exp: SchemeExp, env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment) extends ConcolicControl

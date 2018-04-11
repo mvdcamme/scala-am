@@ -47,7 +47,7 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
     * continuation store, and an address representing where the current
     * continuation lives.
     */
-  case class State(control: Control, store: Store[Addr, Abs], kstore: KontStore[KontAddr], a: KontAddr, t: Time) {
+  case class State(control: Control[Exp, Abs, Addr], store: Store[Addr, Abs], kstore: KontStore[KontAddr], a: KontAddr, t: Time) {
     override def toString = control.toString
 
     /**
@@ -113,9 +113,9 @@ class AAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : Timestamp]
     implicit val graphNode = new GraphNode[State, Unit] {
       override def label(s: State) = s.toString
       override def color(s: State) = if (s.halted) { Colors.Yellow } else { s.control match {
-        case _: ControlEval => Colors.Green
-        case _: ControlKont => Colors.Pink
-        case _: ControlError => Colors.Red
+        case _: ControlEval[Exp, Abs, Addr] => Colors.Green
+        case _: ControlKont[Exp, Abs, Addr] => Colors.Pink
+        case _: ControlError[Exp, Abs, Addr] => Colors.Red
       }}
 
       import org.json4s._

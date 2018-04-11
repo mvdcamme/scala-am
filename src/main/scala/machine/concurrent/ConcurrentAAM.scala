@@ -44,7 +44,7 @@ class ConcurrentAAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : 
   val noEffect: Effects = Set[Effect[Addr]]()
   def effectsToStr(effs: Effects): String = effs.map(_.toString).mkString(", ")
 
-  case class Context(control: Control, kstore: KontStore[KontAddr], a: KontAddr, t: Time) {
+  case class Context(control: Control[Exp, Abs, Addr], kstore: KontStore[KontAddr], a: KontAddr, t: Time) {
     def integrate1(tid: TID, a: KontAddr, action: Action[Exp, Abs, Addr])(threads: ThreadMap, oldstore: Store[Addr, Abs], results: ThreadResults):
     Set[(ThreadMap, ThreadResults, Store[Addr, Abs], Effects)] = action match {
       case ActionReachedValue(v, store, effs) => Set((threads.update(tid, Context(ControlKont(v), kstore, a, time.tick(t))), results, store, effs))
@@ -185,7 +185,7 @@ class ConcurrentAAM[Exp : Expression, Abs : JoinLattice, Addr : Address, Time : 
     override def label(n: State) = n.toString
     override def color(n: State) = if (n.halted) {
       Colors.Yellow
-    } else if (n.threads.content.values.exists(xs => xs.exists(x => x.control.isInstanceOf[ControlError] ))) {
+    } else if (n.threads.content.values.exists(xs => xs.exists(x => x.control.isInstanceOf[ControlError[Exp, Abs, Addr]] ))) {
       Colors.Red
     } else {
       Colors.White

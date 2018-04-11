@@ -1,5 +1,7 @@
 import backend.PathConstraint
 
+import aam_global_store.GlobalStore
+
 /**
   *
   * @param aam The KickstartAAM for which a new, converted, state must be generated.
@@ -16,13 +18,13 @@ class StateConverter[Abs: IsConvertableLattice](val aam: KickstartAAMGlobalStore
     */
   def convertStateAAM(programState: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T], pathConstraint: PathConstraint): aam.InitialState = {
     val (control, store, kstore, a, t) = programState.convertState[Abs](abstSem, pathConstraint)
-    val deltaStore = aam.GlobalStore(DeltaStore[HybridAddress.A, Abs](store.toSet.toMap, Map()), Map())
+    val deltaStore = GlobalStore(DeltaStore[HybridAddress.A, Abs](store.toSet.toMap, Map()), Map())
     val convertedControl = control match {
-      case ConvertedControlError(reason) => aam.ControlError(reason)
-      case ConvertedControlEval(exp, env) => aam.ControlEval(exp, env)
-      case ConvertedControlKont(v) => aam.ControlKont(v)
+      case ConvertedControlError(reason) => ControlError[SchemeExp, Abs, HybridAddress.A](reason)
+      case ConvertedControlEval(exp, env) => ControlEval[SchemeExp, Abs, HybridAddress.A](exp, env)
+      case ConvertedControlKont(v) => ControlKont[SchemeExp, Abs, HybridAddress.A](v)
     }
-    (aam.State(convertedControl, a, t), deltaStore, kstore)
+    (KickstartAAMState(convertedControl, a, t), deltaStore, kstore)
   }
 
 }

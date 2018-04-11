@@ -1,4 +1,3 @@
-import ConcreteConcreteLattice.{L => ConcreteValue}
 import backend.PathConstraint
 
 trait AnalysisOutputGraph[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]] {
@@ -17,6 +16,10 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice](
   /* The concrete program state the static analysis gets as input. This state is then converted to an
    * abstract state and fed to the KickstartAAM. */
   type PS = ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
+
+  /* The specific type of state used by the abstract machine during the analysis. */
+  type SpecState = KickstartAAMState[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
+
   /* The specific type of KickstartAAM used for this analysis: a KickstartAAM using the HybridLattice, HybridAddress and ZeroCFA
    * components. */
   type SpecAAM = KickstartAAMGlobalStore[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
@@ -43,19 +46,19 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice](
     result
   }
 
-  protected def wrapRunAnalysis(runAnalysis: () => AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] = {
+  protected def wrapRunAnalysis(runAnalysis: () => AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState]): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState] = {
     Logger.log("analyzing", Logger.I)
-    wrapAbstractEvaluation[AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]](runAnalysis)
+    wrapAbstractEvaluation[AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState]](runAnalysis)
   }
 
-  def runInitialStaticAnalysis(initialAbstractState: stateConverter.aam.InitialState, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
-  def runInitialStaticAnalysis(currentProgramState: PS, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] = {
+  def runInitialStaticAnalysis(initialAbstractState: stateConverter.aam.InitialState, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState]
+  def runInitialStaticAnalysis(currentProgramState: PS, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState] = {
     runInitialStaticAnalysis(stateConverter.convertStateAAM(currentProgramState, Nil), programName)
   }
   def runStaticAnalysis(initialAbstractState: stateConverter.aam.InitialState, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
-                        pathConstraint: PathConstraint): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
+                        pathConstraint: PathConstraint): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState]
   def runStaticAnalysis(state: PS, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
-                        pathConstraint: PathConstraint): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] = {
+                        pathConstraint: PathConstraint): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState] = {
     runStaticAnalysis(stateConverter.convertStateAAM(state, pathConstraint), stepSwitched, addressesUsed, pathConstraint)
   }
 

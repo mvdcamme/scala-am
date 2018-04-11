@@ -3,8 +3,7 @@
   * implementations in this framework because it doesn't store the set of visited
   * states.
   */
-class ConcreteMachine[
-    Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
+class ConcreteMachine[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     extends EvalKontMachine[Exp, Abs, Addr, Time] {
   def name = "ConcreteMachine"
 
@@ -33,7 +32,7 @@ class ConcreteMachine[
    * in a file, and returns the set of final states reached
    */
   def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Timeout): Output = {
-    def loop(control: Control, store: Store[Addr, Abs], stack: List[Frame], t: Time, count: Int): ConcreteMachineOutput = {
+    def loop(control: Control[Exp, Abs, Addr], store: Store[Addr, Abs], stack: List[Frame], t: Time, count: Int): ConcreteMachineOutput = {
       if (timeout.reached) {
         ConcreteMachineOutputTimeout(store, timeout.time, count)
       } else {

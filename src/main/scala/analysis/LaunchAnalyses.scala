@@ -9,23 +9,23 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider, PCElementUs
   val analysisLauncher: AnalysisLauncher[Abs],
   val reporter: ScalaAMReporter[PCElementUsed, _]) {
 
-  private val errorPathDetector = new ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.aam.State]
+  private val errorPathDetector = new ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.SpecState]
 
   private val analysisResultCache = new AnalysisResultCache[analysisLauncher.stateConverter.aam.InitialState]
 
-  private def handleAnalysisResult(outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], currentConcolicRun: Int): AnalysisResult = {
+  private def handleAnalysisResult(outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.SpecState], currentConcolicRun: Int): AnalysisResult = {
     GraphDOTOutput.toFile(outputGraph.graph, outputGraph.halted)("rt_graph.dot")
     val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.graph, outputGraph.stepSwitched, currentConcolicRun)
     AnalysisResult(maybePartialMatcher.get, outputGraph.errorStates.nonEmpty, outputGraph.errorStates.exists(_.isUserErrorState))
   }
 
-  private def handleInitialAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State]): AnalysisResult = {
+  private def handleInitialAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.SpecState]): AnalysisResult = {
     val maybeAnalysisResult = handleAnalysisResult(result, -1)
     PartialMatcherStore.setInitial(maybeAnalysisResult.partialMatcher)
     maybeAnalysisResult
   }
 
-  private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.aam.State], convertedState: analysisLauncher.stateConverter.aam.InitialState, currentConcolicRun: Int): AnalysisResult = {
+  private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.SpecState], convertedState: analysisLauncher.stateConverter.aam.InitialState, currentConcolicRun: Int): AnalysisResult = {
     val maybeAnalysisResult = handleAnalysisResult(result, currentConcolicRun)
     analysisResultCache.addAnalysisResult(convertedState, maybeAnalysisResult)
     maybeAnalysisResult

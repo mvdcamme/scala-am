@@ -16,14 +16,6 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
     case exp :: rest => simpleAction(ActionPush(FrameBegin(rest, env), exp, env, store))
   }
 
-  def convertAbsInFrame[OtherAbs: IsConvertableLattice](
-      frame: ConvertableSchemeFrame[V, Addr, Time],
-      convertValue: (V) => OtherAbs,
-      convertEnv: (Environment[Addr]) => Environment[Addr],
-      abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time])
-    : ConvertableSchemeFrame[OtherAbs, Addr, Time] =
-    frame.convert(convertValue, convertEnv, abstSem)
-
   def frameReaches(frame: ConvertableSchemeFrame[V, Addr, Time], valueReaches: V => Reached[Addr],
                    envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
                    addressReaches: Addr => Reached[Addr]): Reached[Addr] =

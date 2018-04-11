@@ -67,61 +67,6 @@ abstract class AbstractMachine[Exp : Expression, Abs : JoinLattice, Addr : Addre
   */
 abstract class EvalKontMachine[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: Timestamp]
     extends AbstractMachine[Exp, Abs, Addr, Time] {
-
-  /**
-    * The control component of the machine
-    */
-  trait Control {
-    def subsumes(that: Control): Boolean
-  }
-  object Control {
-    import org.json4s._
-    import org.json4s.JsonDSL._
-    import org.json4s.jackson.JsonMethods._
-    import scala.language.implicitConversions
-    import JSON._
-    implicit def controlToJSON(c: Control): JValue = c match {
-      case ControlEval(exp, env) =>
-        ("type" -> "ev") ~ ("exp" -> exp.toString) ~ ("env" -> env)
-      case ControlKont(v) =>
-        ("type" -> "kont") ~ ("value" -> v.toString)
-      case ControlError(err) =>
-        ("type" -> "err") ~ ("error" -> err.toString)
-    }
-  }
-
-  /**
-    * It can either be an eval component, where an expression needs to be
-    * evaluated in an environment
-    */
-  case class ControlEval(exp: Exp, env: Environment[Addr]) extends Control {
-    override def toString = s"ev(${exp})"
-    def subsumes(that: Control) = that match {
-      case ControlEval(exp2, env2) => exp.equals(exp2) && env.subsumes(env2)
-      case _ => false
-    }
-  }
-
-  /**
-    * Or it can be a continuation component, where a value has been reached and a
-    * continuation should be popped from the stack to continue the evaluation
-    */
-  case class ControlKont(v: Abs) extends Control {
-    override def toString = s"ko(${v})"
-    def subsumes(that: Control) = that match {
-      case ControlKont(v2) => JoinLattice[Abs].subsumes(v, v2)
-      case _ => false
-    }
-  }
-
-  /**
-    * Or an error component, in case an error is reached (e.g., incorrect number
-    * of arguments in a function call)
-    */
-  case class ControlError(err: SemanticError) extends Control {
-    override def toString = s"err($err)"
-    def subsumes(that: Control) = that.equals(this)
-  }
 }
 
 trait GraphPrinter[Graph] {

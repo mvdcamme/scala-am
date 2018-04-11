@@ -93,9 +93,6 @@ abstract class ConvertableSemantics[Exp: Expression, Abs: JoinLattice, Addr: Add
 
   def primitives: Primitives[Addr, Abs]
 
-  def convertAbsInFrame[OtherAbs: IsConvertableLattice](frame: ConvertableSchemeFrame[Abs, Addr, Time], convertValue: (Abs) => OtherAbs,
-    convertEnv: (Environment[Addr]) => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]): ConvertableSchemeFrame[OtherAbs, Addr, Time]
-
 
 }
 

@@ -7,14 +7,14 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
     (implicit analysisFlags: AnalysisFlags)
     extends AnalysisLauncher[Abs](abstSem) {
 
-  val usesGraph = new UsesGraph[SchemeExp, Abs, HybridAddress.A, aam.State]
+  val usesGraph = new UsesGraph[SchemeExp, Abs, HybridAddress.A, SpecState]
   import usesGraph._
-  implicit def g: GraphNode[aam.MachineState, Set[aam.MachineState]] = aam.State.graphNode
+  implicit def g: GraphNode[SpecState, Set[SpecState]] = KickstartAAMState.graphNode[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[LatticeInfoProvider[Abs]]
 
-  val countFunCallsMetricsComputer = new CountFunCalls[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.State]
+  val countFunCallsMetricsComputer = new CountFunCalls[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, SpecState]
 //  val countNonConstantsMetricsComputer = new CountNonConstants[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, aam.State](lip.pointsTo)
 
   val incrementalMetricsOutputPath = s"${GlobalFlags.ANALYSIS_PATH}Closures_Points_To/incremental.txt"
@@ -44,18 +44,18 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
   }
 
   def runStaticAnalysisGeneric(startState: stateConverter.aam.InitialState, stepSwitched: Option[Int], toDotFile: Option[String],
-                               pathConstraint: PathConstraint, isInitialAnalysis: Boolean): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] = {
+                               pathConstraint: PathConstraint, isInitialAnalysis: Boolean): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState] = {
     wrapRunAnalysis(
       () => {
         val result = analyze(toDotFile, abstSem, startState.asInstanceOf[aam.InitialState], isInitialAnalysis, stepSwitched)
         Logger.log(s"Static points-to analysis result is $result", Logger.U)
         /* The .asInstanceOf isn't actually required (the code also compiles without the cast), but Intellij seems unable to correctly infer the type */
-        result.asInstanceOf[AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State]]
+        result.asInstanceOf[AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState]]
       })
   }
 
   def runStaticAnalysis(initialAbstractState: stateConverter.aam.InitialState, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
-                        pathConstraint: PathConstraint): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] = {
+                        pathConstraint: PathConstraint): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState] = {
     val result = runStaticAnalysisGeneric(initialAbstractState, stepSwitched, None, pathConstraint, false)
     result
   }
@@ -68,7 +68,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
     new BufferedWriter(new FileWriter(new File(runTimeAnalysisMetricsOutputPath), false))
   }
 
-  def runInitialStaticAnalysis(initialAbstractState: stateConverter.aam.InitialState, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.State] =
+  def runInitialStaticAnalysis(initialAbstractState: stateConverter.aam.InitialState, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState] =
     runStaticAnalysisGeneric(initialAbstractState, None, Some("initial_graph.dot"), Nil, true) match {
       case result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, aam.MachineState] =>
         GraphDOTOutput.toFile(result.graph, result.halted)("initial_graph.dot")

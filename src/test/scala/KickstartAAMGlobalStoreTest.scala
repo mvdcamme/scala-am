@@ -39,7 +39,7 @@ class KickstartAAMGlobalStoreTest extends FunSuite with PrivateMethodTester with
       val abstMachine = new KickstartAAMGlobalStore[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T]
       val parsedProgram = abstSem.parse(program)
 
-      val abstInitState = abstMachine.State.inject(parsedProgram, abstSem.initialEnv, abstSem.initialStore)
+      val abstInitState = KickstartAAMState.inject[SchemeExp, pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](parsedProgram, abstSem.initialEnv, abstSem.initialStore)
       HybridTimestamp.switchToConcrete()
 
       val (concMachine, concSem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags(), abstSem)
