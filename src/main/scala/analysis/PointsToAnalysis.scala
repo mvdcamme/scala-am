@@ -9,7 +9,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
 
   val usesGraph = new UsesGraph[SchemeExp, Abs, HybridAddress.A, SpecState]
   import usesGraph._
-  implicit def g: GraphNode[SpecState, Set[SpecState]] = KickstartAAMState.graphNode[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
+  implicit def g: GraphNode[SpecState, Set[SpecState]] = KickstartAAMGlobalStoreState.graphNode[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
 
   val abs = implicitly[IsConvertableLattice[Abs]]
   val lip = implicitly[LatticeInfoProvider[Abs]]

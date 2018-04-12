@@ -24,7 +24,7 @@ class StateConverter[Abs: IsConvertableLattice](val aam: KickstartAAMGlobalStore
       case ConvertedControlEval(exp, env) => ControlEval[SchemeExp, Abs, HybridAddress.A](exp, env)
       case ConvertedControlKont(v) => ControlKont[SchemeExp, Abs, HybridAddress.A](v)
     }
-    (KickstartAAMState(convertedControl, a, t), deltaStore, kstore)
+    (KickstartAAMGlobalStoreState(convertedControl, a, t), deltaStore, kstore)
   }
 
 }

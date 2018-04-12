@@ -1,3 +1,192 @@
+import org.json4s.JObject
+
+import scalaz.Scalaz._
+
+/**
+  * A machine state is made of a control component, a value store, a
+  * continuation store, and an address representing where the current
+  * continuation lives.
+  */
+case class KickstartAAMState[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](control: Control[Exp, Abs, Addr], store: Store[Addr, Abs], kstore: KontStore[KontAddr], a: KontAddr, t: Time)
+  extends StateTrait[Exp, Abs, Addr, Time] {
+  override def toString = control.toString
+
+  val sabs: IsSchemeLattice[Abs] = IsSchemeLattice[Abs]
+
+  def isErrorState: Boolean = control match {
+    case _: ControlError[Exp, Abs, Addr] => true
+    case _ => false
+  }
+  def isUserErrorState: Boolean = control match {
+    case ControlError(UserError(_, _)) => true
+    case _ => false
+  }
+
+  /**
+    * Checks whether a states subsumes another, i.e., if it is "bigger". This
+    * is used to perform subsumption checking when exploring the state space,
+    * in order to avoid exploring states for which another state that subsumes
+    * them has already been explored.
+    */
+  def subsumes(that: KickstartAAMState[Exp, Abs, Addr, Time]): Boolean =
+    control.subsumes(that.control) && store.subsumes(that.store) && a == that.a && kstore.subsumes(that.kstore) && t == that.t
+
+  case class EdgeComponents(state: KickstartAAMState[Exp, Abs, Addr, Time], filters: FilterAnnotations[Exp, Abs, Addr], actions: List[ActionReplay[Exp, Abs, Addr]])
+
+  /**
+    * Integrates a set of actions (returned by the semantics, see
+    * Semantics.scala), in order to generate a set of states that succeeds this
+    * one.
+    */
+  private def integrate(oldValue: Option[Abs], a: KontAddr, edgeInfos: Set[EdgeInformation[Exp, Abs, Addr]]): Set[EdgeComponents] =
+    edgeInfos.map( (edgeInformation) => {
+      val actions = edgeInformation.actions
+      /* If step applied a primitive, generate a filter for it */
+      val primCallFilter = actions.foldLeft[Set[MachineFilterAnnotation]](Set())( (set, actionR) => actionR match {
+        case primCall: ActionPrimCallT[Exp, Abs, Addr] =>
+          Set(PrimCallMark(primCall.fExp, primCall.fValue, t))
+        case _ =>
+          Set()
+      })
+      val filters = FilterAnnotations[Exp, Abs, Addr](primCallFilter, edgeInformation.semanticsFilters)
+      edgeInformation.action match {
+        /* When a value is reached, we go to a continuation state */
+        case ActionReachedValue(v, store, _) =>
+          EdgeComponents(KickstartAAMState(ControlKont(v), store, kstore, a, Timestamp[Time].tick(t)),
+            filters,
+            actions)
+        /* When a continuation needs to be pushed, push it in the continuation store */
+        case ActionPush(frame, e, env, store, _) => {
+          val next = NormalKontAddress[Exp, Time](e, t)
+          val kont = Kont(frame, a)
+          EdgeComponents(KickstartAAMState(ControlEval(e, env), store, kstore.extend(next, kont), next, Timestamp[Time].tick(t)),
+            filters,// + KontAddrPushed(next),
+            actions)
+        }
+        /* When a value needs to be evaluated, we go to an eval state */
+        case ActionEval(e, env, store, _) =>
+          EdgeComponents(KickstartAAMState(ControlEval(e, env), store, kstore, a, Timestamp[Time].tick(t)),
+            filters,
+            actions)
+        /* When a function is stepped in, we also go to an eval state */
+        case ActionStepIn(fexp, clo, e, env, store, _, _) =>
+          val closureFilter =  ClosureCallMark[Exp, Abs, Time](fexp, sabs.inject[Exp, Addr]((clo._1, clo._2), None), clo._1, t)
+          EdgeComponents(KickstartAAMState(ControlEval(e, env), store, kstore, a, Timestamp[Time].tick(t, fexp)),
+            filters + closureFilter,
+            actions)
+        /* When an error is reached, we go to an error state */
+        case ActionError(err) =>
+          EdgeComponents(KickstartAAMState(ControlError(err), store, kstore, a, Timestamp[Time].tick(t)),
+            filters,
+            actions)
+      }
+    })
+
+  def addActionPopKontT(actions: List[ActionReplay[Exp, Abs, Addr]]): List[ActionReplay[Exp, Abs, Addr]] =
+    if (actions.exists( (actionR) => actionR.popsKont)) {
+      /*
+       * One of the actionReplays in the edge already pops the topmost continuation,
+       * so no need to add an ActionPopKontT.
+       */
+      actions
+    } else if (actions.exists({
+      /*
+       * Otherwise, definitely add an ActionPopKontT: add it to the front of the edge if there's
+       * some new continuation frame going to be pushed:
+       *
+       * If a frame is pushed, the pop should happen before the frame is pushed, so that you don't just
+       * pop the newly pushed frame. Otherwise, the pop should happen afterwards: if the top frame is e.g.,
+       * a FrameFuncallOperands for some primitive application, the frame contains important information
+       * such as the values of the operands and hence should only be popped after the primitive has been
+       * applied.
+       */
+      case _: ActionEvalPushR[Exp, Abs, Addr] => true
+      case _: ActionEvalPushDataR[Exp, Abs, Addr] => assert(false, "Should not happen"); true
+      case _ => false
+    })) {
+      ActionPopKontT[Exp, Abs, Addr]() :: actions
+    } else {
+      /*
+       * If no new continuation frame is going to be pushed, add the ActionPopKontT to the back of the edge.
+       */
+      actions :+ ActionPopKontT[Exp, Abs, Addr]()
+    }
+
+  def addTimeTickT(actions: List[ActionReplay[Exp, Abs, Addr]]): List[ActionReplay[Exp, Abs, Addr]] =
+    if (actions.exists(_.ticksTime)) {
+      actions
+    } else {
+      actions :+ ActionTimeTickR()
+    }
+
+  /**
+    * Computes the set of states that follow the current state
+    */
+  def step(sem: ConvertableSemantics[Exp, Abs, Addr, Time]): Set[EdgeComponents] =
+    control match {
+      /* In a eval state, call the semantic's evaluation method */
+      case ControlEval(e, env) =>
+        integrate(Some(sabs.inject(false)), a, sem.stepEval(e, env, store, t))
+      /* In a continuation state, call the semantics' continuation method */
+      case ControlKont(v) =>
+        kstore
+          .lookup(a)
+          .flatMap({
+            case Kont(frame, next) =>
+              val edgeComponents = integrate(Some(v), next, sem.stepKont(v, frame, store, t))
+              edgeComponents.map({ case EdgeComponents(succState, filterAnnotations, actions) =>
+                /* If step did not generate any EdgeAnnotation, place a FrameFollowed EdgeAnnotation */
+                val replacedFilters = filterAnnotations +
+                  KontAddrPopped(a, next) +
+                  FrameFollowed[Abs](frame.asInstanceOf[ConvertableSchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]])
+                val popKontAddedAction = addActionPopKontT(actions)
+                val timeTickAddedAction = addTimeTickT(popKontAddedAction)
+                EdgeComponents(succState, replacedFilters, timeTickAddedAction)
+              })
+          })
+      /* In an error state, the state is not able to make a step */
+      case ControlError(_) => Set()
+    }
+
+  /**
+    * Checks if the current state is a final state. It is the case if it
+    * reached the end of the computation, or an error
+    */
+  def halted: Boolean = control match {
+    case ControlEval(_, _) => false
+    case ControlKont(v) => a == HaltKontAddress
+    case ControlError(_) => true
+  }
+}
+object KickstartAAMState {
+  def inject[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](exp: Exp, env: Iterable[(String, Addr)], store: Iterable[(Addr, Abs)]) =
+    KickstartAAMState(ControlEval(exp, Environment.initial[Addr](env)),
+      Store.initial[Addr, Abs](store), KontStore.empty[KontAddr], HaltKontAddress, Timestamp[Time].initial(""))
+  import scala.language.implicitConversions
+
+  type Context[Exp, Abs, Addr, Time] = Set[KickstartAAMState[Exp, Abs, Addr, Time]]
+  implicit def graphNode[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]: GraphNode[KickstartAAMState[Exp, Abs, Addr, Time], Set[KickstartAAMState[Exp, Abs, Addr, Time]]] = new GraphNode[KickstartAAMState[Exp, Abs, Addr, Time], Set[KickstartAAMState[Exp, Abs, Addr, Time]]] {
+    override def label(s: KickstartAAMState[Exp, Abs, Addr, Time]) = s.toString
+    override def color(s: KickstartAAMState[Exp, Abs, Addr, Time]) = if (s.halted) { Colors.Yellow } else { s.control match {
+      case _: ControlEval[Exp, Abs, Addr] => Colors.Green
+      case _: ControlKont[Exp, Abs, Addr] => Colors.Pink
+      case _: ControlError[Exp, Abs, Addr] => Colors.Red
+    }}
+    import org.json4s._
+    import org.json4s.JsonDSL._
+    import JSON._
+    override def content(s: KickstartAAMState[Exp, Abs, Addr, Time]): JObject =
+      ("control" -> s.control) ~ ("store" -> s.store) ~ ("kstore" -> s.kstore) ~ ("kont" -> s.a.toString) ~ ("time" -> s.t.toString)
+  }
+  implicit def graphAnnotation[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]: GraphAnnotation[EdgeAnnotation[Exp, Abs, Addr], Context[Exp, Abs, Addr, Time]] = new GraphAnnotation[EdgeAnnotation[Exp, Abs, Addr], Context[Exp, Abs, Addr, Time]] {
+    override def label(e: EdgeAnnotation[Exp, Abs, Addr]): String = {
+      if (e.filters.semanticsFilters.contains(ThenBranchFilter)) "t"
+      else if (e.filters.semanticsFilters.contains(ElseBranchFilter)) "e"
+      else ""
+    }
+  }
+}
+
 /**
   * Implementation of a CESK machine following the AAM approach (Van Horn, David,
   * and Matthew Might. "Abstracting abstract machines." ACM Sigplan
@@ -22,208 +211,23 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
 
   val sabs: IsSchemeLattice[Abs] = implicitly[IsSchemeLattice[Abs]]
 
-  type MachineState = State
+  type MachineState = KickstartAAMState[Exp, Abs, Addr, Time]
   override type InitialState = MachineState
 
   def name = "AAM"
 
-  implicit val stateWithKey = new WithKey[State] {
+  implicit val stateWithKey = new WithKey[KickstartAAMState[Exp, Abs, Addr, Time]] {
     type K = KontAddr
-    def key(st: State) = st.a
+    def key(st: KickstartAAMState[Exp, Abs, Addr, Time]) = st.a
   }
 
-  /**
-    * A machine state is made of a control component, a value store, a
-    * continuation store, and an address representing where the current
-    * continuation lives.
-    */
-  case class State(control: Control[Exp, Abs, Addr], store: Store[Addr, Abs], kstore: KontStore[KontAddr], a: KontAddr, t: Time)
-    extends StateTrait[Exp, Abs, Addr, Time] {
-    override def toString = control.toString
-
-    def isErrorState: Boolean = control match {
-      case _: ControlError[Exp, Abs, Addr] => true
-      case _ => false
-    }
-    def isUserErrorState: Boolean = control match {
-      case ControlError(UserError(_, _)) => true
-      case _ => false
-    }
-
-    /**
-      * Checks whether a states subsumes another, i.e., if it is "bigger". This
-      * is used to perform subsumption checking when exploring the state space,
-      * in order to avoid exploring states for which another state that subsumes
-      * them has already been explored.
-      */
-    def subsumes(that: State): Boolean =
-      control.subsumes(that.control) && store.subsumes(that.store) && a == that.a && kstore.subsumes(that.kstore) && t == that.t
-
-    case class EdgeComponents(state: State, filters: FilterAnnotations[Exp, Abs, Addr], actions: List[ActionReplay[Exp, Abs, Addr]])
-
-    /**
-      * Integrates a set of actions (returned by the semantics, see
-      * Semantics.scala), in order to generate a set of states that succeeds this
-      * one.
-      */
-    private def integrate(oldValue: Option[Abs], a: KontAddr, edgeInfos: Set[EdgeInformation[Exp, Abs, Addr]]): Set[EdgeComponents] =
-      edgeInfos.map( (edgeInformation) => {
-        val actions = edgeInformation.actions
-        /* If step applied a primitive, generate a filter for it */
-        val primCallFilter = actions.foldLeft[Set[MachineFilterAnnotation]](Set())( (set, actionR) => actionR match {
-          case primCall: ActionPrimCallT[Exp, Abs, Addr] =>
-            Set(PrimCallMark(primCall.fExp, primCall.fValue, t))
-          case _ =>
-            Set()
-        })
-        val filters = FilterAnnotations[Exp, Abs, Addr](primCallFilter, edgeInformation.semanticsFilters)
-        edgeInformation.action match {
-          /* When a value is reached, we go to a continuation state */
-          case ActionReachedValue(v, store, _) =>
-            EdgeComponents(State(ControlKont(v), store, kstore, a, Timestamp[Time].tick(t)),
-                           filters,
-                           actions)
-          /* When a continuation needs to be pushed, push it in the continuation store */
-          case ActionPush(frame, e, env, store, _) => {
-            val next = NormalKontAddress[Exp, Time](e, t)
-            val kont = Kont(frame, a)
-            EdgeComponents(State(ControlEval(e, env), store, kstore.extend(next, kont), next, Timestamp[Time].tick(t)),
-                           filters,// + KontAddrPushed(next),
-                           actions)
-          }
-          /* When a value needs to be evaluated, we go to an eval state */
-          case ActionEval(e, env, store, _) =>
-            EdgeComponents(State(ControlEval(e, env), store, kstore, a, Timestamp[Time].tick(t)),
-                           filters,
-                           actions)
-          /* When a function is stepped in, we also go to an eval state */
-          case ActionStepIn(fexp, clo, e, env, store, _, _) =>
-            val closureFilter =  ClosureCallMark[Exp, Abs, Time](fexp, sabs.inject[Exp, Addr]((clo._1, clo._2), None), clo._1, t)
-            EdgeComponents(State(ControlEval(e, env), store, kstore, a, Timestamp[Time].tick(t, fexp)),
-                           filters + closureFilter,
-                           actions)
-          /* When an error is reached, we go to an error state */
-          case ActionError(err) =>
-            EdgeComponents(State(ControlError(err), store, kstore, a, Timestamp[Time].tick(t)),
-                           filters,
-                           actions)
-        }
-      })
-
-    def addActionPopKontT(actions: List[ActionReplay[Exp, Abs, Addr]]): List[ActionReplay[Exp, Abs, Addr]] =
-      if (actions.exists( (actionR) => actionR.popsKont)) {
-        /*
-         * One of the actionReplays in the edge already pops the topmost continuation,
-         * so no need to add an ActionPopKontT.
-         */
-        actions
-      } else if (actions.exists({
-        /*
-         * Otherwise, definitely add an ActionPopKontT: add it to the front of the edge if there's
-         * some new continuation frame going to be pushed:
-         *
-         * If a frame is pushed, the pop should happen before the frame is pushed, so that you don't just
-         * pop the newly pushed frame. Otherwise, the pop should happen afterwards: if the top frame is e.g.,
-         * a FrameFuncallOperands for some primitive application, the frame contains important information
-         * such as the values of the operands and hence should only be popped after the primitive has been
-         * applied.
-         */
-        case _: ActionEvalPushR[Exp, Abs, Addr] => true
-        case _: ActionEvalPushDataR[Exp, Abs, Addr] => assert(false, "Should not happen"); true
-        case _ => false
-      })) {
-        ActionPopKontT[Exp, Abs, Addr]() :: actions
-      } else {
-        /*
-         * If no new continuation frame is going to be pushed, add the ActionPopKontT to the back of the edge.
-         */
-        actions :+ ActionPopKontT[Exp, Abs, Addr]()
-      }
-
-    def addTimeTickT(actions: List[ActionReplay[Exp, Abs, Addr]]): List[ActionReplay[Exp, Abs, Addr]] =
-      if (actions.exists(_.ticksTime)) {
-        actions
-      } else {
-        actions :+ ActionTimeTickR()
-      }
-
-    /**
-      * Computes the set of states that follow the current state
-      */
-    def step(sem: ConvertableSemantics[Exp, Abs, Addr, Time]): Set[EdgeComponents] =
-      control match {
-        /* In a eval state, call the semantic's evaluation method */
-        case ControlEval(e, env) =>
-          integrate(Some(sabs.inject(false)), a, sem.stepEval(e, env, store, t))
-        /* In a continuation state, call the semantics' continuation method */
-        case ControlKont(v) =>
-          kstore
-            .lookup(a)
-            .flatMap({
-              case Kont(frame, next) =>
-                val edgeComponents = integrate(Some(v), next, sem.stepKont(v, frame, store, t))
-                edgeComponents.map({ case EdgeComponents(succState, filterAnnotations, actions) =>
-                  /* If step did not generate any EdgeAnnotation, place a FrameFollowed EdgeAnnotation */
-                  val replacedFilters = filterAnnotations +
-                                        KontAddrPopped(a, next) +
-                                        FrameFollowed[Abs](frame.asInstanceOf[ConvertableSchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]])
-                  val popKontAddedAction = addActionPopKontT(actions)
-                  val timeTickAddedAction = addTimeTickT(popKontAddedAction)
-                  EdgeComponents(succState, replacedFilters, timeTickAddedAction)
-                })
-            })
-        /* In an error state, the state is not able to make a step */
-        case ControlError(_) => Set()
-      }
-
-    /**
-      * Checks if the current state is a final state. It is the case if it
-      * reached the end of the computation, or an error
-      */
-    def halted: Boolean = control match {
-      case ControlEval(_, _) => false
-      case ControlKont(v) => a == HaltKontAddress
-      case ControlError(_) => true
-    }
-  }
-  object State {
-    def inject(exp: Exp, env: Iterable[(String, Addr)], store: Iterable[(Addr, Abs)]) =
-      State(ControlEval(exp, Environment.initial[Addr](env)),
-        Store.initial[Addr, Abs](store), KontStore.empty[KontAddr], HaltKontAddress, Timestamp[Time].initial(""))
-    import scala.language.implicitConversions
-
-    type Context = Set[State]
-    implicit val graphNode = new GraphNode[State, Set[State]] {
-      override def label(s: State) = s.toString
-      override def color(s: State) = if (s.halted) { Colors.Yellow } else { s.control match {
-        case _: ControlEval[Exp, Abs, Addr] => Colors.Green
-        case _: ControlKont[Exp, Abs, Addr] => Colors.Pink
-        case _: ControlError[Exp, Abs, Addr] => Colors.Red
-      }}
-
-      import org.json4s._
-      import org.json4s.JsonDSL._
-      import org.json4s.jackson.JsonMethods._
-      import JSON._
-      override def content(s: State) =
-        ("control" -> s.control) ~ ("store" -> s.store) ~ ("kstore" -> s.kstore) ~ ("kont" -> s.a.toString) ~ ("time" -> s.t.toString)
-    }
-    implicit val graphAnnotation: GraphAnnotation[EdgeAnnotation[Exp, Abs, Addr], Context] = new GraphAnnotation[EdgeAnnotation[Exp, Abs, Addr], Context] {
-      override def label(e: EdgeAnnotation[Exp, Abs, Addr]): String = {
-        if (e.filters.semanticsFilters.contains(ThenBranchFilter)) "t"
-        else if (e.filters.semanticsFilters.contains(ElseBranchFilter)) "e"
-        else ""
-      }
-    }
-  }
-
-  type G = Option[Graph[State, EdgeAnnotation[Exp, Abs, Addr], State.Context]]
-  case class AAMOutput(halted: Set[State], numberOfStates: Int, time: Double, errorStates: Set[State],
-                       graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]], timedOut: Boolean,
+  type G = Option[Graph[KickstartAAMState[Exp, Abs, Addr, Time], EdgeAnnotation[Exp, Abs, Addr], KickstartAAMState.Context[Exp, Abs, Addr, Time]]]
+  case class AAMOutput(halted: Set[KickstartAAMState[Exp, Abs, Addr, Time]], numberOfStates: Int, time: Double, errorStates: Set[KickstartAAMState[Exp, Abs, Addr, Time]],
+                       graph: Graph[KickstartAAMState[Exp, Abs, Addr, Time], EdgeAnnotation[Exp, Abs, Addr], Set[KickstartAAMState[Exp, Abs, Addr, Time]]], timedOut: Boolean,
                        stepSwitched: Option[Int])
-      extends Output with AnalysisOutputGraph[Exp, Abs, Addr, State] {
+      extends Output with AnalysisOutputGraph[Exp, Abs, Addr, KickstartAAMState[Exp, Abs, Addr, Time]] {
 
-    def replaceGraph(newGraph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AnalysisOutputGraph[Exp, Abs, Addr, State] = this.copy(graph = newGraph)
+    def replaceGraph(newGraph: Graph[KickstartAAMState[Exp, Abs, Addr, Time], EdgeAnnotation[Exp, Abs, Addr], Set[KickstartAAMState[Exp, Abs, Addr, Time]]]): AnalysisOutputGraph[Exp, Abs, Addr, KickstartAAMState[Exp, Abs, Addr, Time]] = this.copy(graph = newGraph)
 
     /**
       * Returns the list of final values that can be reached
@@ -261,7 +265,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
    * Checks whether the given (successor) state is a eval-state. If so, adds an EvaluatingExpression
    * annotation to the list of edge annotations.
    */
-  def addSuccStateFilter(s: State, filters: FilterAnnotations[Exp, Abs, Addr]): FilterAnnotations[Exp, Abs, Addr] = s.control match {
+  def addSuccStateFilter(s: KickstartAAMState[Exp, Abs, Addr, Time], filters: FilterAnnotations[Exp, Abs, Addr]): FilterAnnotations[Exp, Abs, Addr] = s.control match {
     case ControlEval(exp, _) =>
       filters + EvaluatingExpression(exp)
     case ControlKont(v) =>
@@ -280,10 +284,10 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       filters
   }
 
-  def kickstartEval(initialState: State, sem: ConvertableSemantics[Exp, Abs, Addr, Time], stopEval: Option[State => Boolean],
+  def kickstartEval(initialState: KickstartAAMState[Exp, Abs, Addr, Time], sem: ConvertableSemantics[Exp, Abs, Addr, Time], stopEval: Option[KickstartAAMState[Exp, Abs, Addr, Time] => Boolean],
     timeout: Timeout, stepSwitched: Option[Int]): AAMOutput = {
-    def loop(counter: Int, todo: Set[State], visited: Set[State], halted: Set[State], startingTime: Long,
-      graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AAMOutput = {
+    def loop(counter: Int, todo: Set[KickstartAAMState[Exp, Abs, Addr, Time]], visited: Set[KickstartAAMState[Exp, Abs, Addr, Time]], halted: Set[KickstartAAMState[Exp, Abs, Addr, Time]], startingTime: Long,
+      graph: Graph[KickstartAAMState[Exp, Abs, Addr, Time], EdgeAnnotation[Exp, Abs, Addr], Set[KickstartAAMState[Exp, Abs, Addr, Time]]]): AAMOutput = {
       if (timeout.reached) {
         AAMOutput(halted, visited.size, (System.nanoTime - startingTime) / Math.pow(10, 9),
           halted.filter(_.isErrorState), graph, true, stepSwitched)
@@ -299,7 +303,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
                * states but leads to non-determinism due to the non-determinism
                * of Scala's headOption (it seems so at least).
                * We do have to add an edge from the current state to the subsumed state. */
-              loop(counter + 1, todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]]
+              loop(counter + 1, todo.tail, visited, halted, startingTime, visited.foldLeft[Graph[KickstartAAMState[Exp, Abs, Addr, Time], EdgeAnnotation[Exp, Abs, Addr], Set[KickstartAAMState[Exp, Abs, Addr, Time]]]]
                 (graph)({
                 case (graph, s2) =>
                   if (s2.subsumes(s)) {
@@ -330,7 +334,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       }
     }
     val startingTime = System.nanoTime
-    loop(1, Set(initialState), Set(), Set(), startingTime, Graph.empty[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]].addNode(initialState))
+    loop(1, Set(initialState), Set(), Set(), startingTime, Graph.empty[KickstartAAMState[Exp, Abs, Addr, Time], EdgeAnnotation[Exp, Abs, Addr], Set[KickstartAAMState[Exp, Abs, Addr, Time]]].addNode(initialState))
   }
 
   def eval(exp: Exp, sem: Semantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Timeout): Output = ???
@@ -340,25 +344,25 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
     * in a file, and returns the set of final states reached
     */
   def eval(exp: Exp, sem: ConvertableSemantics[Exp, Abs, Addr, Time], graph: Boolean, timeout: Timeout): Output =
-    kickstartEval(State.inject(exp, sem.initialEnv, sem.initialStore), sem, None, timeout, None)
+    kickstartEval(KickstartAAMState.inject(exp, sem.initialEnv, sem.initialStore), sem, None, timeout, None)
 
-  object AAMGraphPrinter extends GraphPrinter[Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]] {
+  object AAMGraphPrinter extends GraphPrinter[Graph[KickstartAAMState[Exp, Abs, Addr, Time], EdgeAnnotation[Exp, Abs, Addr], Set[KickstartAAMState[Exp, Abs, Addr, Time]]]] {
 
-    def printGraph(graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]],
+    def printGraph(graph: Graph[KickstartAAMState[Exp, Abs, Addr, Time], EdgeAnnotation[Exp, Abs, Addr], Set[KickstartAAMState[Exp, Abs, Addr, Time]]],
                    path: String): Unit = {
-      GraphDOTOutput.toFile(graph, Set[State]())(path)
+      GraphDOTOutput.toFile(graph, Set[KickstartAAMState[Exp, Abs, Addr, Time]]())(path)
     }
   }
 
-  object ActionReplayApplier extends ActionReplayApplier[Exp, Abs, Addr, Time, State] {
+  object ActionReplayApplier extends ActionReplayApplier[Exp, Abs, Addr, Time, KickstartAAMState[Exp, Abs, Addr, Time]] {
 
-    protected def noEdgeFilters(state: State): (State, Set[MachineFilterAnnotation]) = (state, Set())
+    protected def noEdgeFilters(state: KickstartAAMState[Exp, Abs, Addr, Time]): (KickstartAAMState[Exp, Abs, Addr, Time], Set[MachineFilterAnnotation]) = (state, Set())
     protected def addEvaluateExp(exp: Exp): EvaluatingExpression[Exp] = EvaluatingExpression(exp)
     protected def addFrameFollowed(frame: Frame): FrameFollowed[Abs] =
       FrameFollowed[Abs](frame.asInstanceOf[ConvertableSchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]])
     protected def addKontAddrPopped(a: KontAddr, next: KontAddr): KontAddrPopped = KontAddrPopped(a, next)
 
-    private def frameSavedOperands(state: State): Set[(List[Abs], Kont[KontAddr])] =
+    private def frameSavedOperands(state: KickstartAAMState[Exp, Abs, Addr, Time]): Set[(List[Abs], Kont[KontAddr])] =
       state.kstore.lookup(state.a).map( (kont) => kont.frame match {
         case frame: FrameFuncallOperands[Abs, Addr, Time] =>
           val savedOperands = frame.args.map(_._2)
@@ -379,7 +383,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
           (List(), kont)
       })
 
-    protected def popKont(state: State): Set[(State, Set[MachineFilterAnnotation], Frame)] = {
+    protected def popKont(state: KickstartAAMState[Exp, Abs, Addr, Time]): Set[(KickstartAAMState[Exp, Abs, Addr, Time], Set[MachineFilterAnnotation], Frame)] = {
       val konts = state.kstore.lookup(state.a)
       konts.map( (kont: Kont[KontAddr]) => {
         val frame = kont.frame
@@ -397,7 +401,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       * @param state
       * @return
       */
-    protected def getControlKontValue(state: State): Option[Abs] = state.control match {
+    protected def getControlKontValue(state: KickstartAAMState[Exp, Abs, Addr, Time]): Option[Abs] = state.control match {
       case ControlKont(v) =>
         Some(v)
       case _ =>
@@ -411,7 +415,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       * @param state
       * @return
       */
-    protected def getSemanticError(state: State): Option[SemanticError] = state.control match {
+    protected def getSemanticError(state: KickstartAAMState[Exp, Abs, Addr, Time]): Option[SemanticError] = state.control match {
       case ControlError(err) =>
         Some(err)
       case _ =>
@@ -425,19 +429,19 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       * @param state
       * @return
       */
-    protected def assertedGetControlKontValue(state: State): Abs = getControlKontValue(state) match {
+    protected def assertedGetControlKontValue(state: KickstartAAMState[Exp, Abs, Addr, Time]): Abs = getControlKontValue(state) match {
       case Some(v) =>
         v
       case None =>
         throw new Exception(s"Expected control to be a ControlKont, got a ${state.control} instead")
     }
 
-    protected def addControlKontValue(state: State, values: List[Abs]): List[Abs] = {
+    protected def addControlKontValue(state: KickstartAAMState[Exp, Abs, Addr, Time], values: List[Abs]): List[Abs] = {
       val extraValue = assertedGetControlKontValue(state)
       extraValue :: values
     }
 
-    protected def addControlKontValue(state: State, valuesSet: Set[List[Abs]]): Set[List[Abs]] = {
+    protected def addControlKontValue(state: KickstartAAMState[Exp, Abs, Addr, Time], valuesSet: Set[List[Abs]]): Set[List[Abs]] = {
       val extraValue = assertedGetControlKontValue(state)
       valuesSet.map(extraValue :: _)
     }
@@ -451,7 +455,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       Set(kontPopped, frameFollowed)
     }
 
-    protected def defineAddresses(state: State, addresses: List[Addr]): Set[(State, Kont[KontAddr])] = {
+    protected def defineAddresses(state: KickstartAAMState[Exp, Abs, Addr, Time], addresses: List[Addr]): Set[(KickstartAAMState[Exp, Abs, Addr, Time], Kont[KontAddr])] = {
       val incompleteValuesKontsSet = frameSavedValues(state.a, state.kstore)
       incompleteValuesKontsSet.map({ case (values, kont) =>
         /*
@@ -471,7 +475,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       })
     }
 
-    def applyActionReplay(state: State, action: ActionReplay[Exp, Abs, Addr]): Set[(State, Set[MachineFilterAnnotation])] = action match {
+    def applyActionReplay(state: KickstartAAMState[Exp, Abs, Addr, Time], action: ActionReplay[Exp, Abs, Addr]): Set[(KickstartAAMState[Exp, Abs, Addr, Time], Set[MachineFilterAnnotation])] = action match {
       case a: ActionAllocAddressesR[Exp, Abs, Addr] =>
         val newStore = a.addresses.foldLeft(state.store)( (store, address) => store.extend(address, JoinLattice[Abs].bottom))
         Set(noEdgeFilters(state.copy(store = newStore)))
@@ -538,7 +542,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
             result.collect({
               case (res, store2, effects) =>
                 val newState = state.copy(control = ControlKont(res), store = store2, a = kont.next)
-                Set[(State, Set[MachineFilterAnnotation])]((newState, filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive), state.t)))
+                Set[(KickstartAAMState[Exp, Abs, Addr, Time], Set[MachineFilterAnnotation])]((newState, filterEdge + PrimCallMark(a.fExp, sabs.inject(primitive), state.t)))
             },
               err => {
                 val newState = state.copy(control = ControlError(err), a = kont.next)
@@ -565,10 +569,10 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
         Set(noEdgeFilters(state.copy(t = Timestamp[Time].tick(state.t, fexp))))
     }
 
-    def subsumes(s1: State, s2: State): Boolean =
+    def subsumes(s1: KickstartAAMState[Exp, Abs, Addr, Time], s2: KickstartAAMState[Exp, Abs, Addr, Time]): Boolean =
       s1.subsumes(s2)
 
-    def statesEqual(s1: State, s2: State): Boolean = {
+    def statesEqual(s1: KickstartAAMState[Exp, Abs, Addr, Time], s2: KickstartAAMState[Exp, Abs, Addr, Time]): Boolean = {
       val control = s1.control == s2.control
       val a = s1.a == s2.a
       val t = s1.t == s2.t
@@ -577,38 +581,38 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       control && a && t && kstore && store
     }
 
-    def evaluatedFalse(state: State): Boolean = state.control match {
+    def evaluatedFalse(state: KickstartAAMState[Exp, Abs, Addr, Time]): Boolean = state.control match {
       case ControlKont(v) =>
         sabs.isFalse(v)
       case _ =>
         false
     }
 
-    def evaluatedTrue(state: State): Boolean = state.control match {
+    def evaluatedTrue(state: KickstartAAMState[Exp, Abs, Addr, Time]): Boolean = state.control match {
       case ControlKont(v) =>
         sabs.isTrue(v)
       case _ =>
         false
     }
 
-    def getTopKonts(state: State): Set[Kont[KontAddr]] =
+    def getTopKonts(state: KickstartAAMState[Exp, Abs, Addr, Time]): Set[Kont[KontAddr]] =
       state.kstore.lookup(state.a)
 
-    def getKonts(state: State, ka: KontAddr): Set[Kont[KontAddr]] = {
+    def getKonts(state: KickstartAAMState[Exp, Abs, Addr, Time], ka: KontAddr): Set[Kont[KontAddr]] = {
       state.kstore.lookup(ka)
     }
 
-    def addKonts(state: State, ka: KontAddr, konts: Set[Kont[KontAddr]]): State = {
+    def addKonts(state: KickstartAAMState[Exp, Abs, Addr, Time], ka: KontAddr, konts: Set[Kont[KontAddr]]): KickstartAAMState[Exp, Abs, Addr, Time] = {
       val newKStore = konts.foldLeft(state.kstore)( (newKStore, kont) => newKStore.extend(ka, kont) )
       state.copy(kstore = newKStore)
     }
 
-    def removeKonts(state: State, ka: KontAddr): State = {
+    def removeKonts(state: KickstartAAMState[Exp, Abs, Addr, Time], ka: KontAddr): KickstartAAMState[Exp, Abs, Addr, Time] = {
       val newKStore = state.kstore.remove(ka)
       state.copy(kstore = newKStore)
     }
 
-    def joinStates(states: Set[State]): JoinedInfo = {
+    def joinStates(states: Set[KickstartAAMState[Exp, Abs, Addr, Time]]): JoinedInfo = {
       val initialInfo = JoinedInfo(JoinLattice[Abs].bottom, Store.empty, KontStore.empty, Set())
       states.foldLeft(initialInfo)( (joinedInfo, state) => {
         val stateInfo = getControlKontValue(state) match {
@@ -628,16 +632,14 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
 
   }
 
-  object AAMStateInfoProvider extends StateInfoProvider[Exp, Abs, Addr, Time, State] {
+  object AAMStateInfoProvider extends StateInfoProvider[Exp, Abs, Addr, Time, KickstartAAMState[Exp, Abs, Addr, Time]] {
 
-    def evalExp(state: State) = state.control match {
-      case ControlEval(exp, _) =>
-        Some(exp)
-      case _ =>
-        None
+    def evalExp(state: KickstartAAMState[Exp, Abs, Addr, Time]): Option[Exp] = state.control match {
+      case ControlEval(exp, _) => Some(exp)
+      case _ => None
     }
 
-    def valueReached(state: State) = state.control match {
+    def valueReached(state: KickstartAAMState[Exp, Abs, Addr, Time]): Option[Abs] = state.control match {
       case ControlKont(value) =>
         Some(value)
       case _ =>
@@ -646,12 +648,12 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
 
     val kaConverter = new ConvertTimestampKontAddrConverter[Exp](DefaultHybridTimestampConverter)
 
-    def halted(state: State): Boolean =
+    def halted(state: KickstartAAMState[Exp, Abs, Addr, Time]): Boolean =
       state.halted
-    def store(state: State): Store[Addr, Abs] =
+    def store(state: KickstartAAMState[Exp, Abs, Addr, Time]): Store[Addr, Abs] =
       state.store
 
-    def deltaStoreEmpty(state1: State, state2: State): Boolean = {
+    def deltaStoreEmpty(state1: KickstartAAMState[Exp, Abs, Addr, Time], state2: KickstartAAMState[Exp, Abs, Addr, Time]): Boolean = {
       val storeDiff1 = state1.store.diff(state2.store)
       val storeDiff2 = state2.store.diff(state1.store)
       storeDiff1.keys.isEmpty && storeDiff2.keys.isEmpty
@@ -686,11 +688,10 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       * @param state2
       * @return
       */
-    def deltaKStore(state1: State, state2: State): Option[Iterable[(KontAddr, KontAddr)]] = {
+    def deltaKStore(state1: KickstartAAMState[Exp, Abs, Addr, Time], state2: KickstartAAMState[Exp, Abs, Addr, Time]): Option[Iterable[(KontAddr, KontAddr)]] = {
       val kstoreDiff1 = state1.kstore.diff(state2.kstore)
       val kstoreDiff2 = state2.kstore.diff(state1.kstore)
       val castedKstoreDiff1 = kstoreDiff1.asInstanceOf[BasicKontStore[KontAddr]]
-//      val castedKstoreDiff2 = kstoreDiff2.asInstanceOf[BasicKontStore[KontAddr]]
       if (state1.store == state2.store && state1.a == state2.a &&
           state1.control == state2.control && state1.t == state2.t) {
         val kstoresEquivalent = kstoreDiff1.forall({

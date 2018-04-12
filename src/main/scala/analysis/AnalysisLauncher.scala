@@ -18,7 +18,7 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice](
   type PS = ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
 
   /* The specific type of state used by the abstract machine during the analysis. */
-  type SpecState = KickstartAAMState[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
+  type SpecState = KickstartAAMGlobalStoreState[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
 
   /* The specific type of KickstartAAM used for this analysis: a KickstartAAM using the HybridLattice, HybridAddress and ZeroCFA
    * components. */
