@@ -650,7 +650,7 @@ Sym : SymbolLattice
   }
 }
 
-class PointsToLattice(counting: Boolean) extends SchemeLattice {
+class RunTimeAnalysisLattice(counting: Boolean) extends SchemeLattice {
   import PointsToString._
   import PointsToInteger._
   import PointsToFloat._

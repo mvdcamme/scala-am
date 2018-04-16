@@ -5,6 +5,7 @@ import Util._
 import scala.concurrent.duration.FiniteDuration
 import backend.RegularPCElement
 import abstract_state_heuristic.AbstractStatePCElement
+import backend.path_filtering.PartialRegexMatcher
 
 /**
  * Before looking at this, we recommend seeing how to use this framework. A
@@ -168,7 +169,7 @@ object Main {
         case Config.Language.ConcolicScheme =>
           implicit val sabsCCLattice = ConcreteConcreteLattice.isSchemeLattice
 
-          val pointsToLattice = new PointsToLattice(false)
+          val pointsToLattice = new RunTimeAnalysisLattice(false)
           implicit val pointsToConvLattice: IsConvertableLattice[pointsToLattice.L] = pointsToLattice.isSchemeLattice
           implicit val pointsToLatInfoProv = pointsToLattice.latticeInfoProvider
           implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
@@ -177,9 +178,9 @@ object Main {
             val abstSem = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, pointsToLattice.L](None))
             val inputVariableStore = new InputVariableStore
             val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
-            val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, AbstractStatePCElement[pointsToAnalysisLauncher.aam.InitialState]](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](Some(inputVariableStore)))
-            val reporter = new AbstractStateScalaAMReporter[pointsToAnalysisLauncher.aam.InitialState](concolicFlags, inputVariableStore)
-            val machine = new ConcolicMachine[pointsToLattice.L, AbstractStatePCElement[pointsToAnalysisLauncher.aam.InitialState], pointsToAnalysisLauncher.aam.InitialState](pointsToAnalysisLauncher, config.analysisFlags, reporter, concolicFlags)
+            val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, AbstractStatePCElement[PartialRegexMatcher]](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](Some(inputVariableStore)))
+            val reporter = new PartialMatcherScalaAMReporter(concolicFlags, inputVariableStore)
+            val machine = new ConcolicMachine[pointsToLattice.L, AbstractStatePCElement[PartialRegexMatcher], PartialRegexMatcher](pointsToAnalysisLauncher, config.analysisFlags, reporter, concolicFlags)
             machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined)
             val root1 = reporter.solver.getRoot
             reporter.solver.deleteSymbolicTree()

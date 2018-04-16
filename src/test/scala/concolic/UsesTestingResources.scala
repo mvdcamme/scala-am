@@ -18,7 +18,7 @@ trait UsesPointsToLattice {
 
   implicit val sabsCCLattice: IsConvertableLattice[ConcreteValue] = ConcreteConcreteLattice.isSchemeLattice
 
-  val pointsToLattice = new PointsToLattice(false)
+  val pointsToLattice = new RunTimeAnalysisLattice(false)
   implicit val pointsToConvLattice: IsConvertableLattice[pointsToLattice.L] = pointsToLattice.isSchemeLattice
   implicit val pointsToLatInfoProv: LatticeInfoProvider[pointsToLattice.L] = pointsToLattice.latticeInfoProvider
   implicit val CCLatInfoProv: LatticeInfoProvider[ConcreteValue] = ConcreteConcreteLattice.latticeInfoProvider
