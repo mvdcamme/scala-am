@@ -11,3 +11,5 @@ tree.pdf
 testing resources
 rt_graph.pdf
 log.txt
+*.bak
+test/project-euler
