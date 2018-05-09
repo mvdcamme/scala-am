@@ -1076,12 +1076,14 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice](val maybeInputVari
         addrs.foldLeft(mfmon.zero)((acc, va) =>
           store.lookup(va) match {
             case Some(v) => abs.vectorRef(v, index) >>= (vs =>
-              vs.foldLeft(acc)((acc, a) =>
-                mfmon.append(acc,
+              vectorLength(v) >>= (vl => {
+                val indexTooLarge = if (abs.gteq(index, vl)) { err(UserError("Index too large", Position.none)) } else mfmon.zero
+                vs.foldLeft(acc)((acc, a) =>
+                mfmon.append(mfmon.append(acc, indexTooLarge),
                   store.lookup(a) match {
                     case Some(value) => MayFailSuccess((value, Set(EffectReadVector(a))))
                     case None => err(UnboundAddress(a.toString))
-                  })))
+                  }))}))
             case None => mfmon.append(acc, MayFailError(List(UnboundAddress(va.toString))))
           })
       }
