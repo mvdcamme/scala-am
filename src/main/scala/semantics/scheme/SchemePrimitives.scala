@@ -641,6 +641,16 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice](val maybeInputVari
       prims.Error
   }
   object Error extends Error
+  class Assert extends NoStoreOperation("assert", Some(1)) {
+    override def call[Exp : Expression](x: (Exp, Arg)): (MayFail[Abs], Option[ConcolicExpression]) = (abs.isTrue(x._2._1), abs.isFalse(x._2._1)) match {
+      case (false, false) => MayFail.monoid[Abs].zero
+      case (false, true) => MayFail.semErr[Abs](UserError(s"Assertion failed", Expression[Exp].pos(x._1)))
+      case (true, false) => MayFail.success[Abs](x._2._1)
+      case (true, true) => MayFail.monoid[Abs].append(MayFail.success[Abs](x._2._1), MayFail.semErr[Abs](UserError(s"Assertion failed", Expression[Exp].pos(x._1))))
+    }
+    def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] = prims.Assert
+  }
+  object Assert extends Assert
 
   val mfmon = MayFail.monoid[(Abs, Set[Effect[Addr]])]
   def err(e: SemanticError): MayFail[(Abs, Set[Effect[Addr]])] = e
