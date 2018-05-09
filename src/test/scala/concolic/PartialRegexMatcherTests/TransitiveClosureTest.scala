@@ -14,10 +14,10 @@ class TransitiveClosureTest extends FunSuite with PrivateMethodTester with TestC
   type G = Graph[N, A, Set[N]]
 
   val (launchAnalyses: LaunchAnalyses[pointsToLattice.L, RegularPCElement],
-  initialState: machine.State,
+  initialState: ConcolicMachineState,
   analysisResult: AnalysisOutputGraph[SchemeExp, pointsToLattice.L, HybridAddress.A, N]) = Util.runOnFile(connect4Program, (program) => {
     val launchAnalyses = new LaunchAnalyses[pointsToLattice.L, RegularPCElement](machine.analysisLauncher, machine.reporter)
-    val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
+    val initialState: ConcolicMachineState = ConcolicMachineState.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
     val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
     (launchAnalyses, initialState, analysisResult)
   })

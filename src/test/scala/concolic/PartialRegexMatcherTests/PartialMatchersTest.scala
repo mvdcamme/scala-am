@@ -8,10 +8,10 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
   val (machine: ConcolicMachine[pointsToLattice.L, RegularPCElement, _], sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, RegularPCElement]) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
 
   val (launchAnalyses: LaunchAnalyses[pointsToLattice.L, RegularPCElement],
-       initialState: machine.State,
+       initialState: ConcolicMachineState,
        analysisResult: AnalysisOutputGraph[SchemeExp, pointsToLattice.L, HybridAddress.A, machine.analysisLauncher.SpecState]) = Util.runOnFile(connect4Program, (program) => {
     val launchAnalyses = new LaunchAnalyses[pointsToLattice.L, RegularPCElement](machine.analysisLauncher, machine.reporter)
-    val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
+    val initialState: ConcolicMachineState = ConcolicMachineState.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
     val analysisResult = machine.analysisLauncher.runInitialStaticAnalysis(initialState, connect4Program)
     (launchAnalyses, initialState, analysisResult)
   })
@@ -33,7 +33,7 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
   private def performInitialAnalysis(program: String): PartialRegexMatcher = {
     val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
     val launchAnalyses = new LaunchAnalyses[pointsToLattice.L, RegularPCElement](machine.analysisLauncher, machine.reporter)
-    val initialState: machine.State = machine.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
+    val initialState: ConcolicMachineState = ConcolicMachineState.inject(sem.parse(program), Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial[HybridAddress.A, ConcreteValue](sem.initialStore))
     val analysisResult = launchAnalyses.startInitialAnalysis(initialState, connect4Program)
     analysisResult.partialMatcher
   }
@@ -95,7 +95,7 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
     })
   }
 
-  private def loopUntilIfConditionEvaluated(state: machine.State, stepCount: Int): (machine.State, Int, Boolean) = machine.step(state, sem) match {
+  private def loopUntilIfConditionEvaluated(state: ConcolicMachineState, stepCount: Int): (ConcolicMachineState, Int, Boolean) = machine.step(state, sem) match {
     case Left(_) =>
       assert(false, "Should not happen")
       ???
@@ -109,7 +109,7 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
 
   test("Do 100 concrete steps, start two RT analyses from the same concrete state and check if their graphs are equal") {
     Util.runOnFile(connect4Program, program => {
-      val initialState = machine.inject(sem.parse(program), Environment.initial(sem.initialEnv), Store.initial(sem.initialStore))
+      val initialState = ConcolicMachineState.inject(sem.parse(program), Environment.initial(sem.initialEnv), Store.initial(sem.initialStore))
       val state100 = 1.to(100).foldLeft(initialState)((state, _) => {
         machine.step(state, sem) match {
           case Left(_) =>

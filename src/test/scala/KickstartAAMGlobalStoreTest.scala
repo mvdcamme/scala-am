@@ -23,8 +23,8 @@ class KickstartAAMGlobalStoreTest extends FunSuite with PrivateMethodTester with
     Util.runOnFile(connect4Program, program => {
       val (machine, sem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags())
       val parsedProgram = sem.parse(program)
-      val output1 = machine.analysisLauncher.runInitialStaticAnalysis(machine.inject(parsedProgram, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial(sem.initialStore)), connect4Program)
-      val output2 = machine.analysisLauncher.runInitialStaticAnalysis(machine.inject(parsedProgram, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial(sem.initialStore)), connect4Program)
+      val output1 = machine.analysisLauncher.runInitialStaticAnalysis(ConcolicMachineState.inject(parsedProgram, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial(sem.initialStore)), connect4Program)
+      val output2 = machine.analysisLauncher.runInitialStaticAnalysis(ConcolicMachineState.inject(parsedProgram, Environment.initial[HybridAddress.A](sem.initialEnv), Store.initial(sem.initialStore)), connect4Program)
       assert(output1.graph.nodes == output2.graph.nodes)
       assert(output1.graph.edges == output2.graph.edges)
     })
@@ -43,7 +43,7 @@ class KickstartAAMGlobalStoreTest extends FunSuite with PrivateMethodTester with
       HybridTimestamp.switchToConcrete()
 
       val (concMachine, concSem) = makeConcolicMachineAndSemantics(ConcolicRunTimeFlags(), abstSem)
-      val concInitState = concMachine.inject(parsedProgram, Environment.initial(concSem.initialEnv), Store.initial(concSem.initialStore))
+      val concInitState = ConcolicMachineState.inject(parsedProgram, Environment.initial(concSem.initialEnv), Store.initial(concSem.initialStore))
 
       val stateConverter = new StateConverter[pointsToLattice.L](abstMachine, abstSem)
       val abstractedConcInitState = stateConverter.convertStateAAM(concInitState, Nil)
