@@ -86,6 +86,7 @@ object Main {
             val bounded = new BoundedInteger(config.bound)
                 new MakeSchemeLattice[Type.S, Concrete.B, bounded.I, Type.F, Type.C, Type.Sym](config.counting)
           case Config.Lattice.ConstantPropagation => new MakeSchemeLattice[ConstantPropagation.S, Concrete.B, ConstantPropagation.I, ConstantPropagation.F, ConstantPropagation.C, ConstantPropagation.Sym](config.counting)
+          case Config.Lattice.RunTime => new RunTimeAnalysisLattice(config.counting)
         }
       implicit val isSchemeLattice: IsSchemeLattice[lattice.L] = lattice.isSchemeLattice
       config.language match {

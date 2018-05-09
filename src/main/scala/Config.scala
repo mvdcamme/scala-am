@@ -10,7 +10,7 @@ object Config {
   implicit val machineRead: scopt.Read[Machine.Value] = scopt.Read.reads(Machine withName _)
 
   object Lattice extends Enumeration {
-    val Concrete, TypeSet, BoundedInt, ConstantPropagation = Value
+    val Concrete, TypeSet, BoundedInt, ConstantPropagation, RunTime = Value
   }
   implicit val latticeRead: scopt.Read[Lattice.Value] = scopt.Read.reads(Lattice withName _)
 
