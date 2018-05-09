@@ -252,7 +252,7 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice](val maybeInputVari
     }
     override def call(args: List[Arg]) = args match {
       case Nil => (abs.inject(true), Some(ConcolicBool(true)))
-      case x :: rest => (eq(x._1, rest.map(_._1)), makeRelationalConcolicExpression(IntEqual, x, rest.head))
+      case x :: rest => (eq(x._1, rest.map(_._1)), if (rest.nonEmpty) makeRelationalConcolicExpression(IntEqual, x, rest.head) else None)
     }
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.NumEq
