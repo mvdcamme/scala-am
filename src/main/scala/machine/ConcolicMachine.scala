@@ -102,13 +102,13 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
       store.toSet.map(_._1)
     }
 
-    def halted = control match {
+    def halted: Boolean = control match {
       case ConcolicControlError(_) => true
       case ConcolicControlKont(_, _) => a == HaltKontAddress
       case _ => false
     }
 
-    def graphNodeColor = control match {
+    def graphNodeColor: Color = control match {
       case ConcolicControlEval(_, _, _) => Colors.Green
       case ConcolicControlKont(_, _) => Colors.Pink
       case ConcolicControlError(_) => Colors.Red
@@ -423,7 +423,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
             case ConcolicIterationErrorEncountered(err) =>
               Logger.log(s"ERROR DETECTED DURING CONCOLIC TESTING: $err", Logger.E)
               Right(finishUpLoop)
-            case _ => Right(finishUpLoop)
+            case ConcolicIterationNoErrors => Right(finishUpLoop)
           }
         } catch {
           case AbortConcolicIterationException => Right(finishUpLoop)

@@ -123,7 +123,9 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp, PCElementUse
     if (fromClo.isEmpty && fromPrim.isEmpty) {
       simpleAction(ActionConcolicError(ActionError[SchemeExp, ConcreteValue, Addr](TypeError(function.toString, "operator", "function", "not a function"))))
     } else {
-      (fromClo ++ fromPrim).head
+      val combined = fromClo ++ fromPrim
+      assert(combined.size == 1, s"There should only be one result, got $combined instead")
+      combined.head
     }
   }
 
