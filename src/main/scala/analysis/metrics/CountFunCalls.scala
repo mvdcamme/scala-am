@@ -37,7 +37,7 @@ class CountFunCalls[Exp : Expression,
 
   private def countFunctionCalls(map: FunctionsMap): CountedFunCalls = {
     map.foreach( (tuple) => {
-      Logger.log(s"Call site at ${tuple._1} with values ${tuple._2}", Logger.I)
+      Logger.I(s"Call site at ${tuple._1} with values ${tuple._2}")
     })
     CountedFunCalls(map.size, map.values.foldLeft(0)( (sum, set) => sum + set.size) )
   }

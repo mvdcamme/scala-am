@@ -1,0 +1,25 @@
+(define (map f lst)
+  (if (null? lst)
+      '()
+      (cons (f (car lst)) (map f (cdr lst)))))
+
+(define (foldl g acc list)
+  (if (null? list)
+      acc
+      (foldl g (g acc (car list)) (cdr list))))
+
+(define (add1 a)
+  (+ a 1))
+(define (double b)
+  (* b 2))
+(define (add c d)
+  (+ c d))
+(define (mult e f)
+  (* e f))
+
+(define l1 '(0 1 2 3 4 5))
+(define l2 (map add1 l1))
+(define fact6 (foldl mult 1 l2))
+(display fact6)
+(define l3 (map double l1))
+(define l4 (map add1 l3))

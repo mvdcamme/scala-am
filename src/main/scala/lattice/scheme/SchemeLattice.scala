@@ -1,7 +1,9 @@
 import scalaz.{Plus => _, _}
 import scalaz.Scalaz._
+
 import SchemeOps._
 import concolic.SymbolicEnvironment
+import ConcreteConcreteLattice.{L => ConcreteValue}
 
 case class CannotAccessVector(vector: String) extends SemanticError
 case class CannotAccessCar(v: String) extends SemanticError
@@ -106,7 +108,7 @@ trait IsSchemeLattice[L] extends JoinLattice[L] {
     * the vector value itsel */
   def vector[Addr: Address](addr: Addr, size: L, init: Addr): MayFail[(L, L)]
 
-  def equalModuloTimestamp[Time: CompareTimestampsWithMapping, Addr: Address](a: L, b: L, mapping: Mapping[Time]): Option[Mapping[Time]] = {
+  def equalModuloTimestamp[Time: CompareTimestampsWithMapping, Addr: Address](a: L, b: L, shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue], otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]] = {
     if (a == b) Some(mapping) else None
   }
 

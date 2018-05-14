@@ -1,6 +1,7 @@
 import backend.expression._
 
 import concolic.SymbolicEnvironment
+import ConcreteConcreteLattice.{L => ConcreteValue}
 
 sealed trait ConcolicFrame extends Frame {
   /*
@@ -12,7 +13,8 @@ sealed trait ConcolicFrame extends Frame {
 sealed trait SchemeConcolicFrame[Abs, Addr, Time] extends ConcolicFrame {
   def env: Environment[Addr]
   def symEnv: SymbolicEnvironment
-  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]]
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue],
+                           otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]]
 }
 
 case class FrameConcolicFuncallOperator[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp: CompareTimestampsWithMapping](
@@ -22,14 +24,14 @@ case class FrameConcolicFuncallOperator[Abs: IsSchemeLattice, Addr: Address, Tim
   symEnv: SymbolicEnvironment)
   extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
-    convertEnv: Environment[Addr] => Environment[Addr],
-    abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
+    convertEnv: Environment[Addr] => Environment[Addr]) =
     FrameFuncallOperator(fexp, args, convertEnv(env))
   def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = envReaches(env, symEnv)
-  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue],
+                           otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
       /* Don't compare the symbolic environments because those might also be different between two states from different concrete executions. */
-    case FrameConcolicFuncallOperator(fexp2, args2, env2, _) if this.fexp == fexp2 && this.args == args2 => this.env.equalModuloTimestamp[Time](env2, mapping)
+    case FrameConcolicFuncallOperator(fexp2, args2, env2, _) if this.fexp == fexp2 && this.args == args2 => this.env.equalModuloTimestamp[Time](env2, shouldCheck, store, otherStore, mapping)
     case _ => None
   }
 }
@@ -62,8 +64,7 @@ case class FrameConcolicFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Tim
   }
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
-    convertEnv: Environment[Addr] => Environment[Addr],
-    abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
+    convertEnv: Environment[Addr] => Environment[Addr]) =
     FrameFuncallOperands(convertValue(f),
       fexp,
       cur,
@@ -75,16 +76,17 @@ case class FrameConcolicFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Tim
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     valueReaches(f) ++ args.foldLeft(Reached.empty[Addr])((acc, arg) => acc ++ valueReaches(arg._2)) ++ envReaches(env, symEnv)
   }
-  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue],
+                           otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
     /* Don't compare the symbolic environments because those might also be different between two states from different concrete executions. */
     case FrameConcolicFuncallOperands(f2, fexp2, cur2, args2, toeval2, env2, _)
          if this.fexp == fexp2 && this.cur == cur2 && this.args.map(_._1) == args2.map(_._1) && this.toeval == toeval2 =>
       for {
-        fMapping <- implicitly[IsSchemeLattice[Abs]].equalModuloTimestamp[Time, Addr](this.f, f2, mapping)
+        fMapping <- implicitly[IsSchemeLattice[Abs]].equalModuloTimestamp[Time, Addr](this.f, f2, shouldCheck, store, otherStore, mapping)
         argsMapping <- this.args.zip(args2).foldLeft[Option[Mapping[Time]]](Some(fMapping))({
-          case (accMapping, ((_, arg1, _), (_, arg2, _))) => accMapping.flatMap(implicitly[IsSchemeLattice[Abs]].equalModuloTimestamp[Time, Addr](arg1, arg2, _))
+          case (accMapping, ((_, arg1, _), (_, arg2, _))) => accMapping.flatMap(implicitly[IsSchemeLattice[Abs]].equalModuloTimestamp[Time, Addr](arg1, arg2, shouldCheck, store, otherStore, _))
         })
-        envMapping <- this.env.equalModuloTimestamp[Time](env2, argsMapping)
+        envMapping <- this.env.equalModuloTimestamp[Time](env2, shouldCheck, store, otherStore, argsMapping)
       } yield {
         envMapping
       }
@@ -107,15 +109,15 @@ case class FrameConcolicIf[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp:
   }
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
-    convertEnv: Environment[Addr] => Environment[Addr],
-    abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
+    convertEnv: Environment[Addr] => Environment[Addr]) =
     FrameIf(cons, alt, convertEnv(env), ifExp)
 
   def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = envReaches(env, symEnv)
-  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue],
+                           otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
     case FrameConcolicIf(cons2, alt2, env2, _, ifExp2) if this.cons == cons2 && this.alt == alt2 && this.ifExp == ifExp2 =>
-      this.env.equalModuloTimestamp[Time](env2, mapping)
+      this.env.equalModuloTimestamp[Time](env2, shouldCheck, store, otherStore, mapping)
     case _ => None
   }
 }
@@ -130,8 +132,7 @@ case class FrameConcolicLet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp
   extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
-    convertEnv: Environment[Addr] => Environment[Addr],
-    abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
+    convertEnv: Environment[Addr] => Environment[Addr]) =
     FrameLet(variable,
       bindings.map((binding) => (binding._1, convertValue(binding._2))),
       toeval,
@@ -142,14 +143,15 @@ case class FrameConcolicLet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp
     addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     bindings.foldLeft(Reached.empty[Addr])((acc, binding) => acc ++ valueReaches(binding._2)) ++ envReaches(env, symEnv)
   }
-  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue],
+                           otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
     case FrameConcolicLet(variable2, bindings2, toeval2, body2, env2, _)
          if this.variable == variable2 && this.bindings.map(_._1) == bindings2.map(_._1) && this.toeval == toeval2 && this.body == body2 =>
       for {
         bindingsMapping <- this.bindings.zip(bindings2).foldLeft[Option[Mapping[Time]]](Some(mapping))({
-          case (accMapping, ((_, value1, _), (_, value2, _))) => accMapping.flatMap(implicitly[IsSchemeLattice[Abs]].equalModuloTimestamp[Time, Addr](value1, value2, _))
+          case (accMapping, ((_, value1, _), (_, value2, _))) => accMapping.flatMap(implicitly[IsSchemeLattice[Abs]].equalModuloTimestamp[Time, Addr](value1, value2, shouldCheck, store, otherStore, _))
         })
-        envMapping <- this.env.equalModuloTimestamp[Time](env2, bindingsMapping)
+        envMapping <- this.env.equalModuloTimestamp[Time](env2, shouldCheck, store, otherStore, bindingsMapping)
       } yield {
         envMapping
       }
@@ -166,17 +168,17 @@ case class FrameConcolicLetStar[Abs: IsSchemeLattice, Addr: Address, Time: Times
   extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
-    convertEnv: Environment[Addr] => Environment[Addr],
-    abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
+    convertEnv: Environment[Addr] => Environment[Addr]) =
     FrameLetStar(variable, bindings, body, convertEnv(env))
 
   def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     envReaches(env, symEnv)
   }
-  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue],
+                           otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
     case FrameConcolicLetStar(variable2, bindings2, body2, env2, _) if this.variable == variable2 && this.bindings == bindings2 && this.body == body2 =>
-      this.env.equalModuloTimestamp[Time](env2, mapping)
+      this.env.equalModuloTimestamp[Time](env2, shouldCheck, store, otherStore, mapping)
     case _ => None
   }
 }
@@ -191,9 +193,8 @@ case class FrameConcolicLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timest
   extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
-    convertEnv: Environment[Addr] => Environment[Addr],
-    abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) = {
-    val addressConverter = new DefaultHybridAddressConverter[SchemeExp]()
+    convertEnv: Environment[Addr] => Environment[Addr]) = {
+    val addressConverter = DefaultHybridAddressConverter
     FrameLetrec(addressConverter.convertAddress(addr.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr],
       bindings.map( (binding) =>
         (addressConverter.convertAddress(binding._1.asInstanceOf[HybridAddress.A]).asInstanceOf[Addr], binding._3)),
@@ -205,12 +206,13 @@ case class FrameConcolicLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timest
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     addressReaches(addr) ++ envReaches(env, symEnv)
   }
-  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue],
+                           otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
     case FrameConcolicLetrec(addr2, variable2, bindings2, body2, env2, _)
          if this.variable == variable2 && this.bindings == bindings2 && this.body == body2 =>
       for {
         addrMapping <- implicitly[Address[Addr]].equalModuloTimestamp(this.addr, addr2, mapping)
-        envMapping <- this.env.equalModuloTimestamp[Time](env2, addrMapping)
+        envMapping <- this.env.equalModuloTimestamp[Time](env2, shouldCheck, store, otherStore, addrMapping)
       } yield {
         envMapping
       }
@@ -225,16 +227,16 @@ case class FrameConcolicSet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp
   extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,
-    convertEnv: Environment[Addr] => Environment[Addr],
-    abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
+    convertEnv: Environment[Addr] => Environment[Addr]) =
     FrameSet(variable, convertEnv(env))
 
   def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     envReaches(env, symEnv)
   }
-  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
-    case FrameConcolicSet(variable2, env2, _) if this.variable == variable2 => this.env.equalModuloTimestamp[Time](env2, mapping)
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue],
+                           otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+    case FrameConcolicSet(variable2, env2, _) if this.variable == variable2 => this.env.equalModuloTimestamp[Time](env2, shouldCheck, store, otherStore, mapping)
     case _ => None
   }
 }
@@ -245,15 +247,16 @@ case class FrameConcolicBegin[Abs: IsSchemeLattice, Addr: Address, Time: Timesta
   symEnv: SymbolicEnvironment)
   extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
-  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
+  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr]) =
     FrameBegin(rest, convertEnv(env))
 
   def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     envReaches(env, symEnv)
   }
-  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
-    case FrameConcolicBegin(rest2, env2, _) if this.rest == rest2 => this.env.equalModuloTimestamp[Time](env2, mapping)
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue],
+                           otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+    case FrameConcolicBegin(rest2, env2, _) if this.rest == rest2 => this.env.equalModuloTimestamp[Time](env2, shouldCheck, store, otherStore, mapping)
     case _ => None
   }
 }
@@ -265,16 +268,17 @@ case class FrameConcolicCond[Abs: IsSchemeLattice, Addr: Address, Time: Timestam
   symEnv: SymbolicEnvironment)
   extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
-  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
+  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr]) =
     FrameCond(cons, clauses, convertEnv(env))
 
   def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     envReaches(env, symEnv)
   }
-  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue],
+                           otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
     case FrameConcolicCond(cons2, clauses2, env2, _) if this.cons == cons2 && this.clauses == clauses2 =>
-      this.env.equalModuloTimestamp[Time](env2, mapping)
+      this.env.equalModuloTimestamp[Time](env2, shouldCheck, store, otherStore, mapping)
     case _ => None
   }
 }
@@ -286,16 +290,17 @@ case class FrameConcolicCase[Abs: IsSchemeLattice, Addr: Address, Time: Timestam
   symEnv: SymbolicEnvironment)
   extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
-  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
+  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr]) =
     FrameCase(clauses, default, convertEnv(env))
 
   def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     envReaches(env, symEnv)
   }
-  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue],
+                           otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
     case FrameConcolicCase(clauses2, default2, env2, _) if this.clauses == clauses2 && this.default == default2 =>
-      this.env.equalModuloTimestamp[Time](env2, mapping)
+      this.env.equalModuloTimestamp[Time](env2, shouldCheck, store, otherStore, mapping)
     case _ => None
   }
 }
@@ -306,16 +311,17 @@ case class FrameConcolicDefine[Abs: IsSchemeLattice, Addr: Address, Time: Timest
   symEnv: SymbolicEnvironment)
   extends ConvertableSchemeFrame[Abs, Addr, Time] with SchemeConcolicFrame[Abs, Addr, Time] {
 
-  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr], abstSem: ConvertableBaseSchemeSemantics[OtherAbs, Addr, Time]) =
+  def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs, convertEnv: Environment[Addr] => Environment[Addr]) =
     FrameDefine(variable, convertEnv(env))
 
   def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     envReaches(env, symEnv)
   }
-  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue],
+                           otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
     case FrameConcolicDefine(variable2, env2, _) if this.variable == variable2 =>
-      this.env.equalModuloTimestamp[Time](env2, mapping)
+      this.env.equalModuloTimestamp[Time](env2, shouldCheck, store, otherStore, mapping)
     case _ => None
   }
 }

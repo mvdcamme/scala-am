@@ -23,7 +23,7 @@ object ExactSymbolicVariablesFinder {
     case _: ConcolicInt => true
     case i: ConcolicInput =>
       val isContained = exactInputVariables.contains(i)
-      Logger.log(s"Found input variable $i, contained in exactInputVariables? $isContained", Logger.I)
+      Logger.I(s"Found input variable $i, contained in exactInputVariables? $isContained")
       isContained
     case ConcolicObject(_, fields) => fields.values.forall(isExactSymExpressions(_, exactInputVariables))
     case LogicalUnaryConcolicExpression(_, exp) => isExactSymExpressions(exp, exactInputVariables)
@@ -61,7 +61,7 @@ object ExactSymbolicVariablesFinder {
   def findExactSymbolicVariables(env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment,
                                  pathConstraint: PathConstraint): Set[String] = {
     val exactInputVariables = filterExactInputVariables(pathConstraint).map(_._1).toSet
-    Logger.log(s"exactInputVariables are = $exactInputVariables", Logger.I)
+    Logger.I(s"exactInputVariables are = $exactInputVariables")
     env.keys.filter(name => concolic.lookupVariable(name, symEnv) match {
       case None => false
       case Some(exp) => isExactSymExpressions(exp, exactInputVariables)
@@ -74,7 +74,7 @@ object ExactSymbolicVariablesFinder {
       val symVal = concolic.lookupVariable(variable, symEnv)
       val optValue = env.lookup(variable).map(store.lookup)
       if (symVal.isDefined && optValue.isDefined) {
-        Logger.log(s"Match for variable $variable, symVal = $symVal, optValue = $optValue", Logger.E)
+        Logger.E(s"Match for variable $variable, symVal = $symVal, optValue = $optValue")
       }
     })
   }

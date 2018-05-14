@@ -21,8 +21,8 @@ class ConvertTimestampHybridAddressConverter[Exp: Expression, Time: Timestamp](t
 /*
  * To be used for converting hybrid-addresses: delegates to the proper conversion strategy.
  */
-class DefaultHybridAddressConverter[Exp: Expression] extends AddressConverter[HybridAddress.A] {
+object DefaultHybridAddressConverter extends AddressConverter[HybridAddress.A] {
   val timestampConverter = ConvertTimeStampConverter
-  val addressConverter = new ConvertTimestampHybridAddressConverter[Exp, HybridTimestamp.T](timestampConverter)
+  val addressConverter = new ConvertTimestampHybridAddressConverter[SchemeExp, HybridTimestamp.T](timestampConverter)
   def convertAddress(address: HybridAddress.A): HybridAddress.A = addressConverter.convertAddress(address)
 }

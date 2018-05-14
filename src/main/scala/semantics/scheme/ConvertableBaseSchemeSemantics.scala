@@ -197,8 +197,6 @@ class ConvertableBaseSchemeSemantics[V : IsSchemeLattice, Addr: Address, Time: T
       case Some(v) => simpleActionSet(Action.value(v, store))
       case None => simpleActionSet(Action.error(NotSupported(s"Unhandled value: $v")))
     }
-    case SchemeTryMerge(_) =>
-      simpleActionSet(ActionReachedValue[SchemeExp, V, Addr](IsSchemeLattice[V].inject(false), store))
   }
 
   override def stepKont(v: V, frame: Frame, store: Store[Addr, V], t: Time): EdgeInfos = frame match {

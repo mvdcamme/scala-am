@@ -188,7 +188,6 @@ class BaseSchemeSemantics[V : IsSchemeLattice, Addr : Address, Time : Timestamp]
       case Some(v) => Action.value(v, store)
       case None => Action.error(NotSupported(s"Unhandled value: $v"))
     }
-    case SchemeTryMerge(_) => Action.value(IsSchemeLattice[V].inject(false), store)
   }
 
   def stepKont(v: V, frame: Frame, store: Sto, t: Time) = frame match {

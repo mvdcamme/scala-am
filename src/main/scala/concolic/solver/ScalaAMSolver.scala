@@ -16,7 +16,7 @@ abstract class ScalaAMSolver[PCElement, NodeExtraInfo] extends HasInputs {
     latestInputs = Nil
   }
   def getInputs: List[(ConcolicInput, Int)] = latestInputs
-  def getRoot: SymbolicNode[NodeExtraInfo]
+  def getRoot: Option[SymbolicNode[NodeExtraInfo]]
   def deleteSymbolicTree(): Unit
   def clearBackendReporter(): Unit
 
@@ -29,5 +29,5 @@ abstract class ScalaAMSolver[PCElement, NodeExtraInfo] extends HasInputs {
     backendSolver.solve(root, searchStrategy)
   }
 
-  def solve(pathConstraint: PathConstraintWith[PCElement]): Boolean
+  def solve(pathConstraint: PathConstraintWith[PCElement], shouldMerge: Boolean): Boolean
 }

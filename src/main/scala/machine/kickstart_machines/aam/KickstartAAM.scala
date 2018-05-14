@@ -31,7 +31,8 @@ case class KickstartAAMState[Exp: Expression, Abs: IsSchemeLattice, Addr: Addres
   def subsumes(that: KickstartAAMState[Exp, Abs, Addr, Time]): Boolean =
     control.subsumes(that.control) && store.subsumes(that.store) && a == that.a && kstore.subsumes(that.kstore) && t == that.t
 
-  case class EdgeComponents(state: KickstartAAMState[Exp, Abs, Addr, Time], filters: FilterAnnotations[Exp, Abs, Addr], actions: List[ActionReplay[Exp, Abs, Addr]])
+  case class EdgeComponents(state: KickstartAAMState[Exp, Abs, Addr, Time], filters: FilterAnnotations,
+                            actions: List[ActionReplay[Exp, Abs, Addr]], effects: Set[Effect[Addr]])
 
   /**
     * Integrates a set of actions (returned by the semantics, see
@@ -48,37 +49,35 @@ case class KickstartAAMState[Exp: Expression, Abs: IsSchemeLattice, Addr: Addres
         case _ =>
           Set()
       })
-      val filters = FilterAnnotations[Exp, Abs, Addr](primCallFilter, edgeInformation.semanticsFilters)
+      val filters = FilterAnnotations(primCallFilter, edgeInformation.semanticsFilters)
       edgeInformation.action match {
         /* When a value is reached, we go to a continuation state */
-        case ActionReachedValue(v, store, _) =>
-          EdgeComponents(KickstartAAMState(ControlKont(v), store, kstore, a, Timestamp[Time].tick(t)),
-            filters,
-            actions)
+        case ActionReachedValue(v, store, effects) =>
+          EdgeComponents(KickstartAAMState(ControlKont(v), store, kstore, a, Timestamp[Time].tick(t)), filters, actions, effects)
         /* When a continuation needs to be pushed, push it in the continuation store */
-        case ActionPush(frame, e, env, store, _) => {
+        case ActionPush(frame, e, env, store, effects) => {
           val next = NormalKontAddress[Exp, Time](e, t)
           val kont = Kont(frame, a)
           EdgeComponents(KickstartAAMState(ControlEval(e, env), store, kstore.extend(next, kont), next, Timestamp[Time].tick(t)),
             filters,// + KontAddrPushed(next),
-            actions)
+            actions, effects)
         }
         /* When a value needs to be evaluated, we go to an eval state */
-        case ActionEval(e, env, store, _) =>
+        case ActionEval(e, env, store, effects) =>
           EdgeComponents(KickstartAAMState(ControlEval(e, env), store, kstore, a, Timestamp[Time].tick(t)),
             filters,
-            actions)
+            actions, effects)
         /* When a function is stepped in, we also go to an eval state */
-        case ActionStepIn(fexp, clo, e, env, store, _, _) =>
+        case ActionStepIn(fexp, clo, e, env, store, _, effects) =>
           val closureFilter =  ClosureCallMark[Exp, Abs, Time](fexp, sabs.inject[Exp, Addr]((clo._1, clo._2), None), clo._1, t)
           EdgeComponents(KickstartAAMState(ControlEval(e, env), store, kstore, a, Timestamp[Time].tick(t, fexp)),
             filters + closureFilter,
-            actions)
+            actions, effects)
         /* When an error is reached, we go to an error state */
         case ActionError(err) =>
           EdgeComponents(KickstartAAMState(ControlError(err), store, kstore, a, Timestamp[Time].tick(t)),
             filters,
-            actions)
+            actions, Set())
       }
     })
 
@@ -134,14 +133,14 @@ case class KickstartAAMState[Exp: Expression, Abs: IsSchemeLattice, Addr: Addres
           .flatMap({
             case Kont(frame, next) =>
               val edgeComponents = integrate(Some(v), next, sem.stepKont(v, frame, store, t))
-              edgeComponents.map({ case EdgeComponents(succState, filterAnnotations, actions) =>
+              edgeComponents.map({ case EdgeComponents(succState, filterAnnotations, actions, effects) =>
                 /* If step did not generate any EdgeAnnotation, place a FrameFollowed EdgeAnnotation */
                 val replacedFilters = filterAnnotations +
                   KontAddrPopped(a, next) +
-                  FrameFollowed[Abs](frame.asInstanceOf[ConvertableSchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]])
+                  FrameFollowed[Abs, Addr, Time](frame.asInstanceOf[ConvertableSchemeFrame[Abs, Addr, Time]])
                 val popKontAddedAction = addActionPopKontT(actions)
                 val timeTickAddedAction = addTimeTickT(popKontAddedAction)
-                EdgeComponents(succState, replacedFilters, timeTickAddedAction)
+                EdgeComponents(succState, replacedFilters, timeTickAddedAction, effects)
               })
           })
       /* In an error state, the state is not able to make a step */
@@ -227,12 +226,10 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
                        stepSwitched: Option[Int])
       extends Output with AnalysisOutputGraph[Exp, Abs, Addr, KickstartAAMState[Exp, Abs, Addr, Time]] {
 
-    def replaceGraph(newGraph: Graph[KickstartAAMState[Exp, Abs, Addr, Time], EdgeAnnotation[Exp, Abs, Addr], Set[KickstartAAMState[Exp, Abs, Addr, Time]]]): AnalysisOutputGraph[Exp, Abs, Addr, KickstartAAMState[Exp, Abs, Addr, Time]] = this.copy(graph = newGraph)
-
     /**
       * Returns the list of final values that can be reached
       */
-    def finalValues = {
+    def finalValues: Set[Abs] = {
       val errorStates = halted.filter(_.control match {
         case _: ControlError[Exp, Abs, Addr] => true
         case _ => false
@@ -265,13 +262,12 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
    * Checks whether the given (successor) state is a eval-state. If so, adds an EvaluatingExpression
    * annotation to the list of edge annotations.
    */
-  def addSuccStateFilter(s: KickstartAAMState[Exp, Abs, Addr, Time], filters: FilterAnnotations[Exp, Abs, Addr]): FilterAnnotations[Exp, Abs, Addr] = s.control match {
+  def addSuccStateFilter(s: KickstartAAMState[Exp, Abs, Addr, Time], filters: FilterAnnotations): FilterAnnotations = s.control match {
     case ControlEval(exp, _) =>
       filters + EvaluatingExpression(exp)
     case ControlKont(v) =>
       if (filters.machineExists({
-        case FrameFollowed(frame) =>
-          frame.meaningfullySubsumes
+        case FrameFollowed(frame) => frame.meaningfullySubsumes
         case _ =>
           false
       })) {
@@ -323,7 +319,7 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
               val succsEdges = s.step(sem)
               val newGraph = graph.addEdges(succsEdges.map(s2 => {
                 val filters = addSuccStateFilter(s2.state, s2.filters)
-                (s, EdgeAnnotation(filters, s2.actions), s2.state)
+                (s, EdgeAnnotation(filters, s2.actions, s2.effects), s2.state)
               }))
               loop(counter + 1, todo.tail ++ succsEdges.map(_.state), visited + s, halted, startingTime, newGraph)
             }
@@ -358,8 +354,8 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
 
     protected def noEdgeFilters(state: KickstartAAMState[Exp, Abs, Addr, Time]): (KickstartAAMState[Exp, Abs, Addr, Time], Set[MachineFilterAnnotation]) = (state, Set())
     protected def addEvaluateExp(exp: Exp): EvaluatingExpression[Exp] = EvaluatingExpression(exp)
-    protected def addFrameFollowed(frame: Frame): FrameFollowed[Abs] =
-      FrameFollowed[Abs](frame.asInstanceOf[ConvertableSchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]])
+    protected def addFrameFollowed(frame: Frame): FrameFollowed[Abs, Addr, Time] =
+      FrameFollowed[Abs, Addr, Time](frame.asInstanceOf[ConvertableSchemeFrame[Abs, Addr, Time]])
     protected def addKontAddrPopped(a: KontAddr, next: KontAddr): KontAddrPopped = KontAddrPopped(a, next)
 
     private def frameSavedOperands(state: KickstartAAMState[Exp, Abs, Addr, Time]): Set[(List[Abs], Kont[KontAddr])] =
@@ -634,6 +630,8 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
 
   object AAMStateInfoProvider extends StateInfoProvider[Exp, Abs, Addr, Time, KickstartAAMState[Exp, Abs, Addr, Time]] {
 
+    type State = KickstartAAMState[Exp, Abs, Addr, Time]
+
     def evalExp(state: KickstartAAMState[Exp, Abs, Addr, Time]): Option[Exp] = state.control match {
       case ControlEval(exp, _) => Some(exp)
       case _ => None
@@ -652,6 +650,9 @@ class KickstartAAM[Exp: Expression, Abs: IsSchemeLattice, Addr: Address, Time: T
       state.halted
     def store(state: KickstartAAMState[Exp, Abs, Addr, Time]): Store[Addr, Abs] =
       state.store
+    def subsumes(state1: KickstartAAMState[Exp, Abs, Addr, Time], state2: KickstartAAMState[Exp, Abs, Addr, Time]): Boolean = {
+      state1.subsumes(state2)
+    }
 
     def deltaStoreEmpty(state1: KickstartAAMState[Exp, Abs, Addr, Time], state2: KickstartAAMState[Exp, Abs, Addr, Time]): Boolean = {
       val storeDiff1 = state1.store.diff(state2.store)

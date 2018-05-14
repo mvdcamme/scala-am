@@ -34,7 +34,7 @@ class AbstractStateReporter[State] extends BaseReporter[State, PathConstraintWit
     }
   }
 
-  def addExploredPath(constraints: PathConstraintWithState[State]): Unit = {
+  def internalAddExploredPath(constraints: PathConstraintWithState[State], terminationNode: SymbolicNode[State]): Unit = {
 
     if (constraints.isEmpty) {
       return
@@ -78,10 +78,16 @@ class AbstractStateReporter[State] extends BaseReporter[State, PathConstraintWit
           case RegularLeafNode() | UnexploredNode() | UnsatisfiableNode() => throw new Exception("Should not happen: node should not be an UnexploredNode")
         }
       case Some((UnusableConstraint, _, _)) => loop(currentConstraints.tail, setChild)
-      case None => setChild.setNoChild()
+      case None => setChild.setChild(terminationNode)
     }
 
     val setChildOfRoot = nodeToSetChild(optRoot.get.asInstanceOf[BranchSymbolicNode[State]], headWasTrue)
     loop(remainder, setChildOfRoot)
+  }
+  def addExploredPath(currentConstraints: PathConstraintWithState[State]): Unit = {
+    internalAddExploredPath(currentConstraints, RegularLeafNode[State]())
+  }
+  def mergePath(currentConstraints: PathConstraintWithState[State]): Unit = {
+    internalAddExploredPath(currentConstraints, MergedNode[State]())
   }
 }

@@ -18,20 +18,20 @@ case class KickstartAAMGlobalStoreState[Exp: Expression, Abs: IsSchemeLattice, A
   }
 
   import scala.language.implicitConversions
-  implicit private def semFiltersToFilterAnnots(filters: Set[SemanticsFilterAnnotation]): FilterAnnotations[Exp, Abs, Addr] = {
-    FilterAnnotations[Exp, Abs, Addr](Set(), filters)
+  implicit private def semFiltersToFilterAnnots(filters: Set[SemanticsFilterAnnotation]): FilterAnnotations = {
+    FilterAnnotations(Set(), filters)
   }
-  implicit private def semFtrsToEdgeAnnot(filters: Set[SemanticsFilterAnnotation]): EdgeAnnotation[Exp, Abs, Addr] = {
-    EdgeAnnotation(filters, Nil)
+  implicit private def semFtrsToEdgeAnnot(edgeInfo: EdgeInformation[Exp, Abs, Addr]): EdgeAnnotation[Exp, Abs, Addr] = {
+    EdgeAnnotation(edgeInfo.semanticsFilters, Nil, edgeInfo.action.effects)
   }
 
   private def integrate(a: KontAddr, edgeInfos: Set[EdgeInformation[Exp, Abs, Addr]], store: GlobalStore[Addr, Abs], kstore: KontStore[KontAddr]): (Set[Tup], GlobalStore[Addr, Abs], KontStore[KontAddr]) =
     edgeInfos.foldLeft((Set[Tup](), store, kstore))((acc, edgeInfo) => {
-      val edgeAnnot: EdgeAnnotation[Exp, Abs, Addr] = edgeInfo.semanticsFilters
+      val edgeAnnot: EdgeAnnotation[Exp, Abs, Addr] = edgeInfo
       implicit def stateToTup(state: KickstartAAMGlobalStoreState[Exp, Abs, Addr, Time]): Tup = (edgeAnnot, state)
-
       edgeInfo.action match {
-        case ActionReachedValue(v, store2, _) => (acc._1 + KickstartAAMGlobalStoreState(ControlKont(v), a, Timestamp[Time].tick(t)), acc._2.includeDelta(store2.delta), acc._3)
+        case ActionReachedValue(v, store2, _) =>
+          (acc._1 + KickstartAAMGlobalStoreState(ControlKont(v), a, Timestamp[Time].tick(t)), acc._2.includeDelta(store2.delta), acc._3)
         case ActionPush(frame, e, env, store2, _) =>
           val next = NormalKontAddress[Exp, Time](e, t)
           (acc._1 + KickstartAAMGlobalStoreState(ControlEval(e, env), next, Timestamp[Time].tick(t)), acc._2.includeDelta(store2.delta), acc._3.extend(next, Kont(frame, a)))
@@ -53,7 +53,14 @@ case class KickstartAAMGlobalStoreState[Exp: Expression, Abs: IsSchemeLattice, A
     /* In a continuation state, call the semantics' continuation method */
     case ControlKont(v) => kstore.lookup(a).foldLeft((Set[Tup](), store, kstore))((acc, kont) => kont match {
       case Kont(frame, next) => integrate(next, sem.stepKont(v, frame, store.store, t), acc._2, acc._3) match {
-        case (states, store2, kstore2) => (acc._1 ++ states, store2, kstore2)
+        case (edges, store2, kstore2) =>
+          val filtersUpdatedEdges = edges.map(tuple => tuple.copy(_1 = tuple._1.copy(filters = {
+            /* If step did not generate any EdgeAnnotation, place a FrameFollowed EdgeAnnotation */
+            tuple._1.filters +
+              KontAddrPopped(a, next) +
+              FrameFollowed[Abs, Addr, Time](frame.asInstanceOf[ConvertableSchemeFrame[Abs, Addr, Time]])
+          })))
+          (acc._1 ++ filtersUpdatedEdges, store2, kstore2)
       }
     })
     /* In an error state, the state is not able to make a step */
@@ -110,9 +117,7 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
 
     override def toString = s"AAMOutput($numberOfStates states, ${time}s, $stepSwitched)"
 
-    def replaceGraph(newGraph: Graph[KickstartAAMGlobalStoreState[Exp, Abs, Addr, Time], EdgeAnnotation[Exp, Abs, Addr], Set[KickstartAAMGlobalStoreState[Exp, Abs, Addr, Time]]]): AnalysisOutputGraph[Exp, Abs, Addr, KickstartAAMGlobalStoreState[Exp, Abs, Addr, Time]] = this.copy(graph = newGraph)
-
-    def finalValues = {
+    def finalValues: Set[Abs] = {
       val errorStates = halted.filter(_.control match {
         case _: ControlError[Exp, Abs, Addr] => true
         case _ => false
@@ -131,6 +136,28 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
 
     def finalStores: Set[Store[Addr, Abs]] = Set(finalStore)
     def toFile(path: String)(output: GraphOutput): Unit = output.toFile(graph, halted)(path)
+  }
+
+  /*
+   * Checks whether the given (successor) state is a eval-state. If so, adds an EvaluatingExpression
+   * annotation to the list of edge annotations.
+   */
+  def addSuccStateFilter(s: KickstartAAMGlobalStoreState[Exp, Abs, Addr, Time], filters: FilterAnnotations): FilterAnnotations = s.control match {
+    case ControlEval(exp, _) =>
+      filters + EvaluatingExpression(exp)
+    case ControlKont(v) =>
+      if (filters.machineExists({
+        case FrameFollowed(frame) => frame.meaningfullySubsumes
+        case _ =>
+          false
+      })) {
+        filters
+      } else {
+        //        ReachedValue(v) ::
+        filters
+      }
+    case _ =>
+      filters
   }
 
   def kickstartEval(initialState: InitialState, sem: ConvertableSemantics[Exp, Abs, Addr, Time], stopEval: Option[KickstartAAMGlobalStoreState[Exp, Abs, Addr, Time] => Boolean],
@@ -154,7 +181,10 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
             VisitedSet[VS].append(visited, todo),
             store2, kstore2,
             halted ++ todo.filter(_.halted),
-               graph.addEdges(edges.map({ case (s1, e, s2) => (s1, e, s2) })),
+               graph.addEdges(edges.map({
+                 case (s1, e, s2) =>
+                   val filters = addSuccStateFilter(s2, e.filters)
+                   (s1, EdgeAnnotation(filters, e.actions, e.effects), s2) })),
             reallyVisited ++ todo)
         } else {
           //assert(!(!store2.isUnchanged && store2.commit.store == store2.store))
@@ -162,7 +192,10 @@ class KickstartAAMGlobalStore[Exp: Expression, Abs: IsSchemeLattice, Addr: Addre
             VisitedSet[VS].empty[KickstartAAMGlobalStoreState[Exp, Abs, Addr, Time]],
             store2.commit, kstore2,
             halted ++ todo.filter(_.halted),
-            graph.addEdges(edges.map({ case (s1, e, s2) => (s1, e, s2) })),
+            graph.addEdges(edges.map({
+              case (s1, e, s2) =>
+                val filters = addSuccStateFilter(s2, e.filters)
+                (s1, EdgeAnnotation(filters, e.actions, e.effects), s2) })),
             reallyVisited ++ todo)
         }
       }

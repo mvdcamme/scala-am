@@ -13,6 +13,7 @@ case class ConcolicMaxIterations(maxNrIterations: Int) extends ConcolicEndCondit
 }
 
 case class ConcolicRunTimeFlags(endCondition: ConcolicEndCondition = ConcolicMaxIterations(100),
-                                checkAnalysis: Boolean = true, checkRunTimeAnalysis: Boolean = true) {
+                                checkAnalysis: Boolean = true, checkRunTimeAnalysis: Boolean = true,
+                                tryMergePaths: Boolean = true) {
   def useRunTimeAnalyses: Boolean = checkAnalysis && checkRunTimeAnalysis
 }

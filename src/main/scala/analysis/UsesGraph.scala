@@ -1,24 +1,21 @@
-import ConcreteConcreteLattice.{ L => ConcreteValue }
-
-class UsesGraph[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, State <: StateTrait[Exp, Abs, Addr, _]] {
+class UsesGraph[Exp : Expression, Abs : IsSchemeLattice, Addr : Address, State] {
 
   type EdgeAnnotation2 = EdgeAnnotation[Exp, Abs, Addr]
   type Edge = (EdgeAnnotation2, State)
   type AbstractGraph = Graph[State, EdgeAnnotation2, Set[State]]
 
   type AbstractFrame = ConvertableSchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T]
-  type ConcreteFrame = ConvertableSchemeFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]
 
 }
 
-case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Address](
+case class FilterAnnotations(
     machineFilters: Set[MachineFilterAnnotation],
     semanticsFilters: Set[SemanticsFilterAnnotation]) {
 
-  def +(machineFilter: MachineFilterAnnotation): FilterAnnotations[Exp, Abs, Addr] =
+  def +(machineFilter: MachineFilterAnnotation): FilterAnnotations =
     this.copy(machineFilters = machineFilters + machineFilter)
 
-  def +(semanticsFilter: SemanticsFilterAnnotation): FilterAnnotations[Exp, Abs, Addr] =
+  def +(semanticsFilter: SemanticsFilterAnnotation): FilterAnnotations =
     this.copy(semanticsFilters = semanticsFilters + semanticsFilter)
 
   def contains(filter: MachineFilterAnnotation): Boolean =
@@ -69,24 +66,23 @@ case class FilterAnnotations[Exp : Expression, Abs: IsSchemeLattice, Addr : Addr
     SemanticsFilterFunction(function)
 
   def map(f: MachineFilterFunction)
-         (implicit d: DummyImplicit): FilterAnnotations[Exp, Abs, Addr] =
+         (implicit d: DummyImplicit): FilterAnnotations =
     this.copy(machineFilters = machineFilters.map(f.function))
 
   def map(f: SemanticsFilterFunction)
-         (implicit d: DummyImplicit): FilterAnnotations[Exp, Abs, Addr] =
+         (implicit d: DummyImplicit): FilterAnnotations =
     this.copy(semanticsFilters = semanticsFilters.map(f.function))
 }
 
 case class EdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address](
-    filters: FilterAnnotations[Exp, Abs, Addr],
-    actions: List[ActionReplay[Exp, Abs, Addr]])
+    filters: FilterAnnotations, actions: List[ActionReplay[Exp, Abs, Addr]], effects: Set[Effect[Addr]])
 
 object EdgeAnnotation {
   def dummyEdgeAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address]: EdgeAnnotation[Exp, Abs, Addr] =
-    EdgeAnnotation[Exp, Abs, Addr](FilterAnnotations[Exp, Abs, Addr](Set(), Set()), Nil)
+    EdgeAnnotation[Exp, Abs, Addr](FilterAnnotations(Set(), Set()), Nil, Set())
   def subsumptionEdge[Exp : Expression, Abs : IsSchemeLattice, Addr : Address]: EdgeAnnotation[Exp, Abs, Addr] = {
     assert(GlobalFlags.AAM_CHECK_SUBSUMES, "Should not be called if flag is turned off")
-    EdgeAnnotation(FilterAnnotations(Set(StateSubsumed), Set()), Nil)
+    EdgeAnnotation(FilterAnnotations(Set(StateSubsumed), Set()), Nil, Set())
   }
   implicit def graphAnnotation[Exp : Expression, Abs: IsSchemeLattice, Addr : Address]: GraphAnnotation[EdgeAnnotation[Exp, Abs, Addr], Unit] =
     new GraphAnnotation[EdgeAnnotation[Exp, Abs, Addr], Unit] {

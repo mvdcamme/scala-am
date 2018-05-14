@@ -9,14 +9,18 @@ class AbstractStateSolver[State] extends ScalaAMSolver[AbstractStatePCElement[St
 
   val reporter: Reporter[State, PathConstraintWithState[State]] = new AbstractStateReporter[State]
 
-  def getRoot: SymbolicNode[State] = reporter.getRoot.get
+  def getRoot: Option[SymbolicNode[State]] = reporter.getRoot
   def deleteSymbolicTree(): Unit = reporter.deleteSymbolicTree()
   def clearBackendReporter(): Unit = reporter.clear()
 
-  def solve(pathConstraint: PathConstraintWithState[State]): Boolean = {
-    reporter.writeSymbolicTree("tree.dot")
+  def solve(pathConstraint: PathConstraintWithState[State], shouldMerge: Boolean): Boolean = {
     resetInputs()
-    reporter.addExploredPath(pathConstraint)
+    if (shouldMerge) {
+      reporter.mergePath(pathConstraint)
+    } else {
+      reporter.addExploredPath(pathConstraint)
+    }
+    reporter.writeSymbolicTree("tree.dot")
     val result = solveViaBackend(reporter.getRoot.get, new AbstractStateSearch[State])
     result match {
       case NewInput(inputs) =>

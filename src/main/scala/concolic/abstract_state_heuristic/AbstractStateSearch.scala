@@ -100,7 +100,7 @@ class AbstractStateSearch[State] extends SearchStrategy[State] {
   def findFirstUnexploredNode(symbolicNode: SymbolicNode[State]): Option[backend.tree.search_strategy.TreePath[State]] = {
     val countedAbstractStates = countAbstractStates(symbolicNode)
     val nrOfUniqueAbstractStates = countedAbstractStates.count(_._2 == 1)
-    Logger.log(s"Tree has $nrOfUniqueAbstractStates unique abstract states", Logger.E)
+    Logger.E(s"Tree has $nrOfUniqueAbstractStates unique abstract states")
     if (nrOfUniqueAbstractStates >= 1) {
 
       symbolicNode match {
@@ -119,7 +119,7 @@ class AbstractStateSearch[State] extends SearchStrategy[State] {
       }
 
     } else {
-      Logger.log("No unique abstract state reachable, so switching to BFS", Logger.E)
+      Logger.E("No unique abstract state reachable, so switching to BFS")
       new BreadthFirstSearch[State].findFirstUnexploredNode(symbolicNode)
     }
   }

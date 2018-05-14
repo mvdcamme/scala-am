@@ -46,7 +46,7 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
   }
 
   test("1 Check same PM from same analysis result") {
-    val handleInitialAnalysisResultMethod = PrivateMethod[AnalysisResult]('handleInitialAnalysisResult)
+    val handleInitialAnalysisResultMethod = PrivateMethod[AnalysisResult[pointsToLattice.L]]('handleInitialAnalysisResult)
     val result1 = launchAnalyses.invokePrivate(handleInitialAnalysisResultMethod(analysisResult))
     val result2 = launchAnalyses.invokePrivate(handleInitialAnalysisResultMethod(analysisResult))
     checkPartialMatchersEqual(result1.partialMatcher, result2.partialMatcher)
@@ -54,7 +54,7 @@ class PartialMatchersTest extends FunSuite with PrivateMethodTester with BeforeA
   }
 
   test("2 Check same PM from same analysis result") {
-    val handleAnalysisResultMethod = PrivateMethod[AnalysisResult]('handleAnalysisResult)
+    val handleAnalysisResultMethod = PrivateMethod[AnalysisResult[pointsToLattice.L]]('handleAnalysisResult)
     val result1 = launchAnalyses.invokePrivate(handleAnalysisResultMethod(analysisResult, -1))
     val result2 = launchAnalyses.invokePrivate(handleAnalysisResultMethod(analysisResult, -1))
     checkPartialMatchersEqual(result1.partialMatcher, result2.partialMatcher)

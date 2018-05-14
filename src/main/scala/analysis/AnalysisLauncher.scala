@@ -7,18 +7,10 @@ trait AnalysisOutputGraph[Exp, Abs, Addr, State <: StateTrait[Exp, Abs, Addr, _]
   def finalStores: Set[Store[Addr, Abs]]
   def stepSwitched: Option[Int]
   def toFile(path: String)(output: GraphOutput): Unit
-  def replaceGraph(graph: Graph[State, EdgeAnnotation[Exp, Abs, Addr], Set[State]]): AnalysisOutputGraph[Exp, Abs, Addr, State]
 }
 
 abstract class AnalysisLauncher[Abs: IsConvertableLattice](
   val abstSem: ConvertableBaseSchemeSemantics[Abs, HybridAddress.A, HybridTimestamp.T]) {
-
-  /* The concrete program state the static analysis gets as input. This state is then converted to an
-   * abstract state and fed to the KickstartAAM. */
-  type PS = ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
-
-  /* The specific type of state used by the abstract machine during the analysis. */
-  type SpecState = KickstartAAMGlobalStoreState[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T]
 
   /* The specific type of KickstartAAM used for this analysis: a KickstartAAM using the HybridLattice, HybridAddress and ZeroCFA
    * components. */
@@ -29,13 +21,21 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice](
   val aam: SpecAAM = new SpecAAM()
   val stateConverter: StateConverter[Abs] = new StateConverter[Abs](aam, abstSem)
 
+  /* The concrete program state the static analysis gets as input. This state is then converted to an
+   * abstract state and fed to the KickstartAAM. */
+  type PS = ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
+
+  /* The specific type of state used by the abstract machine during the analysis. */
+  type SpecState = SpecAAM#MachineState
+  type SpecInitState = SpecAAM#InitialState
+
   protected def switchToAbstract(): Unit = {
-    Logger.log("HybridMachine switching to abstract", Logger.I)
+    Logger.I("HybridMachine switching to abstract")
     HybridTimestamp.switchToAbstract()
   }
 
   protected def switchToConcrete(): Unit = {
-    Logger.log("HybridMachine switching to concrete", Logger.I)
+    Logger.I("HybridMachine switching to concrete")
     HybridTimestamp.switchToConcrete()
   }
 
@@ -47,19 +47,23 @@ abstract class AnalysisLauncher[Abs: IsConvertableLattice](
   }
 
   protected def wrapRunAnalysis(runAnalysis: () => AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState]): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState] = {
-    Logger.log("analyzing", Logger.I)
+    Logger.I("analyzing")
     wrapAbstractEvaluation[AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState]](runAnalysis)
   }
 
-  def runInitialStaticAnalysis(initialAbstractState: stateConverter.aam.InitialState, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState]
+  def runInitialStaticAnalysis(initialAbstractState: aam.InitialState, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState]
   def runInitialStaticAnalysis(currentProgramState: PS, programName: String): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState] = {
     runInitialStaticAnalysis(stateConverter.convertStateAAM(currentProgramState, Nil), programName)
   }
-  def runStaticAnalysis(initialAbstractState: stateConverter.aam.InitialState, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
+  def runStaticAnalysis(initialAbstractState: aam.InitialState, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
                         pathConstraint: PathConstraint): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState]
   def runStaticAnalysis(state: PS, stepSwitched: Option[Int], addressesUsed: Set[HybridAddress.A],
                         pathConstraint: PathConstraint): AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState] = {
     runStaticAnalysis(stateConverter.convertStateAAM(state, pathConstraint), stepSwitched, addressesUsed, pathConstraint)
+  }
+
+  def convertStateAAM(programState: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T], pathConstraint: PathConstraint): SpecInitState = {
+    stateConverter.convertStateAAM(programState, pathConstraint)
   }
 
 }

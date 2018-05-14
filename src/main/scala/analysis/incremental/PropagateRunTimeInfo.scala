@@ -72,7 +72,7 @@
 //    val originalStates = mapping(newState)
 //    val afterSubsumptionStates: Set[State] = originalStates.flatMap(followStateSubsumedEdges(_, prunedGraph))
 //
-//    Logger.log(s"stepEval of ${originalStates.map(PrintState.stateToString[State](_, prunedGraph))}", Logger.D)
+//    Logger.D(s"stepEval of ${originalStates.map(PrintState.stateToString[State](_, prunedGraph))}")
 //
 //    /* TODO Only used for debugging */
 //    val originalStatePrunedIds = originalStates.map(prunedGraph.nodeId)
@@ -160,8 +160,8 @@
 //     */
 //    val subsumptionStateCombos: Set[StateCombo] = subsumptionEdges.map( (edge: Edge) => StateCombo(edge._2, newState) )
 //
-//    Logger.log(s"newStateCombos = ${nonSubsumptionStateCombos.map( (sc: (EdgeAnnotation2, StateCombo)) =>
-//                 prunedGraph.nodeId(sc._2.originalState))}", Logger.D)
+//    Logger.D(s"newStateCombos = ${nonSubsumptionStateCombos.map( (sc: (EdgeAnnotation2, StateCombo)) =>
+//                 prunedGraph.nodeId(sc._2.originalState))}")
 //    val newVisited = visited + newState // TODO remove if (usedSubsumptionEdges) visited else visited + newState
 //    StepEval(nonSubsumptionStateCombos, subsumptionStateCombos, newVisited)
 //  }
@@ -299,7 +299,7 @@
 //             notContinuedTodo: TodoPair,
 //             visited: Set[State],
 //             graph: AbstractGraph): DeltaEdgesAdded = {
-//      Logger.log(s"In loop iteration", Logger.D)
+//      Logger.D(s"In loop iteration")
 //      todoForThisOptimisation.todo.headOption match {
 //        case None =>
 //          DeltaEdgesAdded(notContinuedTodo, graph, visited)
@@ -381,8 +381,8 @@
 //                       stepCount: Int,
 //                       initialGraph: AbstractGraph,
 //                       prunedGraph: AbstractGraph): AbstractGraph = {
-//    Logger.log(s"Size of visited set ${visited.size}", Logger.D)
-//    Logger.log(s"Size of todo set ${todoPair.todo.size}", Logger.D)
+//    Logger.D(s"Size of visited set ${visited.size}")
+//    Logger.D(s"Size of todo set ${todoPair.todo.size}")
 //    val checkSubsumes = true
 //    todoPair.todo.headOption match {
 //      case None =>
@@ -412,11 +412,11 @@
 //          val applyOptimisation = analysisFlags.deltaOptimisation
 //          val optionDeltas: Option[Iterable[Delta]] = extraOptimisationApplicable(newState, todoPair.mapping(newState), prunedGraph)
 //          if (applyOptimisation && optionDeltas.isDefined) {
-//            Logger.log(s"Extra optimisation applicable: ${optionDeltas.get}", Logger.E)
+//            Logger.E(s"Extra optimisation applicable: ${optionDeltas.get}")
 //            val deltas = optionDeltas.get
 //            val deltaEdgesAdded = addAllEdgesDelta(newState, todoPair.mapping, deltas, visited, prunedGraph, graph)
 //            val newTodo = todoPair.dropHead ++ deltaEdgesAdded.todoPair
-//            Logger.log(s"Extra optimisation applied", Logger.E)
+//            Logger.E(s"Extra optimisation applied")
 //            evalLoop(newTodo, deltaEdgesAdded.visited, deltaEdgesAdded.graph, stepCount, initialGraph, prunedGraph)
 //          } else {
 //            val StepEval(nonSubsumptionStateCombos, subsumptionStateCombos, newVisited) =
@@ -438,9 +438,9 @@
 //  def applyEdgeActions(convertedState: State, stepCount: Int, rootNodes: Set[State],
 //                       initialGraph: AbstractGraph, prunedGraph: AbstractGraph)
 //                      (implicit g: GraphNode[State, Unit], a: GraphAnnotation[EdgeAnnotation2, Unit]): AbstractGraph = {
-//    rootNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.E))
+//    rootNodes.foreach((node) => Logger.E(s"node id: ${initialGraph.nodeId(node)}"))
 //    if (analysisFlags.skipIterationOptimisation && rootNodes.size == 1 && rootNodes.head == convertedState) {
-//      Logger.log(s"Skipping propagation phase because convertedState equals single root state", Logger.E)
+//      Logger.E(s"Skipping propagation phase because convertedState equals single root state")
 //      prunedGraph
 //    } else {
 //      /*
