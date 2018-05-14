@@ -296,6 +296,14 @@ case class SchemeActor(name: String, xs: List[Identifier], defs: Map[String, (Li
 }
 
 /**
+  * Instrumentation code inserted by the compiler after an if-expression for concolic testing purposes.
+  * Evaluating this expression urges the tester to attempt to merge the current path with another, already explored path.
+  */
+case class SchemeTryMerge(pos: Position) extends SchemeExp {
+  override def toString = "(try-merge)"
+}
+
+/**
   * Trait that provides a method to compile an s-expression into a Scheme expression
   */
 trait SchemeCompiler {
@@ -752,6 +760,14 @@ object SchemeRenamer {
     }
 }
 
+object SchemeUniqueVarNamer {
+  private var id = 0
+  def newVarName(): String = {
+    id += 1
+    s"#<genvar_$id>"
+  }
+}
+
 /**
   * Remove defines from a Scheme expression, replacing them by let bindings.
   * For example:
@@ -765,13 +781,6 @@ object SchemeRenamer {
   * Which is semantically equivalent with respect to the end result
   */
 class SchemeDesugarer {
-
-  var id = 0
-
-  def newVarName(): String = {
-    id += 1
-    s"#<genvar_$id>"
-  }
 
   def desugar(exps: List[SchemeExp]): SchemeExp = {
     val undefineExp = undefine(exps)
@@ -873,7 +882,7 @@ class SchemeDesugarer {
           case Nil => SchemeValue(ValueBoolean(true), pos)
           case andExp :: Nil => desugarExp(andExp)
           case andExp :: rest =>
-            SchemeIf(desugarExp(andExp), desugarExp(SchemeAnd(rest, andExp.pos)), SchemeValue(ValueBoolean(false), pos), pos)
+            ConcolicTestingSchemeInstrumenter.instrumentIf(SchemeIf(desugarExp(andExp), desugarExp(SchemeAnd(rest, andExp.pos)), SchemeValue(ValueBoolean(false), pos), pos))
         }
       case SchemeOr(exps, pos) =>
         exps match {
@@ -884,11 +893,11 @@ class SchemeDesugarer {
              * Generate a unique variable name by combining characters (#<>) that can't be used inside Scheme identifiers
              * by users with a unique id.
              */
-            val tempVarName = newVarName()
-            val body: SchemeExp = SchemeIf(SchemeVar(Identifier(tempVarName, pos)),
-                                           SchemeVar(Identifier(tempVarName, pos)),
-                                           desugarExp(SchemeOr(rest, orExp.pos)),
-                                           pos)
+            val tempVarName = SchemeUniqueVarNamer.newVarName()
+            val body: SchemeExp = ConcolicTestingSchemeInstrumenter.instrumentIf(SchemeIf(SchemeVar(Identifier(tempVarName, pos)),
+                                                                                 SchemeVar(Identifier(tempVarName, pos)),
+                                                                                 desugarExp(SchemeOr(rest, orExp.pos)),
+                                                                                 pos))
             SchemeLet(List((Identifier(tempVarName, orExp.pos), desugarExp(orExp))), List(body), pos)
         }
       case SchemeCond(clauses, pos) =>
@@ -903,12 +912,12 @@ class SchemeDesugarer {
             }
             desugarExp(cond) match {
               case SchemeVar(Identifier("else", pos)) =>
-                SchemeIf(SchemeValue(ValueBoolean(true), pos),
-                         desugaredBody,
-                         desugaredRest,
-                         pos)
+                ConcolicTestingSchemeInstrumenter.instrumentIf(SchemeIf(SchemeValue(ValueBoolean(true), pos),
+                                                               desugaredBody,
+                                                               desugaredRest,
+                                                               pos))
               case other =>
-                SchemeIf(other, desugaredBody, desugaredRest, other.pos)
+                ConcolicTestingSchemeInstrumenter.instrumentIf(SchemeIf(other, desugaredBody, desugaredRest, other.pos))
             }
         }
       case SchemeLambda(args, body, pos) =>
@@ -916,7 +925,7 @@ class SchemeDesugarer {
       case SchemeFuncall(f, args, pos) =>
         SchemeFuncall(desugarExp(f), args.map(desugarExp), pos)
       case SchemeIf(cond, cons, alt, pos) =>
-        SchemeIf(desugarExp(cond), desugarExp(cons), desugarExp(alt), pos)
+        ConcolicTestingSchemeInstrumenter.instrumentIf(SchemeIf(desugarExp(cond), desugarExp(cons), desugarExp(alt), pos))
       case SchemeLet(bindings, body, pos) =>
         SchemeLet(bindings.map({ case (b, v) => (b, desugarExp(v)) }),
                   body.map(desugarExp),
@@ -962,6 +971,18 @@ class SchemeDesugarer {
       case SchemeSpawn(exp, pos) => SchemeSpawn(desugarExp(exp), pos)
       case SchemeJoin(exp, pos) => SchemeJoin(desugarExp(exp), pos)
     }
+  }
+}
+
+object ConcolicTestingSchemeInstrumenter {
+
+  /**
+    * Instruments a given expression with concolic testings-specific code.
+    */
+  def instrumentIf(ifExp: SchemeIf): SchemeExp = {
+    val newIdentifier = Identifier(SchemeUniqueVarNamer.newVarName(), ifExp.pos)
+    val binding = List((newIdentifier, ifExp))
+    SchemeLet(binding, List(SchemeTryMerge(ifExp.pos), SchemeVar(newIdentifier)), ifExp.pos)
   }
 }
 
