@@ -106,6 +106,10 @@ trait IsSchemeLattice[L] extends JoinLattice[L] {
     * the vector value itsel */
   def vector[Addr: Address](addr: Addr, size: L, init: Addr): MayFail[(L, L)]
 
+  def equalModuloTimestamp[Time: CompareTimestampsWithMapping, Addr: Address](a: L, b: L, mapping: Mapping[Time]): Option[Mapping[Time]] = {
+    if (a == b) Some(mapping) else None
+  }
+
   trait SchemeLatticeLaw extends MonoidLaw {
     import scalaz.std.boolean.conditional
     def bottomSubsumesItself: Boolean = subsumes(bottom, bottom)

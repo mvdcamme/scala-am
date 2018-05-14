@@ -123,6 +123,31 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
       }
     }
 
+    override def equalModuloTimestamp[Time: CompareTimestampsWithMapping, Addr: Address](a: Value, b: Value, mapping: Mapping[Time]): Option[Mapping[Time]] = (a, b) match {
+      case (Closure(lambda1, env1, _), Closure(lambda2, env2, _)) if lambda1 == lambda2 =>
+        env1.equalModuloTimestamp(env2, mapping)
+      case (Cons(car1: Addr, cdr1: Addr), Cons(car2: Addr, cdr2: Addr)) =>
+        for {
+          carMapping <- implicitly[Address[Addr]].equalModuloTimestamp(car1, car2, mapping)
+          cdrMapping <- implicitly[Address[Addr]].equalModuloTimestamp(cdr1, cdr2, carMapping)
+        } yield {
+          cdrMapping
+        }
+      case (VectorAddress(addr1: Addr), VectorAddress(addr2: Addr)) =>
+        implicitly[Address[Addr]].equalModuloTimestamp(addr1, addr2, mapping)
+      case (Vec(size1, elements1: Map[I, Addr], init1: Addr), Vec(size2, elements2: Map[I, Addr], init2: Addr)) if size1 == size2 && elements1.keys == elements2.keys =>
+        for {
+          initMapping <- implicitly[Address[Addr]].equalModuloTimestamp(init1, init2, mapping)
+          elementsMapping <- elements1.foldLeft[Option[Mapping[Time]]](Some(initMapping))({
+            case (maybeAccMapping, (index1, address1)) =>
+              maybeAccMapping.flatMap(accMapping => elements2.get(index1).flatMap(address2 => implicitly[Address[Addr]].equalModuloTimestamp(address1, address2, accMapping)))
+          })
+        } yield {
+          elementsMapping
+        }
+      case _ => if (a == b) Some (mapping) else None
+    }
+
     def bottom = Bot
 
     def join(x: Value, y: Value): Value = if (x == y) {

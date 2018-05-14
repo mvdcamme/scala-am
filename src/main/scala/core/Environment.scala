@@ -25,6 +25,15 @@ abstract class Environment[Addr: Address] {
 
   /** Maps over all addresses in the environment */
   def map(f: Addr => Addr): Environment[Addr]
+
+  /** Checks whether this environment equals the other, modulo exact values for timestamps */
+  def equalModuloTimestamp[T: CompareTimestampsWithMapping](other: Environment[Addr], mapping: Mapping[T]): Option[Mapping[T]] = {
+    keys.foldLeft[Option[Mapping[T]]](Some(mapping))({
+      case (accMapping, variable) =>
+        val address = lookup(variable).get /* Should definitely exist because we're looping over its key. */
+        accMapping.flatMap(mapping => other.lookup(variable).flatMap(implicitly[Address[Addr]].equalModuloTimestamp[T](_, address, mapping)))
+    })
+  }
 }
 
 /** Basic mapping from names to addresses */
