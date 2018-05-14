@@ -358,6 +358,10 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp: CompareTimes
                       List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](v)))
         case None => simpleAction(ActionConcolicError(ActionError[SchemeExp, ConcreteValue, Addr](NotSupported(s"Unhandled value: $v"))))
       }
+    case SchemeTryMerge(_) =>
+      val valueFalse = sabs.inject(false)
+      noEdgeInfos(ActionConcolicReachedValue[SchemeExp, ConcreteValue, Addr](ActionReachedValue[SchemeExp, ConcreteValue, Addr](valueFalse, store), None),
+                  List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](valueFalse)))
   }
 
   def stepConcolicKont(v: ConcreteValue, concolicValue: Option[ConcolicExpression],
