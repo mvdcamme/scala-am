@@ -412,11 +412,11 @@
 //          val applyOptimisation = analysisFlags.deltaOptimisation
 //          val optionDeltas: Option[Iterable[Delta]] = extraOptimisationApplicable(newState, todoPair.mapping(newState), prunedGraph)
 //          if (applyOptimisation && optionDeltas.isDefined) {
-//            Logger.log(s"Extra optimisation applicable: ${optionDeltas.get}", Logger.U)
+//            Logger.log(s"Extra optimisation applicable: ${optionDeltas.get}", Logger.E)
 //            val deltas = optionDeltas.get
 //            val deltaEdgesAdded = addAllEdgesDelta(newState, todoPair.mapping, deltas, visited, prunedGraph, graph)
 //            val newTodo = todoPair.dropHead ++ deltaEdgesAdded.todoPair
-//            Logger.log(s"Extra optimisation applied", Logger.U)
+//            Logger.log(s"Extra optimisation applied", Logger.E)
 //            evalLoop(newTodo, deltaEdgesAdded.visited, deltaEdgesAdded.graph, stepCount, initialGraph, prunedGraph)
 //          } else {
 //            val StepEval(nonSubsumptionStateCombos, subsumptionStateCombos, newVisited) =
@@ -438,9 +438,9 @@
 //  def applyEdgeActions(convertedState: State, stepCount: Int, rootNodes: Set[State],
 //                       initialGraph: AbstractGraph, prunedGraph: AbstractGraph)
 //                      (implicit g: GraphNode[State, Unit], a: GraphAnnotation[EdgeAnnotation2, Unit]): AbstractGraph = {
-//    rootNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.U))
+//    rootNodes.foreach((node) => Logger.log(s"node id: ${initialGraph.nodeId(node)}", Logger.E))
 //    if (analysisFlags.skipIterationOptimisation && rootNodes.size == 1 && rootNodes.head == convertedState) {
-//      Logger.log(s"Skipping propagation phase because convertedState equals single root state", Logger.U)
+//      Logger.log(s"Skipping propagation phase because convertedState equals single root state", Logger.E)
 //      prunedGraph
 //    } else {
 //      /*

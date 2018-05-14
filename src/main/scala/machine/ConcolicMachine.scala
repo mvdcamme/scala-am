@@ -181,14 +181,14 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
     def loopConcolic(initialState: ConcolicMachineState, nrOfRuns: Int, allInputsUntilNow: List[List[(ConcolicInput, Int)]], allPathConstraints: List[PathConstraintWith[PCElementUsed]]): ConcolicMachineOutput = {
       currentConcolicRun = nrOfRuns
       def finishUpLoop: Boolean = {
-        Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.U)
+        Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.E)
         reporter.printReports()
         val shouldContinue = reporter.solver.solve(reporter.pathStorage.getCurrentReport)
         shouldContinue
       }
       def initLoop(): Unit = {
         reporter.inputVariableStore.enableConcolic()
-        Logger.log(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${reporter.solver.getInputs}", Logger.U)
+        Logger.log(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${reporter.solver.getInputs}", Logger.E)
         stepCount = 0
         reporter.clear(reporter.solver.getInputs)
         FunctionsCalledMetric.resetConcreteFunctionsCalled()

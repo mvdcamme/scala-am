@@ -48,7 +48,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
     wrapRunAnalysis(
       () => {
         val result = analyze(toDotFile, abstSem, startState.asInstanceOf[aam.InitialState], isInitialAnalysis, stepSwitched)
-        Logger.log(s"Static points-to analysis result is $result", Logger.U)
+        Logger.log(s"Static points-to analysis result is $result", Logger.E)
         /* The .asInstanceOf isn't actually required (the code also compiles without the cast), but Intellij seems unable to correctly infer the type */
         result.asInstanceOf[AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState]]
       })

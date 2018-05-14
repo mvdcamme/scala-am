@@ -53,7 +53,7 @@
 //
 //  def applyEdgeActions(convertedState: State, stepCount: Int)(implicit g: GraphNode[State, Unit]): Option[AbstractGraph] = {
 //    assertInitialized()
-//    Logger.log(s"Propagating run-time info for step $stepCount with current nodes $currentNodes", Logger.U)
+//    Logger.log(s"Propagating run-time info for step $stepCount with current nodes $currentNodes", Logger.E)
 //    lastPropagatedGraph = Some(propagateRunTimeInfo.applyEdgeActions(convertedState, stepCount, currentNodes,
 //                                                                     initialGraph.get, lastPropagatedGraph.get))
 //    currentNodes = Set(convertedState)
@@ -64,12 +64,12 @@
 //    if (graph1.size == 0 && graph2.size == 0) {
 //      true
 //    } else if (graph1.size == 0 || graph2.size == 0) {
-//      Logger.log(s"Graphs have a different size: graph1 ${graph1.nodes}, graph2: ${graph2.nodes}", Logger.U)
+//      Logger.log(s"Graphs have a different size: graph1 ${graph1.nodes}, graph2: ${graph2.nodes}", Logger.E)
 //      false
 //    } else {
 //      val haltedStates1 = graph1.nodes.filter(stateInfoProvider.halted)
 //      val haltedStates2 = graph2.nodes.filter(stateInfoProvider.halted)
-//      Logger.log(s"haltedStates2: $haltedStates2", Logger.U)
+//      Logger.log(s"haltedStates2: $haltedStates2", Logger.E)
 //      val joinedState1 = actionRApplier.joinStates(haltedStates1)
 //      val joinedState2 = actionRApplier.joinStates(haltedStates2)
 //      val result = joinedState1.finalValue == joinedState2.finalValue &&
@@ -84,12 +84,12 @@
 //        val kdiff2 = joinedState2.kstore.diff(joinedState1.kstore)
 //        val errorsDiff1 = joinedState1.errors.diff(joinedState2.errors)
 //        val errorsDiff2 = joinedState2.errors.diff(joinedState1.errors)
-////        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: $diff1\nkstore2 - kstore1: $diff2", Logger.U)
-////        Logger.log(s"Graphs are not the same:\n$joinedState1\n$joinedState2", Logger.U)
-//        Logger.log(s"Diff of store:\nstore1 - store2: $diff1\nstore2 - store1: $diff2", Logger.U)
-//        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: $kdiff1\nkstore2 - kstore1: $kdiff2", Logger.U)
-//        Logger.log(s"Diff of errors:\nerrors1 - errors2: $errorsDiff1\nerrors2 - errors1: $errorsDiff2", Logger.U)
-//        Logger.log(s"Graphs are not the same:\n$joinedState1\n$joinedState2", Logger.U)
+////        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: $diff1\nkstore2 - kstore1: $diff2", Logger.E)
+////        Logger.log(s"Graphs are not the same:\n$joinedState1\n$joinedState2", Logger.E)
+//        Logger.log(s"Diff of store:\nstore1 - store2: $diff1\nstore2 - store1: $diff2", Logger.E)
+//        Logger.log(s"Diff of kontstore:\nkstore1 - kstore2: $kdiff1\nkstore2 - kstore1: $kdiff2", Logger.E)
+//        Logger.log(s"Diff of errors:\nerrors1 - errors2: $errorsDiff1\nerrors2 - errors1: $errorsDiff2", Logger.E)
+//        Logger.log(s"Graphs are not the same:\n$joinedState1\n$joinedState2", Logger.E)
 //      }
 //      result
 //    }
@@ -134,7 +134,7 @@
 //            breadthFirst(todo.tail ++ newStates, visited + node)
 //          } else {
 //            Logger.log(s"Number of edges of ${nodeToString(node, graph1)} does not match number of edges of " +
-//              s"${nodeToString(node, graph2)}", Logger.U)
+//              s"${nodeToString(node, graph2)}", Logger.E)
 //            false
 //          }
 //        }

@@ -42,7 +42,7 @@ class RegularScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVariableS
       case _ => false
     }).map({
       case (constraint, constraintTrue) => (constraint, constraintTrue)
-    }).mkString("; ")}", Logger.U)
+    }).mkString("; ")}", Logger.E)
   }
 
   def writeSymbolicTree(path: String): Unit = {
@@ -76,7 +76,7 @@ class AbstractStateScalaAMReporter[State](concolicFlags: ConcolicRunTimeFlags, i
       case _ => false
     }).map({
       case (constraint, constraintTrue, _) => (constraint, constraintTrue)
-    }).mkString("; ")}", Logger.U)
+    }).mkString("; ")}", Logger.E)
   }
 
   def writeSymbolicTree(path: String): Unit = {
@@ -193,7 +193,7 @@ class PartialMatcherScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVa
       Logger.log("Continuing Testing", Logger.E)
     } else {
       if (concolicFlags.useRunTimeAnalyses && inexactInputVars.nonEmpty) {
-        Logger.log("SKIPPING RT ANALYSIS BECAUSE OF AN INEXACT INPUT VARIABLE", Logger.U)
+        Logger.log("SKIPPING RT ANALYSIS BECAUSE OF AN INEXACT INPUT VARIABLE", Logger.E)
       }
       pathStorage.updateReport(optimizedConstraint, thenBranchTaken, None)
       checkWithPartialMatcher
@@ -213,7 +213,7 @@ class PartialMatcherScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVa
       case _ => false
     }).map({
       case (constraint, constraintTrue, _) => (constraint, constraintTrue)
-    }).mkString("; ")}", Logger.U)
+    }).mkString("; ")}", Logger.E)
   }
 
   def writeSymbolicTree(path: String): Unit = {

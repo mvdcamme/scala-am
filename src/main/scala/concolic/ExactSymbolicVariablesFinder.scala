@@ -74,7 +74,7 @@ object ExactSymbolicVariablesFinder {
       val symVal = concolic.lookupVariable(variable, symEnv)
       val optValue = env.lookup(variable).map(store.lookup)
       if (symVal.isDefined && optValue.isDefined) {
-        Logger.log(s"Match for variable $variable, symVal = $symVal, optValue = $optValue", Logger.U)
+        Logger.log(s"Match for variable $variable, symVal = $symVal, optValue = $optValue", Logger.E)
       }
     })
   }
