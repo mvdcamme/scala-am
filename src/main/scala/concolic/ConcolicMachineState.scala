@@ -6,11 +6,29 @@ import ConcreteConcreteLattice.{L => ConcreteValue}
 
 trait ConcolicControl extends Control[SchemeExp, ConcreteValue, HybridAddress.A] {
   override def subsumes(that: Control[SchemeExp, ConcreteValue, HybridAddress.A]): Boolean = false
+  def equalModuloTimestamp[T: CompareTimestampsWithMapping](other: ConcolicControl, mapping: Mapping[T]): Option[Mapping[T]]
 }
 
-case class ConcolicControlEval(exp: SchemeExp, env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment) extends ConcolicControl
-case class ConcolicControlKont(v: ConcreteValue, concolicValue: Option[ConcolicExpression]) extends ConcolicControl
-case class ConcolicControlError(error: SemanticError) extends ConcolicControl
+case class ConcolicControlEval(exp: SchemeExp, env: Environment[HybridAddress.A], symEnv: SymbolicEnvironment) extends ConcolicControl {
+  def equalModuloTimestamp[T: CompareTimestampsWithMapping](other: ConcolicControl, mapping: Mapping[T]): Option[Mapping[T]] = other match {
+    case ConcolicControlEval(exp2, env2, _) if this.exp == exp2 =>
+      this.env.equalModuloTimestamp(env2, mapping)
+    case _ => None
+  }
+}
+case class ConcolicControlKont(v: ConcreteValue, concolicValue: Option[ConcolicExpression]) extends ConcolicControl {
+  def equalModuloTimestamp[T: CompareTimestampsWithMapping](other: ConcolicControl, mapping: Mapping[T]): Option[Mapping[T]] = other match {
+    case ConcolicControlKont(v2, _) =>
+      implicitly[IsSchemeLattice[ConcreteValue]].equalModuloTimestamp(this.v, v2, mapping)(implicitly, HybridAddress.isAddress)
+    case _ => None
+  }
+}
+case class ConcolicControlError(error: SemanticError) extends ConcolicControl {
+  def equalModuloTimestamp[T: CompareTimestampsWithMapping](other: ConcolicControl, mapping: Mapping[T]): Option[Mapping[T]] = other match {
+    case ConcolicControlError(error2) if this.error == error2 => Some(mapping)
+    case _ => None
+  }
+}
 
 case class ConcolicMachineState(control: ConcolicControl, store: Store[HybridAddress.A, ConcreteValue], kstore: KontStore[KontAddr], a: KontAddr, t: HybridTimestamp.T)
   extends ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T]
@@ -91,6 +109,22 @@ case class ConcolicMachineState(control: ConcolicControl, store: Store[HybridAdd
       }
     }
     loop(initialAddress, TimestampedKontStore(Map(), 0))
+  }
+
+  private def kstoreToContStack: List[SchemeConcolicFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]] = {
+    @scala.annotation.tailrec
+    def loop(address: KontAddr, acc: List[SchemeConcolicFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]): List[SchemeConcolicFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]] = {
+      if (address == HaltKontAddress) {
+        acc.reverse
+      } else {
+        val konts = kstore.lookup(address)
+        assert(konts.size == 1) // Concolic machine uses concrete execution, so there should only be one Kont
+        val next = konts.head.next
+        val frame = konts.head.frame.asInstanceOf[SchemeConcolicFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]]
+        loop(next, frame :: acc)
+      }
+    }
+    loop(a, Nil)
   }
 
   private def convertKStore[AbstL: IsConvertableLattice](
@@ -237,14 +271,44 @@ case class ConcolicMachineState(control: ConcolicControl, store: Store[HybridAdd
     val gcedKStore = garbageCollectKStore(kstore, a)
     ConcolicMachineState(control, gcedStore, gcedKStore, a, t)
   }
-
-  def compareStatesModuloConcreteAddressesId(state1: ConcolicMachineState, state2: ConcolicMachineState): Boolean = {
-    ???
-  }
 }
 
 object ConcolicMachineState {
   def inject(exp: SchemeExp, env: Environment[HybridAddress.A], sto: Store[HybridAddress.A, ConcreteValue]): ConcolicMachineState = {
     ConcolicMachineState(ConcolicControlEval(exp, env, concolic.initialSymEnv), sto, TimestampedKontStore[KontAddr](Map(), 0), HaltKontAddress, Timestamp[HybridTimestamp.T].initial(""))
+  }
+
+  def equalModuloTimestamp(state1: ConcolicMachineState, state2: ConcolicMachineState): Boolean = {
+    val kstack1: List[SchemeConcolicFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]] = state1.kstoreToContStack
+    val kstack2: List[SchemeConcolicFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]] = state2.kstoreToContStack
+    type Frame = SchemeConcolicFrame[ConcreteValue, HybridAddress.A, HybridTimestamp.T]
+    if (kstack1.size == kstack2.size) {
+      val solution = for {
+        timeMapping <- implicitly[CompareTimestampsWithMapping[HybridTimestamp.T]].compareWithMapping(state1.t, state2.t, Mapping.initial)
+        aMapping <- KontAddr.equalModuloTimestamp(state1.a, state2.a, timeMapping)
+        controlMapping <- state1.control.equalModuloTimestamp(state2.control, aMapping)
+        kstackMapping <- kstack1.zip(kstack2).foldLeft[Option[Mapping[HybridTimestamp.T]]](Some(controlMapping))((maybeAcc, tuple) => {
+          maybeAcc.flatMap(acc => tuple._1.equalModuloTimestamp(tuple._2, acc))
+        })
+        storeMapping <- state1.store.keys.foldLeft[Option[Mapping[HybridTimestamp.T]]](Some(kstackMapping))((maybeAccMapping, address1) => {
+          val value1 = state1.store.lookup(address1).get
+          maybeAccMapping.flatMap(accMapping => {
+            val maybeUpdatedAcc = state2.store.keys.foldLeft[Option[Mapping[HybridTimestamp.T]]](None)((acc, address2) => {
+              if (acc.isDefined) {
+                acc
+              } else {
+                state2.store.lookup(address2).flatMap(value2 => implicitly[IsSchemeLattice[ConcreteValue]].equalModuloTimestamp[HybridTimestamp.T, HybridAddress.A](value1, value2, accMapping)(implicitly, HybridAddress.isAddress))
+              }
+            })
+            maybeUpdatedAcc
+          })
+        })
+      } yield {
+        storeMapping
+      }
+      solution.isDefined
+    } else {
+      false
+    }
   }
 }

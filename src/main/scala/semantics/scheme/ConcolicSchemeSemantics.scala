@@ -6,7 +6,7 @@ import concolic.SymbolicEnvironment
 /**
   * Basic Scheme semantics, without any optimization
   */
-class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp, PCElementUsed](val primitives: Primitives[Addr, ConcreteValue])
+class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp: CompareTimestampsWithMapping, PCElementUsed](val primitives: Primitives[Addr, ConcreteValue])
   extends ConvertableSemantics[SchemeExp, ConcreteValue, Addr, Time]()(Expression[SchemeExp], ConcreteConcreteLattice.isSchemeLattice, Address[Addr], Timestamp[Time]) {
 
   implicit val abs: JoinLattice[ConcreteValue] = ConcreteConcreteLattice.isSchemeLattice

@@ -1,7 +1,6 @@
 import concolic.SymbolicEnvironment
 
 abstract class ConvertableSchemeFrame[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp] extends Frame {
-  type Address = Addr
   val sabs = implicitly[IsSchemeLattice[Abs]]
   override def toString = s"${this.getClass.getSimpleName}"
   def convert[OtherAbs: IsSchemeLattice](convertValue: (Abs) => OtherAbs,

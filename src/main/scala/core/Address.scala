@@ -6,6 +6,7 @@ trait Address[A] {
   def cell[Exp : Expression, Time : Timestamp](exp: Exp, t: Time): A
   def botAddress: A = primitive("__bottom__")
   def allocationSite[Exp : Expression](a: A): Option[Either[Position, Position]]
+  def equalModuloTimestamp[T: CompareTimestampsWithMapping](address1: A, address2: A, mapping: Mapping[T]): Option[Mapping[T]]
 }
 
 object Address {
@@ -43,6 +44,14 @@ object ClassicalAddress extends AddressWrapper {
       case VariableAddress(id, _) => Some(Left(id.pos))
       case CellAddress(exp: Exp @unchecked, _) => Some(Right(Expression[Exp].pos(exp)))
     }
+    def equalModuloTimestamp[T: CompareTimestampsWithMapping](address1: A, address2: A, mapping: Mapping[T]): Option[Mapping[T]] = (address1, address2) match {
+      case (VariableAddress(id1, t1: T), VariableAddress(id2, t2: T)) if id1 == id2 =>
+        implicitly[CompareTimestampsWithMapping[T]].compareWithMapping(t1, t2, mapping)
+      case (CellAddress(exp1, t1: T), CellAddress(exp2, t2: T)) if exp1 == exp2 =>
+        implicitly[CompareTimestampsWithMapping[T]].compareWithMapping(t1, t2, mapping)
+      case (pa1: PrimitiveAddress, pa2: PrimitiveAddress) if pa1 == pa2 => Some(mapping)
+      case _ => None
+    }
   }
 }
 
@@ -76,6 +85,14 @@ object ValueSensitiveAddress extends AddressWrapper {
       case VariableAddress(id, _, _) => Some(Left(id.pos))
       case CellAddress(exp: Exp @unchecked, _) => Some(Right(Expression[Exp].pos(exp)))
     }
+    def equalModuloTimestamp[T: CompareTimestampsWithMapping](address1: A, address2: A, mapping: Mapping[T]): Option[Mapping[T]] = (address1, address2) match {
+      case (VariableAddress(id1, value1, t1: T), VariableAddress(id2, value2, t2: T)) if id1 == id2 && value1 == value2 =>
+        implicitly[CompareTimestampsWithMapping[T]].compareWithMapping(t1, t2, mapping)
+      case (CellAddress(exp1, t1: T), CellAddress(exp2, t2: T)) if exp1 == exp2 =>
+        implicitly[CompareTimestampsWithMapping[T]].compareWithMapping(t1, t2, mapping)
+      case (pa1: PrimitiveAddress, pa2: PrimitiveAddress) if pa1 == pa2 => Some(mapping)
+      case _ => None
+    }
   }
 }
 
@@ -106,6 +123,14 @@ object HybridAddress extends AddressWrapper {
     def allocationSite[Exp : Expression](a: A) = a match {
       case PrimitiveAddress(_) => None
       case HybridAddr(a) => abstractAddress.allocationSite(a)
+    }
+    def equalModuloTimestamp[T: CompareTimestampsWithMapping](address1: A, address2: A, mapping: Mapping[T]): Option[Mapping[T]] = (address1, address2) match {
+      case (HybridAddr(ClassicalAddress.CellAddress(exp1, t1: T)), HybridAddr(ClassicalAddress.CellAddress(exp2, t2: T))) if exp1 == exp2 =>
+        implicitly[CompareTimestampsWithMapping[T]].compareWithMapping(t1, t2, mapping)
+      case (HybridAddr(ClassicalAddress.VariableAddress(id1, t1: T)), HybridAddr(ClassicalAddress.VariableAddress(id2, t2: T))) if id1 == id2 =>
+        implicitly[CompareTimestampsWithMapping[T]].compareWithMapping(t1, t2, mapping)
+      case (pa1: PrimitiveAddress, pa2: PrimitiveAddress) if pa1 == pa2 => Some(mapping)
+      case _ => None
     }
   }
 }

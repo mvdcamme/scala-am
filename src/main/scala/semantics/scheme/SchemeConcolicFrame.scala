@@ -12,9 +12,10 @@ sealed trait ConcolicFrame extends Frame {
 sealed trait SchemeConcolicFrame[Abs, Addr, Time] extends ConcolicFrame {
   def env: Environment[Addr]
   def symEnv: SymbolicEnvironment
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]]
 }
 
-case class FrameConcolicFuncallOperator[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
+case class FrameConcolicFuncallOperator[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp: CompareTimestampsWithMapping](
   fexp: SchemeExp,
   args: List[SchemeExp],
   env: Environment[Addr],
@@ -26,9 +27,14 @@ case class FrameConcolicFuncallOperator[Abs: IsSchemeLattice, Addr: Address, Tim
     FrameFuncallOperator(fexp, args, convertEnv(env))
   def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = envReaches(env, symEnv)
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+      /* Don't compare the symbolic environments because those might also be different between two states from different concrete executions. */
+    case FrameConcolicFuncallOperator(fexp2, args2, env2, _) if this.fexp == fexp2 && this.args == args2 => this.env.equalModuloTimestamp[Time](env2, mapping)
+    case _ => None
+  }
 }
 
-case class FrameConcolicFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
+case class FrameConcolicFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp: CompareTimestampsWithMapping](
   f: Abs,
   fexp: SchemeExp,
   cur: SchemeExp,
@@ -69,9 +75,24 @@ case class FrameConcolicFuncallOperands[Abs: IsSchemeLattice, Addr: Address, Tim
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     valueReaches(f) ++ args.foldLeft(Reached.empty[Addr])((acc, arg) => acc ++ valueReaches(arg._2)) ++ envReaches(env, symEnv)
   }
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+    /* Don't compare the symbolic environments because those might also be different between two states from different concrete executions. */
+    case FrameConcolicFuncallOperands(f2, fexp2, cur2, args2, toeval2, env2, _)
+         if this.fexp == fexp2 && this.cur == cur2 && this.args.map(_._1) == args2.map(_._1) && this.toeval == toeval2 =>
+      for {
+        fMapping <- implicitly[IsSchemeLattice[Abs]].equalModuloTimestamp[Time, Addr](this.f, f2, mapping)
+        argsMapping <- this.args.zip(args2).foldLeft[Option[Mapping[Time]]](Some(fMapping))({
+          case (accMapping, ((_, arg1, _), (_, arg2, _))) => accMapping.flatMap(implicitly[IsSchemeLattice[Abs]].equalModuloTimestamp[Time, Addr](arg1, arg2, _))
+        })
+        envMapping <- this.env.equalModuloTimestamp[Time](env2, argsMapping)
+      } yield {
+        envMapping
+      }
+    case _ => None
+  }
 }
 
-case class FrameConcolicIf[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
+case class FrameConcolicIf[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp: CompareTimestampsWithMapping](
   cons: SchemeExp,
   alt: SchemeExp,
   env: Environment[Addr],
@@ -92,9 +113,14 @@ case class FrameConcolicIf[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp]
 
   def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = envReaches(env, symEnv)
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+    case FrameConcolicIf(cons2, alt2, env2, _, ifExp2) if this.cons == cons2 && this.alt == alt2 && this.ifExp == ifExp2 =>
+      this.env.equalModuloTimestamp[Time](env2, mapping)
+    case _ => None
+  }
 }
 
-case class FrameConcolicLet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
+case class FrameConcolicLet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp: CompareTimestampsWithMapping](
   variable: Identifier,
   bindings: List[(Identifier, Abs, Option[ConcolicExpression])],
   toeval: List[(Identifier, SchemeExp)],
@@ -116,9 +142,22 @@ case class FrameConcolicLet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp
     addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     bindings.foldLeft(Reached.empty[Addr])((acc, binding) => acc ++ valueReaches(binding._2)) ++ envReaches(env, symEnv)
   }
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+    case FrameConcolicLet(variable2, bindings2, toeval2, body2, env2, _)
+         if this.variable == variable2 && this.bindings.map(_._1) == bindings2.map(_._1) && this.toeval == toeval2 && this.body == body2 =>
+      for {
+        bindingsMapping <- this.bindings.zip(bindings2).foldLeft[Option[Mapping[Time]]](Some(mapping))({
+          case (accMapping, ((_, value1, _), (_, value2, _))) => accMapping.flatMap(implicitly[IsSchemeLattice[Abs]].equalModuloTimestamp[Time, Addr](value1, value2, _))
+        })
+        envMapping <- this.env.equalModuloTimestamp[Time](env2, bindingsMapping)
+      } yield {
+        envMapping
+      }
+    case _ => None
+  }
 }
 
-case class FrameConcolicLetStar[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
+case class FrameConcolicLetStar[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp: CompareTimestampsWithMapping](
   variable: Identifier,
   bindings: List[(Identifier, SchemeExp)],
   body: List[SchemeExp],
@@ -135,9 +174,14 @@ case class FrameConcolicLetStar[Abs: IsSchemeLattice, Addr: Address, Time: Times
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     envReaches(env, symEnv)
   }
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+    case FrameConcolicLetStar(variable2, bindings2, body2, env2, _) if this.variable == variable2 && this.bindings == bindings2 && this.body == body2 =>
+      this.env.equalModuloTimestamp[Time](env2, mapping)
+    case _ => None
+  }
 }
 
-case class FrameConcolicLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
+case class FrameConcolicLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp: CompareTimestampsWithMapping](
   addr: Addr,
   variable: Identifier,
   bindings: List[(Addr, Identifier, SchemeExp)],
@@ -161,9 +205,20 @@ case class FrameConcolicLetrec[Abs: IsSchemeLattice, Addr: Address, Time: Timest
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     addressReaches(addr) ++ envReaches(env, symEnv)
   }
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+    case FrameConcolicLetrec(addr2, variable2, bindings2, body2, env2, _)
+         if this.variable == variable2 && this.bindings == bindings2 && this.body == body2 =>
+      for {
+        addrMapping <- implicitly[Address[Addr]].equalModuloTimestamp(this.addr, addr2, mapping)
+        envMapping <- this.env.equalModuloTimestamp[Time](env2, addrMapping)
+      } yield {
+        envMapping
+      }
+    case _ => None
+  }
 }
 
-case class FrameConcolicSet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
+case class FrameConcolicSet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp: CompareTimestampsWithMapping](
   variable: Identifier,
   env: Environment[Addr],
   symEnv: SymbolicEnvironment)
@@ -178,9 +233,13 @@ case class FrameConcolicSet[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     envReaches(env, symEnv)
   }
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+    case FrameConcolicSet(variable2, env2, _) if this.variable == variable2 => this.env.equalModuloTimestamp[Time](env2, mapping)
+    case _ => None
+  }
 }
 
-case class FrameConcolicBegin[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
+case class FrameConcolicBegin[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp: CompareTimestampsWithMapping](
   rest: List[SchemeExp],
   env: Environment[Addr],
   symEnv: SymbolicEnvironment)
@@ -193,9 +252,13 @@ case class FrameConcolicBegin[Abs: IsSchemeLattice, Addr: Address, Time: Timesta
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     envReaches(env, symEnv)
   }
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+    case FrameConcolicBegin(rest2, env2, _) if this.rest == rest2 => this.env.equalModuloTimestamp[Time](env2, mapping)
+    case _ => None
+  }
 }
 
-case class FrameConcolicCond[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
+case class FrameConcolicCond[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp: CompareTimestampsWithMapping](
   cons: List[SchemeExp],
   clauses: List[(SchemeExp, List[SchemeExp])],
   env: Environment[Addr],
@@ -209,9 +272,14 @@ case class FrameConcolicCond[Abs: IsSchemeLattice, Addr: Address, Time: Timestam
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     envReaches(env, symEnv)
   }
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+    case FrameConcolicCond(cons2, clauses2, env2, _) if this.cons == cons2 && this.clauses == clauses2 =>
+      this.env.equalModuloTimestamp[Time](env2, mapping)
+    case _ => None
+  }
 }
 
-case class FrameConcolicCase[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
+case class FrameConcolicCase[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp: CompareTimestampsWithMapping](
   clauses: List[(List[SchemeValue], List[SchemeExp])],
   default: List[SchemeExp],
   env: Environment[Addr],
@@ -225,9 +293,14 @@ case class FrameConcolicCase[Abs: IsSchemeLattice, Addr: Address, Time: Timestam
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     envReaches(env, symEnv)
   }
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+    case FrameConcolicCase(clauses2, default2, env2, _) if this.clauses == clauses2 && this.default == default2 =>
+      this.env.equalModuloTimestamp[Time](env2, mapping)
+    case _ => None
+  }
 }
 
-case class FrameConcolicDefine[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp](
+case class FrameConcolicDefine[Abs: IsSchemeLattice, Addr: Address, Time: Timestamp: CompareTimestampsWithMapping](
   variable: Identifier,
   env: Environment[Addr],
   symEnv: SymbolicEnvironment)
@@ -239,5 +312,10 @@ case class FrameConcolicDefine[Abs: IsSchemeLattice, Addr: Address, Time: Timest
   def reaches(valueReaches: Abs => Reached[Addr], envReaches: (Environment[Addr], SymbolicEnvironment) => Reached[Addr],
               addressReaches: Addr => Reached[Addr]): Reached[Addr] = {
     envReaches(env, symEnv)
+  }
+  def equalModuloTimestamp(other: SchemeConcolicFrame[Abs, Addr, Time], mapping: Mapping[Time]): Option[Mapping[Time]] = other match {
+    case FrameConcolicDefine(variable2, env2, _) if this.variable == variable2 =>
+      this.env.equalModuloTimestamp[Time](env2, mapping)
+    case _ => None
   }
 }
