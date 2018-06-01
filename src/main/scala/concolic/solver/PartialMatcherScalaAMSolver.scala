@@ -3,12 +3,13 @@ import backend.path_filtering.PartialRegexMatcher
 import backend.solvers._
 import backend.tree._
 import backend.tree.search_strategy.BreadthFirstSearch
+import backend.expression.ConcolicInput
 
 class PartialMatcherSolver extends ScalaAMSolver[PartialMatcherPCElement, PartialRegexMatcher] {
 
   val backendReporter: Reporter[PartialRegexMatcher, PathConstraintWithMatchers] = new PartialMatcherReporter
 
-  def getRoot: SymbolicNode[PartialRegexMatcher] = backendReporter.getRoot.get
+  def getRoot: Option[SymbolicNode[PartialRegexMatcher]] = backendReporter.getRoot
   def deleteSymbolicTree(): Unit = backendReporter.deleteSymbolicTree()
   def clearBackendReporter(): Unit = backendReporter.clear()
 
@@ -28,12 +29,16 @@ class PartialMatcherSolver extends ScalaAMSolver[PartialMatcherPCElement, Partia
     case list => list
   }
 
-  def solve(pathConstraint: PathConstraintWithMatchers): Boolean = {
-    backendReporter.writeSymbolicTree("tree.dot")
+  def solve(pathConstraint: PathConstraintWithMatchers, shouldMerge: Boolean): Boolean = {
     resetInputs()
     val initialPartialMatcher = PartialMatcherStore.getInitial.get
     val patchedPathConstraint = patchInitialPartialMatcher(pathConstraint, initialPartialMatcher)
-    backendReporter.addExploredPath(patchedPathConstraint)
+    if (shouldMerge) {
+      backendReporter.mergePath(patchedPathConstraint)
+    } else {
+      backendReporter.addExploredPath(patchedPathConstraint)
+    }
+    backendReporter.writeSymbolicTree("tree.dot")
     val result = solveViaBackend(backendReporter.getRoot.get, new BreadthFirstSearch[PartialRegexMatcher])
     result match {
       case NewInput(inputs) =>
@@ -43,4 +48,17 @@ class PartialMatcherSolver extends ScalaAMSolver[PartialMatcherPCElement, Partia
     }
   }
 
+}
+
+class MockPartialMatcherSolver extends PartialMatcherSolver {
+
+  private var mockInputs: List[List[(ConcolicInput, Int)]] = List(List((ConcolicInput(0), 2), (ConcolicInput(1), 1), (ConcolicInput(2), 0)), List((ConcolicInput(0), 0), (ConcolicInput(1), 1), (ConcolicInput(2), 2)))
+
+  override def solve(pathConstraint: PathConstraintWithMatchers, shouldMerge: Boolean): Boolean = mockInputs match {
+    case head :: rest =>
+      latestInputs = head
+      mockInputs = rest
+      true
+    case Nil => false
+  }
 }

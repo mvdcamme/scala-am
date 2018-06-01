@@ -1,0 +1,25 @@
+;(define lst '(0 0 0 1 1 1 2 2))
+;(define (random x)
+;  (define temp (car lst))
+;  (set! lst (cdr lst))
+;  temp)
+
+; (* 2 2 2 3 3 3 5 5 5 5)
+(define number-to-reach (* 2 2 2 3 3 3 5 5))
+(define down 0)
+(define left 1)
+(define right 2)
+
+(define (act x)
+  (define rt (random 2))
+  (cond ((= rt down) (* x 2))
+        ((= rt left) (* x 3))
+        ((= rt right) (* x 5))
+        (else (#f rt))))
+
+(define (loop n acc)
+  (cond ((< n 0) 'ok)
+        ((= acc number-to-reach) (error "got there"))
+        (else (loop (- n 1) (act acc)))))
+
+(loop 10 1)

@@ -37,7 +37,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
 
   def analyze(toDot: Option[String], sem: ConvertableSemantics[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T],
               startState: aam.InitialState, isInitial: Boolean, stepSwitched: Option[Int]): aam.AAMOutput = {
-    Logger.log("Starting static points-to analysis", Logger.I)
+    Logger.I("Starting static points-to analysis")
     val result = aam.kickstartEval(startState, sem, None, Timeout.none, stepSwitched)
     toDot.foreach(result.toFile)
     result
@@ -48,7 +48,7 @@ class PointsToAnalysisLauncher[Abs: IsConvertableLattice: LatticeInfoProvider](
     wrapRunAnalysis(
       () => {
         val result = analyze(toDotFile, abstSem, startState.asInstanceOf[aam.InitialState], isInitialAnalysis, stepSwitched)
-        Logger.log(s"Static points-to analysis result is $result", Logger.E)
+        Logger.E(s"Static points-to analysis result is $result")
         /* The .asInstanceOf isn't actually required (the code also compiles without the cast), but Intellij seems unable to correctly infer the type */
         result.asInstanceOf[AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, SpecState]]
       })

@@ -3,9 +3,9 @@ import java.util.concurrent.TimeUnit
 import Util._
 
 import scala.concurrent.duration.FiniteDuration
-import backend.RegularPCElement
-import abstract_state_heuristic.AbstractStatePCElement
+import backend.{PartialMatcherPCElement, RegularPCElement}
 import backend.path_filtering.PartialRegexMatcher
+import backend.tree.{Constraint, SymbolicNode}
 
 /**
  * Before looking at this, we recommend seeing how to use this framework. A
@@ -75,9 +75,7 @@ object Main {
     (result.numberOfStates, result.time)
   }
 
-  def main(args: Array[String]) {
-    def newTimeout = Timeout.start(new FiniteDuration(200, TimeUnit.SECONDS))
-    val concolicFlags = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), true, true)
+  def main(args: Array[String]): Unit = {
     Config.parser.parse(args, Config.Config()).foreach(config => {
       val lattice: SchemeLattice = config.lattice match {
           case Config.Lattice.Concrete => new MakeSchemeLattice[Concrete.S, Concrete.B, Concrete.I, Concrete.F, Concrete.C, Concrete.Sym](config.counting)
@@ -176,30 +174,36 @@ object Main {
           implicit val CCLatInfoProv = ConcreteConcreteLattice.latticeInfoProvider
 
           runOnFile(config.file.get, program => {
-            val abstSem = new ConvertableSchemeSemantics[pointsToLattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, pointsToLattice.L](None))
-            val inputVariableStore = new InputVariableStore
-            val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.L](abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
-            val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, AbstractStatePCElement[PartialRegexMatcher]](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](Some(inputVariableStore)))
-            val reporter = new PartialMatcherScalaAMReporter(concolicFlags, inputVariableStore)
-            val machine = new ConcolicMachine[pointsToLattice.L, AbstractStatePCElement[PartialRegexMatcher], PartialRegexMatcher](pointsToAnalysisLauncher, config.analysisFlags, reporter, concolicFlags)
-            machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined)
-            val root1 = reporter.solver.getRoot
-            reporter.solver.deleteSymbolicTree()
+            val abstSem = new ConvertableBaseSchemeSemantics[pointsToLattice.lattice.L, HybridAddress.A, HybridTimestamp.T](new SchemePrimitives[HybridAddress.A, pointsToLattice.lattice.L](None))
+            def newTimeout: Timeout = Timeout.start(new FiniteDuration(86400, TimeUnit.SECONDS))
 
-            Logger.log("####### SWITCHING TO BASELINE ######", Logger.E)
+            def runTester[PCElementUsed, NodeExtraInfo](concolicFlags: ConcolicRunTimeFlags,
+                                                        createReporter: (ConcolicRunTimeFlags, InputVariableStore) => BaseScalaAMReporter[PCElementUsed, NodeExtraInfo]): Option[SymbolicNode[NodeExtraInfo]] = {
+              val inputVariableStore = new InputVariableStore
+              val pointsToAnalysisLauncher = new PointsToAnalysisLauncher[pointsToLattice.lattice.L](abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
+              val sem = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, PCElementUsed](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](Some(inputVariableStore)))
+              val reporter = createReporter(concolicFlags, inputVariableStore)
+              val machine = new ConcolicMachine[pointsToLattice.lattice.L, PCElementUsed, NodeExtraInfo](pointsToAnalysisLauncher, config.analysisFlags, reporter, concolicFlags)
+              machine.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem.parse(program), sem, config.dotfile.isDefined)
+              val root = reporter.solver.getRoot
+              reporter.solver.deleteSymbolicTree()
+              root
+            }
 
-            val concolicFlags2 = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), false, false)
-            val inputVariableStore2 = new InputVariableStore
-            val reporter2 = new RegularScalaAMReporter(concolicFlags2, inputVariableStore2)
-            val sem2 = new ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, RegularPCElement](new SchemePrimitives[HybridAddress.A, ConcreteConcreteLattice.L](Some(inputVariableStore2)))
-            val pointsToAnalysisLauncher2 = new PointsToAnalysisLauncher[pointsToLattice.L](abstSem)(pointsToConvLattice, pointsToLatInfoProv, config.analysisFlags)
-            val machine2 = new ConcolicMachine[pointsToLattice.L, RegularPCElement, Unit](pointsToAnalysisLauncher2, config.analysisFlags, reporter2, concolicFlags2)
-            machine2.concolicEval(GlobalFlags.CURRENT_PROGRAM, sem2.parse(program), sem2, config.dotfile.isDefined)
-            val root2 = reporter2.solver.getRoot
-            println(s"Comparison: ${CompareSymbolicTrees.countUniqueSafePaths(root1, root2)} illegalized paths in second tree vs first tree")
-            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonSafePaths(root1, root2)} non-illegalized paths in second tree vs first tree")
-            println(s"Comparison: ${CompareSymbolicTrees.countUniqueSafePaths(root2, root1)} illegalized paths in first tree vs second tree")
-            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonSafePaths(root2, root1)} illegalized paths in first tree vs second tree")
+            val concolicFlags1 = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), true, false, true)
+            val root1: Option[SymbolicNode[PartialRegexMatcher]] = runTester[PartialMatcherPCElement, PartialRegexMatcher](concolicFlags1, (flags, inputVariableStore) => new PartialMatcherScalaAMReporter(flags, inputVariableStore))
+            assert(root1.isDefined)
+            val checkedRoot = CheckSymbolicExecutionTree.check(root1.get)
+            Logger.U(s"##### RESULT OF CHECKING ROOT IS $checkedRoot #####")
+//            Logger.E("####### SWITCHING TO BASELINE ######")
+
+//            val concolicFlags2 = ConcolicRunTimeFlags(ConcolicTimeout(newTimeout), false, false, true)
+//            val root2 = runTester[RegularPCElement, Unit](concolicFlags2, (flags, inputVariableStore) => new RegularScalaAMReporter(flags, inputVariableStore))
+//
+//            println(s"Comparison: ${CompareSymbolicTrees.countUniqueSafePaths(root1, root2)} illegalized paths in second tree vs first tree")
+//            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonSafePaths(root1, root2)} non-illegalized paths in second tree vs first tree")
+//            println(s"Comparison: ${CompareSymbolicTrees.countUniqueSafePaths(root2, root1)} illegalized paths in first tree vs second tree")
+//            println(s"Comparison: ${CompareSymbolicTrees.countUniqueNonSafePaths(root2, root1)} illegalized paths in first tree vs second tree")
           })
       }
     })

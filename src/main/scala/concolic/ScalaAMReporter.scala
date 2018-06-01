@@ -7,6 +7,7 @@ import backend.tree.path._
 import abstract_state_heuristic.AbstractStatePCElement
 
 case object AbortConcolicIterationException extends Exception
+case object MergeExecutionPath extends Exception
 
 trait ScalaAMReporter[PCElement, NodeExtraInfo] {
   val pathStorage = new PathStorage[PCElement]
@@ -16,7 +17,7 @@ trait ScalaAMReporter[PCElement, NodeExtraInfo] {
   def inputVariableStore: InputVariableStore
   def clear(newInputs: List[(ConcolicInput, Int)]): Unit
 
-  def addBranchConstraint[RTInitialState](constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter[RTInitialState]): Unit
+  def addBranchConstraint[RTInitialState](constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter[RTInitialState, _]): Unit
   def addUnusableConstraint(thenBranchTaken: Boolean): Unit
 
   def printReports(): Unit
@@ -28,6 +29,7 @@ abstract class BaseScalaAMReporter[PCElement, NodeExtraInfo](val concolicFlags: 
   def clear(newInputs: List[(ConcolicInput, Int)]): Unit = {
     inputVariableStore.reset(newInputs)
     pathStorage.resetCurrentPath()
+    pathStorage.resetNonTriviallyCurrentPath()
     pathStorage.resetCurrentReport()
     GlobalSymbolicStore.reset()
     solver.clearBackendReporter()
@@ -37,19 +39,19 @@ abstract class BaseScalaAMReporter[PCElement, NodeExtraInfo](val concolicFlags: 
 class RegularScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVariableStore: InputVariableStore) extends BaseScalaAMReporter[RegularPCElement, Unit](concolicFlags, new RegularScalaAMSolver, inputVariableStore) {
 
   def printReports(): Unit = {
-    Logger.log(s"Reporter recorded path: ${pathStorage.getCurrentReport.filter({
+    Logger.E(s"Reporter recorded path: ${pathStorage.getCurrentReport.filter({
       case (_: BranchConstraint, _) => true
       case _ => false
     }).map({
       case (constraint, constraintTrue) => (constraint, constraintTrue)
-    }).mkString("; ")}", Logger.E)
+    }).mkString("; ")}")
   }
 
   def writeSymbolicTree(path: String): Unit = {
     Reporter.writeSymbolicTree(path)
   }
 
-  def addBranchConstraint[RTInitialState](constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter[RTInitialState]): Unit = {
+  def addBranchConstraint[RTInitialState](constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter[RTInitialState, _]): Unit = {
     val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
     if (ConstraintOptimizer.isConstraintConstant(optimizedConstraint)) {
       /*
@@ -71,19 +73,19 @@ class RegularScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVariableS
 class AbstractStateScalaAMReporter[State](concolicFlags: ConcolicRunTimeFlags, inputVariableStore: InputVariableStore) extends BaseScalaAMReporter[AbstractStatePCElement[State], State](concolicFlags, new AbstractStateSolver[State], inputVariableStore) {
 
   def printReports(): Unit = {
-    Logger.log(s"Reporter recorded path: ${pathStorage.getCurrentReport.filter({
+    Logger.E(s"Reporter recorded path: ${pathStorage.getCurrentReport.filter({
       case (_: BranchConstraint, _, _) => true
       case _ => false
     }).map({
       case (constraint, constraintTrue, _) => (constraint, constraintTrue)
-    }).mkString("; ")}", Logger.E)
+    }).mkString("; ")}")
   }
 
   def writeSymbolicTree(path: String): Unit = {
     Reporter.writeSymbolicTree(path)
   }
 
-  def addBranchConstraint[RTInitialState](constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter[RTInitialState]): Unit = {
+  def addBranchConstraint[RTInitialState](constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter[RTInitialState, _]): Unit = {
     val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
     if (ConstraintOptimizer.isConstraintConstant(optimizedConstraint)) {
       /*
@@ -116,7 +118,7 @@ class PartialMatcherScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVa
   }
 
   private def testCurrentPath: (Boolean, PartialRegexMatcher) = {
-    Logger.log(s"Current pathstring is ${pathToString(pathStorage.getCurrentPath)}", Logger.V)
+    Logger.V(s"Current pathstring is ${pathToString(pathStorage.getCurrentPath)}")
     val (matched, newPartialMatcher) = PartialMatcherStore.getCurrent.get.incrementalMatch(pathStorage.getCurrentPath)
     (matched, newPartialMatcher)
   }
@@ -135,7 +137,7 @@ class PartialMatcherScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVa
   }
 
   private def abortConcolicIteration(): Unit = {
-    Logger.log("Execution no longer follows an errorpath, aborting this concolic run", Logger.E)
+    Logger.E("Execution no longer follows an errorpath, aborting this concolic run")
     throw AbortConcolicIterationException
   }
 
@@ -160,7 +162,7 @@ class PartialMatcherScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVa
     partialMatcher
   }
 
-  def addBranchConstraint[RTInitialState](constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter[RTInitialState]): Unit = {
+  def addBranchConstraint[RTInitialState](constraint: BranchConstraint, thenBranchTaken: Boolean, rTAnalysisStarter: RTAnalysisStarter[RTInitialState, _]): Unit = {
 
     val optimizedConstraint = ConstraintOptimizer.optimizeConstraint(constraint)
     lazy val constraintAddedPC = pathStorage.addToReport((optimizedConstraint, thenBranchTaken, None))
@@ -173,8 +175,8 @@ class PartialMatcherScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVa
        * via static analyses, which don't (or can't) check whether some condition is constant or not.
        */
       addUnusableConstraint(thenBranchTaken)
-    } else if (inexactInputVars.isEmpty) {
-      Logger.log(s"EXACT INPUT VARIABLES IN PATH ARE $exactInputVars", Logger.E)
+    } else if (concolicFlags.checkRunTimeAnalysis && inexactInputVars.isEmpty) {
+      Logger.E(s"EXACT INPUT VARIABLES IN PATH ARE $exactInputVars")
       val analysisResult = rTAnalysisStarter.startAnalysisFromCurrentState(thenBranchTaken, constraintAddedPC)
       /*
        * PartialMatcherStore's current matcher now refers to a matcher starting from *after* this constraint.
@@ -190,10 +192,10 @@ class PartialMatcherScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVa
       if (! analysisResult.shouldContinueTesting) {
         abortConcolicIteration()
       }
-      Logger.log("Continuing Testing", Logger.E)
+      Logger.E("Continuing Testing")
     } else {
       if (concolicFlags.useRunTimeAnalyses && inexactInputVars.nonEmpty) {
-        Logger.log("SKIPPING RT ANALYSIS BECAUSE OF AN INEXACT INPUT VARIABLE", Logger.E)
+        Logger.E("SKIPPING RT ANALYSIS BECAUSE OF AN INEXACT INPUT VARIABLE")
       }
       pathStorage.updateReport(optimizedConstraint, thenBranchTaken, None)
       checkWithPartialMatcher
@@ -208,12 +210,12 @@ class PartialMatcherScalaAMReporter(concolicFlags: ConcolicRunTimeFlags, inputVa
   }
 
   def printReports(): Unit = {
-    Logger.log(s"Reporter recorded path: ${pathStorage.getCurrentReport.filter({
+    Logger.E(s"Reporter recorded path: ${pathStorage.getCurrentReport.filter({
       case (_: BranchConstraint, _, _) => true
       case _ => false
     }).map({
       case (constraint, constraintTrue, _) => (constraint, constraintTrue)
-    }).mkString("; ")}", Logger.E)
+    }).mkString("; ")}")
   }
 
   def writeSymbolicTree(path: String): Unit = {

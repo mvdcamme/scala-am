@@ -1,13 +1,13 @@
 import backend._
-import backend.path_filtering.PartialRegexMatcher
-import backend.tree.Constraint
 
 class PathStorage[PCElement] {
 
   private var currentPath: Path = Nil
+  private var nonTriviallyResettablePath: Path = Nil
   private var currentReport: PathConstraintWith[PCElement] = Nil
 
   def getCurrentPath: Path = currentPath.reverse /* Elements were added in reverse order, so reverse list now. */
+  def getNonTriviallyResettablePath: Path = nonTriviallyResettablePath.reverse
 
   /**
     * Adds an element to the current path, without actually replacing the current path.
@@ -17,10 +17,14 @@ class PathStorage[PCElement] {
   def addToPath(thenBranchTaken: Boolean): Path = {
     /* New path symbols are added in reverse order, i.e., to the front, for performance reasons. */
     val newPathElement = if (thenBranchTaken) backend.tree.path.ThenBranchTaken else backend.tree.path.ElseBranchTaken
+    nonTriviallyResettablePath = newPathElement :: nonTriviallyResettablePath
     newPathElement :: currentPath
   }
   def resetCurrentPath(): Unit = {
     currentPath = Nil
+  }
+  def resetNonTriviallyCurrentPath(): Unit = {
+    nonTriviallyResettablePath = Nil
   }
 
   /**

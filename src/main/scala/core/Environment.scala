@@ -1,3 +1,5 @@
+import ConcreteConcreteLattice.{L => ConcreteValue}
+
 abstract class Environment[Addr: Address] {
 
   /** Gets all the keys of the environment */
@@ -27,12 +29,30 @@ abstract class Environment[Addr: Address] {
   def map(f: Addr => Addr): Environment[Addr]
 
   /** Checks whether this environment equals the other, modulo exact values for timestamps */
-  def equalModuloTimestamp[T: CompareTimestampsWithMapping](other: Environment[Addr], mapping: Mapping[T]): Option[Mapping[T]] = {
-    keys.foldLeft[Option[Mapping[T]]](Some(mapping))({
-      case (accMapping, variable) =>
-        val address = lookup(variable).get /* Should definitely exist because we're looping over its key. */
-        accMapping.flatMap(mapping => other.lookup(variable).flatMap(implicitly[Address[Addr]].equalModuloTimestamp[T](_, address, mapping)))
-    })
+  def equalModuloTimestamp[T: CompareTimestampsWithMapping](other: Environment[Addr], shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue],
+                                                            otherStore: Store[Addr, ConcreteValue], mapping: Mapping[T]): Option[Mapping[T]] = {
+    if (keys != other.keys) {
+      None
+    } else {
+      keys.foldLeft[Option[Mapping[T]]](Some(mapping))({
+        case (accMapping, variable) =>
+          for {
+            address <- lookup(variable) /* Should definitely exist because we're looping over its key. */
+            otherAddress <- other.lookup(variable)
+            addressMapping <- accMapping.flatMap(mapping => implicitly[Address[Addr]].equalModuloTimestamp[T](address, otherAddress, mapping))
+            finalMapping <- if (shouldCheck.hasCheckedAddress(address)) {
+              Some(addressMapping)
+            } else {
+              shouldCheck.addCheckedAddress(address)
+              for {
+                value <- store.lookup(address)
+                otherValue <- otherStore.lookup(otherAddress)
+                valueMapping <- implicitly[IsSchemeLattice[ConcreteValue]].equalModuloTimestamp(value, otherValue, shouldCheck, store, otherStore, addressMapping)
+              } yield valueMapping
+            }
+          } yield finalMapping
+      })
+    }
   }
 }
 

@@ -54,8 +54,14 @@ object Logger {
     }
   }
 
-  def log(messageObject: => Object, messageLevel: LogLevel.Value): Unit = {
-    internalLog(messageObject.toString, messageLevel)
+  def log(message: => Any, messageLevel: LogLevel.Value): Unit = {
+    internalLog(message.toString, messageLevel)
   }
+  def D(message: => Any): Unit = log(message, D)
+  def V(message: => Any): Unit = log(message, V)
+  def I(message: => Any): Unit = log(message, I)
+  def E(message: => Any): Unit = log(message, E)
+  def U(message: => Any): Unit = log(message, U)
+  /* We don't define a method for the N-level, since that level is not intended to actually log messages in. */
 
 }

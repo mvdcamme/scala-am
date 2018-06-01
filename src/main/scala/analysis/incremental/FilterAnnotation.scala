@@ -36,7 +36,7 @@ case class PrimCallMark[Exp: Expression, Abs: JoinLattice, Addr: Address, Time: 
 /*
  * Control-flow split due to spurious return: check continuation frame used.
  */
-case class FrameFollowed[Abs : JoinLattice](frame: ConvertableSchemeFrame[Abs, HybridAddress.A, HybridTimestamp.T])
+case class FrameFollowed[Abs : JoinLattice, Addr: Address, Time: Timestamp](frame: ConvertableSchemeFrame[Abs, Addr, Time])
   extends MachineFilterAnnotation {
   override def toString = s"Followed $frame"
 }
@@ -48,14 +48,6 @@ case class KontAddrPopped(oldA: KontAddr, newA: KontAddr)
   extends MachineFilterAnnotation {
   override def toString = s"Popped = $oldA, next = $newA"
 }
-
-/*
- * Pushed a continuation address.
- */
-//case class KontAddrPushed(a: KontAddr)
-//  extends MachineFilterAnnotation {
-//  override def toString = s"Pushed = $a"
-//}
 
 /*
  * State not explored further because it was already subsumed by another state in the graph.

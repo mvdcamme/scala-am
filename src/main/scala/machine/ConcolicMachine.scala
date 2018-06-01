@@ -11,7 +11,7 @@ case class Reached[Addr : Address](addressesReachable: Set[Addr], preciseAddress
   }
 }
 object Reached {
-  def empty[Addr : Address] = Reached[Addr](Set(), Set())
+  def empty[Addr : Address]: Reached[Addr] = Reached[Addr](Set(), Set())
 }
 
 class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElementUsed, NodeExtraInfo](
@@ -20,14 +20,27 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
   val reporter: ScalaAMReporter[PCElementUsed, NodeExtraInfo],
   val concolicFlags: ConcolicRunTimeFlags)
  (implicit unused1: IsSchemeLattice[ConcreteValue])
-  extends EvalKontMachine[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T] with RTAnalysisStarter[NodeExtraInfo] {
+    extends EvalKontMachine[SchemeExp, ConcreteValue, HybridAddress.A, HybridTimestamp.T]
+    with RTAnalysisStarter[AnalysisLauncher[PAbs]#SpecInitState, AnalysisLauncher[PAbs]#SpecState]
+    with AbstractGraphTracker[AnalysisLauncher[PAbs]#SpecState] {
 
   def name = "ConcolicMachine"
 
   private val rtAnalysis = new LaunchAnalyses[PAbs, PCElementUsed](analysisLauncher, reporter)
-  private val semanticsConcolicHelper = new SemanticsConcolicHelper[PCElementUsed, NodeExtraInfo](this, reporter)
+  private val semanticsConcolicHelper: SemanticsConcolicHelper = if (concolicFlags.tryMergePaths) {
+    new MergingSemanticsConcolicHelper[PCElementUsed, analysisLauncher.SpecInitState, analysisLauncher.SpecState](this, this, reporter, concolicFlags)
+  } else {
+    new NoMergingSemanticsConcolicHelper[PCElementUsed, analysisLauncher.SpecInitState, analysisLauncher.SpecState](this, this, reporter, concolicFlags)
+  }
 
   private var currentState: Option[ConcolicMachineState] = None
+  def getCurrentState: ConcolicMachineState = currentState.get
+
+  /* AbstractStateTracker */
+  private var initialStateGraph: Option[Graph[AnalysisLauncher[PAbs]#SpecState, EdgeAnnotation[_, _, HybridAddress.A], _]] = None
+  private var trackAbstractNodes: Option[TrackAbstractNodes[SchemeExp, PAbs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.SpecState]] = None
+  def getInitialStateGraph: Option[Graph[AnalysisLauncher[PAbs]#SpecState, EdgeAnnotation[_, _, HybridAddress.A], _]] = initialStateGraph
+  def getCurrentAbstractStateNode: Option[Set[AnalysisLauncher[PAbs]#SpecState]] = trackAbstractNodes.map(_.getCurrentNodes)
 
   var stepCount: Int = 0
   var currentConcolicRun: Int = 0
@@ -58,7 +71,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
   case object ConcolicIterationTimedOut extends ConcolicIterationOutput
   case class ConcolicIterationErrorEncountered(err: SemanticError) extends ConcolicIterationOutput
 
-  case class StepSucceeded(state: ConcolicMachineState, filters: FilterAnnotations[SchemeExp, ConcreteValue, HybridAddress.A],
+  case class StepSucceeded(state: ConcolicMachineState, filters: FilterAnnotations,
                            actionTs: List[ActionReplay[SchemeExp, ConcreteValue, HybridAddress.A]])
 
   private def handleFunctionCalled(edgeInfo: EdgeInformation[SchemeExp, ConcreteValue, HybridAddress.A]): Unit = {
@@ -72,7 +85,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
 
   def step(state: ConcolicMachineState, sem: ConcolicBaseSchemeSemantics[HybridAddress.A, HybridTimestamp.T, PCElementUsed]): Either[ConcolicIterationOutput, StepSucceeded] = state.control match {
     case ConcolicControlEval(e, env, symEnv) =>
-      val edgeInfo = sem.stepConcolicEval(e, env, symEnv, state.store, state.t)
+      val edgeInfo = sem.stepConcolicEval(e, env, symEnv, state.store, state.t, semanticsConcolicHelper)
       handleFunctionCalled(edgeInfo)
       edgeInfo match {
         case EdgeInformation(ActionConcolicReachedValue(ActionReachedValue(v, store2, _), optionConcolicValue), actions, semanticsFilters) =>
@@ -117,7 +130,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
           edgeInfo match {
             case EdgeInformation(ActionConcolicReachedValue(ActionReachedValue(v, store2, _), optionConcolicValue), actions, semanticsFilters) =>
               val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
-                FrameFollowed[ConcreteValue](originFrameCast))
+                FrameFollowed[ConcreteValue, HybridAddress.A, HybridTimestamp.T](originFrameCast))
               Right(StepSucceeded(ConcolicMachineState(ConcolicControlKont(v, optionConcolicValue), store2, state.kstore, a, Timestamp[HybridTimestamp.T].tick(state.t)),
                 FilterAnnotations(machineFilters, semanticsFilters),
                 actions))
@@ -133,14 +146,14 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
             case EdgeInformation(ActionConcolicEval(ActionEval(e, env, store2, _), symEnv), actions, semanticsFilters) =>
               val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                 EvaluatingExpression(e),
-                FrameFollowed[ConcreteValue](originFrameCast))
+                FrameFollowed[ConcreteValue, HybridAddress.A, HybridTimestamp.T](originFrameCast))
               Right(StepSucceeded(ConcolicMachineState(ConcolicControlEval(e, env, symEnv), store2, state.kstore, a, Timestamp[HybridTimestamp.T].tick(state.t)),
                 FilterAnnotations(machineFilters, semanticsFilters),
                 actions))
             case EdgeInformation(ActionConcolicStepIn(ActionStepIn(fexp, _, e, env, store2, _, _), symEnv), actions, semanticsFilters) =>
               val machineFilters = Set[MachineFilterAnnotation](KontAddrPopped(oldA, a),
                 EvaluatingExpression(e),
-                FrameFollowed[ConcreteValue](originFrameCast))
+                FrameFollowed[ConcreteValue, HybridAddress.A, HybridTimestamp.T](originFrameCast))
               Right(StepSucceeded(ConcolicMachineState(ConcolicControlEval(e, env, symEnv), store2, state.kstore, a, Timestamp[HybridTimestamp.T].tick(state.t, fexp)),
                 FilterAnnotations(machineFilters, semanticsFilters),
                 actions))
@@ -163,7 +176,7 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
     @scala.annotation.tailrec
     def loopOneIteration(state: ConcolicMachineState, start: Long, count: Int, nrOfRuns: Int): ConcolicIterationOutput = {
       currentState = Some(state)
-      Logger.log(s"stepCount: $stepCount", Logger.V)
+      Logger.V(s"stepCount: $stepCount")
       stepCount += 1
 
       if (concolicFlags.endCondition.shouldStop(nrOfRuns)) {
@@ -172,23 +185,27 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
         val stepped = step(state, sem)
         stepped match {
           case Left(output) => output
-          case Right(StepSucceeded(succState, filters, actions)) => loopOneIteration(succState, start, count + 1, nrOfRuns)
+          case Right(StepSucceeded(succState, filters, actions)) =>
+            trackAbstractNodes.foreach(_.computeSuccNodes(ConcolicMachineState.convertFrame[PAbs](_, analysisLauncher.abstSem), filters, nrOfRuns))
+            loopOneIteration(succState, start, count + 1, nrOfRuns)
         }
       }
     }
 
     @scala.annotation.tailrec
-    def loopConcolic(initialState: ConcolicMachineState, nrOfRuns: Int, allInputsUntilNow: List[List[(ConcolicInput, Int)]], allPathConstraints: List[PathConstraintWith[PCElementUsed]]): ConcolicMachineOutput = {
+    def loopConcolic(initialState: ConcolicMachineState, nrOfRuns: Int,
+                     allInputsUntilNow: List[List[(ConcolicInput, Int)]],
+                     allPathConstraints: List[PathConstraintWith[PCElementUsed]]): ConcolicMachineOutput = {
       currentConcolicRun = nrOfRuns
-      def finishUpLoop: Boolean = {
-        Logger.log(s"END CONCOLIC ITERATION $nrOfRuns", Logger.E)
+      def finishUpLoop(shouldMerge: Boolean): Boolean = {
+        Logger.E(s"END CONCOLIC ITERATION $nrOfRuns")
         reporter.printReports()
-        val shouldContinue = reporter.solver.solve(reporter.pathStorage.getCurrentReport)
+        val shouldContinue = reporter.solver.solve(reporter.pathStorage.getCurrentReport, shouldMerge)
         shouldContinue
       }
       def initLoop(): Unit = {
         reporter.inputVariableStore.enableConcolic()
-        Logger.log(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${reporter.solver.getInputs}", Logger.E)
+        Logger.E(s"\n\nSTART CONCOLIC ITERATION $nrOfRuns ${reporter.solver.getInputs}")
         stepCount = 0
         reporter.clear(reporter.solver.getInputs)
         FunctionsCalledMetric.resetConcreteFunctionsCalled()
@@ -203,12 +220,17 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
           concolicIterationResult match {
             case ConcolicIterationTimedOut => Left(ConcolicMachineOutputFinished(allInputsUntilNow, allPathConstraints))
             case ConcolicIterationErrorEncountered(err) =>
-              Logger.log(s"ERROR DETECTED DURING CONCOLIC TESTING: $err", Logger.E)
-              Right(finishUpLoop)
-            case ConcolicIterationNoErrors => Right(finishUpLoop)
+              Logger.E(s"ERROR DETECTED DURING CONCOLIC TESTING: $err")
+              Right(finishUpLoop(false))
+            case ConcolicIterationNoErrors => Right(finishUpLoop(false))
           }
         } catch {
-          case AbortConcolicIterationException => Right(finishUpLoop)
+          case AbortConcolicIterationException => Right(finishUpLoop(false))
+          case MergeExecutionPath =>
+            Logger.E("ABORTING CONCOLIC TESTING: Path should be merged")
+            Right(finishUpLoop(true))
+        } finally {
+          trackAbstractNodes.foreach(_.resetCurrentNodes())
         }
         eitherOutputOrShouldContinue match {
           case Left(output) => output
@@ -227,10 +249,12 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
     val output: ConcolicMachineOutput = if (concolicFlags.checkAnalysis) {
       // Use initial static analysis to detect paths to errors
       val initialAnalysisResult = rtAnalysis.startInitialAnalysis(initialState, programName)
+      initialStateGraph = Some(initialAnalysisResult.graph)
+      trackAbstractNodes = Some(new TrackAbstractNodes[SchemeExp, PAbs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.SpecState](initialAnalysisResult.graph.asInstanceOf[Graph[analysisLauncher.SpecState, EdgeAnnotation[SchemeExp, PAbs, HybridAddress.A], Set[analysisLauncher.SpecState]]]))
       if (initialAnalysisResult.shouldContinueTesting) {
         loopConcolic(initialState, 1, Nil, Nil)
       } else {
-        Logger.log("Concolic testing not started because initial analysis did not report any suitable error states", Logger.E)
+        Logger.E("Concolic testing not started because initial analysis did not report any suitable error states")
         ConcolicMachineTestingNotStarted
       }
     } else {
@@ -247,11 +271,11 @@ class ConcolicMachine[PAbs: IsConvertableLattice: LatticeInfoProvider, PCElement
     bw.close()
   }
 
-  def abstractCurrentState(pathConstraint: PathConstraint): NodeExtraInfo = {
-    analysisLauncher.stateConverter.convertStateAAM(currentState.get, pathConstraint).asInstanceOf[NodeExtraInfo]
+  def abstractCurrentState(pathConstraint: PathConstraint): analysisLauncher.SpecInitState = {
+    analysisLauncher.convertStateAAM(currentState.get, pathConstraint)
   }
 
-  def startAnalysisFromCurrentState(thenBranchTaken: Boolean, pathConstraint: PathConstraint): AnalysisResult = {
+  def startAnalysisFromCurrentState(thenBranchTaken: Boolean, pathConstraint: PathConstraint): AnalysisResult[analysisLauncher.SpecState] = {
     assert(currentState.isDefined)
     rtAnalysis.startRunTimeAnalysis(currentState.get, thenBranchTaken, stepCount, pathConstraint, currentConcolicRun)
   }

@@ -1,9 +1,11 @@
 import scalaz.{Plus => _, _}
 import scalaz.Scalaz._
+
 import SchemeOps._
 import UnaryOperator._
 import BinaryOperator._
 import concolic.SymbolicEnvironment
+import ConcreteConcreteLattice.{L => ConcreteValue}
 
 class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
   type S = Concrete.S
@@ -121,31 +123,6 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
         case Element(v) => reachesValue(v)
         case Elements(vs) => vs.foldLeft(Reached.empty[Addr])((acc, v) => acc ++ reachesValue(v))
       }
-    }
-
-    override def equalModuloTimestamp[Time: CompareTimestampsWithMapping, Addr: Address](a: Value, b: Value, mapping: Mapping[Time]): Option[Mapping[Time]] = (a, b) match {
-      case (Closure(lambda1, env1, _), Closure(lambda2, env2, _)) if lambda1 == lambda2 =>
-        env1.equalModuloTimestamp(env2, mapping)
-      case (Cons(car1: Addr, cdr1: Addr), Cons(car2: Addr, cdr2: Addr)) =>
-        for {
-          carMapping <- implicitly[Address[Addr]].equalModuloTimestamp(car1, car2, mapping)
-          cdrMapping <- implicitly[Address[Addr]].equalModuloTimestamp(cdr1, cdr2, carMapping)
-        } yield {
-          cdrMapping
-        }
-      case (VectorAddress(addr1: Addr), VectorAddress(addr2: Addr)) =>
-        implicitly[Address[Addr]].equalModuloTimestamp(addr1, addr2, mapping)
-      case (Vec(size1, elements1: Map[I, Addr], init1: Addr), Vec(size2, elements2: Map[I, Addr], init2: Addr)) if size1 == size2 && elements1.keys == elements2.keys =>
-        for {
-          initMapping <- implicitly[Address[Addr]].equalModuloTimestamp(init1, init2, mapping)
-          elementsMapping <- elements1.foldLeft[Option[Mapping[Time]]](Some(initMapping))({
-            case (maybeAccMapping, (index1, address1)) =>
-              maybeAccMapping.flatMap(accMapping => elements2.get(index1).flatMap(address2 => implicitly[Address[Addr]].equalModuloTimestamp(address1, address2, accMapping)))
-          })
-        } yield {
-          elementsMapping
-        }
-      case _ => if (a == b) Some (mapping) else None
     }
 
     def bottom = Bot
@@ -698,6 +675,30 @@ class MakeConcreteSchemeLattice extends SchemeConvertableLattice {
       Element(Vec(IntLattice[I].inject(size), newMap, init))
     }
     def injectVectorAddress[Addr: Address](addr: Addr): L = Element(VectorAddress[Addr](addr))
+    override def equalModuloTimestamp[Time: CompareTimestampsWithMapping, Addr: Address](a: L, b: L, shouldCheck: ShouldCheckAddress[Addr], store: Store[Addr, ConcreteValue], otherStore: Store[Addr, ConcreteValue], mapping: Mapping[Time]): Option[Mapping[Time]] = (a, b) match {
+      case (Element(Closure(lambda1, env1: Environment[Addr], _)), Element(Closure(lambda2, env2: Environment[Addr], _))) if lambda1 == lambda2 =>
+        env1.equalModuloTimestamp(env2, shouldCheck, store, otherStore, mapping)
+      case (Element(Cons(car1: Addr, cdr1: Addr)), Element(Cons(car2: Addr, cdr2: Addr))) =>
+        for {
+          carMapping <- implicitly[Address[Addr]].equalModuloTimestamp(car1, car2, mapping)
+          cdrMapping <- implicitly[Address[Addr]].equalModuloTimestamp(cdr1, cdr2, carMapping)
+        } yield {
+          cdrMapping
+        }
+      case (Element(VectorAddress(addr1: Addr)), Element(VectorAddress(addr2: Addr))) =>
+        implicitly[Address[Addr]].equalModuloTimestamp(addr1, addr2, mapping)
+      case (Element(Vec(size1, elements1: Map[I, Addr], init1: Addr)), Element(Vec(size2, elements2: Map[I, Addr], init2: Addr))) if size1 == size2 && elements1.keys == elements2.keys =>
+        for {
+          initMapping <- implicitly[Address[Addr]].equalModuloTimestamp(init1, init2, mapping)
+          elementsMapping <- elements1.foldLeft[Option[Mapping[Time]]](Some(initMapping))({
+            case (maybeAccMapping, (index1, address1)) =>
+              maybeAccMapping.flatMap(accMapping => elements2.get(index1).flatMap(address2 => implicitly[Address[Addr]].equalModuloTimestamp(address1, address2, accMapping)))
+          })
+        } yield {
+          elementsMapping
+        }
+      case _ => if (a == b) Some(mapping) else None
+    }
   }
   val isSchemeLattice: IsConvertableLattice[L] = isConvertableSchemeLattice
   val isJoinLattice: JoinLattice[L] = isConvertableSchemeLattice

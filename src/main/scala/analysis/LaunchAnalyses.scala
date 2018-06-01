@@ -1,7 +1,10 @@
 import backend.PathConstraint
 import backend.path_filtering.PartialRegexMatcher
 
-case class AnalysisResult(partialMatcher: PartialRegexMatcher, containsErrorStates: Boolean, containsUserErrorStates: Boolean) {
+case class AnalysisResult[State](partialMatcher: PartialRegexMatcher,
+  graph: Graph[State, EdgeAnnotation[_, _, HybridAddress.A], _],
+  containsErrorStates: Boolean,
+  containsUserErrorStates: Boolean) {
   def shouldContinueTesting: Boolean = containsUserErrorStates
 }
 
@@ -11,21 +14,23 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider, PCElementUs
 
   private val errorPathDetector = new ErrorPathDetector[SchemeExp, Abs, HybridAddress.A, HybridTimestamp.T, analysisLauncher.SpecState]
 
-  private val analysisResultCache = new AnalysisResultCache[analysisLauncher.stateConverter.aam.InitialState]
+  private val analysisResultCache = new AnalysisResultCache[analysisLauncher.SpecInitState, analysisLauncher.SpecState]
 
-  private def handleAnalysisResult(outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.SpecState], currentConcolicRun: Int): AnalysisResult = {
+  private def handleAnalysisResult(outputGraph: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.SpecState], currentConcolicRun: Int): AnalysisResult[analysisLauncher.SpecState] = {
     GraphDOTOutput.toFile(outputGraph.graph, outputGraph.halted)("rt_graph.dot")
     val maybePartialMatcher = errorPathDetector.detectErrors(outputGraph.graph, outputGraph.stepSwitched, currentConcolicRun)
-    AnalysisResult(maybePartialMatcher.get, outputGraph.errorStates.nonEmpty, outputGraph.errorStates.exists(_.isUserErrorState))
+    AnalysisResult[analysisLauncher.SpecState](maybePartialMatcher.get, outputGraph.graph.asInstanceOf[Graph[analysisLauncher.SpecState, EdgeAnnotation[_, _, HybridAddress.A], _]], outputGraph.errorStates.nonEmpty, outputGraph.errorStates.exists(_.isUserErrorState))
   }
 
-  private def handleInitialAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.SpecState]): AnalysisResult = {
+  private def handleInitialAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.SpecState]): AnalysisResult[analysisLauncher.SpecState] = {
     val maybeAnalysisResult = handleAnalysisResult(result, -1)
     PartialMatcherStore.setInitial(maybeAnalysisResult.partialMatcher)
     maybeAnalysisResult
   }
 
-  private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.SpecState], convertedState: analysisLauncher.stateConverter.aam.InitialState, currentConcolicRun: Int): AnalysisResult = {
+  private def handleRunTimeAnalysisResult(result: AnalysisOutputGraph[SchemeExp, Abs, HybridAddress.A, analysisLauncher.SpecState],
+                                          convertedState: analysisLauncher.SpecInitState,
+                                          currentConcolicRun: Int): AnalysisResult[analysisLauncher.SpecState] = {
     val maybeAnalysisResult = handleAnalysisResult(result, currentConcolicRun)
     analysisResultCache.addAnalysisResult(convertedState, maybeAnalysisResult)
     maybeAnalysisResult
@@ -37,16 +42,16 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider, PCElementUs
     * @param state
     */
   def startRunTimeAnalysis(state: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T],
-                           thenBranchTaken: Boolean, stepCount: Int, pathConstraint: PathConstraint, currentConcolicRun: Int): AnalysisResult = {
-    Logger.log("Starting run-time analysis", Logger.E)
+                           thenBranchTaken: Boolean, stepCount: Int, pathConstraint: PathConstraint, currentConcolicRun: Int): AnalysisResult[analysisLauncher.SpecState] = {
+    Logger.E("Starting run-time analysis")
     reporter.inputVariableStore.disableConcolic()
     val currentAddresses: Set[HybridAddress.A] = state.addressesReachable
-    val addressConverter = new DefaultHybridAddressConverter[SchemeExp]
+    val addressConverter = DefaultHybridAddressConverter
     val convertedCurrentAddresses = currentAddresses.map(addressConverter.convertAddress)
     val convertedState = analysisLauncher.stateConverter.convertStateAAM(state, pathConstraint)
     val analysisResult = analysisResultCache.getAnalysisResult(convertedState) match {
       case Some(cachedAnalysisResult) =>
-        Logger.log("Retrieving analysis result from cache", Logger.E)
+        Logger.E("Retrieving analysis result from cache")
         cachedAnalysisResult
       case None =>
         val result = analysisLauncher.runStaticAnalysis(state, Some(stepCount), convertedCurrentAddresses, pathConstraint)
@@ -69,7 +74,7 @@ class LaunchAnalyses[Abs: IsConvertableLattice: LatticeInfoProvider, PCElementUs
   }
 
   def startInitialAnalysis(initialState: ConvertableProgramState[SchemeExp, HybridAddress.A, HybridTimestamp.T],
-                           programName: String): AnalysisResult = {
+                           programName: String): AnalysisResult[analysisLauncher.SpecState] = {
     reporter.inputVariableStore.disableConcolic()
     val analysisResult = analysisLauncher.runInitialStaticAnalysis(initialState, programName)
     val result = handleInitialAnalysisResult(analysisResult)

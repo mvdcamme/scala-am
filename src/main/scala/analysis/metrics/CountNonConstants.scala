@@ -88,7 +88,7 @@
 //      val analysisMetrics = values.foldLeft(MetricsToWrite.init)({
 //        case (metrics, (a, value)) => pointsTo(value) match {
 //          case Some(x) =>
-//            if (x <= 0) Logger.log(s"Value $value of address $a points to $x separate values", Logger.I)
+//            if (x <= 0) Logger.I(s"Value $value of address $a points to $x separate values")
 //            metrics.addNonTop(x)
 //          case None =>
 //            metrics.addTop
@@ -114,7 +114,7 @@
 //    val outputFileName = inputProgramName.replace('/', '_')
 //    val path = s"$directoryPath$outputFileName.txt"
 //    val output = s"$stepSwitched;" + metrics.toCSVRow
-//    Logger.log(output, Logger.I)
+//    Logger.I(output)
 //    val file = new File(path)
 //    val bw = new BufferedWriter(new FileWriter(file, true))
 //    bw.write(output ++ "\n")

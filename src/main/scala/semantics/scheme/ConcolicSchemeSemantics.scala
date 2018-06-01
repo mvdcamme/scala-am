@@ -244,7 +244,8 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp: CompareTimes
   }
 
   def stepConcolicEval(e: SchemeExp, env: Environment[Addr], symEnv: SymbolicEnvironment,
-                       store: Store[Addr, ConcreteValue], t: Time): EdgeInformation[SchemeExp, ConcreteValue, Addr] = e match { // Cases in stepEval shouldn't generate any splits in abstract graph
+                       store: Store[Addr, ConcreteValue], t: Time,
+                       concolicHelper: SemanticsConcolicHelper): EdgeInformation[SchemeExp, ConcreteValue, Addr] = e match { // Cases in stepEval shouldn't generate any splits in abstract graph
     case λ: SchemeLambda =>
       val action = ActionConcolicReachedValue(ActionReachedValue[SchemeExp, ConcreteValue, Addr](sabs.inject[SchemeExp, Addr]((λ, env), Some(symEnv)), store), None)
       val actionEdge = List(ActionCreateClosureT[SchemeExp, ConcreteValue, Addr](λ, Some(env)))
@@ -366,7 +367,7 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp: CompareTimes
 
   def stepConcolicKont(v: ConcreteValue, concolicValue: Option[ConcolicExpression],
                        frame: SchemeConcolicFrame[ConcreteValue, Addr, Time], store: Store[Addr, ConcreteValue],
-                       t: Time, concolicHelper: SemanticsConcolicHelper[PCElementUsed, _]) = frame match {
+                       t: Time, concolicHelper: SemanticsConcolicHelper) = frame match {
       case frame: FrameConcolicFuncallOperator[ConcreteValue, Addr, Time] =>
         funcallArgs(v, concolicValue, frame, frame.fexp, frame.args, frame.env, frame.symEnv, store, t)
       case frame: FrameConcolicFuncallOperands[ConcreteValue, Addr, Time] =>
@@ -374,6 +375,14 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp: CompareTimes
                     frame.toeval, frame.env, frame.symEnv, store, t, v, concolicValue)
       case frame: FrameConcolicIf[ConcreteValue, Addr, Time] =>
         concolicHelper.handleIf(concolicValue, sabs.isTrue(v))
+        concolicValue match {
+          case None =>
+          case Some(ifPredSymbolicValue) =>
+            val isConstant = ConstraintOptimizer.isExpressionConstant(ifPredSymbolicValue)
+            if (! isConstant) {
+              concolicHelper.tryMerge(frame.ifExp)
+            }
+        }
         conditional(v,
                     addEvalActionT(ActionConcolicEval(ActionEval(frame.cons, frame.env, store), frame.symEnv)),
                     addEvalActionT(ActionConcolicEval(ActionEval(frame.alt, frame.env, store), frame.symEnv)))

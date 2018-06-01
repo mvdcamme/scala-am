@@ -109,9 +109,9 @@
 //        })
 //        result
 //      })
-//      Logger.log(s"FilterWithKStore: closuresToBeCalled = $closuresToBeCalled", Logger.D)
-//      Logger.log(s"FilterWithKStore: edges = $edges", Logger.D)
-//      Logger.log(s"FilterWithKStore: ${filteredEdgesWith ++ edgesWithout}", Logger.D)
+//      Logger.D(s"FilterWithKStore: closuresToBeCalled = $closuresToBeCalled")
+//      Logger.D(s"FilterWithKStore: edges = $edges")
+//      Logger.D(s"FilterWithKStore: ${filteredEdgesWith ++ edgesWithout}")
 //      filteredEdgesWith ++ edgesWithout
 //    }
 //  }

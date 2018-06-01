@@ -894,10 +894,10 @@ class SchemeDesugarer {
              * by users with a unique id.
              */
             val tempVarName = SchemeUniqueVarNamer.newVarName()
-            val body: SchemeExp = ConcolicTestingSchemeInstrumenter.instrumentIf(SchemeIf(SchemeVar(Identifier(tempVarName, pos)),
-                                                                                 SchemeVar(Identifier(tempVarName, pos)),
-                                                                                 desugarExp(SchemeOr(rest, orExp.pos)),
-                                                                                 pos))
+            val body: SchemeExp = SchemeIf(SchemeVar(Identifier(tempVarName, pos)),
+                                           SchemeVar(Identifier(tempVarName, pos)),
+                                           desugarExp(SchemeOr(rest, orExp.pos)),
+                                           pos)
             SchemeLet(List((Identifier(tempVarName, orExp.pos), desugarExp(orExp))), List(body), pos)
         }
       case SchemeCond(clauses, pos) =>
@@ -912,10 +912,7 @@ class SchemeDesugarer {
             }
             desugarExp(cond) match {
               case SchemeVar(Identifier("else", pos)) =>
-                ConcolicTestingSchemeInstrumenter.instrumentIf(SchemeIf(SchemeValue(ValueBoolean(true), pos),
-                                                               desugaredBody,
-                                                               desugaredRest,
-                                                               pos))
+                SchemeIf(SchemeValue(ValueBoolean(true), pos), desugaredBody, desugaredRest, pos)
               case other =>
                 ConcolicTestingSchemeInstrumenter.instrumentIf(SchemeIf(other, desugaredBody, desugaredRest, other.pos))
             }

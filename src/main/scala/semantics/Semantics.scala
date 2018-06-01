@@ -279,9 +279,11 @@ case class EffectRelease[Addr: Address](target: Addr) extends Effect[Addr] {
  */
 abstract class Action[Exp : Expression, Abs : JoinLattice, Addr : Address] {
   def addEffects(effects: Set[Effect[Addr]]): Action[Exp, Abs, Addr]
+  def effects: Set[Effect[Addr]]
 }
 sealed abstract class ActionConcolic[Exp : Expression, Abs : JoinLattice, Addr : Address] extends Action[Exp, Abs, Addr] {
   def normalAction: Action[Exp, Abs, Addr]
+  def effects: Set[Effect[Addr]] = normalAction.effects
 }
 class ActionHelpers[Exp : Expression, Abs : JoinLattice, Addr : Address] {
   type Effs = Set[Effect[Addr]]
@@ -388,6 +390,7 @@ case class ActionConcolicStepIn[Exp: Expression, Abs: JoinLattice, Addr: Address
 case class ActionError[Exp : Expression, Abs : JoinLattice, Addr : Address]
   (error: SemanticError) extends Action[Exp, Abs, Addr] {
   def addEffects(effs: Set[Effect[Addr]]) = this /* no effects stored in this action */
+  def effects: Set[Effect[Addr]] = Set()
 }
 case class ActionConcolicError[Exp : Expression, Abs : JoinLattice, Addr : Address](
   normalAction: ActionError[Exp, Abs, Addr])
