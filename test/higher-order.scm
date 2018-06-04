@@ -9,7 +9,7 @@
       (foldl g (g acc (car list)) (cdr list))))
 
 (define (add1 a)
-  (+ a 1))
+  (+ a 5000))
 (define (double b)
   (* b 2))
 (define (add c d)
@@ -17,9 +17,11 @@
 (define (mult e f)
   (* e f))
 
-(define l1 '(0 1 2 3 4 5))
+(define l1 (cons 0 (cons 1 (cons (random 1) (cons 3 (cons 4 (cons 5 '())))))))
 (define l2 (map add1 l1))
 (define fact6 (foldl mult 1 l2))
-(display fact6)
 (define l3 (map double l1))
 (define l4 (map add1 l3))
+(define x (foldl err 0 l4)) 
+(if (> fact6 5000)
+    (error "above 5000"))

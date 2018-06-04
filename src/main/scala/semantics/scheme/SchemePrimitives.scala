@@ -502,7 +502,14 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice](val maybeInputVari
   }
   object Gcd extends Gcd
   class Nullp extends NoStoreOperation("null?", Some(1)) {
-    override def call(x: Arg) = isNull(x._1)
+    override def call(x: Arg) = {
+      val maybeConcolicValue = x._2 match {
+        case Some(concolic.ConcolicNil) => Some(ConcolicBool(true))
+        case Some(_) => Some(ConcolicBool(false))
+        case _ => None
+      }
+      (isNull(x._1), maybeConcolicValue)
+    }
     def convert[Addr: Address, Abs: IsConvertableLattice](prims: SchemePrimitives[Addr, Abs]): Primitive[Addr, Abs] =
       prims.Nullp
   }
@@ -665,12 +672,8 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice](val maybeInputVari
         val symbolicAddress: Option[ConcolicAddress] = for {
           symbolicCarValue <- symbolicCar
           symbolicCdrValue <- symbolicCdr
-          fields = Map("car" -> symbolicCarValue, "cdr" -> symbolicCdrValue)
-          symbolicObject = ConcolicObject(name, fields)
-          symbolicAddress = ConcolicIdGenerator.newConcolicAddress
         } yield {
-          GlobalSymbolicStore.extendStore(symbolicAddress, symbolicObject)
-          symbolicAddress
+          concolic.addPair(symbolicCarValue, symbolicCdrValue)
         }
 
         (MayFailSuccess((abs.cons(cara, cdra), store.extend(cara, car).extend(cdra, cdr), Set())), symbolicAddress)
@@ -733,7 +736,6 @@ class SchemePrimitives[Addr : Address, Abs : IsSchemeLattice](val maybeInputVari
               assert(false, s"Address $symbolicAddress not found in symbolic store")
               None
             case Some(symbolicObject) =>
-              println(s"Got result $result")
               spec.head match {
                 case Car => symbolicObject.fields.get("car")
                 case Cdr => symbolicObject.fields.get("cdr")

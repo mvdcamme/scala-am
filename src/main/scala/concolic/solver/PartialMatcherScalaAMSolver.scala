@@ -51,9 +51,7 @@ class PartialMatcherSolver extends ScalaAMSolver[PartialMatcherPCElement, Partia
 }
 
 class MockPartialMatcherSolver extends PartialMatcherSolver {
-
   private var mockInputs: List[List[(ConcolicInput, Int)]] = List(List((ConcolicInput(0), 2), (ConcolicInput(1), 1), (ConcolicInput(2), 0)), List((ConcolicInput(0), 0), (ConcolicInput(1), 1), (ConcolicInput(2), 2)))
-
   override def solve(pathConstraint: PathConstraintWithMatchers, shouldMerge: Boolean): Boolean = mockInputs match {
     case head :: rest =>
       latestInputs = head

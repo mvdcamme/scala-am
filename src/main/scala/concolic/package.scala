@@ -1,6 +1,5 @@
-import scala.collection.mutable.{ Map => MutMap }
-
-import backend.expression.ConcolicExpression
+import scala.collection.mutable.{Map => MutMap}
+import backend.expression.{ConcolicAddress, ConcolicExpression, ConcolicIdGenerator, ConcolicObject}
 
 package object concolic {
 
@@ -52,6 +51,15 @@ package object concolic {
       case Nil => Nil
     }
     loopEnv(env)
+  }
+
+  case object ConcolicNil extends ConcolicExpression
+  def addPair(symbolicCar: ConcolicExpression, symbolicCdr: ConcolicExpression): ConcolicAddress = {
+    val fields = Map("car" -> symbolicCar, "cdr" -> symbolicCdr)
+    val symbolicObject = ConcolicObject("cons", fields)
+    val symbolicAddress = ConcolicIdGenerator.newConcolicAddress
+    GlobalSymbolicStore.extendStore(symbolicAddress, symbolicObject)
+    symbolicAddress
   }
 
 }

@@ -208,33 +208,39 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp: CompareTimes
     }
   }
 
-  protected def evalQuoted(exp: SExp,
-                           store: Store[Addr, ConcreteValue],
-                           t: Time): (ConcreteValue, Store[Addr, ConcreteValue], List[StoreChangeSemantics[ConcreteValue, Addr]]) = exp
+  protected def evalQuoted(exp: SExp, store: Store[Addr, ConcreteValue],
+                           t: Time): (ConcreteValue, Option[ConcolicExpression], Store[Addr, ConcreteValue], List[StoreChangeSemantics[ConcreteValue, Addr]]) = exp
   match {
-    case SExpId(Identifier(sym, _)) => (sabs.injectSymbol(sym), store, Nil)
+    case SExpId(Identifier(sym, _)) => (sabs.injectSymbol(sym), None, store, Nil)
     case SExpPair(car, cdr, _) => {
       val care: SchemeExp = SchemeVar(Identifier(car.toString, car.pos))
       val cdre: SchemeExp = SchemeVar(Identifier(cdr.toString, cdr.pos))
       val cara = Address[Addr].cell(care, t)
-      val (carv, store2, stateChangesCar) = evalQuoted(car, store, t)
+      val (carv, maybeSymbolicCar, store2, stateChangesCar) = evalQuoted(car, store, t)
       val cdra = Address[Addr].cell(cdre, t)
-      val (cdrv, store3, stateChangesCdr) = evalQuoted(cdr, store2, t)
-      (sabs.cons(cara, cdra), store3.extend(cara, carv).extend(cdra, cdrv),
+      val (cdrv, maybeSymbolicCdr, store3, stateChangesCdr) = evalQuoted(cdr, store2, t)
+      val symbolicCons = for {
+        symbolicCar <- maybeSymbolicCar
+        symbolicCdr <- maybeSymbolicCdr
+      } yield {
+        concolic.addPair(symbolicCar, symbolicCdr)
+      }
+      (sabs.cons(cara, cdra), symbolicCons, store3.extend(cara, carv).extend(cdra, cdrv),
        List(StoreExtendSemantics[ConcreteValue, Addr](cara, carv), StoreExtendSemantics[ConcreteValue, Addr](cdra, cdrv)) ++
          stateChangesCar ++
          stateChangesCdr)
     }
     case SExpValue(v, _) =>
-      (v match {
-        case ValueString(str) => sabs.inject(str)
-        case ValueCharacter(c) => sabs.inject(c)
-        case ValueSymbol(sym) => sabs.injectSymbol(sym) /* shouldn't happen */
-        case ValueInteger(n) => sabs.inject(n)
-        case ValueReal(n) => sabs.inject(n)
-        case ValueBoolean(b) => sabs.inject(b)
-        case ValueNil => sabs.nil
-      }, store, Nil)
+      val (value, maybeConcolicExp) = v match {
+        case ValueString(str) => (sabs.inject(str), None)
+        case ValueCharacter(c) => (sabs.inject(c), None)
+        case ValueSymbol(sym) => (sabs.injectSymbol(sym), None) /* shouldn't happen */
+        case ValueInteger(n) => (sabs.inject(n), Some(ConcolicInt(n)))
+        case ValueReal(n) => (sabs.inject(n), None)
+        case ValueBoolean(b) => (sabs.inject(b), Some(ConcolicBool(b)))
+        case ValueNil => (sabs.nil, Some(concolic.ConcolicNil))
+      }
+      (value, maybeConcolicExp, store, Nil)
     case SExpQuoted(q, pos) =>
       evalQuoted(SExpPair(SExpId(Identifier("quote", pos)),
                           SExpPair(q, SExpValue(ValueNil, pos), pos),
@@ -341,8 +347,8 @@ class ConcolicBaseSchemeSemantics[Addr : Address, Time : Timestamp: CompareTimes
       }
     case SchemeQuoted(quoted, _) =>
       evalQuoted(quoted, store, t) match {
-        case (value, store2, storeChanges) =>
-          val action = ActionConcolicReachedValue(ActionReachedValue[SchemeExp, ConcreteValue, Addr](value, store2), None)
+        case (value, maybeConcolicValue, store2, storeChanges) =>
+          val action = ActionConcolicReachedValue(ActionReachedValue[SchemeExp, ConcreteValue, Addr](value, store2), maybeConcolicValue)
           val actionEdges = List(ActionReachedValueT[SchemeExp, ConcreteValue, Addr](value, storeChanges = storeChanges))
           noEdgeInfos(action, actionEdges)
       }
